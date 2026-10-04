@@ -598,8 +598,9 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     comp = _component_cfg(state, sb.worktree)
     attempt = len(state.fix_attempts) + 1
     base = f"v{issue.last_version}"
-    # Every attempt (and a resumed run) starts from the release; ignored dirs (node_modules…) survive.
-    subprocess.run(["git", "reset", "-q", "--hard"], cwd=sb.worktree, check=False)
+    # Every attempt (and a resumed run) starts from the release tag, not the branch head: after a PR
+    # the bot branch holds the previous fix commit. Ignored dirs (node_modules…) survive.
+    subprocess.run(["git", "reset", "-q", "--hard", base], cwd=sb.worktree, check=True)
     subprocess.run(["git", "clean", "-qfd"], cwd=sb.worktree, check=False)
     if attempt == 1:
         res = sb.install(str(comp["setup"]), workdir=issue.component)

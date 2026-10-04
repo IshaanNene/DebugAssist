@@ -1,8 +1,8 @@
-"""LLM baseline decider: the same questions answered by gpt-oss-120b with verbalised probabilities.
+"""LLM baseline decider: the same questions answered by the configured LLM with verbalised probabilities.
 
-Uses Typesafe's ``system-one-adapter`` (OpenAI-compatible provider pointed at OpenRouter). This is
-ablation (1) "no Clef" and the circuit-breaker fallback. gpt-oss-120b is text-only, so images are
-dropped (and the drop is reported via ``last_note``).
+Uses Typesafe's ``system-one-adapter`` with an OpenAI-compatible provider pointed at GroqCloud or
+OpenRouter. This is ablation (1) "no Clef" and the circuit-breaker fallback. The default models are
+text-only, so images are dropped (and the drop is reported via ``last_note``).
 """
 
 from __future__ import annotations
@@ -23,34 +23,39 @@ from system_one_adapter.providers.openai import (  # pyright: ignore[reportPriva
 )
 from typesafe_sdk import TypeSafeError
 
-from debugassist.core.openrouter import model_info
-from debugassist.core.settings import Mode, Settings
+from debugassist.core.llm_models import model_info
+from debugassist.core.settings import LLMProvider, Mode, Settings
 from debugassist.decisions.schema import ClefRequest, ClefResponse, ClefTransientError, Usage
 
 
-class OpenRouterProvider(AsyncOpenAIProvider):
-    """Chat Completions on OpenRouter with pinned hosts, low reasoning effort and a token cap.
+def extra_body(
+    provider: LLMProvider, provider_order: list[str], reasoning_effort: str | None
+) -> dict[str, Any]:
+    """Provider-specific request fields.
 
-    Default routing sometimes lands on hosts whose gpt-oss structured output degenerates into
-    whitespace; requiring every parameter and pinning tested hosts avoids that (PLAN.md A1).
+    OpenRouter: default routing sometimes lands on hosts whose gpt-oss structured output degenerates
+    into whitespace; requiring every parameter and pinning tested hosts avoids that (PLAN.md A1).
+    GroqCloud takes `reasoning_effort` as a top-level field.
     """
+    if provider == "groq":
+        return {"reasoning_effort": reasoning_effort} if reasoning_effort else {}
+    body: dict[str, Any] = {
+        "provider": {"require_parameters": True, "allow_fallbacks": True}
+        | ({"order": provider_order} if provider_order else {})
+    }
+    if reasoning_effort:
+        body["reasoning"] = {"effort": reasoning_effort}
+    return body
+
+
+class CompatProvider(AsyncOpenAIProvider):
+    """Chat Completions on an OpenAI-compatible endpoint with provider fields and a token cap."""
 
     def __init__(
-        self,
-        model_name: str,
-        *,
-        base_url: str,
-        api_key: str,
-        provider_order: list[str],
-        reasoning_effort: str = "low",
-        max_tokens: int = 2000,
+        self, model_name: str, *, base_url: str, api_key: str, body: dict[str, Any], max_tokens: int = 2000
     ) -> None:
         super().__init__(model_name, base_url=base_url, api_key=api_key, api="chat_completions")
-        self._extra_body: dict[str, Any] = {
-            "provider": {"require_parameters": True, "allow_fallbacks": True}
-            | ({"order": provider_order} if provider_order else {}),
-            "reasoning": {"effort": reasoning_effort},
-        }
+        self._extra_body = body
         self._max_tokens = max_tokens
 
     @override
@@ -95,18 +100,18 @@ class LLMDecider:
         provider_order: list[str],
         price_in_per_mtok: float,
         price_out_per_mtok: float,
-        reasoning_effort: str = "low",
+        reasoning_effort: str | None = "low",
         structured_outputs: bool = True,
+        provider_name: LLMProvider = "openrouter",
     ) -> None:
         self.model = model
         self._price_in = price_in_per_mtok
         self._price_out = price_out_per_mtok
-        provider = OpenRouterProvider(
+        provider = CompatProvider(
             model,
             base_url=base_url,
             api_key=api_key,
-            provider_order=provider_order,
-            reasoning_effort=reasoning_effort,
+            body=extra_body(provider_name, provider_order, reasoning_effort),
         )
         self._provider = provider
         self._client = AsyncSystemOneAdapterClient(
@@ -120,17 +125,23 @@ class LLMDecider:
 
     @classmethod
     def from_settings(cls, settings: Settings) -> LLMDecider:
-        if settings.open_router_api_key is None:
-            raise ValueError("OPEN_ROUTER_API_KEY is required for the LLM decider")
+        key = settings.llm_api_key()
+        if key is None:
+            raise ValueError(
+                f"an API key for LLM provider {settings.provider()!r} is required for the LLM decider"
+            )
         prices = settings.llm_prices()
+        info = model_info(settings.model(), settings.provider())
         return cls(
-            model=settings.llm_model,
-            base_url=settings.openrouter_base_url,
-            api_key=settings.open_router_api_key.get_secret_value(),
+            model=settings.model(),
+            base_url=settings.llm_base_url(),
+            api_key=key.get_secret_value(),
             provider_order=settings.provider_order(),
             price_in_per_mtok=prices[0],
             price_out_per_mtok=prices[1],
-            structured_outputs=model_info(settings.llm_model).structured_outputs,
+            reasoning_effort="low" if "reasoning_effort" in info.supported_parameters else None,
+            structured_outputs=info.structured_outputs,
+            provider_name=settings.provider(),
         )
 
     async def run(self, request: ClefRequest) -> ClefResponse:

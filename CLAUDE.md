@@ -3,7 +3,7 @@
 Read `docs/SPEC.md` (requirements, verbatim) and `docs/PLAN.md` (§0 amendments override the spec) at the start of every phase. Progress lives in `docs/PROGRESS.md`; design decisions in `docs/adr/`.
 
 ## Non-negotiables
-- **LLM = OpenRouter only** (OpenAI-compatible API). The default model is `nvidia/nemotron-3-ultra-550b-a55b:free` (PLAN A11), with `openai/gpt-oss-120b` once credits exist. The model is set by `LLM_MODEL`; capabilities come from `core.openrouter.model_info`. Never add Anthropic/Claude SDK calls (PLAN A1).
+- **LLM = OpenAI-compatible providers: GroqCloud (default when `GROQ_CLOUD_API` is set; `openai/gpt-oss-120b`, free plan: 8K tokens/min, 200K/day) or OpenRouter** (PLAN A11–A12, ADR 0007). `LLM_PROVIDER` / `LLM_MODEL` / `LLM_MAX_REQUEST_TOKENS`; capabilities come from `core.llm_models.model_info`. Never add Anthropic/Claude SDK calls (PLAN A1).
 - **Clef decides, the LLM reasons/writes code, deterministic code acts.** Clef output never triggers a write directly — it goes through a policy YAML and the write-policy gate.
 - **The plan is fixed in code.** LLMs never choose the next graph node.
 - **Mock mode everywhere.** Every external integration has a mock; CI has no secrets. Mode resolution: `debugassist.core.settings.Settings.mode()`.

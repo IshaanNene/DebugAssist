@@ -10,9 +10,18 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+LLMProvider = Literal["groq", "openrouter"]
+# Best free choice per provider (2026-10-04): gpt-oss-120b on GroqCloud's free plan (tools, strict
+# structured outputs, reasoning effort); Nemotron 3 Ultra free on OpenRouter (no credits needed).
+DEFAULT_MODELS: dict[LLMProvider, str] = {
+    "groq": "openai/gpt-oss-120b",
+    "openrouter": "nvidia/nemotron-3-ultra-550b-a55b:free",
+}
 
 
 class Mode(StrEnum):
@@ -32,28 +41,58 @@ class Integration(StrEnum):
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # LLM reasoning: OpenRouter, OpenAI-compatible API (PLAN.md amendment A1).
+    # LLM reasoning over OpenAI-compatible APIs: GroqCloud or OpenRouter (PLAN.md A1, A11, A12).
+    # LLM_PROVIDER picks one explicitly; otherwise GroqCloud when its key is set, else OpenRouter.
+    llm_provider: LLMProvider | None = None
+    groq_api_key: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("groq_cloud_api", "groq_api_key")
+    )
+    groq_base_url: str = "https://api.groq.com/openai/v1"
     open_router_api_key: SecretStr | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    llm_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
-    # Host pinning (see provider_order): gpt-oss structured output degenerates on some hosts under
-    # default routing, so it is pinned to hosts that passed our check (2026-10-04). Other models route freely. Set OPENROUTER_PROVIDER_ORDER to override for every model.
+    # Default model per provider (DEFAULT_MODELS) unless LLM_MODEL is set.
+    llm_model: str | None = None
+    # Upper bound on tokens per model request (prompt + tools + history). Groq's free plan allows
+    # 8K tokens per minute per model, so requests are held under it; 0 disables. See runner.
+    llm_max_request_tokens: int | None = None
+    # OpenRouter host pinning (see provider_order): gpt-oss structured output degenerates on some
+    # hosts under default routing (2026-10-04). OPENROUTER_PROVIDER_ORDER overrides for every model.
     openrouter_provider_order: list[str] | None = None
-    # Prices default to OpenRouter's published pricing for llm_model (see core.openrouter).
+    # Prices default to the provider's published pricing for the model (core.llm_models).
     llm_price_in_per_mtok: float | None = None
     llm_price_out_per_mtok: float | None = None
 
+    def provider(self) -> LLMProvider:
+        if self.llm_provider is not None:
+            return self.llm_provider
+        return "groq" if self.groq_api_key is not None else "openrouter"
+
+    def model(self) -> str:
+        return self.llm_model or DEFAULT_MODELS[self.provider()]
+
+    def llm_base_url(self) -> str:
+        return self.groq_base_url if self.provider() == "groq" else self.openrouter_base_url
+
+    def llm_api_key(self) -> SecretStr | None:
+        return self.groq_api_key if self.provider() == "groq" else self.open_router_api_key
+
+    def request_token_budget(self) -> int | None:
+        if self.llm_max_request_tokens is not None:
+            return self.llm_max_request_tokens or None
+        return 7_000 if self.provider() == "groq" else None
+
     def provider_order(self, model: str | None = None) -> list[str]:
+        """OpenRouter only: which upstream hosts to try, in order."""
         if self.openrouter_provider_order is not None:
             return self.openrouter_provider_order
-        if (model or self.llm_model).startswith("openai/gpt-oss"):
+        if (model or self.model()).startswith("openai/gpt-oss"):
             return ["groq", "cerebras", "crusoe", "deepinfra"]
         return []
 
     def llm_prices(self, model: str | None = None) -> tuple[float, float]:
-        from debugassist.core.openrouter import model_info
+        from debugassist.core.llm_models import model_info
 
-        info = model_info(model or self.llm_model)
+        info = model_info(model or self.model(), self.provider())
         return (
             self.llm_price_in_per_mtok if self.llm_price_in_per_mtok is not None else info.price_in_per_mtok,
             self.llm_price_out_per_mtok
@@ -87,7 +126,7 @@ class Settings(BaseSettings):
     def _has_credentials(self, integration: Integration) -> bool:
         match integration:
             case Integration.LLM:
-                return self.open_router_api_key is not None
+                return self.llm_api_key() is not None
             case Integration.CLEF:
                 return self.cloudflare_account_id is not None and self.cloudflare_api_key is not None
             case Integration.GITHUB:

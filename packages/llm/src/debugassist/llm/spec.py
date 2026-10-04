@@ -13,7 +13,7 @@ class LLMNodeSpec(BaseModel):
     """Per-node configuration (from the agent type; the plan itself is fixed in code)."""
 
     node: str
-    model: str = Field(default_factory=lambda: get_settings().llm_model)
+    model: str = Field(default_factory=lambda: get_settings().model())
     reasoning_effort: Effort = "medium"
     max_turns: int = 20  # model calls — the main guardrail (talk: past ~20 turns it's a rabbit hole)
     max_tool_calls: int = 40
