@@ -122,9 +122,10 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Draft PR https://github.com/IshaanNene/miniride-client/pull/1 and Jira SCRUM-6 (In Review, PR linked).
 - Mock mode: the same scenario end to end in 32 s with no keys.
 
-**Not done yet**
-- PR #1's CI fails lint: the generated test has two unused imports. Validation did not run the repository's CI checks; it now does (and so do the reproduce/fix submit checks), but the re-run that would update PR #1 hit the free tier's 50 requests/day. Re-run after the reset: `debugassist run VIT-1001 --llm live --resume 20261004-090058-vit-1001 --from-node fix`.
-- Run screenshots (08–14) wait for that green run; system screenshots 01–07 are in `docs/screenshots/`.
+**Done since (2026-10-04 evening)**
+- Re-run on paid Nemotron 3 Ultra (OpenRouter) from the fix step: reproduction test fails on v1.6.1 with the production error, fix passes it, suite and the repo's lint/typecheck pass; the ship gate chose a ready PR. PR #1 now passes the target repo's CI (`client`, GitGuardian). That final run: $0.18, about 6 minutes end to end.
+- Live agent progress and a watchdog (time limit per step, repeated-call detection, logged retries); the reproduction rule requires the production error (timeouts rejected); the fix step may repair a broken test while every check re-proves the contract.
+- Run screenshots 08–18 (report, PR, diff, checks, Jira) in `docs/screenshots/`.
 
 **GroqCloud (added 2026-10-04, PLAN A12 / ADR 0007)**
 - Works live on the free plan: agent tool calls, strict structured extraction and LLM-decider decisions with `openai/gpt-oss-120b`.

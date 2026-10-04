@@ -34,6 +34,62 @@
       "section": "2 \u00b7 Where bugs come from",
       "caption": "Unleash: the notif_router_v2 feature flag on a 5% gradual rollout, the flag behind the crash",
       "at": "2026-10-04 10:12 UTC"
+    },
+    "08-cli-run.png": {
+      "section": "3 \u00b7 One command, end to end",
+      "caption": "End-of-run summary of the live run: validation passed, the repo's CI checks passed, ship gate chose a ready PR",
+      "at": "2026-10-04 16:57 UTC"
+    },
+    "09-run-report-overview.png": {
+      "section": "4 \u00b7 What happened inside the run",
+      "caption": "Run report: outcome, validation, time per step, LLM usage and the Cloudflare Clef decisions (D01, D05, D11, D15, D16)",
+      "at": "2026-10-04 16:57 UTC"
+    },
+    "10-run-report-root-cause.png": {
+      "section": "4 \u00b7 What happened inside the run",
+      "caption": "Root cause with eight claims, each citing collected evidence, and the timeline back to commit d1f5020",
+      "at": "2026-10-04 16:57 UTC"
+    },
+    "11-run-report-evidence.png": {
+      "section": "4 \u00b7 What happened inside the run",
+      "caption": "Evidence from the MCP servers and the flag \u2194 crash z-test behind the (dry-run) rollback",
+      "at": "2026-10-04 16:57 UTC"
+    },
+    "12-run-report-fix.png": {
+      "section": "4 \u00b7 What happened inside the run",
+      "caption": "The reproduction test and the one-line fix",
+      "at": "2026-10-04 16:57 UTC"
+    },
+    "13-run-report-validation.png": {
+      "section": "4 \u00b7 What happened inside the run",
+      "caption": "Validation proof: fails on the release, passes with the fix, suite and lint/typecheck pass; audited writes; LLM usage",
+      "at": "2026-10-04 16:57 UTC"
+    },
+    "14-run-report-jira.png": {
+      "section": "4 \u00b7 What happened inside the run",
+      "caption": "The Jira ticket as Jira holds it, read back by the report",
+      "at": "2026-10-04 16:57 UTC"
+    },
+    "15-github-pr.png": {
+      "section": "5 \u00b7 The pull request it opened",
+      "caption": "The pull request DebugAssist opened against release/1.6.1, with summary, root cause and evidence",
+      "at": "2026-10-04 16:57 UTC"
+    },
+    "16-github-pr-diff.png": {
+      "section": "5 \u00b7 The pull request it opened",
+      "caption": "Files changed: `await whenHydrated();` in routeV2 and the regression test",
+      "at": "2026-10-04 16:57 UTC"
+    },
+    "17-github-pr-checks.png": {
+      "section": "5 \u00b7 The pull request it opened",
+      "caption": "The target repository's own CI on the PR: all checks passed",
+      "at": "2026-10-04 16:57 UTC"
+    },
+    "18-jira-ticket.png": {
+      "section": "6 \u00b7 The ticket it filed",
+      "caption": "Jira SCRUM-6: filed at triage with the symbolicated stack and triage, PR linked; resolved after review",
+      "at": "2026-10-04 16:57 UTC"
     }
-  }
+  },
+  "run_id": "20261004-090058-vit-1001"
 }

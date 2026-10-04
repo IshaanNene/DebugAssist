@@ -80,7 +80,24 @@ MiniRide 1.6.1 shipped a performance change behind the `notif_router_v2` flag (5
 </tr>
 </table>
 
-In a live run, DebugAssist traced the crash to the commit that removed `await whenHydrated()` from `routeV2`, wrote a test that fails on 1.6.1 with the production error, restored the one-line guard, proved it with a failing-before / passing-after run, and opened a draft PR linked from the Jira ticket. That PR's generated test still had two unused imports that the repo's lint rejects — which is why validation now runs each repo's own CI checks before anything ships. More in [docs/screenshots](docs/screenshots/README.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
+Then DebugAssist took over, live: it traced the crash to the commit that removed `await whenHydrated()` from `routeV2`, wrote a test that fails on 1.6.1 with the production error, restored the one-line guard, proved it (fails before, passes after, full suite and the repo's lint/typecheck green), and opened a pull request against the release branch, linked from the Jira ticket. The target repo's own CI passed on it.
+
+<table>
+<tr>
+<td width="50%"><a href="docs/screenshots/09-run-report-overview.png"><img src="docs/screenshots/09-run-report-overview.png" alt="Run report overview"></a><br><sub><b>Run report</b>: outcome, time per step, LLM usage and every Clef decision with its confidence and band.</sub></td>
+<td width="50%"><a href="docs/screenshots/10-run-report-root-cause.png"><img src="docs/screenshots/10-run-report-root-cause.png" alt="Root cause with evidence-backed claims"></a><br><sub><b>Root cause</b>: eight claims, each citing collected evidence, and the timeline back to the commit.</sub></td>
+</tr>
+<tr>
+<td width="50%"><a href="docs/screenshots/13-run-report-validation.png"><img src="docs/screenshots/13-run-report-validation.png" alt="Validation proof"></a><br><sub><b>Validation</b>: fails on the release, passes with the fix, suite and CI checks pass; every write audited.</sub></td>
+<td width="50%"><a href="docs/screenshots/16-github-pr-diff.png"><img src="docs/screenshots/16-github-pr-diff.png" alt="Pull request diff"></a><br><sub><b>The pull request</b>: the one-line fix and its regression test.</sub></td>
+</tr>
+<tr>
+<td width="50%"><a href="docs/screenshots/17-github-pr-checks.png"><img src="docs/screenshots/17-github-pr-checks.png" alt="All checks have passed"></a><br><sub><b>The repo's own CI</b> on the PR: all checks passed.</sub></td>
+<td width="50%"><a href="docs/screenshots/18-jira-ticket.png"><img src="docs/screenshots/18-jira-ticket.png" alt="Jira ticket"></a><br><sub><b>Jira</b>: filed at triage with the stack and triage notes, PR linked.</sub></td>
+</tr>
+</table>
+
+Getting there took real iteration — early runs produced a symptom patch, a test that failed lint, and a test that only timed out — and each one became a check the pipeline now enforces. The full story, with every screenshot, is in [docs/screenshots](docs/screenshots/README.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
 
 <sub>Rider traffic, crashes and bug reports come from the project's Playwright rider fleet driving the real app UI.</sub>
 
