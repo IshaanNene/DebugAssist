@@ -395,7 +395,14 @@ class AgentRunner:
                 status = "max_turns" if turns >= spec.max_turns else "no_output"
             extracted, e_in, e_out = await self._extract(spec, output_schema, prompt, messages)
             t_in, t_out = t_in + e_in, t_out + e_out
-            if extracted is not None:
+            # An extracted result skipped the in-loop check the agent would have had to pass: apply it now.
+            rejected = (
+                validate_output(extracted) if extracted is not None and validate_output is not None else None
+            )
+            if rejected:
+                error = f"extracted result rejected: {rejected}"[:600]
+                watch.stop(error[:160])
+            elif extracted is not None:
                 submitted.update(extracted)
                 status = "ok" if status == "no_output" else status
         cost = cost_usd(t_in, t_out, model=spec.model)

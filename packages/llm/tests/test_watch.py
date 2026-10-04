@@ -32,3 +32,12 @@ def test_wall_clock_limit() -> None:
     w = Watchdog(node="fix", max_wall_s=10)
     w.started -= 11
     assert w.check() and w.stop_reason and w.stop_reason.startswith("timeout")
+
+
+def test_rerunning_after_an_edit_is_not_a_loop() -> None:
+    w = Watchdog(node="reproduce", repeat_warn=3, repeat_stop=5)
+    run = {"command": "pnpm test test/x.test.ts"}
+    for i in range(6):
+        assert w.tool("run_command", run, True, 900, "exit code 1") is None
+        assert w.tool("edit_file", {"path": "test/x.test.ts", "old_text": str(i)}, True, 1, "edited") is None
+    assert w.check() is None

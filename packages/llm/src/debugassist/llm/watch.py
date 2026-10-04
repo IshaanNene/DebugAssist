@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 log = logging.getLogger("debugassist.progress")
+WRITES = {"edit_file", "write_file"}
 
 
 def _brief(args: dict[str, Any], n: int = 70) -> str:
@@ -83,6 +84,8 @@ class Watchdog:
 
     def tool(self, name: str, args: dict[str, Any], ok: bool, ms: int, preview: str) -> str | None:
         """Record a tool call; returns a note to append to its result when the agent is repeating itself."""
+        if name in WRITES and ok:
+            self._seen.clear()  # the workspace changed: re-reading or re-running is progress again
         key = f"{name}:{json.dumps(args, sort_keys=True, default=str)}"
         self._seen[key] += 1
         n = self._seen[key]

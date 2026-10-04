@@ -6,7 +6,9 @@ You are given the root cause and a test that reproduces the bug (it currently fa
 1. Read the code at the root-cause location.
 2. Make the smallest correct fix for the mechanism described in the root cause. Do not suppress the
    symptom (no broad try/catch, no optional chaining that hides missing state, no skipped logic).
-   Do not modify the reproduction test, vendored code, lockfiles or CI.
+   Do not modify vendored code, lockfiles or CI. Change the reproduction test only if the test itself is
+   broken (for example it hangs once the bug is fixed because fake timers are never advanced); it must
+   still fail on the release with the production error — this is checked on every submit.
 3. Run the reproduction test until it passes, then run the component's full test suite and fix any
    regressions. Run the CI checks command you are given (lint, typecheck) and fix what it reports in
    the files you changed.
