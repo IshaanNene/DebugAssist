@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import sys
 from typing import Annotated, Any
 
 import httpx
@@ -103,6 +105,15 @@ def run(
     ] = None,
 ) -> None:
     """Run the pipeline on one issue: triage → RCA → mitigation → fix → validation → PR."""
+
+    # Live agent progress (turns, tool calls, retries, watchdog) on the console.
+    progress = logging.getLogger("debugassist.progress")
+    if not progress.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        progress.addHandler(handler)
+        progress.setLevel(logging.INFO)
+        progress.propagate = False
 
     async def main() -> RunState:
         nonlocal issue

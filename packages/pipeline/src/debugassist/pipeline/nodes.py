@@ -126,6 +126,40 @@ def _stop_if_out_of_quota(r: LLMResult, state: RunState, node: str) -> None:
         )
 
 
+TIMEOUT_MARKERS = ("Test timed out", "Exceeded timeout of", "Timeout of", "Failed: Timeout >")
+
+
+def _error_signature(issue: Issue) -> str | None:
+    """The production error message a reproduction must show (crashes only), e.g.
+    "Cannot read properties of undefined (reading 'riderId')" from "TypeError: Cannot read …"."""
+    if issue.kind != "crash":
+        return None
+    msg = re.sub(r"^[A-Za-z_.]*(Error|Exception)\b:?\s*", "", issue.title).strip()
+    return msg or None
+
+
+def _repro_problem(cmd: str, exit_code: int, output: str, issue: Issue) -> str | None:
+    """Why a test run on the buggy release does not count as a reproduction (None = it does).
+
+    A test that only times out fails with or without a fix (e.g. fake timers never advanced), and one
+    that fails with some other error does not show the reported bug; both used to be accepted and then
+    frozen, leaving the fix step an impossible target.
+    """
+    if exit_code == 0:
+        return f"`{cmd}` passes on the current (buggy) code, so it does not reproduce the bug."
+    if "No test files found" in output or "SyntaxError" in output or "Cannot find module" in output:
+        return f"`{cmd}` failed for an unrelated reason:\n{output[-800:]}"
+    if any(m in output for m in TIMEOUT_MARKERS):
+        return (
+            f"`{cmd}` fails only by timing out, which happens with or without a fix (fake timers never "
+            f"advanced? an awaited promise that never settles?). Make it fail with the production error.\n{output[-600:]}"
+        )
+    sig = _error_signature(issue)
+    if sig and sig not in output:
+        return f"`{cmd}` fails, but not with the reported error `{sig}`; reproduce that failure.\n{output[-600:]}"
+    return None
+
+
 def _component_cfg(state: RunState, worktree: Path) -> dict[str, Any]:
     assert state.issue
     cfg = _pipeline_yaml(worktree)["components"]
@@ -652,14 +686,8 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
             return f"{path} does not exist as a test file. Create it with write_file first."
         cmd = _test_cmd(issue.language, path, issue.component)
         res = sb.run(cmd, workdir=issue.component)
-        if res.exit_code == 0:
-            return f"`{cmd}` passes on the current (buggy) code, so it does not reproduce the bug."
-        if (
-            "No test files found" in res.output
-            or "SyntaxError" in res.output
-            or "Cannot find module" in res.output
-        ):
-            return f"`{cmd}` failed for an unrelated reason:\n{res.output[-800:]}"
+        if problem := _repro_problem(cmd, res.exit_code, res.output, issue):
+            return problem
         if problem := _static_problem(sb, comp, issue.component):
             return (
                 f"the test reproduces the bug, but {problem}\nClean up the test file (e.g. unused imports)."
@@ -698,17 +726,16 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
         cmd = _test_cmd(issue.language, fa.repro.test_file, issue.component)
         run = sb.run(cmd, workdir=issue.component)
         fa.repro_run = {"command": cmd, "exit_code": run.exit_code, "output_tail": run.output[-2500:]}
+        problem = _repro_problem(cmd, run.exit_code, run.output, issue)
         fa.repro_verified = (
-            run.exit_code != 0
+            problem is None
             and is_test_path(fa.repro.test_file)
             and (sb.worktree / fa.repro.test_file).is_file()
         )
         if fa.repro_verified:
             break
-        feedback = (
-            f"\nYour test `{cmd}` exited {run.exit_code} on the buggy code, so it does not reproduce the bug "
-            f"(output tail: {run.output[-800:]}). Write a test that fails for the reason in the root cause."
-        )
+        fa.llm["reproduce"]["rejected"] = (problem or "")[:300]
+        feedback = f"\nYour previous test was not a reproduction: {problem} Write a test that fails for the reason in the root cause."
     if not fa.repro_verified:
         fa.diff = sb.diff(base)
         fa.files = changed_files(fa.diff)

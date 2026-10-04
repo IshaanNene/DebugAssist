@@ -55,7 +55,7 @@ class Deps:
 
     def runner(self, apply_diff: Callable[[str], None] | None = None) -> LLMRunner:
         if self.llm_mode == "live":
-            return AgentRunner(record_dir=CASSETTES / self.run_id)
+            return AgentRunner(record_dir=CASSETTES / self.run_id, live_dir=self.run_dir / "agents")
         if self.llm_mode == "replay":
             assert self.replay_from, "replay mode needs --replay-from <run_id>"
             return CassetteRunner(CASSETTES / self.replay_from, apply_diff)

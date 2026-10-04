@@ -39,6 +39,7 @@ from debugassist.core.policy import ROOT
 from debugassist.core.settings import get_settings
 from debugassist.llm.chat import chat_model, cost_usd, structured_method
 from debugassist.llm.spec import LLMNodeSpec, LLMResult, ToolCall
+from debugassist.llm.watch import Watchdog
 
 CASSETTES = ROOT / ".data" / "cassettes"
 
@@ -70,7 +71,7 @@ def _transient(exc: Exception) -> bool:
 
 # OpenRouter pads queued responses with keep-alive whitespace, which resets the HTTP read timeout, so a
 # call on an overloaded host can wait forever. Bound each model call by wall clock instead.
-MODEL_CALL_TIMEOUT_S = 300
+MODEL_CALL_TIMEOUT_S = 180
 
 
 @wrap_model_call
@@ -238,9 +239,35 @@ def _preview(content: Any, n: int = 600) -> str:
     return text[:n]
 
 
+def _observe(watch: Watchdog) -> Any:
+    """Report each model attempt (latency, tokens, chosen tool calls) as it happens."""
+
+    @wrap_model_call
+    async def observe_model(request: Any, handler: Any) -> Any:
+        watch.model_start()
+        try:
+            out = await handler(request)
+        except Exception as exc:
+            watch.model_error(exc)
+            raise
+        msg = next((m for m in getattr(out, "result", []) if isinstance(m, AIMessage)), None)
+        if msg is not None:
+            usage = msg.usage_metadata or {}
+            watch.model_end(
+                usage.get("input_tokens", 0),
+                usage.get("output_tokens", 0),
+                [tc["name"] for tc in msg.tool_calls],
+                _text(msg.content).strip(),
+            )
+        return out
+
+    return observe_model
+
+
 class AgentRunner:
-    def __init__(self, record_dir: Path | None = None) -> None:
+    def __init__(self, record_dir: Path | None = None, live_dir: Path | None = None) -> None:
         self.record_dir = record_dir
+        self.live_dir = live_dir  # per-agent live event logs (agents/<node>.jsonl)
 
     async def run(
         self,
@@ -254,6 +281,11 @@ class AgentRunner:
         validate_output: Any = None,
     ) -> LLMResult:
         submitted: dict[str, Any] = {}
+        watch = Watchdog(
+            node=spec.node,
+            max_wall_s=spec.max_wall_s,
+            events_file=self.live_dir / f"{spec.node}.jsonl" if self.live_dir else None,
+        )
 
         def _submit(**kwargs: Any) -> str:
             data = output_schema.model_validate(kwargs).model_dump(mode="json")
@@ -271,7 +303,7 @@ class AgentRunner:
 
         @before_model(can_jump_to=["end"])
         def stop_when_submitted(state: Any, runtime: Any) -> dict[str, Any] | None:
-            return {"jump_to": "end"} if submitted else None
+            return {"jump_to": "end"} if submitted or watch.check() else None
 
         calls: list[ToolCall] = []
 
@@ -288,6 +320,9 @@ class AgentRunner:
                 out = ToolMessage(content=f"Error: {exc}", tool_call_id=request.tool_call["id"], name=name)
                 content, ok = out.content, False
             text = _text(content)
+            ms = int((time.perf_counter() - t0) * 1000)
+            if (note := watch.tool(name, args, ok, ms, text)) and isinstance(out, ToolMessage):
+                out = out.model_copy(update={"content": f"{text}{note}"})
             m = re.search(r'"evidence_id":\s*"(ev_[a-z]+_[0-9a-f]{10})"', text)
             ev = m.group(1) if m else None
             calls.append(
@@ -296,7 +331,7 @@ class AgentRunner:
                     args=args,
                     ok=ok,
                     result_preview=_preview(content),
-                    ms=int((time.perf_counter() - t0) * 1000),
+                    ms=ms,
                     evidence_id=ev,
                 )
             )
@@ -310,8 +345,9 @@ class AgentRunner:
         middleware: list[Any] = [
             ModelCallLimitMiddleware(run_limit=spec.max_turns, exit_behavior="end"),
             ModelRetryMiddleware(
-                max_retries=6, retry_on=_transient, on_failure="error", initial_delay=5, max_delay=90
+                max_retries=3, retry_on=_transient, on_failure="error", initial_delay=5, max_delay=60
             ),
+            _observe(watch),  # inside the retry: every attempt (and its failure) is reported
             bounded_model_call,  # inside the retry, so a timed-out call is retried
             recover_unknown_tool,
             *([token_budget_middleware(budget)] if (budget := get_settings().request_token_budget()) else []),
@@ -349,7 +385,12 @@ class AgentRunner:
         t_out = sum(
             (m.usage_metadata or {}).get("output_tokens", 0) for m in messages if isinstance(m, AIMessage)
         )
-        if not submitted and (status == "ok" or (messages and not is_daily_quota(error))):
+        if watch.stop_reason and status == "ok" and not submitted:
+            status = "stalled" if watch.stop_reason.startswith("stalled") else "timeout"
+            error = watch.stop_reason
+        if not submitted and (
+            status in ("ok", "stalled", "timeout") or (messages and not is_daily_quota(error))
+        ):
             if status == "ok":
                 status = "max_turns" if turns >= spec.max_turns else "no_output"
             extracted, e_in, e_out = await self._extract(spec, output_schema, prompt, messages)
@@ -374,6 +415,7 @@ class AgentRunner:
             diff=diff_fn() if diff_fn else None,
             error=error,
         )
+        watch.finish(status, turns, result.cost_usd)
         if self.record_dir:
             self.record_dir.mkdir(parents=True, exist_ok=True)
             (self.record_dir / f"{spec.node}.json").write_text(
