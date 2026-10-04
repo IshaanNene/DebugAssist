@@ -25,19 +25,7 @@ DebugAssist is an open-source reimplementation of the pipeline described in the 
 
 ## Target system: MiniRide
 
-```mermaid
-flowchart LR
-  subgraph Browser
-    C[miniride-client<br/>React PWA :8080]
-  end
-  C -- GraphQL + traceparent --> G[gateway<br/>Node GraphQL :4000]
-  C -- frontend API --> U[(Unleash :4242)]
-  G --> D[dispatch<br/>FastAPI :8001] --> PG[(Postgres)]
-  G --> P[payments<br/>Go :8002]
-  G & D & P -- flags --> U
-  C & G & D & P -- OTLP --> OC[OTel Collector :4318]
-  OC --> J[Jaeger] & L[Loki] & PR[Prometheus]
-```
+<img src="assets/miniride.svg" alt="MiniRide: the React rider app talks GraphQL to the Node gateway, which calls dispatch (FastAPI, Postgres) and payments (Go); flags come from Unleash; every component ships OpenTelemetry to Jaeger, Loki and Prometheus" width="100%">
 
 | Component | Repo / path | Language | Owner team | Notes |
 |---|---|---|---|---|
