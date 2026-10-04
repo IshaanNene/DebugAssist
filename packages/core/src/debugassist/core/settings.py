@@ -24,6 +24,9 @@ DEFAULT_MODELS: dict[LLMProvider, str] = {
 }
 
 
+GROQ_FREE_TPM = 8_000
+
+
 class Mode(StrEnum):
     LIVE = "live"
     MOCK = "mock"
@@ -52,9 +55,11 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     # Default model per provider (DEFAULT_MODELS) unless LLM_MODEL is set.
     llm_model: str | None = None
-    # Upper bound on tokens per model request (prompt + tools + history). Groq's free plan allows
-    # 8K tokens per minute per model, so requests are held under it; 0 disables. See runner.
+    # Groq's free plan allows 8K tokens per minute per model and counts part of max_completion_tokens
+    # toward it (measured 2026-10-04), so on Groq the output cap is modest and the input budget is what
+    # remains. LLM_MAX_REQUEST_TOKENS bounds prompt + tools + history (0 disables); see runner.
     llm_max_request_tokens: int | None = None
+    llm_max_output_tokens: int | None = None
     # OpenRouter host pinning (see provider_order): gpt-oss structured output degenerates on some
     # hosts under default routing (2026-10-04). OPENROUTER_PROVIDER_ORDER overrides for every model.
     openrouter_provider_order: list[str] | None = None
@@ -76,10 +81,19 @@ class Settings(BaseSettings):
     def llm_api_key(self) -> SecretStr | None:
         return self.groq_api_key if self.provider() == "groq" else self.open_router_api_key
 
+    def max_output_tokens(self) -> int:
+        if self.llm_max_output_tokens is not None:
+            return self.llm_max_output_tokens
+        return 2_500 if self.provider() == "groq" else 16_000
+
+    def max_reasoning_effort(self) -> str | None:
+        """Groq: long `high` reasoning would overrun the small output cap there."""
+        return "medium" if self.provider() == "groq" else None
+
     def request_token_budget(self) -> int | None:
         if self.llm_max_request_tokens is not None:
             return self.llm_max_request_tokens or None
-        return 7_000 if self.provider() == "groq" else None
+        return GROQ_FREE_TPM - self.max_output_tokens() - 500 if self.provider() == "groq" else None
 
     def provider_order(self, model: str | None = None) -> list[str]:
         """OpenRouter only: which upstream hosts to try, in order."""
