@@ -4,7 +4,7 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 PROFILES ?= core obs flags faults target sources
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
-.PHONY: help demo-push-crash report screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
+.PHONY: help demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
 
 help:  ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -86,6 +86,9 @@ demo-push-crash:  ## BUG-002 end to end with no keys: scripted LLM, mock Clef/Gi
 
 report:  ## Render the latest run (or RUN=<id>) as .data/runs/<id>/report.html
 	uv run --no-sync debugassist report $(RUN)
+
+readme-assets:  ## Rebuild README visuals: hero, architecture, logo wall (SVG) and demo GIF (needs ffmpeg)
+	uv run --no-sync python scripts/readme_assets.py $(or $(WHAT),all)
 
 screenshots:  ## Proof screenshots into docs/screenshots/ (WHAT=stack|run|all; Jira: scripts/screenshots.py jira-login once)
 	uv run --no-sync python scripts/screenshots.py $(or $(WHAT),all)
