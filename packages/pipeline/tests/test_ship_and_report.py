@@ -104,3 +104,38 @@ def test_report_renders_from_run_artifacts(tmp_path: Path, monkeypatch: pytest.M
     assert "await whenHydrated();" in html  # the diff
     assert "client: success" in html and "github.open_pr" in html
     assert "<script" not in html.lower()  # agent text is escaped, never executed
+
+
+GROQ_TPD = (
+    "OpenAIRateLimitError: Error code: 429 - Rate limit reached for model `openai/gpt-oss-120b` on tokens "
+    "per day (TPD): Limit 200000, Used 199570, Requested 1487."
+)
+
+
+def test_exhausted_daily_quota_stops_the_run_instead_of_counting_as_a_failed_attempt() -> None:
+    from debugassist.llm.spec import LLMResult
+
+    s = _state()
+    out_of_quota = LLMResult(
+        node="reproduce",
+        output=None,
+        turns=0,
+        status="error",
+        error=GROQ_TPD,
+        model="m",
+        mode="live",
+        tool_calls=[],
+    )
+    with pytest.raises(RuntimeError, match="--resume 20261004-090058-vit-1001 --from-node fix"):
+        nodes._stop_if_out_of_quota(out_of_quota, s, "fix")  # pyright: ignore[reportPrivateUsage]
+    other = out_of_quota.model_copy(update={"error": "OpenAIInvalidRequestError: 400 bad request"})
+    nodes._stop_if_out_of_quota(other, s, "fix")  # pyright: ignore[reportPrivateUsage]
+
+
+def test_daily_quota_wording_of_both_providers() -> None:
+    from debugassist.llm.runner import is_daily_quota
+
+    assert is_daily_quota(GROQ_TPD)
+    assert is_daily_quota("Rate limit exceeded: free-models-per-day. Add 10 credits")
+    assert not is_daily_quota("on tokens per minute (TPM): Limit 8000, Requested 9388")
+    assert not is_daily_quota(None)

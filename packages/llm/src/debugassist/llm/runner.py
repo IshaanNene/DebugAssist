@@ -50,13 +50,20 @@ MCP_MODULES = {
 }
 
 
+DAILY_QUOTA_MARKERS = ("per-day", "per_day", "per day", "(tpd)", "(rpd)")
+
+
+def is_daily_quota(text: str | None) -> bool:
+    """OpenRouter free-model and GroqCloud TPD/RPD limits: nothing works again until the reset."""
+    return bool(text) and any(k in str(text).lower() for k in DAILY_QUOTA_MARKERS)
+
+
 def _transient(exc: Exception) -> bool:
     """Overloaded/rate-limited upstream (common on free OpenRouter models): wait and retry."""
     if isinstance(exc, TimeoutError):
         return True
-    text = str(exc).lower()
-    if any(k in text for k in ("per-day", "per_day", "per day", "(tpd)", "(rpd)")):
-        return False  # daily quota (OpenRouter free models, GroqCloud TPD/RPD): retrying cannot help today
+    if is_daily_quota(str(exc)):
+        return False  # retrying cannot help today
     status = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
     return status in (408, 429, 500, 502, 503, 504) or "overloaded" in str(exc).lower()
 
@@ -342,7 +349,7 @@ class AgentRunner:
         t_out = sum(
             (m.usage_metadata or {}).get("output_tokens", 0) for m in messages if isinstance(m, AIMessage)
         )
-        if not submitted and (status == "ok" or (messages and "per-day" not in (error or ""))):
+        if not submitted and (status == "ok" or (messages and not is_daily_quota(error))):
             if status == "ok":
                 status = "max_turns" if turns >= spec.max_turns else "no_output"
             extracted, e_in, e_out = await self._extract(spec, output_schema, prompt, messages)
