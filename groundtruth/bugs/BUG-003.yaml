@@ -1,0 +1,40 @@
+id: BUG-003
+title: Duplicate ride requests on weak networks (airport)
+language: typescript
+component: miniride-client
+owner_team: rider-app
+category: network
+priority: P1
+discovery: [bugdrop]
+injection:
+  base: v1.5.2
+  release: 1.6.2
+  repos:
+    miniride-client: [patches/BUG-003/0001-perf-rides-fail-fast-on-stalled-ride-requests.patch]
+trigger:
+  scenario: weak_network_booking
+  params:
+    weak_sessions: 6
+    normal_sessions: 6
+    latency_ms: 2000
+    download_kbps: 250
+    upload_kbps: 100
+    loss_pct: 0.4
+    city: sf
+    pickup: SFO Airport
+    report_text: "Booked once at the airport and two drivers showed up?? got charged twice"
+ground_truth:
+  fix: fixes/BUG-003.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-003/rides.hidden.test.ts, repo: miniride-client, dest: test/rides.hidden.test.ts }
+  location: { repo: miniride-client, module: src/api, file: src/api/rides.ts, function: requestRide }
+  rca_facts:
+    - 'Only sessions on a slow network (~2 s latency) are affected.'
+    - 'The client times out ride requests after 3 s, shorter than matching takes at high latency.'
+    - 'Each retry uses a fresh idempotency key, so dispatch creates a second ride for the same session.'
+    - 'Regression introduced in 1.6.2 by "perf(rides): fail fast on stalled ride requests".'
+  mitigation: none
+validation:
+  cheapest_tier: e2e_env
+  e2e: "Playwright with the reporter's network profile (2000 ms latency, 250 kbps) books once and gets one ride"
+expected_outcome: pr

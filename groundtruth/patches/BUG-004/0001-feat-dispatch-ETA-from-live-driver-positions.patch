@@ -1,0 +1,179 @@
+From b652a75063e4cf68305092b0c9ed850e41eb039c Mon Sep 17 00:00:00 2001
+From: Jonas Berg <jonas.berg@miniride.dev>
+Date: Sun, 4 Oct 2026 12:57:47 +0530
+Subject: [PATCH] feat(dispatch): ETA from live driver positions
+
+Accept position reports from the driver app and compute pickup ETAs
+from where the driver actually is, instead of counting down from the
+position at assignment time. Drop the fixed 300 s fallback for drivers
+without coordinates: every online driver now reports a position.
+---
+ dispatch/src/dispatch/app.py      | 21 ++++++++++++++++++++-
+ dispatch/src/dispatch/db.py       | 25 ++++++++++++++++++++++++-
+ dispatch/src/dispatch/matching.py | 11 +++++------
+ dispatch/tests/test_dispatch.py   | 15 +++++++++++++--
+ 4 files changed, 62 insertions(+), 10 deletions(-)
+
+diff --git a/dispatch/src/dispatch/app.py b/dispatch/src/dispatch/app.py
+index b9791db..2685abd 100644
+--- a/dispatch/src/dispatch/app.py
++++ b/dispatch/src/dispatch/app.py
+@@ -19,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
+ from sqlalchemy.orm import Session
+ 
+ from dispatch import telemetry, vitals_sdk
+-from dispatch.db import Base, Driver, Ride, make_engine, make_sessionmaker, seed
++from dispatch.db import Base, Driver, Ride, make_engine, make_sessionmaker, migrate, seed
+ from dispatch.flags import Flags
+ from dispatch.geo import PLACES, Point, haversine_km
+ from dispatch.matching import NoDriversAvailable, eta_seconds, nearest_available_driver, ride_status
+@@ -40,6 +40,7 @@ MATCH_DELAY_S = float(os.environ.get("DISPATCH_MATCH_DELAY_MS", "800")) / 1000
+ @asynccontextmanager
+ async def lifespan(_: FastAPI) -> Any:
+     Base.metadata.create_all(engine)
++    migrate(engine)
+     with SessionLocal() as s:
+         seed(s)
+     yield
+@@ -194,6 +195,24 @@ def request_ride(body: RideRequest, s: DB) -> RideOut:
+     return to_out(ride, driver)
+ 
+ 
++class LocationUpdate(BaseModel):
++    lat: float | None = None  # null when the driver app has no GPS fix
++    lng: float | None = None
++    accuracy_m: float | None = None
++
++
++@app.put("/internal/drivers/{driver_id}/location")
++def update_driver_location(driver_id: str, body: LocationUpdate, s: DB) -> dict[str, Any]:
++    """Position reports from the driver app (every few seconds while online)."""
++    driver = s.get(Driver, driver_id)
++    if driver is None:
++        raise HTTPException(404, "driver not found")
++    driver.lat, driver.lng = body.lat, body.lng
++    driver.location_updated_at = datetime.now(UTC)
++    s.commit()
++    return {"driver_id": driver_id, "lat": driver.lat, "lng": driver.lng}
++
++
+ @app.get("/rides/{ride_id}")
+ def get_ride(ride_id: str, s: DB) -> RideOut:
+     ride = s.get(Ride, ride_id)
+diff --git a/dispatch/src/dispatch/db.py b/dispatch/src/dispatch/db.py
+index 068f1a3..57d41dd 100644
+--- a/dispatch/src/dispatch/db.py
++++ b/dispatch/src/dispatch/db.py
+@@ -6,7 +6,17 @@ import os
+ import random
+ from datetime import UTC, datetime
+ 
+-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, create_engine, select
++from sqlalchemy import (
++    DateTime,
++    Float,
++    ForeignKey,
++    Integer,
++    String,
++    UniqueConstraint,
++    create_engine,
++    select,
++    text,
++)
+ from sqlalchemy.engine import Engine
+ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+ 
+@@ -27,6 +37,7 @@ class Driver(Base):
+     vehicle: Mapped[str] = mapped_column(String(32))
+     rating: Mapped[float] = mapped_column(Float, default=4.8)
+     busy_ride_id: Mapped[str | None] = mapped_column(String(36))
++    location_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+ 
+ 
+ class Ride(Base):
+@@ -57,6 +68,18 @@ def make_engine(url: str | None = None) -> Engine:
+     return create_engine(url, **kwargs)
+ 
+ 
++# Additive schema changes for existing databases (create_all only creates missing tables).
++MIGRATIONS = ["ALTER TABLE drivers ADD COLUMN IF NOT EXISTS location_updated_at TIMESTAMP WITH TIME ZONE"]
++
++
++def migrate(engine: Engine) -> None:
++    if engine.dialect.name != "postgresql":
++        return
++    with engine.begin() as conn:
++        for stmt in MIGRATIONS:
++            conn.execute(text(stmt))
++
++
+ def make_sessionmaker(engine: Engine) -> sessionmaker[Session]:
+     return sessionmaker(engine, expire_on_commit=False)
+ 
+diff --git a/dispatch/src/dispatch/matching.py b/dispatch/src/dispatch/matching.py
+index 4470d70..fd7495d 100644
+--- a/dispatch/src/dispatch/matching.py
++++ b/dispatch/src/dispatch/matching.py
+@@ -49,9 +49,6 @@ def eta_seconds(driver: Driver, ride: Ride, now: datetime | None = None) -> int:
+     status = ride_status(ride, now)
+     pickup = Point(ride.pickup_lat, ride.pickup_lng)
+     dropoff = Point(ride.dropoff_lat, ride.dropoff_lng)
+-    if driver.lat is None or driver.lng is None:
+-        # Drivers without a GPS fix fall back to their city's average pickup time.
+-        return 300
+     if status in ("in_trip", "completed"):
+         if status == "completed":
+             return 0
+@@ -59,7 +56,9 @@ def eta_seconds(driver: Driver, ride: Ride, now: datetime | None = None) -> int:
+     now = now or datetime.now(UTC)
+     assigned = ride.assigned_at or now
+     assigned = assigned if assigned.tzinfo else assigned.replace(tzinfo=UTC)
+-    remaining = travel_seconds(haversine_km(Point(driver.lat, driver.lng), pickup)) - int(
+-        (now - assigned).total_seconds()
+-    )
++    # The driver app reports live positions, so measure from where the driver actually is.
++    position = Point(driver.lat, driver.lng)  # type: ignore[arg-type]
++    if driver.location_updated_at is not None:
++        return travel_seconds(haversine_km(position, pickup))
++    remaining = travel_seconds(haversine_km(position, pickup)) - int((now - assigned).total_seconds())
+     return max(0, remaining)
+diff --git a/dispatch/tests/test_dispatch.py b/dispatch/tests/test_dispatch.py
+index 563cf6b..9567d6e 100644
+--- a/dispatch/tests/test_dispatch.py
++++ b/dispatch/tests/test_dispatch.py
+@@ -44,7 +44,7 @@ def test_ride_status_progression() -> None:
+     assert ride_status(ride, now + timedelta(seconds=600)) == "completed"
+ 
+ 
+-def test_eta_counts_down_and_handles_missing_location() -> None:
++def test_eta_counts_down() -> None:
+     now = datetime.now(UTC)
+     ride = Ride(
+         pickup_lat=37.7955,
+@@ -57,7 +57,6 @@ def test_eta_counts_down_and_handles_missing_location() -> None:
+     driver = Driver(lat=37.78, lng=-122.41)
+     first = eta_seconds(driver, ride, now)
+     assert first > eta_seconds(driver, ride, now + timedelta(seconds=20)) >= 0
+-    assert eta_seconds(Driver(lat=None, lng=None), ride, now) == 300
+ 
+ 
+ def test_places(client: TestClient) -> None:
+@@ -86,3 +85,15 @@ def test_idempotency_key_prevents_duplicate_rides(client: TestClient) -> None:
+ 
+ def test_unknown_ride(client: TestClient) -> None:
+     assert client.get("/rides/nope").status_code == 404
++
++
++def test_driver_location_updates_drive_eta(client: TestClient) -> None:
++    ride = client.post("/rides", json=SF_REQ).json()
++    driver_id = ride["driver"]["id"]
++    far = client.put(f"/internal/drivers/{driver_id}/location", json={"lat": 37.70, "lng": -122.47})
++    assert far.status_code == 200
++    eta_far = client.get(f"/rides/{ride['id']}/eta").json()["eta_seconds"]
++    client.put(f"/internal/drivers/{driver_id}/location", json={"lat": 37.7950, "lng": -122.3940})
++    eta_near = client.get(f"/rides/{ride['id']}/eta").json()["eta_seconds"]
++    assert eta_far > eta_near
++    assert client.put("/internal/drivers/nope/location", json={"lat": 1, "lng": 1}).status_code == 404
+-- 
+2.55.0
+

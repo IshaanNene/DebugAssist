@@ -1,0 +1,65 @@
+From 6707e06cf2706b0f0f36f56ee9d694ad180bee0f Mon Sep 17 00:00:00 2001
+From: Omar Haddad <omar.haddad@miniride.dev>
+Date: Sun, 4 Oct 2026 12:56:41 +0530
+Subject: [PATCH] perf(rides): fail fast on stalled ride requests
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Riders on flaky connections stared at 'Finding your driver…' for up to
+15 s before we retried. Abandon a stalled request after 3 s and retry it
+as a fresh request so the retry isn't tied to the stalled one.
+---
+ src/api/rides.ts   | 8 ++++----
+ test/rides.test.ts | 4 ++--
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/api/rides.ts b/src/api/rides.ts
+index fc97f21..bf68ddc 100644
+--- a/src/api/rides.ts
++++ b/src/api/rides.ts
+@@ -65,15 +65,15 @@ export interface RequestRideOptions extends GqlOptions {
+ }
+ 
+ /**
+- * Request a ride, retrying on timeout. One idempotency key per user action, reused on every
+- * retry, so a slow network can never create duplicate rides.
++ * Request a ride, retrying on timeout. Stalled requests are abandoned quickly and retried as a
++ * fresh request (new idempotency key) so the rider isn't left watching a spinner.
+  */
+ export async function requestRide(
+   input: { city: string; pickup: Place; dropoff: Place },
+-  { timeoutMs = 15_000, retries = 2, fetchImpl }: RequestRideOptions = {},
++  { timeoutMs = 3_000, retries = 2, fetchImpl }: RequestRideOptions = {},
+ ): Promise<Ride> {
+-  const idempotencyKey = newIdempotencyKey();
+   for (let attempt = 0; ; attempt++) {
++    const idempotencyKey = newIdempotencyKey();
+     try {
+       analytics.track("ride_request_attempt", { attempt });
+       const d = await gql<{ requestRide: Ride }>(
+diff --git a/test/rides.test.ts b/test/rides.test.ts
+index 016dda0..0fff863 100644
+--- a/test/rides.test.ts
++++ b/test/rides.test.ts
+@@ -9,7 +9,7 @@ function timeoutError() {
+ }
+ 
+ describe("requestRide", () => {
+-  it("reuses one idempotency key across timeout retries", async () => {
++  it("retries a stalled request as a fresh request", async () => {
+     const keys: string[] = [];
+     let calls = 0;
+     const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+@@ -21,7 +21,7 @@ describe("requestRide", () => {
+     const r = await requestRide({ city: "sf", pickup: place, dropoff: place }, { fetchImpl, retries: 2 });
+     expect(r.id).toBe("r1");
+     expect(keys).toHaveLength(3);
+-    expect(new Set(keys).size).toBe(1);
++    expect(new Set(keys).size).toBe(3);
+     expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+   });
+ 
+-- 
+2.55.0
+

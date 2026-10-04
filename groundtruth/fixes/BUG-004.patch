@@ -1,0 +1,24 @@
+diff --git a/dispatch/src/dispatch/matching.py b/dispatch/src/dispatch/matching.py
+index fd7495d..1de38ca 100644
+--- a/dispatch/src/dispatch/matching.py
++++ b/dispatch/src/dispatch/matching.py
+@@ -49,6 +49,10 @@ def eta_seconds(driver: Driver, ride: Ride, now: datetime | None = None) -> int:
+     status = ride_status(ride, now)
+     pickup = Point(ride.pickup_lat, ride.pickup_lng)
+     dropoff = Point(ride.dropoff_lat, ride.dropoff_lng)
++    if driver.lat is None or driver.lng is None:
++        # The driver app reports null coordinates while it has no GPS fix (tunnels, airports):
++        # fall back to the city's average pickup time instead of failing the request.
++        return 300
+     if status in ("in_trip", "completed"):
+         if status == "completed":
+             return 0
+@@ -57,7 +61,7 @@ def eta_seconds(driver: Driver, ride: Ride, now: datetime | None = None) -> int:
+     assigned = ride.assigned_at or now
+     assigned = assigned if assigned.tzinfo else assigned.replace(tzinfo=UTC)
+     # The driver app reports live positions, so measure from where the driver actually is.
+-    position = Point(driver.lat, driver.lng)  # type: ignore[arg-type]
++    position = Point(driver.lat, driver.lng)
+     if driver.location_updated_at is not None:
+         return travel_seconds(haversine_km(position, pickup))
+     remaining = travel_seconds(haversine_km(position, pickup)) - int((now - assigned).total_seconds())

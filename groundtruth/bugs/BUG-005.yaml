@@ -1,0 +1,33 @@
+id: BUG-005
+title: Fare quotes fail (payments panic) when surge pricing is enabled
+language: go
+component: payments
+owner_team: payments
+category: own_code
+priority: P1
+discovery: [vitals]
+injection:
+  base: v1.5.1
+  release: 1.6.4
+  repos:
+    miniride-services: [patches/BUG-005/0001-feat-payments-demand-based-surge-multipliers.patch]
+  flags: { surge_pricing: 20 }
+trigger:
+  scenario: fare_quotes
+  params:
+    sessions: 40
+    concurrency: 6
+ground_truth:
+  fix: fixes/BUG-005.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-005/surge_hidden_test.go, repo: miniride-services, dest: payments/surge_hidden_test.go }
+  location: { repo: miniride-services, module: payments, file: payments/surge.go, function: get }
+  rca_facts:
+    - 'payments panics with "assignment to entry in nil map" in surgeCache.get.'
+    - 'Only requests with surge_pricing enabled (20% rollout) hit the surge cache.'
+    - 'NewServer builds surgeCache without initialising its entries map.'
+    - 'Regression introduced in 1.6.4 by "feat(payments): demand-based surge multipliers".'
+  mitigation: { flag_rollback: surge_pricing }
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

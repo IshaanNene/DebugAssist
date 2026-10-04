@@ -1,0 +1,20 @@
+{
+  "name": "@miniride/bugdrop-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BugDrop browser SDK (vendored into apps by DebugAssist's make sync-sdks)",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "packageManager": "pnpm@11.23.0",
+  "dependencies": {
+    "html-to-image": "^1.11.13"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.1",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.3"
+  }
+}

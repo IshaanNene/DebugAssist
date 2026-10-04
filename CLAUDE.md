@@ -23,9 +23,10 @@ Read `docs/SPEC.md` (requirements, verbatim) and `docs/PLAN.md` (§0 amendments 
 
 ## Target repos
 - `targets/miniride-client` (public) and `targets/miniride-services` (private) are **git submodules with their own history**. Commit there with conventional commits and push to their own remotes; then commit the submodule pointer here.
-- Bugs get injected into those repos as natural-looking commits (P2b). Never mention catalog IDs, "injected" or ground truth in target-repo commits or code.
+- Bugs get injected into those repos as natural-looking commits on local `release/<version>` branches with local `v1.6.x` tags. **Never `git push --tags` in a target repo** — push `main` and the one release tag by name; scenario branches/tags reach GitHub only via `debugassist scenario inject --push`. Never mention catalog IDs, "injected" or ground truth in target-repo commits or code.
 - `make up` builds MiniRide from the submodule working trees; `make flags` creates Unleash flags; `make e2e` runs Playwright against :8080.
 
 ## Commands
+- Scenarios: `make scenarios` · `make trigger BUG=002` · `make reset-scenario WIPE=1` · `make verify-scenarios` · `make traffic` · `make load`
 - `make bootstrap` · `make sync` (use instead of bare `uv sync` on macOS) · `make check` (lint + pyright + pytest) · `make up PROFILES="core obs flags faults"` · `make down` · `make clef-smoke`
-- Ports: client 8080, gateway 4000, dispatch 8001, payments 8002, OTLP 4317/4318 (collector), Postgres 5432, Redis 6379, MinIO 9000/9001, Jaeger 16686 (query API is v3: `/api/v3/traces?query.service_name=…`), Loki 3100, Prometheus 9090, Phoenix 6006, Unleash 4242, Toxiproxy 8474.
+- Ports: client 8080 (previous release 8081 during scenarios), Vitals 8100, BugDrop 8200, incidents 8300, gateway 4000, dispatch 8001, payments 8002, OTLP 4317/4318 (collector), Postgres 5432, Redis 6379, MinIO 9000/9001, Jaeger 16686 (query API is v3: `/api/v3/traces?query.service_name=…`), Loki 3100, Prometheus 9090, Phoenix 6006, Unleash 4242, Toxiproxy 8474.

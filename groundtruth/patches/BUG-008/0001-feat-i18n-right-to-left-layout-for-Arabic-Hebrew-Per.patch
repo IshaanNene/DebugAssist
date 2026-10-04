@@ -1,0 +1,104 @@
+From 09596ef900a9604c324a5444512fde8eff28154a Mon Sep 17 00:00:00 2001
+From: Priya Nair <priya.nair@miniride.dev>
+Date: Sun, 4 Oct 2026 12:57:16 +0530
+Subject: [PATCH] feat(i18n): right-to-left layout for Arabic, Hebrew, Persian
+ and Urdu
+
+Set the document language and direction from the device locale at
+startup, and use logical CSS properties for the push toast so it lays
+out correctly in RTL.
+---
+ src/i18n.ts       | 20 ++++++++++++++++++++
+ src/main.tsx      |  2 ++
+ src/styles.css    |  2 +-
+ test/i18n.test.ts | 19 +++++++++++++++++++
+ 4 files changed, 42 insertions(+), 1 deletion(-)
+ create mode 100644 src/i18n.ts
+ create mode 100644 test/i18n.test.ts
+
+diff --git a/src/i18n.ts b/src/i18n.ts
+new file mode 100644
+index 0000000..7da1a7d
+--- /dev/null
++++ b/src/i18n.ts
+@@ -0,0 +1,20 @@
++// Document language and text direction from the device locale.
++const RTL_LANGUAGES = new Set(["ar", "he", "fa", "ur"]);
++
++export interface LocaleDirection {
++  lang: string;
++  dir: "ltr" | "rtl";
++}
++
++/** Normalise a BCP 47 tag ("ar-eg" → "ar-EG") and pick the text direction. */
++export function localeDirection(locale: string): LocaleDirection {
++  const [language, region] = locale.split("-");
++  const lang = `${language!.toLowerCase()}-${region!.toUpperCase()}`;
++  return { lang, dir: RTL_LANGUAGES.has(language!.toLowerCase()) ? "rtl" : "ltr" };
++}
++
++export function applyLocaleDirection(locale: string = navigator.language, root: HTMLElement = document.documentElement) {
++  const { lang, dir } = localeDirection(locale);
++  root.lang = lang;
++  root.dir = dir;
++}
+diff --git a/src/main.tsx b/src/main.tsx
+index 45290ce..d31f472 100644
+--- a/src/main.tsx
++++ b/src/main.tsx
+@@ -4,6 +4,7 @@ import { RouterProvider } from "react-router";
+ import { createAppRouter } from "./App";
+ import { config } from "./config";
+ import { setupFlags } from "./flags";
++import { applyLocaleDirection } from "./i18n";
+ import { routeDeepLink } from "./notifications/router";
+ import { takeLaunchPush } from "./notifications/push";
+ import { CrashScreen } from "./screens/CrashScreen";
+@@ -14,6 +15,7 @@ import { setupTracing } from "./telemetry/tracing";
+ import "./styles.css";
+ 
+ setupQuality(); // first, so crash handlers see everything
++applyLocaleDirection();
+ setupTracing();
+ analytics.start();
+ analytics.track("app_launch", { version: config.appVersion });
+diff --git a/src/styles.css b/src/styles.css
+index 6badce6..f001517 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -31,6 +31,6 @@ select { font: inherit; padding: 10px; border-radius: 10px; border: 1px solid va
+ .notifications { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+ .notifications button, .toast { all: unset; display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--line); cursor: pointer; box-sizing: border-box; }
+ .notifications .unread button { border-color: var(--accent); }
+-.toast { position: fixed; left: 16px; right: 16px; bottom: 24px; max-width: 448px; margin: 0 auto; background: var(--card); box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); }
++.toast { position: fixed; inset-inline: 16px; bottom: 24px; max-width: 448px; margin: 0 auto; background: var(--card); box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); }
+ footer { text-align: center; padding: 16px 0; font-size: 0.8rem; }
+ .crash { justify-content: center; align-items: center; text-align: center; gap: 12px; }
+diff --git a/test/i18n.test.ts b/test/i18n.test.ts
+new file mode 100644
+index 0000000..0ba7066
+--- /dev/null
++++ b/test/i18n.test.ts
+@@ -0,0 +1,19 @@
++import { describe, expect, it } from "vitest";
++import { applyLocaleDirection, localeDirection } from "../src/i18n";
++
++describe("locale direction", () => {
++  it.each([
++    ["en-US", "en-US", "ltr"],
++    ["ar-EG", "ar-EG", "rtl"],
++    ["he-il", "he-IL", "rtl"],
++    ["ja-JP", "ja-JP", "ltr"],
++  ])("%s → %s %s", (locale, lang, dir) => {
++    expect(localeDirection(locale)).toEqual({ lang, dir });
++  });
++
++  it("sets lang and dir on the root element", () => {
++    const el = document.createElement("html");
++    applyLocaleDirection("ar-SA", el);
++    expect([el.lang, el.dir]).toEqual(["ar-SA", "rtl"]);
++  });
++});
+-- 
+2.55.0
+

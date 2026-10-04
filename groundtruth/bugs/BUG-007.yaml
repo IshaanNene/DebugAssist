@@ -1,0 +1,32 @@
+id: BUG-007
+title: Every ride request fails after the gateway timeout change
+language: typescript
+component: gateway
+owner_team: rider-platform
+category: flag_config
+priority: P0
+discovery: [vitals, bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.6.5
+  repos:
+    miniride-services: [patches/BUG-007/0001-chore-gateway-one-configurable-upstream-timeout.patch]
+trigger:
+  scenario: booking_failures
+  params:
+    sessions: 6
+    report_text: "can't book a ride, it just says something went wrong"
+ground_truth:
+  fix: fixes/BUG-007.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-007/upstream.hidden.test.ts, repo: miniride-services, dest: gateway/test/upstream.hidden.test.ts }
+  location: { repo: miniride-services, module: gateway, file: gateway/src/backends.ts, function: requestRide }
+  rca_facts:
+    - 'RequestRide fails for every session with an upstream timeout after ~500 ms.'
+    - 'Dispatch still matches the ride (orphaned rides, drivers marked busy).'
+    - 'The ride-request timeout dropped from 30 s to a shared 500 ms UPSTREAM_TIMEOUT_MS default, below matching time.'
+    - 'Regression introduced in 1.6.5 by "chore(gateway): one configurable upstream timeout".'
+  mitigation: none
+validation:
+  cheapest_tier: integration
+expected_outcome: pr

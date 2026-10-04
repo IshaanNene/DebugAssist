@@ -3,7 +3,9 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^groundtruth/(patches|fixes)/  # diffs: whitespace is significant
       - id: end-of-file-fixer
+        exclude: ^groundtruth/(patches|fixes)/
       - id: check-yaml
         args: [--allow-multiple-documents]
       - id: check-json

@@ -1,0 +1,41 @@
+From 9cb128e5be217629fcab10d00cce713c33fe042c Mon Sep 17 00:00:00 2001
+From: Sam Okafor <sam.okafor@miniride.dev>
+Date: Sun, 4 Oct 2026 12:59:22 +0530
+Subject: [PATCH] chore(gateway): one configurable upstream timeout
+
+Upstream calls had a mix of hard-coded timeouts (10 s default, 30 s for
+ride requests), so a slow dependency could hold gateway requests open
+for half a minute. Use a single UPSTREAM_TIMEOUT_MS budget (default
+500 ms, p99 of upstream latency) for every call.
+---
+ gateway/src/backends.ts | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/gateway/src/backends.ts b/gateway/src/backends.ts
+index ac2b4d4..4eafe07 100644
+--- a/gateway/src/backends.ts
++++ b/gateway/src/backends.ts
+@@ -54,7 +54,10 @@ export interface Backends {
+   fare(body: { city: string; distance_km: number; duration_min: number; session_id: string }): Promise<FareQuote>;
+ }
+ 
+-async function call<T>(url: string, init?: RequestInit, timeoutMs = 10_000): Promise<{ status: number; body: T }> {
++/** Upstream request budget. Keep it tight so a slow dependency can't pile up gateway requests. */
++export const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS ?? 500);
++
++async function call<T>(url: string, init?: RequestInit, timeoutMs = UPSTREAM_TIMEOUT_MS): Promise<{ status: number; body: T }> {
+   const res = await fetch(url, {
+     ...init,
+     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
+@@ -84,7 +87,7 @@ export function httpBackends(
+       const r = await call<RideOut & { detail?: string }>(`${dispatchUrl}/rides`, {
+         method: "POST",
+         body: JSON.stringify(body),
+-      }, 30_000);
++      });
+       if (r.status === 409) throw createGraphQLError("No drivers available", { extensions: { code: "NO_DRIVERS" } });
+       if (r.status >= 400) throw createGraphQLError(`ride request rejected (${r.status})`, { extensions: { code: "BAD_REQUEST" } });
+       return r.body;
+-- 
+2.55.0
+

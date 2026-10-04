@@ -1,0 +1,17 @@
+[project]
+name = "debugassist-scenarios"
+version = "0.1.0"
+description = "Bug catalog, injection into the MiniRide target repos, and scenario triggers"
+requires-python = ">=3.13,<3.14"
+dependencies = ["debugassist-core", "debugassist-simulator", "httpx>=0.28", "pyyaml>=6.0", "typer>=0.20"]
+
+[tool.uv.sources]
+debugassist-core = { workspace = true }
+debugassist-simulator = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/debugassist"]

@@ -1,0 +1,26 @@
+diff --git a/gateway/src/backends.ts b/gateway/src/backends.ts
+index 4eafe07..e5e27a9 100644
+--- a/gateway/src/backends.ts
++++ b/gateway/src/backends.ts
+@@ -54,8 +54,10 @@ export interface Backends {
+   fare(body: { city: string; distance_km: number; duration_min: number; session_id: string }): Promise<FareQuote>;
+ }
+ 
+-/** Upstream request budget. Keep it tight so a slow dependency can't pile up gateway requests. */
+-export const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS ?? 500);
++/** Default upstream budget for quick reads (places, ETA, fares). */
++export const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS ?? 10_000);
++/** Ride requests block on driver matching, which takes seconds under load. */
++export const RIDE_REQUEST_TIMEOUT_MS = Number(process.env.RIDE_REQUEST_TIMEOUT_MS ?? 30_000);
+ 
+ async function call<T>(url: string, init?: RequestInit, timeoutMs = UPSTREAM_TIMEOUT_MS): Promise<{ status: number; body: T }> {
+   const res = await fetch(url, {
+@@ -87,7 +89,7 @@ export function httpBackends(
+       const r = await call<RideOut & { detail?: string }>(`${dispatchUrl}/rides`, {
+         method: "POST",
+         body: JSON.stringify(body),
+-      });
++      }, RIDE_REQUEST_TIMEOUT_MS);
+       if (r.status === 409) throw createGraphQLError("No drivers available", { extensions: { code: "NO_DRIVERS" } });
+       if (r.status >= 400) throw createGraphQLError(`ride request rejected (${r.status})`, { extensions: { code: "BAD_REQUEST" } });
+       return r.body;

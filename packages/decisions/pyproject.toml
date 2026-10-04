@@ -12,8 +12,6 @@ dependencies = [
   "typer>=0.20",
 ]
 
-[project.scripts]
-debugassist = "debugassist.decisions.cli:app"
 
 [project.optional-dependencies]
 # Self-hosted Clef via Cloudflare's joint_schema_model.py (needs a CUDA GPU; PLAN §2).

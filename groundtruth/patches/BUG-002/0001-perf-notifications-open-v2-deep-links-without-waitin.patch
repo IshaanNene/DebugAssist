@@ -1,0 +1,101 @@
+From aaf89601ce56f2ba69c7ea523f20ab49da28351c Mon Sep 17 00:00:00 2001
+From: Lucas Meyer <lucas.meyer@miniride.dev>
+Date: Sun, 4 Oct 2026 12:56:04 +0530
+Subject: [PATCH] perf(notifications): open v2 deep links without waiting for
+ session restore
+
+Router v2 waited for the persisted session before navigating, which adds
+~350 ms between tapping a push and seeing the ride screen. The ride
+screen loads its own data, so navigate right away. v1 is unchanged.
+
+Rolled out behind notif_router_v2.
+---
+ src/notifications/router.ts |  6 +++---
+ test/router.test.ts         | 38 +++++++++++++++++++++++++++++++------
+ 2 files changed, 35 insertions(+), 9 deletions(-)
+
+diff --git a/src/notifications/router.ts b/src/notifications/router.ts
+index 8a70e56..9c5ab71 100644
+--- a/src/notifications/router.ts
++++ b/src/notifications/router.ts
+@@ -1,8 +1,9 @@
+ // Deep-link routing for notifications (in-app and push).
+ //
+ // v1 (default): wait until the session is restored, then navigate.
+-// v2 (flag notif_router_v2): resolves ride links against the active ride so the ride screen can
+-// open with the driver card prefilled, and tags the navigation with the rider id.
++// v2 (flag notif_router_v2): navigates immediately — the ride screen loads its own data, so there is
++// no need to wait for the session restore — and resolves ride links against the active ride so the
++// screen can open with the driver card prefilled, tagging the navigation with the rider id.
+ import { FLAGS, flag } from "../flags";
+ import { sessionStore, whenHydrated } from "../store/session";
+ import { analytics } from "../telemetry/analytics";
+@@ -22,7 +23,6 @@ async function routeV1(link: string, navigate: Navigate) {
+ }
+ 
+ async function routeV2(link: string, navigate: Navigate) {
+-  await whenHydrated();
+   const state = sessionStore.getState();
+   const riderId = state.session!.riderId;
+   const rideMatch = RIDE_LINK.exec(link);
+diff --git a/test/router.test.ts b/test/router.test.ts
+index 52a2582..e66e5cf 100644
+--- a/test/router.test.ts
++++ b/test/router.test.ts
+@@ -20,7 +20,24 @@ describe.each([
+   });
+   afterEach(() => vi.useRealTimers());
+ 
+-  it("a tap right after launch waits for the session instead of crashing", async () => {
++  it("routes unknown links home", async () => {
++    const navigate = vi.fn();
++    void hydrate({ delayMs: 0 });
++    await vi.advanceTimersByTimeAsync(0);
++    await routeDeepLink("javascript:alert(1)", navigate, "in_app");
++    expect(navigate.mock.calls[0]![0]).toBe("/");
++  });
++});
++
++describe("router v1", () => {
++  beforeEach(() => {
++    flags.v2 = false;
++    resetSessionForTests();
++    vi.useFakeTimers();
++  });
++  afterEach(() => vi.useRealTimers());
++
++  it("a tap right after launch waits for the session", async () => {
+     const navigate = vi.fn();
+     void hydrate({ delayMs: 350 });
+     const routed = routeDeepLink("/ride/abc", navigate, "push"); // ~0 ms after launch
+@@ -31,13 +48,22 @@ describe.each([
+     expect(navigate).toHaveBeenCalledTimes(1);
+     expect(navigate.mock.calls[0]![0]).toBe("/ride/abc");
+   });
++});
+ 
+-  it("routes unknown links home", async () => {
++describe("router v2", () => {
++  beforeEach(() => {
++    flags.v2 = true;
++    resetSessionForTests();
++  });
++
++  it("navigates without waiting", async () => {
++    vi.useFakeTimers();
++    void hydrate({ delayMs: 10 });
++    await vi.advanceTimersByTimeAsync(20);
++    vi.useRealTimers();
+     const navigate = vi.fn();
+-    void hydrate({ delayMs: 0 });
+-    await vi.advanceTimersByTimeAsync(0);
+-    await routeDeepLink("javascript:alert(1)", navigate, "in_app");
+-    expect(navigate.mock.calls[0]![0]).toBe("/");
++    await routeDeepLink("/notifications", navigate, "push");
++    expect(navigate).toHaveBeenCalledWith("/notifications", { state: expect.objectContaining({ riderId: expect.any(String) }) });
+   });
+ });
+ 
+-- 
+2.55.0
+

@@ -5,7 +5,8 @@
 #   flags  – Unleash (feature flags, gradual rollouts)
 #   faults – Toxiproxy (network fault injection for the weak-network validation tier)
 #   target – MiniRide: dispatch (Python), payments (Go), gateway (Node GraphQL), client (React PWA)
-# Source (BugDrop, Vitals) and app services are added in later phases.
+#   sources – Vitals (crash/perf analytics), BugDrop (bug reports), incidents (incident + dependency status)
+# App services (DebugAssist API/worker/dashboard) are added in later phases.
 name: debugassist
 
 x-restart: &restart
@@ -21,12 +22,12 @@ x-miniride-otel: &miniride-otel
   OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
   UNLEASH_URL: http://unleash:4242/api
   UNLEASH_API_TOKEN: "default:development.unleash-insecure-api-token"
-  SERVICE_VERSION: "1.4.0"
+  VITALS_URL: http://vitals:8100
 
 services:
   postgres:
     <<: *restart
-    profiles: [core, flags, target]
+    profiles: [core, flags, target, sources]
     image: postgres:17.11-alpine
     environment:
       POSTGRES_USER: debugassist
@@ -53,7 +54,7 @@ services:
 
   minio:
     <<: *restart
-    profiles: [core]
+    profiles: [core, sources]
     # Official minio/minio images are no longer published; Chainguard's build is the maintained stand-in.
     image: cgr.dev/chainguard/minio:latest
     command: ["server", "/data", "--console-address", ":9001"]
@@ -121,7 +122,7 @@ services:
       INIT_ADMIN_API_TOKENS: "*:*.unleash-insecure-admin-api-token"
       INIT_BACKEND_API_TOKENS: "default:development.unleash-insecure-api-token"
       INIT_FRONTEND_API_TOKENS: "default:development.unleash-insecure-frontend-api-token"
-      UNLEASH_FRONTEND_API_ORIGINS: "http://localhost:5173,http://localhost:8080"
+      UNLEASH_FRONTEND_API_ORIGINS: "http://localhost:5173,http://localhost:8080,http://localhost:8081"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:4242/health"]
       interval: 5s
@@ -130,8 +131,10 @@ services:
 
   toxiproxy:
     <<: *restart
-    profiles: [faults]
+    profiles: [faults, target]
     image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes: ["./toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro"]
     ports:
       - "8474:8474"           # control API
       - "18000-18010:18000-18010"  # proxied listeners created at runtime
@@ -147,10 +150,12 @@ services:
     environment:
       <<: *miniride-otel
       OTEL_SERVICE_NAME: dispatch
-      DISPATCH_DATABASE_URL: postgresql+psycopg://debugassist:debugassist@postgres:5432/miniride
+      # Through Toxiproxy so scenarios can degrade the database link (latency, resets).
+      DISPATCH_DATABASE_URL: postgresql+psycopg://debugassist:debugassist@toxiproxy:15432/miniride
     ports: ["8001:8001"]
     depends_on:
       postgres: { condition: service_healthy }
+      toxiproxy: { condition: service_started }
 
   payments:
     <<: *restart
@@ -176,6 +181,7 @@ services:
       OTEL_SERVICE_NAME: gateway
       DISPATCH_URL: http://dispatch:8001
       PAYMENTS_URL: http://payments:8002
+      CORS_ORIGINS: http://localhost:5173,http://localhost:8080,http://localhost:8081
     ports: ["4000:4000"]
     depends_on:
       dispatch: { condition: service_healthy }
@@ -191,6 +197,8 @@ services:
         VITE_UNLEASH_URL: http://localhost:4242/api/frontend
         VITE_UNLEASH_CLIENT_KEY: "default:development.unleash-insecure-frontend-api-token"
         VITE_OTLP_TRACES_URL: http://localhost:4318/v1/traces
+        VITE_VITALS_URL: http://localhost:8100
+        VITE_BUGDROP_URL: http://localhost:8200
     healthcheck:
       <<: *health
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
@@ -198,7 +206,73 @@ services:
     depends_on:
       gateway: { condition: service_healthy }
 
+  # Previous client release, serving a share of sessions during a gradual adoption (scenarios).
+  client-prev:
+    <<: *restart
+    profiles: [rollout]
+    build:
+      context: ../.data/builds/client-prev
+      args:
+        VITE_GATEWAY_URL: http://localhost:4000
+        VITE_UNLEASH_URL: http://localhost:4242/api/frontend
+        VITE_UNLEASH_CLIENT_KEY: "default:development.unleash-insecure-frontend-api-token"
+        VITE_OTLP_TRACES_URL: http://localhost:4318/v1/traces
+        VITE_VITALS_URL: http://localhost:8100
+        VITE_BUGDROP_URL: http://localhost:8200
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+    ports: ["8081:8080"]
+
+  # ---- Sources: app-quality tools ----------------------------------------------------------
+  vitals:
+    <<: *restart
+    profiles: [sources]
+    build: ../sources/vitals/service
+    environment:
+      VITALS_DATABASE_URL: postgresql+psycopg://debugassist:debugassist@postgres:5432/vitals
+      VITALS_SOURCEMAP_ORIGIN: http://client:8080
+      VITALS_CORS_ORIGINS: http://localhost:8080,http://localhost:8081,http://localhost:5173
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/healthz')"]
+    ports: ["8100:8100"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  bugdrop:
+    <<: *restart
+    profiles: [sources]
+    build:
+      context: ..
+      dockerfile: sources/bugdrop/service/Dockerfile
+    environment:
+      BUGDROP_DATABASE_URL: postgresql+psycopg://debugassist:debugassist@postgres:5432/bugdrop
+      BUGDROP_S3_ENDPOINT: minio:9000
+      BUGDROP_S3_ACCESS_KEY: debugassist
+      BUGDROP_S3_SECRET_KEY: debugassist-dev  # local-only dev credential
+      BUGDROP_S3_BUCKET: bugdrop
+      BUGDROP_CORS_ORIGINS: http://localhost:8080,http://localhost:8081,http://localhost:5173
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/healthz')"]
+    ports: ["8200:8200"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      minio: { condition: service_started }
+
+  incidents:
+    <<: *restart
+    profiles: [sources]
+    build: ../sources/incidents/service
+    volumes: [incidentsdata:/data]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8300/healthz')"]
+    ports: ["8300:8300"]
+
 volumes:
+  incidentsdata:
   pgdata:
   miniodata:
   phoenixdata:

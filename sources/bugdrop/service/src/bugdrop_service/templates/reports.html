@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block body %}
+<table><tr><th>Report</th><th>Description</th><th>App</th><th>Device</th><th>City</th><th>Files</th><th>Created</th></tr>
+{% for r in reports %}
+<tr><td><a href="/reports/{{ r.id }}">{{ r.id }}</a></td><td>{{ r.description[:140] }}</td><td>{{ r.app }} {{ r.version }}</td>
+<td>{{ r.device.os }} · {{ r.device.browser }}</td><td>{{ r.city or "" }}</td><td>{{ r.files|length }}</td><td class="muted">{{ r.created_at[:19] }}</td></tr>
+{% else %}<tr><td colspan="7" class="muted">No reports yet.</td></tr>{% endfor %}
+</table>
+{% endblock %}

@@ -1,0 +1,32 @@
+id: BUG-004
+title: ETA endpoint fails when the assigned driver has no GPS fix
+language: python
+component: dispatch
+owner_team: dispatch
+category: own_code
+priority: P2
+discovery: [vitals, bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.6.3
+  repos:
+    miniride-services: [patches/BUG-004/0001-feat-dispatch-ETA-from-live-driver-positions.patch]
+trigger:
+  scenario: gps_loss
+  params:
+    sessions: 6
+    gps_lost_share: 0.5
+    report_text: "ETA stuck at 5 min and the driver never gets closer"
+ground_truth:
+  fix: fixes/BUG-004.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-004/test_eta_hidden.py, repo: miniride-services, dest: dispatch/tests/test_eta_hidden.py }
+  location: { repo: miniride-services, module: dispatch, file: dispatch/src/dispatch/matching.py, function: eta_seconds }
+  rca_facts:
+    - 'GET /rides/{ride_id}/eta raises TypeError when the driver''s lat/lng are null (driver app without GPS fix).'
+    - 'The None-coordinate fallback was removed when ETAs switched to live driver positions.'
+    - 'Regression introduced in 1.6.3 by "feat(dispatch): ETA from live driver positions".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr
