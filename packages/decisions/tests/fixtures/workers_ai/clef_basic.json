@@ -1,0 +1,46 @@
+{
+  "result": {
+    "model": "clef",
+    "answers": {
+      "needs_code_change": {
+        "type": "noul",
+        "noul": 0.9647
+      },
+      "category": {
+        "type": "choice",
+        "choice": "own_code",
+        "probabilities": {
+          "own_code": 0.9358,
+          "third_party": 0.0234,
+          "infra": 0.0277,
+          "network": 0.0131
+        },
+        "confidence": 0.8363
+      },
+      "severity": {
+        "type": "score",
+        "score": 2.7505,
+        "legend": {
+          "0": "cosmetic",
+          "1": "minor",
+          "2": "major",
+          "3": "crash"
+        },
+        "probabilities": {
+          "0": 0.0157,
+          "1": 0.0536,
+          "2": 0.0952,
+          "3": 0.8355
+        },
+        "confidence": 0.6136
+      }
+    },
+    "usage": {
+      "input_tokens": 402,
+      "output_tokens": 0
+    }
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

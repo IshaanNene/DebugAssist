@@ -1,0 +1,13 @@
+[project]
+name = "debugassist-core"
+version = "0.1.0"
+description = "DebugAssist core: settings, run modes, state models, ledger, policies, redaction"
+requires-python = ">=3.13,<3.14"
+dependencies = ["pydantic>=2.12", "pydantic-settings>=2.11"]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/debugassist"]

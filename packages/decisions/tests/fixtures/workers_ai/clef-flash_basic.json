@@ -1,0 +1,46 @@
+{
+  "result": {
+    "model": "clef-flash",
+    "answers": {
+      "needs_code_change": {
+        "type": "noul",
+        "noul": 0.8534
+      },
+      "category": {
+        "type": "choice",
+        "choice": "own_code",
+        "probabilities": {
+          "own_code": 0.9576,
+          "third_party": 0.0093,
+          "infra": 0.0225,
+          "network": 0.0106
+        },
+        "confidence": 0.8903
+      },
+      "severity": {
+        "type": "score",
+        "score": 2.8117,
+        "legend": {
+          "0": "cosmetic",
+          "1": "minor",
+          "2": "major",
+          "3": "crash"
+        },
+        "probabilities": {
+          "0": 0.0178,
+          "1": 0.0341,
+          "2": 0.0668,
+          "3": 0.8813
+        },
+        "confidence": 0.7102
+      }
+    },
+    "usage": {
+      "input_tokens": 402,
+      "output_tokens": 0
+    }
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
