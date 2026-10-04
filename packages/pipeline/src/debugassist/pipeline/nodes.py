@@ -23,7 +23,7 @@ from debugassist.core.policy import ROOT, Verdict
 from debugassist.core.settings import Integration, Mode
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
-from debugassist.integrations.sandbox import Sandbox
+from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
@@ -158,6 +158,21 @@ def _repro_problem(cmd: str, exit_code: int, output: str, issue: Issue) -> str |
     if sig and sig not in output:
         return f"`{cmd}` fails, but not with the reported error `{sig}`; reproduce that failure.\n{output[-600:]}"
     return None
+
+
+def _run_on_release(sb: Sandbox, base: str, cmd: str, workdir: str) -> CommandResult | None:
+    """Run `cmd` with the source change reverted (tests kept), then re-apply it. None if no source change."""
+    src = [f for f in changed_files(sb.diff(base)) if not is_test_path(f)]
+    if not src:
+        return None
+    src_diff = subprocess.run(
+        ["git", "diff", "HEAD", "--", *src], cwd=sb.worktree, capture_output=True, text=True, check=True
+    ).stdout
+    subprocess.run(["git", "apply", "-R", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
+    try:
+        return sb.run(cmd, workdir=workdir)
+    finally:
+        subprocess.run(["git", "apply", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
 
 
 def _component_cfg(state: RunState, worktree: Path) -> dict[str, Any]:
@@ -726,7 +741,9 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
         cmd = _test_cmd(issue.language, fa.repro.test_file, issue.component)
         run = sb.run(cmd, workdir=issue.component)
         fa.repro_run = {"command": cmd, "exit_code": run.exit_code, "output_tail": run.output[-2500:]}
-        problem = _repro_problem(cmd, run.exit_code, run.output, issue)
+        problem = _repro_problem(cmd, run.exit_code, run.output, issue) or _static_problem(
+            sb, comp, issue.component
+        )
         fa.repro_verified = (
             problem is None
             and is_test_path(fa.repro.test_file)
@@ -741,16 +758,16 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
         fa.files = changed_files(fa.diff)
         return {"fix_attempts": [*state.fix_attempts, fa], "costs": costs}
 
-    # Phase 2: fix (source files editable; the reproduction test is frozen)
+    # Phase 2: fix. The reproduction test may be repaired (e.g. it hangs once the bug is fixed), but every
+    # check re-proves the contract: with only the source change reverted it still fails with the production
+    # error, and with the change it passes. A test weakened to pass is therefore rejected.
     repro = fa.repro
     assert repro
-    frozen = repro.test_file
-    frozen_content = (sb.worktree / frozen).read_text()
     tools = build_workspace_tools(
         sb,
         allow_edits=True,
         allow_commands=True,
-        editable=lambda p: p != frozen and not p.startswith(("src/vendor/", "vendor/")),
+        editable=lambda p: not p.startswith(("src/vendor/", "vendor/")),
         workdir=issue.component,
     )
     fix_spec = LLMNodeSpec(
@@ -763,12 +780,17 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     )
 
     def check_fix(out: dict[str, Any]) -> str | None:
-        (sb.worktree / frozen).write_text(frozen_content)
-        if not [f for f in changed_files(sb.diff(base)) if not is_test_path(f)]:
+        cmd = str(fa.repro_run["command"])
+        if not (sb.worktree / repro.test_file).is_file():
+            return f"the reproduction test {repro.test_file} is missing; restore it"
+        before = _run_on_release(sb, base, cmd, issue.component)
+        if before is None:
             return "you have not changed any source file yet"
-        res = sb.run(str(fa.repro_run["command"]), workdir=issue.component)
+        if problem := _repro_problem(cmd, before.exit_code, before.output, issue):
+            return f"with your source change reverted, the reproduction test no longer reproduces the bug: {problem}"
+        res = sb.run(cmd, workdir=issue.component)
         if res.exit_code != 0:
-            return f"the reproduction test still fails:\n{res.output[-1200:]}"
+            return f"the reproduction test still fails with your change:\n{res.output[-1200:]}"
         suite = sb.run(str(comp["test"]), workdir=issue.component)
         if suite.exit_code != 0:
             return f"the component suite fails:\n{suite.output[-1200:]}"
@@ -780,7 +802,6 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     _stop_if_out_of_quota(r2, state, "fix")
     costs[fix_spec.node] = costs.get(fix_spec.node, 0.0) + r2.cost_usd
     fa.llm["fix"] = _llm_summary(r2)
-    (sb.worktree / frozen).write_text(frozen_content)  # the reproduction test is the contract: restore it
     fa.output = FixOutput.model_validate(r2.output) if r2.output else None
     fa.diff = sb.diff(base)
     fa.files = changed_files(fa.diff)
@@ -828,6 +849,8 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
             exit_code=before.exit_code,
             output_tail=before.output[-3000:],
         )
+        if before_problem := _repro_problem(cmd, before.exit_code, before.output, issue):
+            record.update(failing_before_problem=before_problem[:600])
         suite = sb.run(str(comp["test"]), workdir=issue.component)
         v.suite = TestRun(
             label="full component suite with the fix",
@@ -861,6 +884,7 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
         and v.suite
         and v.suite.exit_code == 0
         and record.get("suite_exit") == 0
+        and "failing_before_problem" not in record
         and (v.static is None or v.static.exit_code == 0)
     )
     v.attempts.append(record)
