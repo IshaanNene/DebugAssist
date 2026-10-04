@@ -20,7 +20,7 @@ DebugAssist is an open-source reimplementation of the pipeline described in the 
 | Artifactory | MinIO | P11 |
 | PEX per agent type | PEX per agent type | P11 |
 | Arize tracing | Arize Phoenix (self-hosted) + OpenInference LangChain instrumentor | P12 |
-| Claude (Sonnet / Opus) | OpenRouter `openai/gpt-oss-120b` (PLAN amendment A1) | P3 |
+| Claude (Sonnet / Opus) | OpenAI-compatible LLM providers: GroqCloud `openai/gpt-oss-120b` or OpenRouter (PLAN A1, A11, A12; ADR 0007) | ✅ P3 |
 | — (new) decision layer | Cloudflare Clef / Clef-flash on Workers AI | ✅ P1 |
 
 ## Target system: MiniRide

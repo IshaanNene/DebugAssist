@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 from typing import Any, Protocol, cast
 
+import openai
 from langchain.agents import create_agent  # pyright: ignore[reportUnknownVariableType]
 from langchain.agents.middleware import (
     ModelCallLimitMiddleware,
@@ -30,10 +31,12 @@ from langchain.agents.middleware import (
 )
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool, StructuredTool
+from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from pydantic import BaseModel
 
 from debugassist.core.policy import ROOT
+from debugassist.core.settings import get_settings
 from debugassist.llm.chat import chat_model, cost_usd, structured_method
 from debugassist.llm.spec import LLMNodeSpec, LLMResult, ToolCall
 
@@ -51,8 +54,9 @@ def _transient(exc: Exception) -> bool:
     """Overloaded/rate-limited upstream (common on free OpenRouter models): wait and retry."""
     if isinstance(exc, TimeoutError):
         return True
-    if "per-day" in str(exc) or "per_day" in str(exc):  # daily quota: retrying cannot help until the reset
-        return False
+    text = str(exc).lower()
+    if any(k in text for k in ("per-day", "per_day", "per day", "(tpd)", "(rpd)")):
+        return False  # daily quota (OpenRouter free models, GroqCloud TPD/RPD): retrying cannot help today
     status = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
     return status in (408, 429, 500, 502, 503, 504) or "overloaded" in str(exc).lower()
 
@@ -65,6 +69,108 @@ MODEL_CALL_TIMEOUT_S = 300
 @wrap_model_call
 async def bounded_model_call(request: Any, handler: Any) -> Any:
     return await asyncio.wait_for(handler(request), timeout=MODEL_CALL_TIMEOUT_S)
+
+
+def approx_tokens(content: Any) -> int:
+    """Conservative token estimate (chars / 3) for budgeting requests; no tokenizer for every model."""
+    text = content if isinstance(content, str) else json.dumps(content, default=str)
+    return len(text) // 3 + 4
+
+
+def _msg_tokens(m: BaseMessage) -> int:
+    return approx_tokens(m.content) + (
+        approx_tokens(getattr(m, "tool_calls", None)) if isinstance(m, AIMessage) else 0
+    )
+
+
+def _clip(m: BaseMessage, chars: int) -> BaseMessage:
+    text = _text(m.content)
+    if len(text) <= chars:
+        return m
+    clipped = (
+        text[: chars // 2]
+        + f"\n…[{len(text) - chars} chars clipped to fit the context budget]…\n"
+        + text[-chars // 2 :]
+    )
+    return m.model_copy(update={"content": clipped})
+
+
+def fit_to_budget(messages: list[BaseMessage], budget: int) -> list[BaseMessage]:
+    """The messages the model sees, within `budget` tokens: the task always, then the newest steps.
+
+    Older tool outputs are clipped first, then the oldest whole steps (an AI message and its tool
+    results) are dropped, so tool calls and results stay paired. The agent's state is unchanged.
+    """
+    if not messages or sum(map(_msg_tokens, messages)) <= budget:
+        return messages
+    task, rest = messages[0], messages[1:]
+    steps: list[list[BaseMessage]] = []
+    for m in rest:
+        if isinstance(m, AIMessage) or not steps:
+            steps.append([m])
+        else:
+            steps[-1].append(m)
+    # Clip tool output everywhere but the newest step.
+    steps = [[_clip(m, 1_200) if isinstance(m, ToolMessage) else m for m in st] for st in steps[:-1]] + steps[
+        -1:
+    ]
+    task = _clip(task, max(2_000, budget * 3 // 2))
+    room = budget - _msg_tokens(task) - 60
+    kept: list[list[BaseMessage]] = []
+    for st in reversed(steps):
+        cost = sum(map(_msg_tokens, st))
+        if cost > room:
+            if not kept:  # the newest step alone is too big: clip its tool output harder
+                st = [_clip(m, max(800, room * 2)) if isinstance(m, ToolMessage) else m for m in st]
+                kept.append(st)
+            break
+        kept.append(st)
+        room -= cost
+    dropped = len(steps) - len(kept)
+    note = (
+        [HumanMessage(f"[{dropped} earlier step(s) omitted to fit the context budget.]")] if dropped else []
+    )
+    return [task, *note, *[m for st in reversed(kept) for m in st]]
+
+
+# GroqCloud rejects a turn whose output breaks the tool-call format instead of returning it.
+REJECTED_TURN = {
+    "tool_use_failed": "Your last reply called a tool that does not exist, so it was rejected.",
+    "output_parse_failed": "Your last reply was not a valid tool call or answer, so it was rejected.",
+}
+
+
+@wrap_model_call
+async def recover_unknown_tool(request: Any, handler: Any) -> Any:
+    """gpt-oss sometimes calls its trained-in tools (e.g. `search`) instead of ours, or ends a turn with
+    bare reasoning; GroqCloud rejects such a turn (`tool_use_failed`, `output_parse_failed`). Re-ask with
+    the real tool names instead of failing the agent."""
+    req = request
+    for attempt in range(3):
+        try:
+            return await handler(req)
+        except openai.BadRequestError as exc:
+            reason = next((msg for code, msg in REJECTED_TURN.items() if code in str(exc)), None)
+            if reason is None or attempt == 2:
+                raise
+            names = ", ".join(sorted(getattr(t, "name", "?") for t in request.tools))
+            note = HumanMessage(
+                f"{reason} Only these tools exist: {names}. Reply with exactly one call to one of them "
+                "(e.g. `grep` to search code, `submit_result` when done); keep reasoning brief."
+            )
+            req = req.override(messages=[*req.messages, note])
+    raise AssertionError("unreachable")
+
+
+def token_budget_middleware(budget: int) -> Any:
+    @wrap_model_call
+    async def within_budget(request: Any, handler: Any) -> Any:
+        fixed = approx_tokens(request.system_prompt or "") + approx_tokens(
+            [convert_to_openai_tool(t) for t in request.tools]
+        )
+        return await handler(request.override(messages=fit_to_budget(list(request.messages), budget - fixed)))
+
+    return within_budget
 
 
 UNTRUSTED_NOTE = (
@@ -184,6 +290,8 @@ class AgentRunner:
                 max_retries=6, retry_on=_transient, on_failure="error", initial_delay=5, max_delay=90
             ),
             bounded_model_call,  # inside the retry, so a timed-out call is retried
+            recover_unknown_tool,
+            *([token_budget_middleware(budget)] if (budget := get_settings().request_token_budget()) else []),
             ToolCallLimitMiddleware(run_limit=spec.max_tool_calls, exit_behavior="end"),
             stop_when_submitted,
             record,

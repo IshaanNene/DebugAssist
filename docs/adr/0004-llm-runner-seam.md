@@ -1,6 +1,6 @@
 # 0004. LLM calls go through an `LLMRunner` seam (OpenRouter gpt-oss-120b; record/replay mocks)
 
-- Status: accepted · Date: 2026-10-04
+- Status: accepted, refined by [0007](0007-llm-providers.md) · Date: 2026-10-04
 
 ## Context
 The spec assumed the Claude Agent SDK. Review amendment A1 replaced it with OpenRouter `openai/gpt-oss-120b`. Mock mode must work without keys and without patching any SDK.
