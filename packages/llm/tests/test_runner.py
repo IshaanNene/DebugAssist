@@ -147,3 +147,11 @@ async def test_unknown_tool_rejection_is_retried_with_the_real_tool_names() -> N
     out = await recover_unknown_tool.awrap_model_call(Req(["task"], tools), handler)  # pyright: ignore[reportArgumentType]
     assert out == "ok" and len(seen) == 2
     assert "Only these tools exist: grep, read_file" in str(seen[1].messages[-1].content)
+
+
+def test_budget_note_lists_dropped_calls() -> None:
+    from debugassist.llm.runner import fit_to_budget
+
+    out = fit_to_budget(_steps(12, 3_000), 2_500)
+    note = str(out[1].content)
+    assert "Already done: read_file(f0)" in note and "Do not repeat" in note

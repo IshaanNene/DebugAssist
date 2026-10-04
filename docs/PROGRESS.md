@@ -126,6 +126,11 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - PR #1's CI fails lint: the generated test has two unused imports. Validation did not run the repository's CI checks; it now does (and so do the reproduce/fix submit checks), but the re-run that would update PR #1 hit the free tier's 50 requests/day. Re-run after the reset: `debugassist run VIT-1001 --llm live --resume 20261004-090058-vit-1001 --from-node fix`.
 - Run screenshots (08–14) wait for that green run; system screenshots 01–07 are in `docs/screenshots/`.
 
+**GroqCloud (added 2026-10-04, PLAN A12 / ADR 0007)**
+- Works live on the free plan: agent tool calls, strict structured extraction and LLM-decider decisions with `openai/gpt-oss-120b`.
+- Free-plan limits (8K tokens/min incl. part of the output cap, 200K/day) are too tight for the reproduce/fix agents so far: with ~5K input tokens per request they cannot keep the buggy code, the store and an example test in view, and re-read files instead of finishing. Three attempts on VIT-1001 ended without a reproducing test (one test was written but passed on the buggy release and was never submitted). Budget handling, dropped-step notes and recovery from Groq-rejected turns are in place; the paid Dev tier or OpenRouter credits remove the constraint.
+- Bug found on the way: after a PR, the fix step reset the sandbox to the bot branch (which holds the previous fix) instead of the release tag, so reproduction ran against fixed code. Fixed.
+
 **Findings / fixes along the way**
 - Paid OpenRouter models returned 402: the account has no credits (the $50 is a key cap). Switched to the free model (PLAN A11).
 - OpenRouter keeps queued requests alive with whitespace, so HTTP read timeouts never fire: every model call now has a 300 s wall-clock bound and backoff retries; daily-quota 429s fail fast.

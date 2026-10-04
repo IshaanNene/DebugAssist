@@ -9,7 +9,7 @@ API. Two providers are integrated and tested live:
 
 | Provider | Default model | Notes |
 |---|---|---|
-| **GroqCloud** | `openai/gpt-oss-120b` | Free plan works: tool calling, strict structured outputs, reasoning effort. Free limits are 8K tokens/min and 200K tokens/day per model, so each request is held under a token budget (`LLM_MAX_REQUEST_TOKENS`, default 7000 on Groq). |
+| **GroqCloud** | `openai/gpt-oss-120b` | Free plan works: tool calling, strict structured outputs, reasoning effort. Free limits are 8K tokens/min and 200K tokens/day per model, so each request is held under a token budget (`LLM_MAX_REQUEST_TOKENS`, default 5000 on Groq, with output capped at 2500 and reasoning effort at medium because Groq counts part of the output cap toward the per-minute limit). |
 | **OpenRouter** | `nvidia/nemotron-3-ultra-550b-a55b:free` | Works without credits (about 50 requests/day on free models). With credits, `openai/gpt-oss-120b` with host pinning. |
 
 Pick one with `LLM_PROVIDER=groq|openrouter` (default: GroqCloud when `GROQ_CLOUD_API` is set, else

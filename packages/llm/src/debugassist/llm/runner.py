@@ -72,9 +72,10 @@ async def bounded_model_call(request: Any, handler: Any) -> Any:
 
 
 def approx_tokens(content: Any) -> int:
-    """Conservative token estimate (chars / 3) for budgeting requests; no tokenizer for every model."""
+    """Token estimate for budgeting requests (chars / 3.5: code tokenizes denser than prose, measured at
+    ~4.4 chars/token on GroqCloud for English); no tokenizer for every model."""
     text = content if isinstance(content, str) else json.dumps(content, default=str)
-    return len(text) // 3 + 4
+    return int(len(text) / 3.5) + 4
 
 
 def _msg_tokens(m: BaseMessage) -> int:
@@ -93,6 +94,12 @@ def _clip(m: BaseMessage, chars: int) -> BaseMessage:
         + text[-chars // 2 :]
     )
     return m.model_copy(update={"content": clipped})
+
+
+def _call_summary(m: AIMessage) -> str:
+    return ", ".join(
+        f"{tc['name']}({', '.join(str(v)[:60] for v in tc.get('args', {}).values())})" for tc in m.tool_calls
+    )
 
 
 def fit_to_budget(messages: list[BaseMessage], budget: int) -> list[BaseMessage]:
@@ -127,9 +134,18 @@ def fit_to_budget(messages: list[BaseMessage], budget: int) -> list[BaseMessage]
         kept.append(st)
         room -= cost
     dropped = len(steps) - len(kept)
-    note = (
-        [HumanMessage(f"[{dropped} earlier step(s) omitted to fit the context budget.]")] if dropped else []
-    )
+    note: list[BaseMessage] = []
+    if dropped:
+        done = list(
+            dict.fromkeys(_call_summary(m) for st in steps[:dropped] for m in st if isinstance(m, AIMessage))
+        )
+        note = [
+            HumanMessage(
+                f"[{dropped} earlier step(s) omitted to fit the context budget. Already done: "
+                + "; ".join(c for c in done if c)[:900]
+                + ". Do not repeat these unless you need exact lines you no longer see; move on.]"
+            )
+        ]
     return [task, *note, *[m for st in reversed(kept) for m in st]]
 
 
@@ -382,11 +398,18 @@ class AgentRunner:
         """The agent ended without calling submit_result: extract the result from its transcript."""
         if not messages:
             return None, 0, 0
-        notes = "\n\n".join(
-            f"[{m.type}] {_preview(m.content, 3000)}"
-            for m in messages[-16:]
-            if not isinstance(m, HumanMessage)
-        )
+        # Newest notes first until the request budget (if any) is used; the task is capped at 4000 chars.
+        room_chars = ((get_settings().request_token_budget() or 20_000) - 1_500) * 3 - min(len(prompt), 4000)
+        picked: list[str] = []
+        for m in reversed(messages[-16:]):
+            if isinstance(m, HumanMessage):
+                continue
+            note = f"[{m.type}] {_preview(m.content, 3000)}"
+            if len(note) > room_chars:
+                break
+            picked.append(note)
+            room_chars -= len(note) + 2
+        notes = "\n\n".join(reversed(picked))
         base = chat_model("low", model=spec.model)
         llm: Any = base.with_structured_output(  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
             schema, method=structured_method(spec.model), include_raw=True

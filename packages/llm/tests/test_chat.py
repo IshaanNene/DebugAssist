@@ -41,13 +41,14 @@ def test_provider_resolution_and_defaults() -> None:
     groq, orr = _settings("groq"), _settings("openrouter")
     assert groq.model() == "openai/gpt-oss-120b" and groq.llm_base_url().startswith("https://api.groq.com/")
     assert orr.model() == NEMOTRON and orr.llm_base_url().startswith("https://openrouter.ai/")
-    assert groq.request_token_budget() == 7_000 and orr.request_token_budget() is None
+    assert groq.max_output_tokens() == 2_500 and orr.max_output_tokens() == 16_000
+    assert groq.request_token_budget() == 5_000 and orr.request_token_budget() is None
     assert _settings("groq", llm_max_request_tokens=0).request_token_budget() is None
 
 
 def test_chat_model_sends_provider_specific_fields() -> None:
     groq = chat.chat_model("high", _settings("groq"))
-    assert groq.reasoning_effort == "high" and not groq.extra_body
+    assert groq.reasoning_effort == "medium" and not groq.extra_body  # capped on Groq
     orr = chat.chat_model("low", _settings("openrouter", "openai/gpt-oss-120b"))
     assert orr.extra_body and orr.extra_body["provider"]["order"] == [
         "groq",

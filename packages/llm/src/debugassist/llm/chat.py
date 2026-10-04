@@ -31,7 +31,9 @@ def chat_model(
     name = model or s.model()
     kwargs: dict[str, Any] = {}
     if "reasoning_effort" in model_info(name, s.provider()).supported_parameters:
-        kwargs["reasoning_effort"] = effort
+        cap = s.max_reasoning_effort()
+        order = ["low", "medium", "high"]
+        kwargs["reasoning_effort"] = cap if cap and order.index(effort) > order.index(cap) else effort
     if s.provider() == "openrouter":
         kwargs["extra_body"] = {"provider": routing(s, name)}
     return ChatOpenAI(
@@ -39,7 +41,8 @@ def chat_model(
         base_url=s.llm_base_url(),
         api_key=key,
         timeout=180,
-        max_completion_tokens=16_000,  # OpenRouter reserves credit for max_tokens on every in-flight call
+        # OpenRouter reserves credit for it on every in-flight call; Groq counts part of it toward TPM.
+        max_completion_tokens=s.max_output_tokens(),
         max_retries=3,
         **kwargs,
     )
