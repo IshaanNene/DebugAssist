@@ -1,0 +1,23 @@
+id: D10_model_routing
+version: 1
+stage: classify_rca
+description: Route the RCA or a small edit to the right reasoning effort (one model, gpt-oss-120b).
+model: clef-flash
+state_budget_tokens: 3000
+questions:
+  difficulty:
+    type: choice
+    instructions: >-
+      How hard is this task for an automated engineer: small edit (rename, add a test, typo), standard
+      (single-module bug with clear evidence) or hard (cross-module, concurrency, unclear evidence)?
+    criteria:
+      small: small, mechanical change
+      standard: ordinary single-module debugging
+      hard: cross-cutting, concurrency, performance or weak evidence
+policy:
+  question: difficulty
+  tau_high: 0.6
+  tau_low: 0.3
+  act: {small: effort_low, standard: effort_medium, hard: effort_high}
+  escalate: effort_high
+  safe_default: effort_medium

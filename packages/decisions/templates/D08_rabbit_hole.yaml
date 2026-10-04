@@ -1,0 +1,23 @@
+id: D08_rabbit_hole
+version: 1
+stage: classify_rca
+description: Every N tool calls, is the agent still making progress? Stops early; hard max_turns stays.
+model: clef-flash
+state_budget_tokens: 4000
+questions:
+  progressing:
+    type: noul
+    instructions: Over the recent tool calls, did the agent learn something new that narrows the root cause?
+  looping:
+    type: noul
+    instructions: Is the agent repeating the same or near-identical tool calls without new information?
+  off_goal:
+    type: noul
+    instructions: Has the agent drifted to investigating something unrelated to the issue's symptoms?
+policy:
+  question: looping
+  tau_high: 0.75
+  tau_low: 0.4
+  act: stop_early
+  escalate: warn
+  safe_default: continue

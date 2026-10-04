@@ -1,0 +1,21 @@
+id: D02_dedup
+version: 1
+stage: auto_triage
+description: Is the new issue a duplicate of an open one? Choice over top-K candidates plus none.
+model: clef
+state_budget_tokens: 6000
+questions:
+  duplicate_of:
+    type: choice
+    instructions: >-
+      The state holds a NEW issue and up to K OPEN candidate issues. Pick the candidate that has the
+      same root cause (same failing code path or same user-visible failure under the same conditions),
+      or "none" if no candidate matches. Similar symptoms with a different cause are not duplicates.
+    criteria: $candidates
+policy:
+  question: duplicate_of
+  tau_high: 0.8
+  tau_low: 0.4
+  act: {none: new_issue, "*": mark_duplicate}
+  escalate: human
+  safe_default: new_issue

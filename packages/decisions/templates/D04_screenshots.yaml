@@ -1,0 +1,36 @@
+id: D04_screenshots
+version: 1
+stage: context_collector
+description: Vision questions over the in-app screenshot and user-attached images.
+model: clef
+state_budget_tokens: 2000
+questions:
+  blank_screen:
+    type: noul
+    instructions: Does any in-app screenshot show a blank, white or empty screen where content is expected?
+  error_dialog:
+    type: noul
+    instructions: Does any screenshot show an error message, error dialog or crash notice?
+  screen:
+    type: choice
+    instructions: Which app screen or flow is shown in the in-app screenshot?
+    criteria:
+      search: destination search
+      request_ride: ride request / booking confirmation
+      driver_assigned: driver assigned / en route
+      trip: trip in progress
+      notifications: notification center
+      other: some other screen
+      none: no in-app screenshot
+  abnormal_battery:
+    type: noul
+    instructions: >-
+      Does a user-attached operating-system screenshot (for example a battery usage panel) show this
+      app using an abnormally large share of battery?
+policy:
+  question: abnormal_battery
+  tau_high: 0.7
+  tau_low: 0.3
+  act: flag_battery_evidence
+  escalate: keep_for_rca
+  safe_default: none

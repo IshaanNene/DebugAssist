@@ -1,0 +1,27 @@
+id: D16_ship_gate
+version: 1
+stage: ship_gate
+description: Ship a PR, a draft PR, an RCA-only report, or escalate; plus PR risk.
+model: clef
+state_budget_tokens: 8000
+questions:
+  outcome:
+    type: choice
+    instructions: >-
+      Given the RCA confidence, grounding results, validation proof and diff, what should be shipped?
+    criteria:
+      open_pr: open a ready-for-review PR
+      draft_pr: open a draft PR (fix plausible but proof or grounding is weak)
+      rca_only: post the RCA only, no code change
+      escalate: escalate to the owning team
+  risk:
+    type: score
+    instructions: How risky is merging this diff (blast radius, touched code paths, test coverage)?
+    criteria: ["trivial", "low", "moderate", "high", "very high"]
+policy:
+  question: outcome
+  tau_high: 0.6
+  tau_low: 0.3
+  act: {open_pr: open_pr, draft_pr: draft_pr, rca_only: rca_only, escalate: escalate}
+  escalate: draft_pr
+  safe_default: rca_only

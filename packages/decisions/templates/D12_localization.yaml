@@ -1,0 +1,29 @@
+id: D12_localization
+version: 1
+stage: fix
+description: Which file/function holds the root cause? Choice over code-search candidates; two-stage when large.
+model: clef
+state_budget_tokens: 10000
+two_stage:
+  item_question: is_location
+  choice_question: location
+  top_k: 12
+  max_direct: 40
+questions:
+  is_location:
+    type: noul
+    foreach: candidates
+    instructions: Is {id} ({summary}) the place where the root cause must be fixed?
+  location:
+    type: choice
+    instructions: >-
+      Which candidate location is where the root cause should be fixed? Choose "none" if the evidence
+      points somewhere not listed.
+    criteria: $candidates
+policy:
+  question: location
+  tau_high: 0.6
+  tau_low: 0.25
+  act: {none: search_wider, "*": focus_location}
+  escalate: give_top_k
+  safe_default: search_wider

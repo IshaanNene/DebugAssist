@@ -1,0 +1,28 @@
+id: D05_categorize
+version: 1
+stage: classify_rca
+description: Root-cause category and whether a code change is needed. Calibrated confidence replaces LLM self-reported confidence.
+model: clef
+state_budget_tokens: 8000
+questions:
+  category:
+    type: choice
+    instructions: Given the evidence, where does the root cause most likely lie?
+    criteria:
+      own_code: a defect in our own application or service code
+      third_party_lib: a regression or defect in a third-party library or SDK we depend on
+      infra: infrastructure (database, queue, cache, deployment, capacity) or an ongoing incident
+      network: network conditions, DNS, timeouts or connectivity
+      flag_config: a feature-flag or configuration change
+      device_os: specific to a device model, OS or browser version
+      not_a_bug: expected behaviour, user error, noise or a flaky test
+  needs_code_change:
+    type: noul
+    instructions: Will resolving this issue require a code change in one of our repositories?
+policy:
+  question: category
+  tau_high: 0.7
+  tau_low: 0.35
+  act: {own_code: investigate, flag_config: investigate, third_party_lib: investigate, network: investigate, infra: route_rca, device_os: route_rca, not_a_bug: close_rca}
+  escalate: llm
+  safe_default: investigate

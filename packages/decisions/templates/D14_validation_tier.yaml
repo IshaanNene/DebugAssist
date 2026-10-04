@@ -1,0 +1,25 @@
+id: D14_validation_tier
+version: 1
+stage: validate
+description: Cheapest validation tier that can reproduce the issue.
+model: clef-flash
+state_budget_tokens: 4000
+questions:
+  tier:
+    type: choice
+    instructions: >-
+      What is the cheapest test that can reproduce this issue and prove the fix: a unit test, an
+      integration/component test, an end-to-end test with the user's environment emulated (network,
+      CPU, visibility, flags), or can it not be reproduced automatically?
+    criteria:
+      unit: unit test
+      integration: integration / component test
+      e2e_env: end-to-end test with captured environment emulated
+      cannot_repro: cannot be reproduced automatically
+policy:
+  question: tier
+  tau_high: 0.55
+  tau_low: 0.25
+  act: {unit: tier_unit, integration: tier_integration, e2e_env: tier_e2e, cannot_repro: tier_none}
+  escalate: climb_ladder
+  safe_default: climb_ladder

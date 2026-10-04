@@ -1,0 +1,23 @@
+id: D06_more_evidence
+version: 1
+stage: classify_rca
+description: Does the RCA need more data, and from which source next?
+model: clef-flash
+state_budget_tokens: 6000
+questions:
+  need_more:
+    type: noul
+    instructions: >-
+      Given the hypotheses and evidence so far, is more evidence needed before a root cause can be
+      stated with confidence?
+  next_source:
+    type: choice
+    instructions: If more evidence is needed, which source is most likely to resolve the open question?
+    criteria: $sources
+policy:
+  question: need_more
+  tau_high: 0.6
+  tau_low: 0.3
+  act: fetch_more
+  escalate: fetch_more
+  safe_default: proceed

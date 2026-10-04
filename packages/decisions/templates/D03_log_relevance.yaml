@@ -1,0 +1,22 @@
+id: D03_log_relevance
+version: 1
+stage: context_collector
+description: Relevance of each pre-pruned log window / span group to the issue, batched.
+model: clef-flash
+state_budget_tokens: 12000
+questions:
+  relevance:
+    type: score
+    foreach: windows
+    instructions: >-
+      How useful is evidence window {id} ({summary}) for finding the root cause of the issue described
+      in the state?
+    criteria: ["irrelevant", "background", "related", "important", "decisive"]
+policy:
+  question: relevance
+  per_item: true
+  tau_high: 0.6
+  tau_low: 0.3
+  act: keep
+  escalate: keep_if_budget
+  safe_default: drop

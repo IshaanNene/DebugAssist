@@ -3,7 +3,21 @@ name = "debugassist-decisions"
 version = "0.1.0"
 description = "DebugAssist decision engine: Clef / Clef-flash (Workers AI), local, LLM baseline and mock backends"
 requires-python = ">=3.13,<3.14"
-dependencies = ["debugassist-core"]
+dependencies = [
+  "debugassist-core",
+  "httpx>=0.28",
+  "pyyaml>=6.0",
+  "pillow>=11.3",
+  "system-one-adapter[openai]>=0.2.1",
+  "typer>=0.20",
+]
+
+[project.scripts]
+debugassist = "debugassist.decisions.cli:app"
+
+[project.optional-dependencies]
+# Self-hosted Clef via Cloudflare's joint_schema_model.py (needs a CUDA GPU; PLAN §2).
+local = ["torch>=2.11", "transformers>=5.10.2", "huggingface-hub>=0.35", "safetensors>=0.6"]
 
 [tool.uv.sources]
 debugassist-core = { workspace = true }

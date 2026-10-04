@@ -9,9 +9,9 @@ PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 help:  ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
 
-sync:  ## uv sync + clear macOS hidden flag on .pth files (Python 3.13 skips hidden .pth)
+sync:  ## uv sync + sitecustomize path hook (macOS hides .pth files under ~/Desktop dot-dirs)
 	uv sync
-	@if [ "$$(uname)" = Darwin ]; then chflags nohidden .venv/lib/python3.*/site-packages/*.pth; fi
+	@uv run --no-sync python scripts/venv_path_hook.py
 
 bootstrap: sync  ## Install Python deps and git hooks
 	uv run pre-commit install

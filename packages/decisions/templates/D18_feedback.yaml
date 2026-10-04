@@ -1,0 +1,24 @@
+id: D18_feedback
+version: 1
+stage: feedback
+description: Classify a developer's correction and route it.
+model: clef-flash
+state_budget_tokens: 3000
+questions:
+  kind:
+    type: choice
+    instructions: What is this developer comment about the agent's RCA or fix?
+    criteria:
+      root_cause: the root cause is wrong or incomplete
+      location: the code location is wrong
+      fix_approach: the fix approach should be different
+      style: style, naming or conventions
+      praise: positive feedback, nothing to change
+      other: something else
+policy:
+  question: kind
+  tau_high: 0.6
+  tau_low: 0.3
+  act: {root_cause: label_store, location: label_store, fix_approach: skill_update, style: skill_update, praise: label_store, other: human}
+  escalate: human
+  safe_default: human

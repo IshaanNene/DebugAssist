@@ -3,7 +3,8 @@
 | Phase | Status | Date | Notes |
 |---|---|---|---|
 | P0 Plan & scaffold | ✅ done | 2026-10-04 | See below |
-| P1 Decision engine | ⏭ next | | |
+| P1 Decision engine | ✅ done | 2026-10-04 | See below |
+| P2a Target system + telemetry | ⏭ next | | |
 
 ## P0 — Plan & scaffold (2026-10-04)
 
@@ -28,3 +29,26 @@ make clef-smoke
 - Jira Cloud live mode also needs `JIRA_BASE_URL` and `JIRA_EMAIL`.
 - Slack: mock inbox (no workspace given).
 - GitHub token for the demo repos (`GITHUB_TOKEN`, fine-grained PAT) needed by P2a/P3; `gh` CLI auth is used to create the repos.
+
+## P1 — Decision engine (2026-10-04)
+
+**Done**
+- `debugassist.decisions.schema`: Pydantic request/response models enforcing every documented limit (1–64 questions, id regex, 2–255 options, 2–10 levels, required instructions, ≤4 images of PNG/JPEG/WebP data URLs, 13 MiB body); envelope unwrap; response-vs-request consistency checks.
+- `images`: auto-resize/re-encode to ≤16 MP and ≤4 MiB each, ≤8 MiB total.
+- Backends: `WorkersAIClef` (retries on 429/5xx/timeouts with backoff+jitter, no retry on 4xx), `LLMDecider` (gpt-oss-120b via `system-one-adapter`, OpenRouter host pinning), `LocalClef` (optional, HF `joint_schema_model.py`), `MockDecider` (deterministic, overridable). Circuit breaker + `FallbackBackend`.
+- 18 versioned templates (D01–D18) with `$param` options, `foreach` per-item questions, two-stage high cardinality (D12); policy bands; LLM second opinion on escalation.
+- `CompactState` token budgeting; `DecisionEngine` with chunking beyond 64 questions; decision ledger (`debugassist.core.ledger`, SQLite dev / Postgres verified).
+- CLI: `debugassist decide | templates | modes`. Docs: `docs/decisions.md`.
+- Tests: 75 mock-mode tests (conformance, limits, retries, breaker, chunking, two-stage, ledger, CLI) + 3 live tests (Clef, Clef-flash, LLM baseline) — all passing. Live fixtures: success for both models and three real error responses (400 missing field, 422 model mismatch, 422 one-option choice).
+
+**Verify**
+```
+make check                                   # mock mode
+DA_LIVE_TESTS=1 uv run pytest packages/decisions/tests/test_live.py
+uv run debugassist decide D05 --state '{"error":"TypeError at routeDeepLink","flag":"notif_router_v2 5%"}'
+```
+
+**Findings**
+- OpenRouter default routing for gpt-oss-120b sometimes returns whitespace-padded or unparseable structured output; pinning hosts + `require_parameters` fixed it in testing.
+- macOS: every file created inside a dot-directory under `~/Desktop` gets the hidden flag, and Python 3.13 skips hidden `.pth` files (editable installs vanish). Fix: `make sync` installs a `sitecustomize.py` path hook, and uv now uses its managed CPython (Homebrew's Python ships its own `sitecustomize`). Moving the repo out of `~/Desktop` would also avoid it.
+- Template packaging for wheels/PEX is deferred to P11 (templates are read from `packages/decisions/templates/`).
