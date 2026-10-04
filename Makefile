@@ -87,7 +87,7 @@ demo-push-crash:  ## BUG-002 end to end with no keys: scripted LLM, mock Clef/Gi
 report:  ## Render the latest run (or RUN=<id>) as .data/runs/<id>/report.html
 	uv run --no-sync debugassist report $(RUN)
 
-readme-assets:  ## Rebuild README visuals: hero, architecture, logo wall (SVG) and demo GIF (needs ffmpeg)
+readme-assets:  ## Rebuild README visuals: hero, overview, pipeline, MiniRide, logo wall (SVG) and demo GIF (needs ffmpeg)
 	uv run --no-sync python scripts/readme_assets.py $(or $(WHAT),all)
 
 screenshots:  ## Proof screenshots into docs/screenshots/ (WHAT=stack|run|all; Jira: scripts/screenshots.py jira-login once)

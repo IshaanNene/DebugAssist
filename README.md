@@ -42,7 +42,9 @@ The plan is a fixed <b>LangGraph</b> graph; models never choose the next step. A
 ## 🧭 How it works
 
 <div align="center">
-<img src="docs/assets/architecture.svg" alt="Architecture: signals from MiniRide (Vitals, BugDrop, OpenTelemetry, Unleash) feed a fixed LangGraph pipeline; Cloudflare Clef makes the decisions; GroqCloud/OpenRouter agents reason with MCP tools inside a Docker sandbox; policy-gated actions open the PR and update Jira" width="100%">
+<img src="docs/assets/overview.svg" alt="Overview: Vitals, BugDrop and telemetry feed DebugAssist; Cloudflare Clef decides, LLMs on GroqCloud or OpenRouter reason, tools run in a network-less Docker sandbox; outcomes are a pull request, a Jira ticket and a proposed flag rollback, all through a policy gate" width="100%">
+<br><br>
+<img src="docs/assets/pipeline.svg" alt="The pipeline: ingest, triage, context, root cause, mitigate, reproduce, fix, validate, ship gate, PR and ticket, with Clef decision points D01, D05, D11, D15 and D16 and a retry loop from validate back to reproduce" width="100%">
 </div>
 
 <details>
