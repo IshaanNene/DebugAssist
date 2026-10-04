@@ -60,6 +60,8 @@ class GitHubLive:
             self.http.patch(
                 f"/repos/{repo}/pulls/{pr['number']}", json={"title": title, "body": body}
             ).raise_for_status()
+            if bool(pr.get("draft")) != draft:  # REST cannot change draft state; GraphQL can
+                self._set_draft(pr["node_id"], draft)
         else:
             r = self.http.post(
                 f"/repos/{repo}/pulls",
@@ -72,9 +74,17 @@ class GitHubLive:
             url=pr["html_url"],
             head=head,
             base=base,
-            draft=pr.get("draft", draft),
+            draft=draft,
             mode="live",
         )
+
+    def _set_draft(self, node_id: str, draft: bool) -> None:
+        mutation = "convertPullRequestToDraft" if draft else "markPullRequestReadyForReview"
+        query = f"mutation($id: ID!) {{ {mutation}(input: {{pullRequestId: $id}}) {{ pullRequest {{ isDraft }} }} }}"
+        r = self.http.post("/graphql", json={"query": query, "variables": {"id": node_id}})
+        r.raise_for_status()
+        if r.json().get("errors"):
+            raise RuntimeError(f"GitHub {mutation} failed: {r.json()['errors']}")
 
     def comment(self, repo: str, number: int, body: str) -> None:
         self.http.post(f"/repos/{repo}/issues/{number}/comments", json={"body": body}).raise_for_status()
