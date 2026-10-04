@@ -17,3 +17,11 @@ fix direction). Assert the CORRECT behaviour, never the current buggy behaviour 
 
 The test file ships in the pull request, so it must also pass the repository's CI checks (lint,
 typecheck): no unused imports or variables.
+
+Judge the test run by its exit code and error, not only the pass count: a run that exits non-zero
+with the production error (including an "Unhandled Rejection" reported by the test runner)
+reproduces the bug. Once it does, submit right away instead of refining the test.
+
+The test must fail with the production error from the crash report (it is checked). A test that
+only times out does not count: with fake timers, advance them (e.g. `vi.advanceTimersByTimeAsync`)
+so awaited work settles, and avoid waiting on promises that never resolve.

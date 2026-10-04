@@ -139,3 +139,21 @@ def test_daily_quota_wording_of_both_providers() -> None:
     assert is_daily_quota("Rate limit exceeded: free-models-per-day. Add 10 credits")
     assert not is_daily_quota("on tokens per minute (TPM): Limit 8000, Requested 9388")
     assert not is_daily_quota(None)
+
+
+def test_reproduction_must_fail_with_the_production_error() -> None:
+    issue = _state().issue
+    assert issue
+    cmd = "pnpm exec vitest run test/x.test.ts"
+    real = (
+        "Unhandled Rejection\nTypeError: Cannot read properties of undefined (reading 'riderId')\n ❯ routeV2"
+    )
+    timeout = (
+        "× throws when accessing session before hydration completes 5019ms\nError: Test timed out in 5000ms."
+    )
+    other = "AssertionError: expected 1 to be 2"
+    assert nodes._repro_problem(cmd, 1, real, issue) is None  # pyright: ignore[reportPrivateUsage]
+    assert "timing out" in (nodes._repro_problem(cmd, 1, timeout, issue) or "")  # pyright: ignore[reportPrivateUsage]
+    assert "reported error" in (nodes._repro_problem(cmd, 1, other, issue) or "")  # pyright: ignore[reportPrivateUsage]
+    assert "passes" in (nodes._repro_problem(cmd, 0, real, issue) or "")  # pyright: ignore[reportPrivateUsage]
+    assert nodes._error_signature(issue) == "Cannot read properties of undefined (reading 'riderId')"  # pyright: ignore[reportPrivateUsage]

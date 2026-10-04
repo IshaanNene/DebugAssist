@@ -18,6 +18,7 @@ class LLMNodeSpec(BaseModel):
     max_turns: int = 20  # model calls — the main guardrail (talk: past ~20 turns it's a rabbit hole)
     max_tool_calls: int = 40
     max_budget_usd: float = 0.50
+    max_wall_s: int = 900  # wall clock for the whole agent step (watchdog)
     mcp_servers: list[str] = Field(default_factory=list[str])
     system_prompt: str
 
@@ -34,7 +35,7 @@ class ToolCall(BaseModel):
 class LLMResult(BaseModel):
     node: str
     output: dict[str, Any] | None
-    status: Literal["ok", "max_turns", "max_budget", "no_output", "error"]
+    status: Literal["ok", "max_turns", "max_budget", "no_output", "stalled", "timeout", "error"]
     turns: int
     tool_calls: list[ToolCall]
     input_tokens: int = 0
