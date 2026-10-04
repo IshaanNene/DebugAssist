@@ -1,6 +1,6 @@
 # DebugAssist screenshots
 
-Proof from live runs against the local MiniRide stack, captured with `make screenshots` (`scripts/screenshots.py`). Nothing here is mocked: the LLM, Clef, GitHub and Jira calls were live.
+Proof from live runs against the local MiniRide stack, captured with `make screenshots` (`scripts/screenshots.py`). The LLM, Clef, GitHub and Jira calls in the run shown were live, not mocked. The riders are simulated: all MiniRide traffic, the crashes and the BugDrop report come from the project's Playwright rider fleet (`packages/simulator`), using the real app UI.
 
 ## 1 · The system under test
 
