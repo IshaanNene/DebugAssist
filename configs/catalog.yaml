@@ -1,0 +1,88 @@
+# MiniRide service catalog: service → owning team → on-call rotation → code paths.
+# Used by auto-triage (D1 owner choice, on-call tagging) and by the code-search server's
+# codeowners_for(). People and channels are fictional; Slack runs against the local mock inbox.
+version: 1
+
+teams:
+  rider-app:
+    description: Rider PWA screens, booking flow, ETA display
+    slack_channel: "#rider-app"
+    oncall: [maya.chen, omar.haddad, priya.nair]
+    escalation: rider-platform
+  rider-engagement:
+    description: Notifications, deep links, push delivery in the rider app
+    slack_channel: "#rider-engagement"
+    oncall: [lucas.meyer, aiko.tanaka]
+    escalation: rider-app
+  rider-platform:
+    description: GraphQL gateway, rider API contracts, notification center backend
+    slack_channel: "#rider-platform"
+    oncall: [sam.okafor, elena.rossi]
+    escalation: developer-platform
+  dispatch:
+    description: Driver matching, ride lifecycle, ETA computation
+    slack_channel: "#dispatch"
+    oncall: [jonas.berg, fatima.zahra, diego.alvarez]
+    escalation: sre-infra
+  payments:
+    description: Fares, tariffs, surge, payment authorization
+    slack_channel: "#payments"
+    oncall: [hana.kim, victor.ng]
+    escalation: sre-infra
+  developer-platform:
+    description: Telemetry SDKs, CI, build tooling, feature-flag platform
+    slack_channel: "#dev-platform"
+    oncall: [ravi.iyer, chloe.martin]
+    escalation: sre-infra
+  sre-infra:
+    description: Databases, networking, deploys, incident command
+    slack_channel: "#sre"
+    oncall: [ana.silva, tom.walker]
+    escalation: null
+
+# Rotation: the on-call engineer is oncall[(ISO week number) % len(oncall)].
+oncall_rotation: weekly
+
+services:
+  miniride-client:
+    repo: IshaanNene/miniride-client
+    language: typescript
+    domain: rider-app
+    owner: rider-app
+    paths:
+      - { glob: "src/notifications/**", owner: rider-engagement }
+      - { glob: "src/telemetry/**", owner: developer-platform }
+      - { glob: "**", owner: rider-app }
+    runtime: browser
+  gateway:
+    repo: IshaanNene/miniride-services
+    language: typescript
+    domain: rider-platform
+    owner: rider-platform
+    paths: [{ glob: "gateway/**", owner: rider-platform }]
+    depends_on: [dispatch, payments]
+  dispatch:
+    repo: IshaanNene/miniride-services
+    language: python
+    domain: dispatch
+    owner: dispatch
+    paths: [{ glob: "dispatch/**", owner: dispatch }]
+    depends_on: [postgres]
+  payments:
+    repo: IshaanNene/miniride-services
+    language: go
+    domain: payments
+    owner: payments
+    paths: [{ glob: "payments/**", owner: payments }]
+  postgres:
+    kind: infrastructure
+    owner: sre-infra
+  unleash:
+    kind: infrastructure
+    owner: developer-platform
+
+# Release train: client and services ship together; a release's rollout is tracked in Unleash
+# flags and by version adoption (app_version on every event and span).
+releases:
+  current: "1.4.0"
+  train: weekly

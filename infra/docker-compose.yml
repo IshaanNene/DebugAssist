@@ -4,16 +4,29 @@
 #   obs    – Jaeger (traces), Loki (logs), Prometheus (metrics), Phoenix (agent traces)
 #   flags  – Unleash (feature flags, gradual rollouts)
 #   faults – Toxiproxy (network fault injection for the weak-network validation tier)
-# Target-system, source and app services are added in later phases.
+#   target – MiniRide: dispatch (Python), payments (Go), gateway (Node GraphQL), client (React PWA)
+# Source (BugDrop, Vitals) and app services are added in later phases.
 name: debugassist
 
 x-restart: &restart
   restart: unless-stopped
 
+x-health: &health
+  interval: 5s
+  timeout: 3s
+  retries: 30
+
+x-miniride-otel: &miniride-otel
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  UNLEASH_URL: http://unleash:4242/api
+  UNLEASH_API_TOKEN: "default:development.unleash-insecure-api-token"
+  SERVICE_VERSION: "1.4.0"
+
 services:
   postgres:
     <<: *restart
-    profiles: [core, flags]
+    profiles: [core, flags, target]
     image: postgres:17.11-alpine
     environment:
       POSTGRES_USER: debugassist
@@ -55,9 +68,18 @@ services:
     profiles: [obs]
     image: jaegertracing/jaeger:2.21.0
     ports:
-      - "16686:16686"  # UI + query API
-      - "4317:4317"    # OTLP gRPC
-      - "4318:4318"    # OTLP HTTP
+      - "16686:16686"  # UI + query API (OTLP is received via the collector)
+
+  otel-collector:
+    <<: *restart
+    profiles: [obs]
+    image: otel/opentelemetry-collector-contrib:0.161.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes: ["./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro"]
+    ports:
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP (services + browser)
+    depends_on: [jaeger, loki, prometheus]
 
   loki:
     <<: *restart
@@ -95,6 +117,15 @@ services:
       DATABASE_URL: postgres://debugassist:debugassist@postgres:5432/unleash
       DATABASE_SSL: "false"
       LOG_LEVEL: warn
+      # Local-only, well-known Unleash dev tokens (format <project>:<environment>.<secret>).
+      INIT_ADMIN_API_TOKENS: "*:*.unleash-insecure-admin-api-token"
+      INIT_BACKEND_API_TOKENS: "default:development.unleash-insecure-api-token"
+      INIT_FRONTEND_API_TOKENS: "default:development.unleash-insecure-frontend-api-token"
+      UNLEASH_FRONTEND_API_ORIGINS: "http://localhost:5173,http://localhost:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4242/health"]
+      interval: 5s
+      retries: 30
     ports: ["4242:4242"]
 
   toxiproxy:
@@ -104,6 +135,68 @@ services:
     ports:
       - "8474:8474"           # control API
       - "18000-18010:18000-18010"  # proxied listeners created at runtime
+
+  # ---- MiniRide target system -------------------------------------------------------------
+  dispatch:
+    <<: *restart
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz')"]
+    profiles: [target]
+    build: ../targets/miniride-services/dispatch
+    environment:
+      <<: *miniride-otel
+      OTEL_SERVICE_NAME: dispatch
+      DISPATCH_DATABASE_URL: postgresql+psycopg://debugassist:debugassist@postgres:5432/miniride
+    ports: ["8001:8001"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  payments:
+    <<: *restart
+    healthcheck:
+      <<: *health
+      test: ["CMD", "/payments", "healthcheck"]
+    profiles: [target]
+    build: ../targets/miniride-services/payments
+    environment:
+      <<: *miniride-otel
+      OTEL_SERVICE_NAME: payments
+    ports: ["8002:8002"]
+
+  gateway:
+    <<: *restart
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/healthz"]
+    profiles: [target]
+    build: ../targets/miniride-services/gateway
+    environment:
+      <<: *miniride-otel
+      OTEL_SERVICE_NAME: gateway
+      DISPATCH_URL: http://dispatch:8001
+      PAYMENTS_URL: http://payments:8002
+    ports: ["4000:4000"]
+    depends_on:
+      dispatch: { condition: service_healthy }
+      payments: { condition: service_healthy }
+
+  client:
+    <<: *restart
+    profiles: [target]
+    build:
+      context: ../targets/miniride-client
+      args:
+        VITE_GATEWAY_URL: http://localhost:4000
+        VITE_UNLEASH_URL: http://localhost:4242/api/frontend
+        VITE_UNLEASH_CLIENT_KEY: "default:development.unleash-insecure-frontend-api-token"
+        VITE_OTLP_TRACES_URL: http://localhost:4318/v1/traces
+    healthcheck:
+      <<: *health
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+    ports: ["8080:8080"]
+    depends_on:
+      gateway: { condition: service_healthy }
 
 volumes:
   pgdata:

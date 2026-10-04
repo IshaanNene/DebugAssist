@@ -21,6 +21,11 @@ Read `docs/SPEC.md` (requirements, verbatim) and `docs/PLAN.md` (§0 amendments 
 - Verify third-party APIs against current docs before coding; record live responses as fixtures under `tests/fixtures/`.
 - Conventional commits. One phase at a time; update `docs/PROGRESS.md` at the end of each.
 
+## Target repos
+- `targets/miniride-client` (public) and `targets/miniride-services` (private) are **git submodules with their own history**. Commit there with conventional commits and push to their own remotes; then commit the submodule pointer here.
+- Bugs get injected into those repos as natural-looking commits (P2b). Never mention catalog IDs, "injected" or ground truth in target-repo commits or code.
+- `make up` builds MiniRide from the submodule working trees; `make flags` creates Unleash flags; `make e2e` runs Playwright against :8080.
+
 ## Commands
 - `make bootstrap` · `make sync` (use instead of bare `uv sync` on macOS) · `make check` (lint + pyright + pytest) · `make up PROFILES="core obs flags faults"` · `make down` · `make clef-smoke`
-- Infra ports: Postgres 5432, Redis 6379, MinIO 9000/9001, Jaeger 16686 (OTLP 4317/4318), Loki 3100, Prometheus 9090, Phoenix 6006, Unleash 4242, Toxiproxy 8474.
+- Ports: client 8080, gateway 4000, dispatch 8001, payments 8002, OTLP 4317/4318 (collector), Postgres 5432, Redis 6379, MinIO 9000/9001, Jaeger 16686 (query API is v3: `/api/v3/traces?query.service_name=…`), Loki 3100, Prometheus 9090, Phoenix 6006, Unleash 4242, Toxiproxy 8474.
