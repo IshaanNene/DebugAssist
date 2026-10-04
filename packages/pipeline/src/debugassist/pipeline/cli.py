@@ -8,10 +8,15 @@ from typing import Annotated, Any
 import httpx
 import typer
 from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
+from pydantic import BaseModel
 
+from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT
+from debugassist.decisions.policy import Band
+from debugassist.pipeline import state as state_module
 from debugassist.pipeline.deps import build_deps, new_run_id
 from debugassist.pipeline.graph import build_graph
 from debugassist.pipeline.state import RunState
@@ -57,6 +62,18 @@ def _summary(s: RunState) -> None:
         typer.echo(f"  error     {e}")
 
 
+# Types stored in run checkpoints (LangGraph only deserializes allow-listed classes).
+CHECKPOINT_TYPES = [
+    *(
+        (state_module.__name__, name)
+        for name, obj in vars(state_module).items()
+        if isinstance(obj, type) and issubclass(obj, BaseModel) and obj.__module__ == state_module.__name__
+    ),
+    (EvidenceItem.__module__, "EvidenceItem"),
+    (Band.__module__, "Band"),
+]
+
+
 def _latest_issue(vitals_url: str = "http://localhost:8100") -> str:
     open_crashes = [
         i
@@ -96,6 +113,7 @@ def run(
         typer.echo(f"run {run_id} ({mode}, LLM {llm}); artifacts in .data/runs/{run_id}/")
         (ROOT / ".data").mkdir(exist_ok=True)
         async with AsyncSqliteSaver.from_conn_string(str(ROOT / ".data" / "checkpoints.sqlite")) as saver:
+            saver.serde = JsonPlusSerializer(allowed_msgpack_modules=CHECKPOINT_TYPES)
             builder = build_graph(deps, log=lambda m: typer.echo(f"  {m}"))
             graph: Any = builder.compile(checkpointer=saver)  # pyright: ignore[reportUnknownMemberType]
             cfg: RunnableConfig = {"configurable": {"thread_id": run_id}, "recursion_limit": 60}

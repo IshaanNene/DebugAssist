@@ -24,6 +24,7 @@ from debugassist.core.settings import Integration, Mode
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
 from debugassist.integrations.sandbox import Sandbox
+from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
 from debugassist.pipeline.deps import APPS, Deps
@@ -113,6 +114,16 @@ def _static_problem(sb: Sandbox, comp: dict[str, Any], workdir: str) -> str | No
         return None
     res = sb.run(str(comp["lint"]), workdir=workdir)
     return None if res.exit_code == 0 else f"`{comp['lint']}` (run by CI) fails:\n{res.output[-1200:]}"
+
+
+def _stop_if_out_of_quota(r: LLMResult, state: RunState, node: str) -> None:
+    """An exhausted daily LLM quota is an infrastructure failure, not a failed fix attempt: stop the run
+    (no retries, no ship, no writes) so it can be resumed after the reset."""
+    if r.status == "error" and is_daily_quota(r.error):
+        raise RuntimeError(
+            f"LLM provider's daily quota is exhausted ({(r.error or '')[:160]}). Resume after the reset: "
+            f"debugassist run {state.issue_ref} --resume {state.run_id} --from-node {node}"
+        )
 
 
 def _component_cfg(state: RunState, worktree: Path) -> dict[str, Any]:
@@ -466,6 +477,7 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
         f"Code paths are repo-relative; the client lives at the repo root. Investigate and submit the RCA."
     )
     r = await deps.runner().run(spec, prompt, RCAOutput, mcp_env=_code_repos_env(state))
+    _stop_if_out_of_quota(r, state, "classify_rca")
     if r.output:
         rca.output = RCAOutput.model_validate(r.output)
     rca.llm = _llm_summary(r)
@@ -663,6 +675,7 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
             diff_fn=lambda: sb.diff(base),
             validate_output=check_repro,
         )
+        _stop_if_out_of_quota(r1, state, "fix")
         costs[repro_spec.node] = costs.get(repro_spec.node, 0.0) + r1.cost_usd
         fa.llm["reproduce"] = _llm_summary(r1)
         _revert_non_tests(sb)  # source is read-only while reproducing, whatever the agent ran
@@ -737,6 +750,7 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     r2 = await deps.runner(_apply_diff(sb)).run(
         fix_spec, prompt, FixOutput, tools=tools, diff_fn=lambda: sb.diff(base), validate_output=check_fix
     )
+    _stop_if_out_of_quota(r2, state, "fix")
     costs[fix_spec.node] = costs.get(fix_spec.node, 0.0) + r2.cost_usd
     fa.llm["fix"] = _llm_summary(r2)
     (sb.worktree / frozen).write_text(frozen_content)  # the reproduction test is the contract: restore it
