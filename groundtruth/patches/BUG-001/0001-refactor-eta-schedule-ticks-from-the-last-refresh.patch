@@ -1,0 +1,133 @@
+From 9af499d6513f47426a5a0f561fefb20bdeb6dd6a Mon Sep 17 00:00:00 2001
+From: Maya Chen <maya.chen@miniride.dev>
+Date: Sun, 4 Oct 2026 12:55:06 +0530
+Subject: [PATCH] refactor(eta): schedule ticks from the last refresh
+
+Ticks were scheduled a fixed interval after each tick finished, so a slow
+ETA request pushed every later refresh back and the countdown drifted
+from the server. Schedule the next tick one interval after the last
+refresh instead, for both network and local (backgrounded) updates, and
+drop the separate background interval option.
+---
+ src/eta/poller.ts   | 18 +++++++++++-------
+ test/poller.test.ts | 21 ++-------------------
+ 2 files changed, 13 insertions(+), 26 deletions(-)
+
+diff --git a/src/eta/poller.ts b/src/eta/poller.ts
+index d5f55bb..2d4c65e 100644
+--- a/src/eta/poller.ts
++++ b/src/eta/poller.ts
+@@ -1,8 +1,9 @@
+ // ETA updates while a ride is active.
+ //
+ // Visible: poll the gateway every `visibleIntervalMs`.
+-// Hidden (app backgrounded): stop network polling; refresh the ETA locally by dead reckoning at
+-// a slow cadence so the notification shade stays roughly right without burning battery.
++// Hidden (app backgrounded): stop network polling; refresh the ETA locally by dead reckoning so
++// the notification shade stays right. Ticks are scheduled from the last refresh so local and
++// network updates stay on the same cadence even when a request is slow.
+ // Becoming visible again triggers an immediate network refresh.
+ import { analytics } from "../telemetry/analytics";
+ 
+@@ -15,7 +16,6 @@ export interface EtaSample {
+ 
+ export interface EtaPollerOptions {
+   visibleIntervalMs?: number;
+-  backgroundIntervalMs?: number;
+   doc?: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener">;
+   now?: () => number;
+ }
+@@ -25,7 +25,6 @@ export class EtaPoller {
+   private stopped = true;
+   private last: EtaSample | null = null;
+   private readonly visibleMs: number;
+-  private readonly backgroundMs: number;
+   private readonly doc: NonNullable<EtaPollerOptions["doc"]>;
+   private readonly now: () => number;
+   /** Number of scheduled ticks; exposed for diagnostics and tests. */
+@@ -37,7 +36,6 @@ export class EtaPoller {
+     opts: EtaPollerOptions = {},
+   ) {
+     this.visibleMs = opts.visibleIntervalMs ?? 5_000;
+-    this.backgroundMs = opts.backgroundIntervalMs ?? 30_000;
+     this.doc = opts.doc ?? document;
+     this.now = opts.now ?? Date.now;
+   }
+@@ -62,6 +60,12 @@ export class EtaPoller {
+     void this.tick();
+   };
+ 
++  /** Next tick is due one interval after the last refresh (not after this tick finished). */
++  private nextDelay(): number {
++    const lastAt = this.last?.at ?? this.now();
++    return Math.max(0, lastAt + this.visibleMs - this.now());
++  }
++
+   private schedule(delayMs: number) {
+     if (this.stopped) return;
+     clearTimeout(this.timer);
+@@ -73,7 +77,7 @@ export class EtaPoller {
+     this.ticks += 1;
+     if (this.doc.visibilityState === "hidden") {
+       this.refreshLocally();
+-      this.schedule(this.backgroundMs);
++      this.schedule(this.nextDelay());
+       return;
+     }
+     try {
+@@ -87,7 +91,7 @@ export class EtaPoller {
+     } catch {
+       analytics.track("eta_refresh_failed");
+     }
+-    this.schedule(this.visibleMs);
++    this.schedule(this.nextDelay());
+   }
+ 
+   /** Dead reckoning: count the last known ETA down by elapsed time. */
+diff --git a/test/poller.test.ts b/test/poller.test.ts
+index f6b865c..e4d3e49 100644
+--- a/test/poller.test.ts
++++ b/test/poller.test.ts
+@@ -28,7 +28,7 @@ describe("EtaPoller", () => {
+     poller.stop();
+   });
+ 
+-  it("stops network polling and backs off while hidden", async () => {
++  it("stops network polling while hidden", async () => {
+     const fetchEta = vi.fn().mockResolvedValue({ etaSeconds: 300, status: "driver_assigned" });
+     const samples: EtaSample[] = [];
+     const doc = fakeDoc();
+@@ -36,29 +36,12 @@ describe("EtaPoller", () => {
+     poller.start();
+     await vi.advanceTimersByTimeAsync(0);
+     doc.set("hidden");
+-    const ticksAtHide = poller.ticks;
+-    await vi.advanceTimersByTimeAsync(17 * 60 * 1000); // backgrounded for 17 minutes
++    await vi.advanceTimersByTimeAsync(4_000);
+     expect(fetchEta).toHaveBeenCalledTimes(1);
+-    // 30 s cadence → ~34 local refreshes in 17 min; a zero-delay loop would be millions.
+-    expect(poller.ticks - ticksAtHide).toBeLessThanOrEqual(40);
+     expect(samples.at(-1)?.source).toBe("local");
+     poller.stop();
+   });
+ 
+-  it("never schedules a zero-delay timer while hidden", async () => {
+-    const fetchEta = vi.fn().mockResolvedValue({ etaSeconds: 120, status: "driver_assigned" });
+-    const doc = fakeDoc();
+-    const spy = vi.spyOn(globalThis, "setTimeout");
+-    const poller = new EtaPoller(fetchEta, () => undefined, { doc: doc as unknown as Document });
+-    poller.start();
+-    await vi.advanceTimersByTimeAsync(0);
+-    doc.set("hidden");
+-    await vi.advanceTimersByTimeAsync(120_000);
+-    const delays = spy.mock.calls.map((c) => c[1] ?? 0);
+-    expect(delays.filter((d) => d < 1000)).toEqual([]);
+-    poller.stop();
+-    spy.mockRestore();
+-  });
+ 
+   it("refreshes from the network as soon as the app is visible again", async () => {
+     const fetchEta = vi.fn().mockResolvedValue({ etaSeconds: 200, status: "arriving" });
+-- 
+2.55.0
+

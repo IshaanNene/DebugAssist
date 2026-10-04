@@ -1,0 +1,26 @@
+[project]
+name = "bugdrop-service"
+version = "0.1.0"
+description = "BugDrop: in-app bug reports with logs and screenshots (open-source stand-in for an internal bug reporter)"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "debugassist-core",
+  "fastapi>=0.142",
+  "uvicorn[standard]>=0.54",
+  "python-multipart>=0.0.20",
+  "sqlalchemy>=2.0.44,<2.1",
+  "psycopg[binary]>=3.2",
+  "minio>=7.2",
+  "httpx>=0.28",
+  "jinja2>=3.1",
+]
+
+[tool.uv.sources]
+debugassist-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bugdrop_service"]

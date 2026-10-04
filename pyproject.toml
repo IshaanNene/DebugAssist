@@ -5,7 +5,7 @@ description = "DebugAssist: crash/bug report → RCA → mitigation → validate
 requires-python = ">=3.13,<3.14"
 readme = "README.md"
 license = "MIT"
-dependencies = ["debugassist-core", "debugassist-decisions"]
+dependencies = ["debugassist-core", "debugassist-decisions", "vitals-service", "bugdrop-service", "incidents-service", "debugassist-simulator", "debugassist-scenarios", "debugassist-cli"]
 
 [tool.uv]
 package = false
@@ -13,11 +13,17 @@ package = false
 python-preference = "only-managed"
 
 [tool.uv.workspace]
-members = ["packages/*"]
+members = ["packages/*", "sources/*/service"]
 
 [tool.uv.sources]
 debugassist-core = { workspace = true }
 debugassist-decisions = { workspace = true }
+vitals-service = { workspace = true }
+bugdrop-service = { workspace = true }
+incidents-service = { workspace = true }
+debugassist-simulator = { workspace = true }
+debugassist-scenarios = { workspace = true }
+debugassist-cli = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -37,6 +43,7 @@ extend-exclude = ["targets", ".data"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "ASYNC", "S", "PTH", "TID"]
 ignore = [
+  "E501",    # the formatter owns line length; long string literals are fine
   "S101",    # asserts are fine in tests and invariants
   "RUF001",  # en dashes and arrows in prose are intentional
   "RUF002",
@@ -48,10 +55,15 @@ known-first-party = ["debugassist"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S", "PTH"]
+# Dev/ops tooling that drives git, docker and psql on the developer's machine.
+"packages/scenarios/**" = ["S603", "S607", "S602"]
+"packages/simulator/**" = ["S603", "S607"]
+# Vendored into the services repo verbatim (formatted by that repo's ruff config).
+"sources/vitals/sdk-py/**" = ["S310", "SIM105", "BLE001"]
 
 [tool.pyright]
-include = ["packages"]
-exclude = ["**/node_modules", "**/__pycache__", "targets", ".data"]
+include = ["packages", "sources"]
+exclude = ["**/node_modules", "**/__pycache__", "targets", ".data", "**/locustfile.py"]
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
 reportMissingTypeStubs = false
@@ -61,6 +73,6 @@ venv = ".venv"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-testpaths = ["packages"]
+testpaths = ["packages", "sources"]
 addopts = "--import-mode=importlib -q"
 markers = ["live: hits a real external API (skipped unless DA_LIVE_TESTS=1)"]

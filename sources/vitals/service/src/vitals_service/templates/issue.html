@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ issue.id }} · Vitals{% endblock %}
+{% block body %}
+<p><a href="/">← issues</a></p>
+<h1 style="font-size:20px">{{ issue.id }} · {{ issue.title }}</h1>
+<p class="muted">{{ issue.app }} · {{ issue.kind }} · {{ issue.group.count }} events · first seen {{ issue.group.first_seen[:19] }} in {{ issue.group.first_version }} · <span class="pill {{ 'open' if issue.status == 'open' else '' }}">{{ issue.status }}</span></p>
+{% set ev = issue.latest_event %}
+{% if ev %}
+<section><h2>Stack trace {% if ev.symbolicated %}<span class="pill">symbolicated</span>{% endif %}</h2>
+<pre>{% if ev.error %}{{ ev.error.type }}: {{ ev.error.message }}
+{% endif %}{% for f in ev.frames|reverse %}  at {{ f.function }} ({{ f.file }}:{{ f.line }}{% if f.col %}:{{ f.col }}{% endif %}){% if not f.in_app %}  [lib]{% endif %}
+{% endfor %}{% if ev.perf %}{{ ev.perf.metric }} = {{ ev.perf.value }}{{ ev.perf.unit }} {{ ev.perf.details }}{% endif %}</pre></section>
+<section><h2>Breadcrumbs (latest event)</h2>
+<table><tr><th>Time</th><th>Category</th><th>Message</th></tr>
+{% for b in ev.breadcrumbs[-30:] %}<tr><td class="muted">{{ b.ts }}</td><td>{{ b.category }}</td><td>{{ b.message }}</td></tr>{% endfor %}
+</table></section>
+{% endif %}
+<section><h2>Feature flag exposure</h2>
+<table><tr><th>Flag</th><th>Exposed (all sessions)</th><th>Exposed (affected)</th><th>Rate exposed</th><th>Rate unexposed</th></tr>
+{% for f in flags %}<tr><td>{{ f.flag }}</td><td>{{ (f.exposed_share_of_sessions*100)|round(1) }}%</td><td>{{ (f.exposed_share_of_affected*100)|round(1) }}%</td><td>{{ (f.rate_exposed*100)|round(2) }}%</td><td>{{ (f.rate_unexposed*100)|round(2) }}%</td></tr>{% endfor %}
+</table></section>
+<section><h2>By version</h2>
+<table><tr><th>Version</th><th>Sessions</th><th>Affected</th><th>Rate</th><th></th></tr>
+{% for v in versions["values"] %}<tr><td>{{ v.value }}</td><td>{{ v.sessions }}</td><td>{{ v.affected_sessions }}</td><td>{{ (v.rate*100)|round(2) }}%</td><td style="width:30%"><div class="bar" style="width:{{ (v.share_of_affected*100)|round }}%"></div></td></tr>{% endfor %}
+</table></section>
+<section><h2>By city</h2>
+<table><tr><th>City</th><th>Sessions</th><th>Affected</th><th>Rate</th></tr>
+{% for v in cities["values"] %}<tr><td>{{ v.value }}</td><td>{{ v.sessions }}</td><td>{{ v.affected_sessions }}</td><td>{{ (v.rate*100)|round(2) }}%</td></tr>{% endfor %}
+</table></section>
+<section><h2>Recent events</h2>
+<table><tr><th>Event</th><th>Version</th><th>Session</th><th>Device</th><th>Time</th></tr>
+{% for e in events %}<tr><td><a href="/api/events/{{ e.id }}">{{ e.id[:8] }}</a></td><td>{{ e.version }}</td><td class="muted">{{ (e.session_id or '')[:8] }}</td><td>{{ e.device.os }} · {{ e.device.browser }}</td><td class="muted">{{ e.ts[:19] }}</td></tr>{% endfor %}
+</table></section>
+{% endblock %}

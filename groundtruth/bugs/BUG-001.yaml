@@ -1,0 +1,36 @@
+id: BUG-001
+title: ETA poller spins while the app is backgrounded (battery drain)
+language: typescript
+component: miniride-client
+owner_team: rider-app
+category: own_code
+priority: P2
+discovery: [bugdrop, vitals]
+injection:
+  base: v1.5.2
+  release: 1.6.0
+  repos:
+    miniride-client: [patches/BUG-001/0001-refactor-eta-schedule-ticks-from-the-last-refresh.patch]
+trigger:
+  scenario: battery_drain
+  params:
+    hidden_real_s: 75
+    hidden_simulated_min: 17
+    report_text: "MiniRide is responsible for nearly 30% of my battery usage. My phone is heating up."
+    battery_percent: 29
+    background_sessions: 6
+ground_truth:
+  fix: fixes/BUG-001.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-001/poller.hidden.test.ts, repo: miniride-client, dest: test/poller.hidden.test.ts }
+  location: { repo: miniride-client, module: src/eta, file: src/eta/poller.ts, function: tick }
+  rca_facts:
+    - 'The app was backgrounded (hidden) for about 17 minutes while waiting for a ride.'
+    - 'While hidden, the ETA poller reschedules its local refresh with zero delay (nextDelay() is 0 because local refreshes never update `last`).'
+    - 'The background path is treated like the foreground loop, so the main thread stays busy (CPU-busy-while-hidden samples, bursts of eta_background_tick analytics events).'
+    - 'Regression introduced in 1.6.0 by "refactor(eta): schedule ticks from the last refresh".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+  e2e: "script time while hidden stays under a threshold (CDP Performance.getMetrics)"
+expected_outcome: pr

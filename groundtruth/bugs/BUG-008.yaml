@@ -1,0 +1,35 @@
+id: BUG-008
+title: Blank screen at launch for Arabic/Hebrew locales without a region
+language: typescript
+component: miniride-client
+owner_team: rider-app
+category: own_code
+priority: P1
+discovery: [vitals, bugdrop]
+injection:
+  base: v1.5.2
+  release: 1.6.6
+  repos:
+    miniride-client: [patches/BUG-008/0001-feat-i18n-right-to-left-layout-for-Arabic-Hebrew-Per.patch]
+trigger:
+  scenario: locale_mix
+  params:
+    sessions: 30
+    concurrency: 6
+    bare_locale_share: 0.2
+    bare_locales: [ar, he]
+    report_text: "my screen is blank"
+ground_truth:
+  fix: fixes/BUG-008.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-008/i18n.hidden.test.ts, repo: miniride-client, dest: test/i18n.hidden.test.ts }
+  location: { repo: miniride-client, module: src, file: src/i18n.ts, function: localeDirection }
+  rca_facts:
+    - 'TypeError reading ''toUpperCase'' of undefined at startup; the app never renders (blank screen).'
+    - 'Affects only devices whose locale has no region subtag ("ar", "he"); 100% of crashes have such locales.'
+    - 'localeDirection assumes a region subtag is always present.'
+    - 'Regression introduced in 1.6.6 by "feat(i18n): right-to-left layout for Arabic, Hebrew, Persian and Urdu".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

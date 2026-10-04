@@ -1,0 +1,39 @@
+diff --git a/src/eta/poller.ts b/src/eta/poller.ts
+index 2d4c65e..87ce710 100644
+--- a/src/eta/poller.ts
++++ b/src/eta/poller.ts
+@@ -16,6 +16,8 @@ export interface EtaSample {
+ 
+ export interface EtaPollerOptions {
+   visibleIntervalMs?: number;
++  /** Local refresh cadence while hidden. Must stay slow: backgrounded work drains the battery. */
++  backgroundIntervalMs?: number;
+   doc?: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener">;
+   now?: () => number;
+ }
+@@ -25,6 +27,7 @@ export class EtaPoller {
+   private stopped = true;
+   private last: EtaSample | null = null;
+   private readonly visibleMs: number;
++  private readonly backgroundMs: number;
+   private readonly doc: NonNullable<EtaPollerOptions["doc"]>;
+   private readonly now: () => number;
+   /** Number of scheduled ticks; exposed for diagnostics and tests. */
+@@ -36,6 +39,7 @@ export class EtaPoller {
+     opts: EtaPollerOptions = {},
+   ) {
+     this.visibleMs = opts.visibleIntervalMs ?? 5_000;
++    this.backgroundMs = opts.backgroundIntervalMs ?? 30_000;
+     this.doc = opts.doc ?? document;
+     this.now = opts.now ?? Date.now;
+   }
+@@ -77,7 +81,8 @@ export class EtaPoller {
+     this.ticks += 1;
+     if (this.doc.visibilityState === "hidden") {
+       this.refreshLocally();
+-      this.schedule(this.nextDelay());
++      // Local refreshes don't move `last`, so nextDelay() would be 0 here: use the slow cadence.
++      this.schedule(this.backgroundMs);
+       return;
+     }
+     try {

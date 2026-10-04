@@ -8,7 +8,9 @@ test-time safety net.
 import sys
 from pathlib import Path
 
-for src in sorted(Path(__file__).parent.glob("packages/*/src")):
+for src in sorted(
+    [*Path(__file__).parent.glob("packages/*/src"), *Path(__file__).parent.glob("sources/*/service/src")]
+):
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
 

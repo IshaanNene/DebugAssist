@@ -1,0 +1,20 @@
+diff --git a/src/i18n.ts b/src/i18n.ts
+index 7da1a7d..d70eddf 100644
+--- a/src/i18n.ts
++++ b/src/i18n.ts
+@@ -8,9 +8,12 @@ export interface LocaleDirection {
+ 
+ /** Normalise a BCP 47 tag ("ar-eg" → "ar-EG") and pick the text direction. */
+ export function localeDirection(locale: string): LocaleDirection {
+-  const [language, region] = locale.split("-");
+-  const lang = `${language!.toLowerCase()}-${region!.toUpperCase()}`;
+-  return { lang, dir: RTL_LANGUAGES.has(language!.toLowerCase()) ? "rtl" : "ltr" };
++  // Many devices report a bare language ("ar", "he") with no region subtag.
++  const [language = "en", ...rest] = locale.split("-");
++  const region = rest.at(-1);
++  const base = language.toLowerCase();
++  const lang = region && /^[a-z]{2}$/i.test(region) ? `${base}-${rest.slice(0, -1).concat(region.toUpperCase()).join("-")}` : [base, ...rest].join("-");
++  return { lang, dir: RTL_LANGUAGES.has(base) ? "rtl" : "ltr" };
+ }
+ 
+ export function applyLocaleDirection(locale: string = navigator.language, root: HTMLElement = document.documentElement) {

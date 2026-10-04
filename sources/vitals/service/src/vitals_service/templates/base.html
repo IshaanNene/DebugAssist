@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Vitals{% endblock %}</title>
+<style>
+  :root { --bg:#f8fafc; --fg:#0f172a; --muted:#64748b; --line:#e2e8f0; --card:#fff; --accent:#7c3aed; --bad:#dc2626; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0b1020; --fg:#e2e8f0; --muted:#94a3b8; --line:#1e293b; --card:#111827; --accent:#a78bfa; } }
+  body { margin:0; font:14px/1.5 ui-sans-serif,system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:14px 24px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:baseline; }
+  header b { color:var(--accent); font-size:18px; } main { padding:24px; max-width:1100px; margin:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; }
+  a { color:var(--accent); text-decoration:none; } .muted { color:var(--muted); }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
+  .open { color:var(--bad); border-color:var(--bad); } pre { background:var(--card); border:1px solid var(--line); padding:12px; overflow:auto; border-radius:8px; }
+  section { margin-bottom:28px; } h2 { font-size:15px; margin:0 0 8px; }
+  .bar { height:8px; background:var(--accent); border-radius:4px; }
+</style>
+</head>
+<body><header><b>Vitals</b><span class="muted">crashes · hangs · jank · performance</span></header>
+<main>{% block body %}{% endblock %}</main></body></html>

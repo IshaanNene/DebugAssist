@@ -1,0 +1,47 @@
+diff --git a/src/api/rides.ts b/src/api/rides.ts
+index bf68ddc..99489f7 100644
+--- a/src/api/rides.ts
++++ b/src/api/rides.ts
+@@ -65,15 +65,16 @@ export interface RequestRideOptions extends GqlOptions {
+ }
+ 
+ /**
+- * Request a ride, retrying on timeout. Stalled requests are abandoned quickly and retried as a
+- * fresh request (new idempotency key) so the rider isn't left watching a spinner.
++ * Request a ride, retrying on timeout. One idempotency key per user action, reused on every
++ * retry: a "stalled" request may still be matched server-side, and only a shared key lets
++ * dispatch deduplicate it. The timeout must exceed matching time on slow networks.
+  */
+ export async function requestRide(
+   input: { city: string; pickup: Place; dropoff: Place },
+-  { timeoutMs = 3_000, retries = 2, fetchImpl }: RequestRideOptions = {},
++  { timeoutMs = 15_000, retries = 2, fetchImpl }: RequestRideOptions = {},
+ ): Promise<Ride> {
++  const idempotencyKey = newIdempotencyKey();
+   for (let attempt = 0; ; attempt++) {
+-    const idempotencyKey = newIdempotencyKey();
+     try {
+       analytics.track("ride_request_attempt", { attempt });
+       const d = await gql<{ requestRide: Ride }>(
+diff --git a/test/rides.test.ts b/test/rides.test.ts
+index 0fff863..016dda0 100644
+--- a/test/rides.test.ts
++++ b/test/rides.test.ts
+@@ -9,7 +9,7 @@ function timeoutError() {
+ }
+ 
+ describe("requestRide", () => {
+-  it("retries a stalled request as a fresh request", async () => {
++  it("reuses one idempotency key across timeout retries", async () => {
+     const keys: string[] = [];
+     let calls = 0;
+     const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+@@ -21,7 +21,7 @@ describe("requestRide", () => {
+     const r = await requestRide({ city: "sf", pickup: place, dropoff: place }, { fetchImpl, retries: 2 });
+     expect(r.id).toBe("r1");
+     expect(keys).toHaveLength(3);
+-    expect(new Set(keys).size).toBe(3);
++    expect(new Set(keys).size).toBe(1);
+     expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+   });
+ 

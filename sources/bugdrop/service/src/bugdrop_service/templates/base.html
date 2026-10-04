@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}BugDrop{% endblock %}</title>
+<style>
+  :root { --bg:#fffbeb; --fg:#1c1917; --muted:#78716c; --line:#e7e5e4; --card:#fff; --accent:#d97706; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14110d; --fg:#e7e5e4; --muted:#a8a29e; --line:#292524; --card:#1c1917; --accent:#f59e0b; } }
+  body { margin:0; font:14px/1.5 ui-sans-serif,system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:14px 24px; border-bottom:1px solid var(--line); } header b { color:var(--accent); font-size:18px; }
+  main { padding:24px; max-width:1100px; margin:auto; } a { color:var(--accent); text-decoration:none; } .muted { color:var(--muted); }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); }
+  th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); vertical-align:top; font-size:13px; }
+  th { color:var(--muted); font-size:12px; text-transform:uppercase; } .shots img { max-height:320px; border:1px solid var(--line); border-radius:8px; margin-right:12px; }
+  .tabs a { margin-right:12px; } .tabs a.on { font-weight:700; text-decoration:underline; } blockquote { font-size:16px; margin:0 0 12px; }
+  code { font-size:12px; }
+</style></head>
+<body><header><b>BugDrop</b> <span class="muted">in-app bug reports</span></header><main>{% block body %}{% endblock %}</main></body></html>

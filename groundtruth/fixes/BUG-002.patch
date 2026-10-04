@@ -1,0 +1,13 @@
+diff --git a/src/notifications/router.ts b/src/notifications/router.ts
+index 9c5ab71..5e33de6 100644
+--- a/src/notifications/router.ts
++++ b/src/notifications/router.ts
+@@ -23,6 +23,8 @@ async function routeV1(link: string, navigate: Navigate) {
+ }
+ 
+ async function routeV2(link: string, navigate: Navigate) {
++  // A push can be tapped before the persisted session is restored: queue the link until it is.
++  await whenHydrated();
+   const state = sessionStore.getState();
+   const riderId = state.session!.riderId;
+   const rideMatch = RIDE_LINK.exec(link);

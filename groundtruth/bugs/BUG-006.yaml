@@ -1,0 +1,37 @@
+id: BUG-006
+title: Ride requests time out during a database incident (not a code bug)
+language: none
+component: postgres
+owner_team: sre-infra
+category: infra
+priority: P1
+discovery: [bugdrop, vitals]
+injection:
+  base: v1.5.1
+  toxics:
+    - { proxy: postgres, name: db_latency, type: latency, stream: downstream, attributes: { latency: 4000, jitter: 1000 } }
+  incidents:
+    - title: "Postgres primary degraded: elevated query latency"
+      severity: sev2
+      services: [postgres, dispatch]
+      owner_team: sre-infra
+      commander: ana.silva
+      summary: "Storage latency on the primary; queries taking seconds. Failover being prepared."
+trigger:
+  scenario: degraded_backend
+  params:
+    sessions: 8
+    report_text: "stuck on finding your driver forever"
+ground_truth:
+  fix: null
+  hidden_tests: []
+  location: { repo: null, module: postgres, file: null, function: null }
+  rca_facts:
+    - 'Dispatch database queries are taking several seconds (DB spans), across all endpoints.'
+    - 'An active incident (sev2, owner sre-infra) covers Postgres latency at the same time.'
+    - 'No recent code change in dispatch correlates with the onset.'
+  mitigation: none
+validation:
+  cheapest_tier: cannot_repro
+expected_outcome: rca_only
+route_to: sre-infra

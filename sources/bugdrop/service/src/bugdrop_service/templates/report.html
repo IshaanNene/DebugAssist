@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ r.id }} · BugDrop{% endblock %}
+{% block body %}
+<p><a href="/">← reports</a></p>
+<h1 style="font-size:20px">{{ r.id }}</h1>
+<blockquote>“{{ r.description }}”</blockquote>
+<p class="muted">{{ r.app }} {{ r.version }} · {{ r.device.os }} · {{ r.device.browser }} · {{ r.device.device }} · {{ r.city or "?" }} · route {{ r.route }} · session {{ (r.session_id or "")[:8] }}<br>
+flags: {% for k, v in r.flags.items() %}<code>{{ k }}={{ v }}</code> {% endfor %} · network: {% for k, v in r.network.items() %}<code>{{ k }}={{ v }}</code> {% endfor %}</p>
+<div class="shots">{% for f in r.files %}<a href="{{ f.url }}"><img src="{{ f.url }}" alt="{{ f.kind }}" title="{{ f.kind }}"></a>{% endfor %}</div>
+<h2 style="font-size:15px">UI state</h2>
+<p>Hidden in total {{ timeline.total_hidden_s }} s (longest {{ timeline.longest_hidden_s }} s).
+{% for i in timeline.visibility %}<code>{{ i.state }} {{ i.duration_s }}s</code> {% endfor %}</p>
+<p class="tabs">{% for k in kinds %}<a class="{{ 'on' if k == kind else '' }}" href="?kind={{ k }}">{{ k }} ({{ r.log_counts.get(k, 0) }})</a>{% endfor %}</p>
+<table><tr><th>ts</th><th>entry</th></tr>
+{% for e in logs.entries %}<tr><td class="muted">{{ e.ts }}</td><td><code>{{ e|tojson }}</code></td></tr>{% endfor %}
+</table>
+{% endblock %}

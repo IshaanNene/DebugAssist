@@ -1,0 +1,28 @@
+diff --git a/payments/main.go b/payments/main.go
+index 2c21bf8..41da7bd 100644
+--- a/payments/main.go
++++ b/payments/main.go
+@@ -62,7 +62,7 @@ type Server struct {
+ // NewServer builds a Server with its metrics.
+ func NewServer() *Server {
+ 	quotes, _ := otel.Meter("payments").Int64Counter("payments_fare_quotes", metric.WithDescription("Fare quotes by city"))
+-	return &Server{authorizations: map[string]authorization{}, quotes: quotes, surge: &surgeCache{ttl: 2 * time.Minute}}
++	return &Server{authorizations: map[string]authorization{}, quotes: quotes, surge: newSurgeCache(2 * time.Minute)}
+ }
+ 
+ func writeJSON(w http.ResponseWriter, status int, v any) {
+diff --git a/payments/surge.go b/payments/surge.go
+index 84634e8..9d5c876 100644
+--- a/payments/surge.go
++++ b/payments/surge.go
+@@ -19,6 +19,10 @@ type surgeCache struct {
+ 	entries map[string]surgeEntry
+ }
+ 
++func newSurgeCache(ttl time.Duration) *surgeCache {
++	return &surgeCache{ttl: ttl, entries: map[string]surgeEntry{}}
++}
++
+ func (c *surgeCache) get(city string, now time.Time, compute func(string, time.Time) float64) float64 {
+ 	c.mu.Lock()
+ 	defer c.mu.Unlock()

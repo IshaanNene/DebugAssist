@@ -22,6 +22,24 @@ jobs:
       - run: uv run pyright
       - run: uv run pytest
 
+  sdks:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        sdk: [sources/vitals/sdk-js, sources/bugdrop/sdk-js]
+    defaults:
+      run:
+        working-directory: ${{ matrix.sdk }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with: { package_json_file: "${{ matrix.sdk }}/package.json" }
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+
   compose:
     runs-on: ubuntu-latest
     steps:

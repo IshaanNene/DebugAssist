@@ -14,7 +14,7 @@ HOOK = f"""# Written by scripts/venv_path_hook.py — see that file for why.
 import sys
 from pathlib import Path
 
-for _src in sorted(Path({str(ROOT)!r}).glob("packages/*/src")):
+for _src in sorted([*Path({str(ROOT)!r}).glob("packages/*/src"), *Path({str(ROOT)!r}).glob("sources/*/service/src")]):
     if str(_src) not in sys.path:
         sys.path.append(str(_src))
 """

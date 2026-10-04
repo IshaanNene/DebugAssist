@@ -1,0 +1,35 @@
+id: BUG-002
+title: Crash when a push notification is tapped right after launch (router v2, 5% rollout)
+language: typescript
+component: miniride-client
+owner_team: rider-engagement
+category: own_code
+priority: P1
+discovery: [vitals]
+injection:
+  base: v1.5.2
+  release: 1.6.1
+  repos:
+    miniride-client: [patches/BUG-002/0001-perf-notifications-open-v2-deep-links-without-waitin.patch]
+  flags: { notif_router_v2: 5 }
+trigger:
+  scenario: push_tap_fleet
+  params:
+    sessions: 240
+    concurrency: 8
+    fast_tap_share: 0.6      # taps within 0-300 ms of launch; the rest 600-2000 ms
+    previous_version_share: 0.25
+ground_truth:
+  fix: fixes/BUG-002.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-002/router.hidden.test.ts, repo: miniride-client, dest: test/router.hidden.test.ts }
+  location: { repo: miniride-client, module: src/notifications, file: src/notifications/router.ts, function: routeV2 }
+  rca_facts:
+    - 'Crash is a TypeError reading ''riderId'' of undefined in routeV2.'
+    - 'Every crashing session is exposed to notif_router_v2, which is on a 5% gradual rollout.'
+    - 'The deep link is routed before the persisted session is restored (session undefined) when the push is tapped within ~350 ms of launch.'
+    - 'Regression introduced in 1.6.1 by "perf(notifications): open v2 deep links without waiting for session restore".'
+  mitigation: { flag_rollback: notif_router_v2 }
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

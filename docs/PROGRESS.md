@@ -5,7 +5,8 @@
 | P0 Plan & scaffold | ✅ done | 2026-10-04 | See below |
 | P1 Decision engine | ✅ done | 2026-10-04 | See below |
 | P2a Target system + telemetry | ✅ done | 2026-10-04 | See below |
-| P2b Sources + catalog + simulator | ⏭ next | | |
+| P2b Sources + catalog + simulator | ✅ done | 2026-10-04 | See below |
+| P3 Walking skeleton | ⏭ next | | |
 
 ## P0 — Plan & scaffold (2026-10-04)
 
@@ -78,3 +79,26 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Node ESM apps need `module.register("@opentelemetry/instrumentation/hook.mjs")` or pino/graphql are never instrumented.
 - Go: `resource.NewWithAttributes(semconv.SchemaURL, …)` conflicts with the SDK default schema → `NewSchemaless`.
 - TypeScript pinned to 6.0.3 (typescript-eslint does not support TS 7 yet).
+
+## P2b — Sources, catalog, simulator (2026-10-04)
+
+**Done**
+- **Vitals** (service + browser/Python/Go/Node SDKs), **BugDrop** (service + browser SDK with reporter UI), **incidents** service — compose profile `sources`; `debugassist.core.redaction` (shared PII redactor).
+- MiniRide integrated both SDKs (client v1.5.0 → v1.5.2, services v1.5.0 → v1.5.1, each with `scripts/release.sh`); service versions now come from their manifests.
+- `groundtruth/`: 8 bugs (TS ×5 incl. gateway, Python, Go, infra) with regression patches, reference fixes and hidden tests; `debugassist scenario verify` passes for all 8.
+- `debugassist scenario inject|trigger|reset|verify|list|status`, `make trigger BUG=…`, `make reset-scenario WIPE=1`, `make verify-scenarios`, `make traffic`, `make load` (Locust), `make sync-sdks`.
+- Simulator: Playwright fleet with device/locale personas, CDP latency/throughput, packet-loss retransmits, background emulation (Page Visibility API + page clock fast-forward), push launches, bug reports with generated attachments (OS battery panel).
+- Tests: 137 Python + 10 SDK (vitest) + target repos (client 18 + 3 E2E, gateway 7, dispatch 8, payments 4 packages).
+
+**Acceptance (measured on the local stack, 2026-10-04)**
+- `make trigger BUG=001` → BugDrop BD-1001 with app screenshot + battery-panel attachment, 6 log rings (500 analytics events, 498 of them `eta_background_tick`), UI-state timeline with a 17.0-minute hidden interval; Vitals `background_cpu` issue (~215 wakeups/s, v1.6.0).
+- `make trigger BUG=002` (240 sessions, 25% on the previous release) → Vitals crash group `TypeError … 'riderId'`, symbolicated to `routeV2 (src/notifications/router.ts:27)`; `notif_router_v2` exposed in 6.7% of all sessions vs 100% of crashing sessions; only v1.6.1 affected.
+- All other scenarios (003–008) produce their discovery signals (see ARCHITECTURE.md table).
+
+**Findings / fixes along the way**
+- JS busy time understates a hot loop of cheap ticks (2.5% busy at ~250 wakeups/s): Vitals now flags sustained background **wakeups** as well as busy time.
+- BugDrop lost reports from blank screens (empty screenshot → 415); SDK now captures the page and skips invalid images.
+- Gateway threw `SyntaxError` on non-JSON upstream 500s (fixed in services v1.5.1).
+- Weak-network duplicates only reproduce with packet loss, not latency alone (as in the talk's airport case).
+- **Mistake, corrected:** a `git push --tags` in the target repos published local scenario tags (v1.6.0–1.6.4, v1.6.6); they were deleted from GitHub within minutes. Rule added to CLAUDE.md.
+- DebugAssist is a public repo, so `groundtruth/` is public; isolation from agents is enforced at the sandbox (P3/P12), with a leak test on every regression patch.
