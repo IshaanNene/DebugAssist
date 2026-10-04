@@ -1,0 +1,146 @@
+{
+  "output": {
+    "commit_title": "fix(notifications): wait for session hydration before routing v2 deep links",
+    "summary": "routeV2 now awaits whenHydrated() before reading the session, as routeV1 does.",
+    "rationale": "A push tap right after launch reaches routeV2 before the persisted session is restored (~350 ms), so state.session is still undefined; waiting for hydration restores the ordering the router relies on.",
+    "strategy": "lifecycle / ordering",
+    "risk": "low",
+    "tests_added": [
+      "test/router_v2_hydration.test.ts"
+    ]
+  },
+  "tool_calls": [
+    {
+      "name": "read_file",
+      "args": {
+        "path": "src/notifications/router.ts"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "path": "src/store/session.ts"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "path": "test/router_v2_hydration.test.ts"
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "pnpm exec vitest run test/router_v2_hydration.test.ts"
+      }
+    },
+    {
+      "name": "edit_file",
+      "args": {
+        "path": "src/notifications/router.ts",
+        "new_text": "async function routeV2(link: string, navigate: Navigate) {\n    await whenHydrated();\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;",
+        "old_text": "async function routeV2(link: string, navigate: Navigate) {\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "path": "src/notifications/router.ts"
+      }
+    },
+    {
+      "name": "edit_file",
+      "args": {
+        "path": "src/notifications/router.ts",
+        "old_text": "async function routeV2(link: string, navigate: Navigate) {\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;",
+        "new_text": "async function routeV2(link: string, navigate: Navigate) {\n    await whenHydrated();\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "end_line": 30,
+        "path": "src/notifications/router.ts",
+        "start_line": 23
+      }
+    },
+    {
+      "name": "edit_file",
+      "args": {
+        "path": "src/notifications/router.ts",
+        "new_text": "}\n\nasync function routeV2(link: string, navigate: Navigate) {\n    await whenHydrated();\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;",
+        "old_text": "}\n\nasync function routeV2(link: string, navigate: Navigate) {\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;"
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "cat -A src/notifications/router.ts | head -35"
+      }
+    },
+    {
+      "name": "edit_file",
+      "args": {
+        "old_text": "async function routeV2(link: string, navigate: Navigate) {\n  const state = sessionStore.getState();\n  const riderId = state.session!.riderId;",
+        "new_text": "async function routeV2(link: string, navigate: Navigate) {\n  await whenHydrated();\n  const state = sessionStore.getState();\n  const riderId = state.session!.riderId;",
+        "path": "src/notifications/router.ts"
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "pnpm exec vitest run test/router_v2_hydration.test.ts"
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "pnpm test"
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "pnpm typecheck 2>/dev/null || echo \"no typecheck script\""
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "cat package.json | grep -A 20 '\"scripts\"'"
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "pnpm typecheck"
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "pnpm lint"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "path": "test/router_v2_hydration.test.ts"
+      }
+    },
+    {
+      "name": "edit_file",
+      "args": {
+        "path": "test/router_v2_hydration.test.ts",
+        "old_text": "import { routeDeepLink } from \"../src/notifications/router\";\nimport { hydrate, resetSessionForTests, sessionStore, whenHydrated } from \"../src/store/session\";",
+        "new_text": "import { routeDeepLink } from \"../src/notifications/router\";\nimport { hydrate, resetSessionForTests } from \"../src/store/session\";"
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "pnpm lint -- src"
+      }
+    }
+  ]
+}

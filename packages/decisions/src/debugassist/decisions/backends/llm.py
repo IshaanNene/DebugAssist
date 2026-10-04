@@ -23,6 +23,7 @@ from system_one_adapter.providers.openai import (  # pyright: ignore[reportPriva
 )
 from typesafe_sdk import TypeSafeError
 
+from debugassist.core.openrouter import model_info
 from debugassist.core.settings import Mode, Settings
 from debugassist.decisions.schema import ClefRequest, ClefResponse, ClefTransientError, Usage
 
@@ -46,7 +47,8 @@ class OpenRouterProvider(AsyncOpenAIProvider):
     ) -> None:
         super().__init__(model_name, base_url=base_url, api_key=api_key, api="chat_completions")
         self._extra_body: dict[str, Any] = {
-            "provider": {"order": provider_order, "require_parameters": True, "allow_fallbacks": True},
+            "provider": {"require_parameters": True, "allow_fallbacks": True}
+            | ({"order": provider_order} if provider_order else {}),
             "reasoning": {"effort": reasoning_effort},
         }
         self._max_tokens = max_tokens
@@ -94,6 +96,7 @@ class LLMDecider:
         price_in_per_mtok: float,
         price_out_per_mtok: float,
         reasoning_effort: str = "low",
+        structured_outputs: bool = True,
     ) -> None:
         self.model = model
         self._price_in = price_in_per_mtok
@@ -107,7 +110,7 @@ class LLMDecider:
         )
         self._provider = provider
         self._client = AsyncSystemOneAdapterClient(
-            structured_outputs=True,
+            structured_outputs=structured_outputs,  # prompted JSON when the model has no response_format
             llm_answer_mode="probabilities",
             normalize_probabilities=True,
             n_retry_malformed_structure=2,
@@ -119,13 +122,15 @@ class LLMDecider:
     def from_settings(cls, settings: Settings) -> LLMDecider:
         if settings.open_router_api_key is None:
             raise ValueError("OPEN_ROUTER_API_KEY is required for the LLM decider")
+        prices = settings.llm_prices()
         return cls(
             model=settings.llm_model,
             base_url=settings.openrouter_base_url,
             api_key=settings.open_router_api_key.get_secret_value(),
-            provider_order=settings.openrouter_provider_order,
-            price_in_per_mtok=settings.llm_price_in_per_mtok,
-            price_out_per_mtok=settings.llm_price_out_per_mtok,
+            provider_order=settings.provider_order(),
+            price_in_per_mtok=prices[0],
+            price_out_per_mtok=prices[1],
+            structured_outputs=model_info(settings.llm_model).structured_outputs,
         )
 
     async def run(self, request: ClefRequest) -> ClefResponse:

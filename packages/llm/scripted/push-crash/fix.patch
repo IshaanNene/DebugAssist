@@ -1,0 +1,12 @@
+diff --git a/src/notifications/router.ts b/src/notifications/router.ts
+index 9c5ab71..ea44bd9 100644
+--- a/src/notifications/router.ts
++++ b/src/notifications/router.ts
+@@ -23,6 +23,7 @@ async function routeV1(link: string, navigate: Navigate) {
+ }
+ 
+ async function routeV2(link: string, navigate: Navigate) {
++  await whenHydrated();
+   const state = sessionStore.getState();
+   const riderId = state.session!.riderId;
+   const rideMatch = RIDE_LINK.exec(link);

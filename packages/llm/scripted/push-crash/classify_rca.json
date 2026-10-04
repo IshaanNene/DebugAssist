@@ -1,0 +1,228 @@
+{
+  "output": {
+    "summary": "The v2 notification router crashes when a push notification is tapped immediately after app launch because it accesses `state.session.riderId` before the session has been hydrated from storage. Commit d1f5020e1ab3 removed the `await whenHydrated()` guard from `routeV2` to save ~350ms, but the session restore is async and takes ~350ms by default. All 4 crashes occur in version 1.6.1 with the `notif_router_v2` flag enabled (5% rollout).",
+    "category": "own_code",
+    "root_cause": "In src/notifications/router.ts, the routeV2 function (line 25-35) reads state.session!.riderId at line 27 without ensuring the session has been hydrated. The session store initializes with session: undefined and hydrated: false, then restores the persisted session asynchronously after ~350ms. When a push notification is tapped right after launch (before hydration completes), state.session is undefined, causing the TypeError. The previous implementation correctly awaited whenHydrated() before accessing session data.",
+    "location": {
+      "repo": "miniride-client",
+      "file": "src/notifications/router.ts",
+      "function": "routeV2",
+      "line": 27
+    },
+    "suspect_commit": "d1f5020e1ab3",
+    "implicated_flag": "notif_router_v2",
+    "claims": [
+      {
+        "text": "The crash occurs in routeV2 at line 27 when accessing state.session!.riderId while session is undefined",
+        "evidence_ids": [
+          "ev_vitals_c8df3ea0c1",
+          "ev_code_fe4b0470af"
+        ]
+      },
+      {
+        "text": "Commit d1f5020e1ab3 removed the 'await whenHydrated()' call from routeV2",
+        "evidence_ids": [
+          "ev_git_cf0a719bb3"
+        ]
+      },
+      {
+        "text": "The session store initializes with session: undefined and hydrated: false, and restores session asynchronously after a configurable delay (default 350ms)",
+        "evidence_ids": [
+          "ev_code_d0db9ded6b"
+        ]
+      },
+      {
+        "text": "100% of affected sessions have the notif_router_v2 flag enabled, while unexposed sessions have 0% crash rate",
+        "evidence_ids": [
+          "ev_vitals_44b51a7bff",
+          "ev_flags_204b51ff8f"
+        ]
+      },
+      {
+        "text": "The crash only appears in version 1.6.1 (first release with the suspect commit), not in 1.5.2",
+        "evidence_ids": [
+          "ev_vitals_87eff25082"
+        ]
+      },
+      {
+        "text": "The whenHydrated() function waits for the session store's hydrated flag to become true",
+        "evidence_ids": [
+          "ev_code_71a196e1ae",
+          "ev_code_d0db9ded6b"
+        ]
+      },
+      {
+        "text": "The test for 'navigates without waiting' actually completes hydration before calling routeDeepLink (advances timers past the delayMs)",
+        "evidence_ids": [
+          "ev_code_0cbd23e312"
+        ]
+      },
+      {
+        "text": "The commit message explicitly states: 'navigates immediately \u2014 the ride screen loads its own data, so there is no need to wait for the session restore'",
+        "evidence_ids": [
+          "ev_git_cf0a719bb3"
+        ]
+      }
+    ],
+    "timeline": [
+      {
+        "when": "2026-10-04T12:56:04+05:30",
+        "event": "Commit d1f5020e1ab3 removes 'await whenHydrated()' from routeV2 to eliminate ~350ms delay",
+        "evidence_ids": [
+          "ev_git_cf0a719bb3"
+        ]
+      },
+      {
+        "when": "2026-10-04 (release 1.6.1)",
+        "event": "Version 1.6.1 deployed with the change behind notif_router_v2 flag (5% rollout)",
+        "evidence_ids": [
+          "ev_vitals_87eff25082",
+          "ev_flags_1fbcb9d247"
+        ]
+      },
+      {
+        "when": "2026-10-04T08:41:05.378Z",
+        "event": "First crash: user taps push notification immediately after launch; session not yet hydrated; routeV2 reads undefined.session.riderId",
+        "evidence_ids": [
+          "ev_vitals_c8df3ea0c1",
+          "ev_vitals_44b51a7bff"
+        ]
+      },
+      {
+        "when": "2026-10-04T08:41:50.372Z",
+        "event": "Three more crashes in same minute, all with notif_router_v2 flag enabled",
+        "evidence_ids": [
+          "ev_vitals_c8df3ea0c1"
+        ]
+      }
+    ],
+    "reproduction": "In a test: reset session, call hydrate({ delayMs: 350 }), immediately call routeDeepLink('/ride/abc', navigate, 'push') with notif_router_v2 flag enabled, before advancing timers past 350ms. The navigate call will crash at state.session!.riderId.",
+    "fix_direction": "Restore the await whenHydrated() call at the start of routeV2, or add a guard that waits for hydration before accessing session data. The session must be hydrated before riderId can be safely accessed."
+  },
+  "tool_calls": [
+    {
+      "name": "find_symbol",
+      "args": {
+        "name": "whenHydrated",
+        "repo": "miniride-client"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "path": "src/store/session.ts",
+        "repo": "miniride-client"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "repo": "miniride-client",
+        "path": "test/router.test.ts"
+      }
+    },
+    {
+      "name": "submit_result",
+      "args": {
+        "suspect_commit": "d1f5020e1ab3",
+        "reproduction": "In a test: reset session, call hydrate({ delayMs: 350 }), immediately call routeDeepLink('/ride/abc', navigate, 'push') with notif_router_v2 flag enabled, before advancing timers past 350ms. The navigate call will crash at state.session!.riderId.",
+        "location": {
+          "repo": "miniride-client",
+          "file": "src/notifications/router.ts",
+          "function": "routeV2",
+          "line": 27
+        },
+        "root_cause": "In src/notifications/router.ts, the routeV2 function (line 25-35) reads state.session!.riderId at line 27 without ensuring the session has been hydrated. The session store initializes with session: undefined and hydrated: false, then restores the persisted session asynchronously after ~350ms. When a push notification is tapped right after launch (before hydration completes), state.session is undefined, causing the TypeError. The previous implementation correctly awaited whenHydrated() before accessing session data.",
+        "category": "own_code",
+        "timeline": [
+          {
+            "when": "2026-10-04T12:56:04+05:30",
+            "event": "Commit d1f5020e1ab3 removes 'await whenHydrated()' from routeV2 to eliminate ~350ms delay",
+            "evidence_ids": [
+              "ev_git_cf0a719bb3"
+            ]
+          },
+          {
+            "when": "2026-10-04 (release 1.6.1)",
+            "event": "Version 1.6.1 deployed with the change behind notif_router_v2 flag (5% rollout)",
+            "evidence_ids": [
+              "ev_vitals_87eff25082",
+              "ev_flags_1fbcb9d247"
+            ]
+          },
+          {
+            "when": "2026-10-04T08:41:05.378Z",
+            "event": "First crash: user taps push notification immediately after launch; session not yet hydrated; routeV2 reads undefined.session.riderId",
+            "evidence_ids": [
+              "ev_vitals_c8df3ea0c1",
+              "ev_vitals_44b51a7bff"
+            ]
+          },
+          {
+            "when": "2026-10-04T08:41:50.372Z",
+            "event": "Three more crashes in same minute, all with notif_router_v2 flag enabled",
+            "evidence_ids": [
+              "ev_vitals_c8df3ea0c1"
+            ]
+          }
+        ],
+        "fix_direction": "Restore the await whenHydrated() call at the start of routeV2, or add a guard that waits for hydration before accessing session data. The session must be hydrated before riderId can be safely accessed.",
+        "implicated_flag": "notif_router_v2",
+        "summary": "The v2 notification router crashes when a push notification is tapped immediately after app launch because it accesses `state.session.riderId` before the session has been hydrated from storage. Commit d1f5020e1ab3 removed the `await whenHydrated()` guard from `routeV2` to save ~350ms, but the session restore is async and takes ~350ms by default. All 4 crashes occur in version 1.6.1 with the `notif_router_v2` flag enabled (5% rollout).",
+        "claims": [
+          {
+            "text": "The crash occurs in routeV2 at line 27 when accessing state.session!.riderId while session is undefined",
+            "evidence_ids": [
+              "ev_vitals_c8df3ea0c1",
+              "ev_code_fe4b0470af"
+            ]
+          },
+          {
+            "text": "Commit d1f5020e1ab3 removed the 'await whenHydrated()' call from routeV2",
+            "evidence_ids": [
+              "ev_git_cf0a719bb3"
+            ]
+          },
+          {
+            "text": "The session store initializes with session: undefined and hydrated: false, and restores session asynchronously after a configurable delay (default 350ms)",
+            "evidence_ids": [
+              "ev_code_d0db9ded6b"
+            ]
+          },
+          {
+            "text": "100% of affected sessions have the notif_router_v2 flag enabled, while unexposed sessions have 0% crash rate",
+            "evidence_ids": [
+              "ev_vitals_44b51a7bff",
+              "ev_flags_204b51ff8f"
+            ]
+          },
+          {
+            "text": "The crash only appears in version 1.6.1 (first release with the suspect commit), not in 1.5.2",
+            "evidence_ids": [
+              "ev_vitals_87eff25082"
+            ]
+          },
+          {
+            "text": "The whenHydrated() function waits for the session store's hydrated flag to become true",
+            "evidence_ids": [
+              "ev_code_71a196e1ae",
+              "ev_code_d0db9ded6b"
+            ]
+          },
+          {
+            "text": "The test for 'navigates without waiting' actually completes hydration before calling routeDeepLink (advances timers past the delayMs)",
+            "evidence_ids": [
+              "ev_code_0cbd23e312"
+            ]
+          },
+          {
+            "text": "The commit message explicitly states: 'navigates immediately \u2014 the ride screen loads its own data, so there is no need to wait for the session restore'",
+            "evidence_ids": [
+              "ev_git_cf0a719bb3"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
