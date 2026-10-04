@@ -1,0 +1,26 @@
+id: D13_fix_strategy
+version: 1
+stage: fix
+description: Which fix strategy fits the root cause?
+model: clef
+state_budget_tokens: 6000
+questions:
+  strategy:
+    type: choice
+    instructions: Given the RCA and the code location, which fix strategy is most appropriate?
+    criteria:
+      guard_null_safety: add guards / null-safety / input validation
+      lifecycle_backgrounding: fix lifecycle, visibility or background/foreground handling
+      race_ordering: fix a race or ordering problem (queue, await, lock, idempotency)
+      config_change: change configuration, timeouts or limits
+      dependency_pin: pin, bump or patch a dependency
+      revert_commit: revert the offending commit
+      flag_only: keep the flag off; no code change now
+      needs_human: needs a human decision (product, design or large refactor)
+policy:
+  question: strategy
+  tau_high: 0.6
+  tau_low: 0.3
+  act: {needs_human: escalate_to_owner, flag_only: skip_fix, "*": apply_strategy}
+  escalate: let_agent_choose
+  safe_default: let_agent_choose

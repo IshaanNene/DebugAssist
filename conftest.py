@@ -11,3 +11,16 @@ from pathlib import Path
 for src in sorted(Path(__file__).parent.glob("packages/*/src")):
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
+
+import os  # noqa: E402
+
+import pytest  # noqa: E402
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    if os.environ.get("DA_LIVE_TESTS") == "1":
+        return
+    skip = pytest.mark.skip(reason="live test: set DA_LIVE_TESTS=1 (uses real API keys, costs money)")
+    for item in items:
+        if "live" in item.keywords:
+            item.add_marker(skip)

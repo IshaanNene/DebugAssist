@@ -1,0 +1,19 @@
+id: D11_mitigation
+version: 1
+stage: mitigate
+description: Roll back a feature flag? Auto-rollback only if p >= tau AND exposure stats are significant AND policy allows.
+model: clef
+state_budget_tokens: 4000
+questions:
+  rollback_flag:
+    type: noul
+    instructions: >-
+      Given the crash-rate comparison between flag-exposed and unexposed sessions, the flag's rollout
+      history and the RCA, is rolling this flag back likely to stop the issue without causing a worse one?
+policy:
+  question: rollback_flag
+  tau_high: 0.85
+  tau_low: 0.3
+  act: rollback_flag
+  escalate: human
+  safe_default: no_rollback

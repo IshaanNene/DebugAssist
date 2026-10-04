@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import StrEnum
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,18 +36,28 @@ class Settings(BaseSettings):
     open_router_api_key: SecretStr | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     llm_model: str = "openai/gpt-oss-120b"
+    # gpt-oss structured output degenerates on some hosts under default routing; pin hosts that
+    # passed our structured-output check (2026-10-04) and require them to honour every parameter.
+    openrouter_provider_order: list[str] = ["groq", "cerebras", "crusoe", "deepinfra"]
+    llm_price_in_per_mtok: float = 0.15
+    llm_price_out_per_mtok: float = 0.75
 
     # Clef decision models on Cloudflare Workers AI.
     cloudflare_account_id: str | None = None
     cloudflare_api_key: SecretStr | None = None
 
-    github_token: SecretStr | None = None
+    github_token: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("github_token", "github_api_key")
+    )
 
     jira_api_key: SecretStr | None = None
     jira_base_url: str | None = None
     jira_email: str | None = None
 
     slack_bot_token: SecretStr | None = None
+
+    # Dev default is SQLite; set postgresql+psycopg://debugassist:debugassist@localhost:5432/debugassist
+    database_url: str = "sqlite+aiosqlite:///.data/debugassist.db"
 
     da_mode_llm: Mode | None = None
     da_mode_clef: Mode | None = None

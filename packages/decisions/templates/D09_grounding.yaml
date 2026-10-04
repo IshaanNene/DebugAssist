@@ -1,0 +1,21 @@
+id: D09_grounding
+version: 1
+stage: classify_rca
+description: Is each RCA claim supported by the evidence it cites?
+model: clef
+state_budget_tokens: 12000
+questions:
+  supported:
+    type: noul
+    foreach: claims
+    instructions: >-
+      Claim {id}: "{text}". Is this claim directly supported by the cited evidence items {citations}
+      shown in the state (not merely plausible)?
+policy:
+  question: supported
+  per_item: true
+  tau_high: 0.7
+  tau_low: 0.35
+  act: keep
+  escalate: flag_unverified
+  safe_default: drop

@@ -1,0 +1,19 @@
+id: D17_post_merge
+version: 1
+stage: post_merge_watch
+description: After merge and deploy, did crash/report rates show the issue resolved?
+model: clef
+state_budget_tokens: 4000
+questions:
+  resolved:
+    type: noul
+    instructions: >-
+      Comparing crash and report rates for this issue before and after the fix was deployed (with
+      version adoption), is the issue resolved?
+policy:
+  question: resolved
+  tau_high: 0.8
+  tau_low: 0.3
+  act: close_issue
+  escalate: keep_watching
+  safe_default: reopen_issue

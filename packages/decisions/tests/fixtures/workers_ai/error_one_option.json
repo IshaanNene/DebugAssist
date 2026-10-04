@@ -1,0 +1,11 @@
+{
+  "errors": [
+    {
+      "message": "AiError: AiError: {\"error\":{\"type\":\"invalid_request\",\"message\":\"Request body failed validation\",\"details\":{\"formErrors\":[],\"fieldErrors\":{\"questions\":[\"Dictionary should have at least 2 items after validation, not 1\"]}}}} (127c8a6d-0af7-4d9b-84bc-0c1eff0a1e62)",
+      "code": 5012
+    }
+  ],
+  "success": false,
+  "result": {},
+  "messages": []
+}

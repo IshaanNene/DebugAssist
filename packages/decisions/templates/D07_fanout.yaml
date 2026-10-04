@@ -1,0 +1,20 @@
+id: D07_fanout
+version: 1
+stage: classify_rca
+description: Which specialised subagents to spawn for this issue (one noul each, under a budget).
+model: clef-flash
+state_budget_tokens: 5000
+questions:
+  spawn:
+    type: noul
+    foreach: subagents
+    instructions: >-
+      Would the {id} subagent ({description}) likely contribute decisive evidence for this issue?
+policy:
+  question: spawn
+  per_item: true
+  tau_high: 0.55
+  tau_low: 0.25
+  act: spawn
+  escalate: spawn_if_budget
+  safe_default: skip

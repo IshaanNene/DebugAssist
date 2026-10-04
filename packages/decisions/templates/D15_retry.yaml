@@ -1,0 +1,19 @@
+id: D15_retry
+version: 1
+stage: validate
+description: After a failed validation attempt, is another attempt likely to succeed? (inside the fixed cap)
+model: clef-flash
+state_budget_tokens: 5000
+questions:
+  retry_succeeds:
+    type: noul
+    instructions: >-
+      Given the failed attempt's test output and the change made, is another fix attempt likely to
+      produce a passing, correct fix (as opposed to a wrong hypothesis or an environment problem)?
+policy:
+  question: retry_succeeds
+  tau_high: 0.5
+  tau_low: 0.2
+  act: retry
+  escalate: retry
+  safe_default: stop

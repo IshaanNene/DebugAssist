@@ -3,7 +3,13 @@ name = "debugassist-core"
 version = "0.1.0"
 description = "DebugAssist core: settings, run modes, state models, ledger, policies, redaction"
 requires-python = ">=3.13,<3.14"
-dependencies = ["pydantic>=2.12", "pydantic-settings>=2.11"]
+dependencies = [
+  "pydantic>=2.12",
+  "pydantic-settings>=2.11",
+  "sqlalchemy[asyncio]>=2.0.44",
+  "aiosqlite>=0.21",
+  "psycopg[binary]>=3.2",
+]
 
 [build-system]
 requires = ["hatchling>=1.27"]

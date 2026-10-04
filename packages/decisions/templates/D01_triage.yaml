@@ -1,0 +1,38 @@
+id: D01_triage
+version: 1
+stage: auto_triage
+description: Priority, severity, owner and whether to spend an agent run on a new issue.
+model: clef
+state_budget_tokens: 4000
+questions:
+  priority:
+    type: score
+    instructions: >-
+      Assign an engineering priority to this production issue, considering user impact, number of
+      affected sessions, crash vs degradation, and whether a release rollout is in progress.
+    criteria: ["P4 - backlog", "P3 - low", "P2 - normal", "P1 - urgent, fix this week", "P0 - drop everything"]
+  severity:
+    type: score
+    instructions: How badly does this issue hurt an affected user?
+    criteria: ["cosmetic", "minor annoyance", "degraded feature", "feature unusable", "crash or data loss"]
+  owning_team:
+    type: choice
+    instructions: >-
+      Which team owns the code or service where this issue originates? Use the stack trace, service
+      names, routes and code paths in the evidence.
+    criteria: $teams
+  customer_impacting:
+    type: noul
+    instructions: Does this issue affect real customers (not only internal tooling or tests)?
+  worth_agent_run:
+    type: noul
+    instructions: >-
+      Is this issue actionable enough that an automated root-cause and fix attempt is worth running
+      (enough evidence, plausibly a code or config problem, not obvious noise)?
+policy:
+  question: worth_agent_run
+  tau_high: 0.6
+  tau_low: 0.25
+  act: run_agent
+  escalate: human
+  safe_default: triage_only
