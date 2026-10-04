@@ -254,6 +254,21 @@ async def _book_and_report(
     return {**out, **outcomes}
 
 
+async def push_tap_report(fleet: Fleet, params: dict[str, Any], log: Log) -> dict[str, Any]:
+    """A rider who hit the push-tap crash reopens the app and files a BugDrop report about it."""
+    p = personas(1, seed=int(params.get("seed", 5)), previous_version_share=0.0)[0]
+    async with fleet.rider(p) as page:
+        if not await open_app(page, fleet.url(p)):
+            return {"report": None, "outcome": "no_home"}
+        text = str(
+            params.get(
+                "report_text",
+                "Tapped the 'driver is arriving' notification and the app went blank. Had to close it and reopen.",
+            )
+        )
+        return {"report": await report_bug(page, text), "outcome": "filed"}
+
+
 async def degraded_backend(fleet: Fleet, params: dict[str, Any], log: Log) -> dict[str, Any]:
     return await _book_and_report(fleet, params, seed=61, timeout_ms=60_000)
 
@@ -291,6 +306,7 @@ SCENARIOS: dict[str, Callable[[Fleet, dict[str, Any], Log], Awaitable[dict[str, 
     "normal_traffic": normal_traffic,
     "battery_drain": battery_drain,
     "push_tap_fleet": push_tap_fleet,
+    "push_tap_report": push_tap_report,
     "weak_network_booking": weak_network_booking,
     "gps_loss": gps_loss,
     "fare_quotes": fare_quotes,

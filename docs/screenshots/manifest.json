@@ -1,0 +1,39 @@
+{
+  "shots": {
+    "01-miniride-home.png": {
+      "section": "1 \u00b7 The system under test",
+      "caption": "MiniRide, the rider web app DebugAssist debugs (React PWA), with the in-app 'Report a bug' button",
+      "at": "2026-10-04 10:12 UTC"
+    },
+    "02-jaeger-trace.png": {
+      "section": "1 \u00b7 The system under test",
+      "caption": "Jaeger: one rider request traced end to end across dispatch, gateway, miniride-client (9 spans, OpenTelemetry)",
+      "at": "2026-10-04 10:12 UTC"
+    },
+    "03-vitals-issues.png": {
+      "section": "2 \u00b7 Where bugs come from",
+      "caption": "Vitals (crash analytics): crashes grouped into issues by fingerprint",
+      "at": "2026-10-04 10:12 UTC"
+    },
+    "04-vitals-issue.png": {
+      "section": "2 \u00b7 Where bugs come from",
+      "caption": "Vitals VIT-1001: symbolicated stack trace, breadcrumbs, flag exposure and affected versions",
+      "at": "2026-10-04 10:12 UTC"
+    },
+    "05-bugdrop-reports.png": {
+      "section": "2 \u00b7 Where bugs come from",
+      "caption": "BugDrop: bug reports filed from inside the app",
+      "at": "2026-10-04 10:12 UTC"
+    },
+    "06-bugdrop-report.png": {
+      "section": "2 \u00b7 Where bugs come from",
+      "caption": "BugDrop BD-1001: the user's description, screenshots, UI-state timeline and logs",
+      "at": "2026-10-04 10:12 UTC"
+    },
+    "07-unleash-flag.png": {
+      "section": "2 \u00b7 Where bugs come from",
+      "caption": "Unleash: the notif_router_v2 feature flag on a 5% gradual rollout, the flag behind the crash",
+      "at": "2026-10-04 10:12 UTC"
+    }
+  }
+}

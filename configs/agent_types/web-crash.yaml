@@ -1,0 +1,19 @@
+# Agent type: crashes in the MiniRide web client. The plan (graph) is fixed in code; this file only
+# configures what each LLM node may use. Expanded with plugins/skills/subagents in later phases.
+name: web-crash
+description: Client-side crashes and errors reported by Vitals
+nodes:
+  classify_rca:
+    reasoning_effort: high
+    max_turns: 20
+    max_tool_calls: 30
+    max_budget_usd: 0.50
+    mcp_servers: [crash-analytics, code-search, git-history, feature-flags]
+  fix:
+    reasoning_effort: high
+    max_turns: 20  # free-tier model: ~50 requests/day (PLAN A11)
+    max_tool_calls: 40
+    max_budget_usd: 1.00
+validation:
+  max_attempts: 3
+run_budget_usd: 3.00

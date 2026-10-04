@@ -1,0 +1,60 @@
+{
+  "output": {
+    "test_file": "test/router_v2_hydration.test.ts",
+    "asserts": "The test asserts that routeV2 should wait for session hydration (await whenHydrated()) before accessing state.session.riderId. When a push notification is tapped right after launch (before the ~350ms hydration completes), routeDeepLink should not crash but instead wait for hydration to complete, then navigate with the riderId in the navigation state.",
+    "failure": "TypeError: Cannot read properties of undefined (reading 'riderId') at src/notifications/router.ts:27:34 - routeV2 accesses state.session!.riderId without awaiting whenHydrated(), causing a crash when the session hasn't been hydrated yet."
+  },
+  "tool_calls": [
+    {
+      "name": "list_dir",
+      "args": {
+        "path": "."
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "path": "src/notifications/router.ts"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "path": "src/store/session.ts"
+      }
+    },
+    {
+      "name": "list_dir",
+      "args": {
+        "path": "test"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "path": "test/router.test.ts"
+      }
+    },
+    {
+      "name": "write_file",
+      "args": {
+        "path": "test/router_v2_hydration.test.ts",
+        "content": "import { afterEach, beforeEach, describe, expect, it, vi } from \"vitest\";\n\nconst flags = vi.hoisted(() => ({ v2: false }));\nvi.mock(\"../src/flags\", () => ({\n  FLAGS: { notifRouterV2: \"notif_router_v2\" },\n  flag: () => flags.v2,\n}));\n\nimport { routeDeepLink } from \"../src/notifications/router\";\nimport { hydrate, resetSessionForTests, sessionStore, whenHydrated } from \"../src/store/session\";\n\ndescribe(\"router v2 hydration bug reproduction\", () => {\n  beforeEach(() => {\n    flags.v2 = true;\n    resetSessionForTests();\n    vi.useFakeTimers();\n  });\n  afterEach(() => vi.useRealTimers());\n\n  it(\"a tap right after launch waits for session hydration before accessing riderId\", async () => {\n    const navigate = vi.fn();\n    \n    // Start hydration with realistic delay (350ms as per the bug report)\n    void hydrate({ delayMs: 350 });\n    \n    // Immediately call routeDeepLink (simulating push notification tap right after launch)\n    // This should NOT crash - it should wait for hydration to complete\n    const routed = routeDeepLink(\"/ride/abc\", navigate, \"push\");\n    \n    // At this point, hydration hasn't completed (only 100ms passed, need 350ms)\n    await vi.advanceTimersByTimeAsync(100);\n    \n    // navigate should NOT have been called yet because session isn't hydrated\n    expect(navigate).not.toHaveBeenCalled();\n    \n    // Now advance past hydration delay\n    await vi.advanceTimersByTimeAsync(300);\n    \n    // The route should now complete successfully\n    await expect(routed).resolves.toBeUndefined();\n    \n    // navigate should have been called with the correct link and riderId in state\n    expect(navigate).toHaveBeenCalledTimes(1);\n    expect(navigate.mock.calls[0]![0]).toBe(\"/ride/abc\");\n    expect(navigate.mock.calls[0]![1]).toEqual(\n      expect.objectContaining({\n        state: expect.objectContaining({\n          riderId: expect.any(String),\n          prefill: null,\n        }),\n      })\n    );\n  });\n});"
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "pnpm test test/router_v2_hydration.test.ts"
+      }
+    },
+    {
+      "name": "submit_result",
+      "args": {
+        "asserts": "The test asserts that routeV2 should wait for session hydration (await whenHydrated()) before accessing state.session.riderId. When a push notification is tapped right after launch (before the ~350ms hydration completes), routeDeepLink should not crash but instead wait for hydration to complete, then navigate with the riderId in the navigation state.",
+        "failure": "TypeError: Cannot read properties of undefined (reading 'riderId') at src/notifications/router.ts:27:34 - routeV2 accesses state.session!.riderId without awaiting whenHydrated(), causing a crash when the session hasn't been hydrated yet.",
+        "test_file": "test/router_v2_hydration.test.ts"
+      }
+    }
+  ]
+}

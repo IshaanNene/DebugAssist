@@ -102,3 +102,34 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Weak-network duplicates only reproduce with packet loss, not latency alone (as in the talk's airport case).
 - **Mistake, corrected:** a `git push --tags` in the target repos published local scenario tags (v1.6.0–1.6.4, v1.6.6); they were deleted from GitHub within minutes. Rule added to CLAUDE.md.
 - DebugAssist is a public repo, so `groundtruth/` is public; isolation from agents is enforced at the sandbox (P3/P12), with a leak test on every regression patch.
+
+## P3 — Walking skeleton (2026-10-04) — in progress
+
+**Done**
+- Fixed LangGraph pipeline (`debugassist run <VIT-id|latest>`): ingest → triage (D01, CODEOWNERS, Jira) → context collector (evidence bundle from 4 MCP servers) → RCA agent (D05) → mitigation (D11, policy-gated flag rollback) → reproduce + fix agents → validate → ship gate (D16) → PR + Jira. Checkpointed; `--resume <run> [--from-node fix]` restarts from a step without redoing earlier ones.
+- MCP servers (FastMCP, stdio): code-search, crash-analytics, feature-flags (two-proportion z-test for flag ↔ crash correlation), git-history (previous release, commit window, bisect candidates).
+- `LLMRunner` seam: `AgentRunner` (LangChain `create_agent` on OpenRouter, sandboxed coding tools, MCP tools, `submit_result` validated in the loop), `CassetteRunner` (replay), `ScriptedRunner` (mock; fixtures in `packages/llm/scripted/push-crash/`, derived from the live run below).
+- Sandbox: git worktree per run + `docker run --network none` for commands; bash/path/egress guards; write policy (`configs/policies/writes.yaml`) with an audit log.
+- Integrations: Jira Cloud (create/dedup by label, comment, transition, idempotent PR link, snapshot), GitHub (push to `debugassist/*`, open/update PR), Slack mock.
+- Model is configuration (PLAN A11): capabilities and prices come from OpenRouter's `/models` (`core.openrouter`); structured output uses function calling when a model has no `response_format`.
+- `debugassist report [run]` renders a run as one HTML page; `make demo-push-crash` (keyless), `make report`, `make screenshots`.
+- Lint and pyright strict at 0 errors; 188 tests pass (live tests skipped without `DA_LIVE_TESTS=1`).
+
+**Measured (live run `20261004-090058-vit-1001`, Nemotron 3 Ultra free via OpenRouter, Clef on Workers AI)**
+- RCA correct: `routeV2` reads `state.session!.riderId` before hydration; suspect commit `d1f5020e1ab3` (removed `await whenHydrated()`); 8 claims, each citing evidence; 4 turns.
+- Reproduction test fails on v1.6.1 with the production error; fix = one line (`await whenHydrated()`); failing-before exit 1, passing-after exit 0, suite exit 0.
+- Clef: 4 decisions (D01 act, D05 act, D11 act → rollback dry-run, D16 escalate → draft PR), $0.00058 total. LLM: 264k tokens, $0 (free model). Final resumed run 294 s.
+- Draft PR https://github.com/IshaanNene/miniride-client/pull/1 and Jira SCRUM-6 (In Review, PR linked).
+- Mock mode: the same scenario end to end in 32 s with no keys.
+
+**Not done yet**
+- PR #1's CI fails lint: the generated test has two unused imports. Validation did not run the repository's CI checks; it now does (and so do the reproduce/fix submit checks), but the re-run that would update PR #1 hit the free tier's 50 requests/day. Re-run after the reset: `debugassist run VIT-1001 --llm live --resume 20261004-090058-vit-1001 --from-node fix`.
+- Run screenshots (08–14) wait for that green run; system screenshots 01–07 are in `docs/screenshots/`.
+
+**Findings / fixes along the way**
+- Paid OpenRouter models returned 402: the account has no credits (the $50 is a key cap). Switched to the free model (PLAN A11).
+- OpenRouter keeps queued requests alive with whitespace, so HTTP read timeouts never fire: every model call now has a 300 s wall-clock bound and backoff retries; daily-quota 429s fail fast.
+- **Bug, fixed:** agents created inside a pipeline node inherited the pipeline's checkpointer and thread, so a resume or retry reloaded a stale agent. Agents now run with `checkpointer=False`.
+- Step limit was ~3 graph steps per turn but a turn takes ~5; agents were cut off early and their transcripts lost. Now 6/turn + 20, and state is streamed so failures keep the transcript.
+- Earlier gpt-oss runs: a symptom-suppressing fix (optional chaining), a test asserting the buggy behaviour, and a test-only draft PR. The ship gate now requires a verified reproduction and a source change; the reproduce step rejects tests that don't fail or don't exist.
+- Duplicate Jira ticket SCRUM-5 from an early run (dedup by label added since).

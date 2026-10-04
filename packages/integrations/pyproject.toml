@@ -1,0 +1,16 @@
+[project]
+name = "debugassist-integrations"
+version = "0.1.0"
+description = "Jira, GitHub, Slack and sandbox integrations (live and mock), all behind the write-policy gate"
+requires-python = ">=3.13,<3.14"
+dependencies = ["debugassist-core", "httpx>=0.28", "pyyaml>=6.0"]
+
+[tool.uv.sources]
+debugassist-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/debugassist"]

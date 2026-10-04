@@ -1,0 +1,24 @@
+[project]
+name = "debugassist-llm"
+version = "0.1.0"
+description = "LLM nodes behind one seam: live LangChain agents on OpenRouter, cassette replay, scripted mocks"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "debugassist-core",
+  "debugassist-integrations",
+  "langchain>=1.4",
+  "langchain-openai>=1.6",
+  "langchain-mcp-adapters>=0.3",
+  "mcp>=1.30,<2",
+]
+
+[tool.uv.sources]
+debugassist-core = { workspace = true }
+debugassist-integrations = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/debugassist"]

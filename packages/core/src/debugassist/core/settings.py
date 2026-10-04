@@ -35,12 +35,31 @@ class Settings(BaseSettings):
     # LLM reasoning: OpenRouter, OpenAI-compatible API (PLAN.md amendment A1).
     open_router_api_key: SecretStr | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    llm_model: str = "openai/gpt-oss-120b"
-    # gpt-oss structured output degenerates on some hosts under default routing; pin hosts that
-    # passed our structured-output check (2026-10-04) and require them to honour every parameter.
-    openrouter_provider_order: list[str] = ["groq", "cerebras", "crusoe", "deepinfra"]
-    llm_price_in_per_mtok: float = 0.15
-    llm_price_out_per_mtok: float = 0.75
+    llm_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    # Host pinning (see provider_order): gpt-oss structured output degenerates on some hosts under
+    # default routing, so it is pinned to hosts that passed our check (2026-10-04). Other models route freely. Set OPENROUTER_PROVIDER_ORDER to override for every model.
+    openrouter_provider_order: list[str] | None = None
+    # Prices default to OpenRouter's published pricing for llm_model (see core.openrouter).
+    llm_price_in_per_mtok: float | None = None
+    llm_price_out_per_mtok: float | None = None
+
+    def provider_order(self, model: str | None = None) -> list[str]:
+        if self.openrouter_provider_order is not None:
+            return self.openrouter_provider_order
+        if (model or self.llm_model).startswith("openai/gpt-oss"):
+            return ["groq", "cerebras", "crusoe", "deepinfra"]
+        return []
+
+    def llm_prices(self, model: str | None = None) -> tuple[float, float]:
+        from debugassist.core.openrouter import model_info
+
+        info = model_info(model or self.llm_model)
+        return (
+            self.llm_price_in_per_mtok if self.llm_price_in_per_mtok is not None else info.price_in_per_mtok,
+            self.llm_price_out_per_mtok
+            if self.llm_price_out_per_mtok is not None
+            else info.price_out_per_mtok,
+        )
 
     # Clef decision models on Cloudflare Workers AI.
     cloudflare_account_id: str | None = None

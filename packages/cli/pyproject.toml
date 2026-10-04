@@ -3,7 +3,7 @@ name = "debugassist-cli"
 version = "0.1.0"
 description = "The `debugassist` command"
 requires-python = ">=3.13,<3.14"
-dependencies = ["debugassist-decisions", "debugassist-scenarios", "typer>=0.20"]
+dependencies = ["debugassist-decisions", "debugassist-scenarios", "debugassist-pipeline", "typer>=0.20"]
 
 [project.scripts]
 debugassist = "debugassist.cli:app"
@@ -11,6 +11,7 @@ debugassist = "debugassist.cli:app"
 [tool.uv.sources]
 debugassist-decisions = { workspace = true }
 debugassist-scenarios = { workspace = true }
+debugassist-pipeline = { workspace = true }
 
 [build-system]
 requires = ["hatchling>=1.27"]

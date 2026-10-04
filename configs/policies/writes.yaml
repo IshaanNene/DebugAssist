@@ -1,0 +1,21 @@
+# Every side effect DebugAssist can have outside its own sandbox, and what each run may do.
+#   live     – perform it (audited)
+#   dry_run  – record what would happen, do nothing (default for anything not listed)
+#   approval – supervised runs pause for a human (LangGraph interrupt); autonomous runs dry-run
+#   deny     – never
+version: 1
+actions:
+  jira.create_issue: live
+  jira.comment: live
+  jira.transition: live
+  github.push_branch: live      # bot branches only (see branches below)
+  github.open_pr: live
+  github.comment: live
+  slack.message: live           # goes to the mock inbox unless SLACK_BOT_TOKEN is set
+  flags.rollback: approval      # automatic only if Clef p ≥ τ AND stats are significant AND this says live
+  flags.restore: approval
+repos:                          # the only repositories DebugAssist may push to or open PRs on
+  - IshaanNene/miniride-client
+  - IshaanNene/miniride-services
+branches:
+  push_prefix: debugassist/     # bot branches; never main, release/* or tags

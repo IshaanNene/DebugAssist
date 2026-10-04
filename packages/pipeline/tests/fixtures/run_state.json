@@ -1,0 +1,560 @@
+{
+ "run_id": "20261004-090058-vit-1001",
+ "issue_ref": "VIT-1001",
+ "mode": "autonomous",
+ "llm_mode": "live",
+ "issue": {
+  "source": "vitals",
+  "id": "VIT-1001",
+  "url": "http://localhost:8100/issues/VIT-1001",
+  "title": "TypeError: Cannot read properties of undefined (reading 'riderId')",
+  "kind": "crash",
+  "app": "miniride-client",
+  "platform": "web",
+  "version": "1.6.1",
+  "first_version": "1.6.1",
+  "last_version": "1.6.1",
+  "fingerprint": "6bd0d55e43bb3618",
+  "events": 3,
+  "culprit": "/",
+  "repo": "miniride-client",
+  "gh_repo": "IshaanNene/miniride-client",
+  "component": ".",
+  "language": "typescript",
+  "latest_event": {
+   "id": "8ac5291b-4719-4d52-b137-0b46be51f27b",
+   "kind": "crash",
+   "version": "1.6.1",
+   "frames": [
+    {
+     "function": "<anonymous>",
+     "file": "src/main.tsx",
+     "line": 47,
+     "col": 19,
+     "in_app": true
+    },
+    {
+     "function": "routeDeepLink",
+     "file": "src/notifications/router.ts",
+     "line": 40,
+     "col": 17,
+     "in_app": true
+    },
+    {
+     "function": "routeV2",
+     "file": "src/notifications/router.ts",
+     "line": 27,
+     "col": 34,
+     "in_app": true
+    }
+   ]
+  }
+ },
+ "triage": {
+  "priority": "P2",
+  "severity": "crash or data loss",
+  "owner_team": "rider-engagement",
+  "oncall": "lucas.meyer",
+  "owner_source": "codeowners",
+  "customer_impacting": 0.9634,
+  "worth_agent_run": 0.8303,
+  "jira_key": "SCRUM-6",
+  "jira_url": "https://ishaannene.atlassian.net/browse/SCRUM-6",
+  "jira_mode": "live"
+ },
+ "evidence": [
+  {
+   "id": "ev_vitals_c8df3ea0c1",
+   "source": "vitals",
+   "kind": "crash_group",
+   "summary": "Crash group: 3 events, 1.6.1\u21921.6.1, latest stacks and breadcrumbs",
+   "ts": null,
+   "data": {}
+  },
+  {
+   "id": "ev_vitals_44b51a7bff",
+   "source": "vitals",
+   "kind": "flag_exposure",
+   "summary": "Feature-flag exposure among all vs affected sessions",
+   "ts": null,
+   "data": {}
+  },
+  {
+   "id": "ev_vitals_87eff25082",
+   "source": "vitals",
+   "kind": "distribution",
+   "summary": "Affected sessions by app version",
+   "ts": null,
+   "data": {
+    "dimension": "version"
+   }
+  },
+  {
+   "id": "ev_vitals_62d4175c3e",
+   "source": "vitals",
+   "kind": "distribution",
+   "summary": "Affected sessions by os",
+   "ts": null,
+   "data": {
+    "dimension": "os"
+   }
+  },
+  {
+   "id": "ev_vitals_b5dd23e50c",
+   "source": "vitals",
+   "kind": "distribution",
+   "summary": "Affected sessions by city",
+   "ts": null,
+   "data": {
+    "dimension": "city"
+   }
+  },
+  {
+   "id": "ev_flags_204b51ff8f",
+   "source": "flags",
+   "kind": "flag_correlation",
+   "summary": "Crash rate with notif_router_v2 on vs off (z=10.861, p=1.8e-27)",
+   "ts": null,
+   "data": {
+    "flag": "notif_router_v2",
+    "exposed": {
+     "sessions": 8,
+     "affected": 4,
+     "rate": 0.5
+    },
+    "unexposed": {
+     "sessions": 232,
+     "affected": 0,
+     "rate": 0.0
+    },
+    "z": 10.861,
+    "p_value": 1.763767601939505e-27,
+    "significant": true
+   }
+  },
+  {
+   "id": "ev_flags_1fbcb9d247",
+   "source": "flags",
+   "kind": "flag",
+   "summary": "Current rollout of notif_router_v2",
+   "ts": null,
+   "data": {
+    "flag": "notif_router_v2",
+    "rollout_pct": 5
+   }
+  },
+  {
+   "id": "ev_git_30ce926416",
+   "source": "git",
+   "kind": "commits",
+   "summary": "Commits v1.5.2..v1.6.1 touching src, src/notifications",
+   "ts": null,
+   "data": {}
+  },
+  {
+   "id": "ev_git_a28007f235",
+   "source": "git",
+   "kind": "bisect_candidates",
+   "summary": "Commits in the window ranked by overlap with files in the stack",
+   "ts": null,
+   "data": {}
+  },
+  {
+   "id": "ev_git_cf0a719bb3",
+   "source": "git",
+   "kind": "commit",
+   "summary": "Top suspect commit d1f5020e1ab3: perf(notifications): open v2 deep links without waiting for session restore",
+   "ts": null,
+   "data": {}
+  },
+  {
+   "id": "ev_code_fe4b0470af",
+   "source": "code",
+   "kind": "file_excerpt",
+   "summary": "Source around the crashing line src/notifications/router.ts:27 (release v1.6.1)",
+   "ts": null,
+   "data": {}
+  }
+ ],
+ "rca": {
+  "output": {
+   "summary": "The v2 notification router crashes when a push notification is tapped immediately after app launch because it accesses `state.session.riderId` before the session has been hydrated from storage. Commit d1f5020e1ab3 removed the `await whenHydrated()` guard from `routeV2` to save ~350ms, but the session restore is async and takes ~350ms by default. All 4 crashes occur in version 1.6.1 with the `notif_router_v2` flag enabled (5% rollout).",
+   "category": "own_code",
+   "root_cause": "In src/notifications/router.ts, the routeV2 function (line 25-35) reads state.session!.riderId at line 27 without ensuring the session has been hydrated. The session store initializes with session: undefined and hydrated: false, then restores the persisted session asynchronously after ~350ms. When a push notification is tapped right after launch (before hydration completes), state.session is undefined, causing the TypeError. The previous implementation correctly awaited whenHydrated() before accessing session data.",
+   "location": {
+    "repo": "miniride-client",
+    "file": "src/notifications/router.ts",
+    "function": "routeV2",
+    "line": 27
+   },
+   "suspect_commit": "d1f5020e1ab3",
+   "implicated_flag": "notif_router_v2",
+   "claims": [
+    {
+     "text": "The crash occurs in routeV2 at line 27 when accessing state.session!.riderId while session is undefined",
+     "evidence_ids": [
+      "ev_vitals_c8df3ea0c1",
+      "ev_code_fe4b0470af"
+     ]
+    },
+    {
+     "text": "Commit d1f5020e1ab3 removed the 'await whenHydrated()' call from routeV2",
+     "evidence_ids": [
+      "ev_git_cf0a719bb3"
+     ]
+    },
+    {
+     "text": "The session store initializes with session: undefined and hydrated: false, and restores session asynchronously after a configurable delay (default 350ms)",
+     "evidence_ids": [
+      "ev_code_d0db9ded6b"
+     ]
+    },
+    {
+     "text": "100% of affected sessions have the notif_router_v2 flag enabled, while unexposed sessions have 0% crash rate",
+     "evidence_ids": [
+      "ev_vitals_44b51a7bff",
+      "ev_flags_204b51ff8f"
+     ]
+    },
+    {
+     "text": "The crash only appears in version 1.6.1 (first release with the suspect commit), not in 1.5.2",
+     "evidence_ids": [
+      "ev_vitals_87eff25082"
+     ]
+    },
+    {
+     "text": "The whenHydrated() function waits for the session store's hydrated flag to become true",
+     "evidence_ids": [
+      "ev_code_71a196e1ae",
+      "ev_code_d0db9ded6b"
+     ]
+    },
+    {
+     "text": "The test for 'navigates without waiting' actually completes hydration before calling routeDeepLink (advances timers past the delayMs)",
+     "evidence_ids": [
+      "ev_code_0cbd23e312"
+     ]
+    },
+    {
+     "text": "The commit message explicitly states: 'navigates immediately \u2014 the ride screen loads its own data, so there is no need to wait for the session restore'",
+     "evidence_ids": [
+      "ev_git_cf0a719bb3"
+     ]
+    }
+   ],
+   "timeline": [
+    {
+     "when": "2026-10-04T12:56:04+05:30",
+     "event": "Commit d1f5020e1ab3 removes 'await whenHydrated()' from routeV2 to eliminate ~350ms delay",
+     "evidence_ids": [
+      "ev_git_cf0a719bb3"
+     ]
+    },
+    {
+     "when": "2026-10-04 (release 1.6.1)",
+     "event": "Version 1.6.1 deployed with the change behind notif_router_v2 flag (5% rollout)",
+     "evidence_ids": [
+      "ev_vitals_87eff25082",
+      "ev_flags_1fbcb9d247"
+     ]
+    },
+    {
+     "when": "2026-10-04T08:41:05.378Z",
+     "event": "First crash: user taps push notification immediately after launch; session not yet hydrated; routeV2 reads undefined.session.riderId",
+     "evidence_ids": [
+      "ev_vitals_c8df3ea0c1",
+      "ev_vitals_44b51a7bff"
+     ]
+    },
+    {
+     "when": "2026-10-04T08:41:50.372Z",
+     "event": "Three more crashes in same minute, all with notif_router_v2 flag enabled",
+     "evidence_ids": [
+      "ev_vitals_c8df3ea0c1"
+     ]
+    }
+   ],
+   "reproduction": "In a test: reset session, call hydrate({ delayMs: 350 }), immediately call routeDeepLink('/ride/abc', navigate, 'push') with notif_router_v2 flag enabled, before advancing timers past 350ms. The navigate call will crash at state.session!.riderId.",
+   "fix_direction": "Restore the await whenHydrated() call at the start of routeV2, or add a guard that waits for hydration before accessing session data. The session must be hydrated before riderId can be safely accessed."
+  },
+  "category_decision": {
+   "chosen": {
+    "category": "flag_config",
+    "needs_code_change": true
+   },
+   "p": 0.7439,
+   "band": "act",
+   "action": "investigate",
+   "backend": "workers_ai"
+  },
+  "actionable": true,
+  "llm": {
+   "status": "ok",
+   "mode": "live",
+   "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+   "turns": 4,
+   "cost_usd": 0.0,
+   "input_tokens": 42612,
+   "output_tokens": 3265,
+   "error": null,
+   "tool_calls": [
+    {
+     "name": "find_symbol",
+     "args": {
+      "name": "whenHydrated",
+      "repo": "miniride-client"
+     },
+     "ok": true,
+     "result_preview": "[{\"type\": \"text\", \"text\": \"{\\n  \\\"evidence_id\\\": \\\"ev_code_71a196e1ae\\\",\\n  \\\"kind\\\": \\\"symbol\\\",\\n  \\\"symbol\\\": \\\"whenHydrated\\\",\\n  \\\"definitions\\\": [\\n    {\\n      \\\"repo\\\": \\\"miniride-client\\\",\\n      \\\"path\\\": \\\"src/store/session.ts\\\",\\n      \\\"line\\\": 80,\\n      \\\"text\\\": \\\"export function whenHydrated(): Promise<void> {\\\"\\n    }\\n  ]\\n}\", \"id\": \"lc_08a85270-368a-4ce5-882a-2403d8de7743\"}]",
+     "ms": 445,
+     "evidence_id": "ev_code_71a196e1ae"
+    },
+    {
+     "name": "read_file",
+     "args": {
+      "path": "src/store/session.ts",
+      "repo": "miniride-client"
+     },
+     "ok": true,
+     "result_preview": "[{\"type\": \"text\", \"text\": \"{\\n  \\\"evidence_id\\\": \\\"ev_code_d0db9ded6b\\\",\\n  \\\"kind\\\": \\\"file_excerpt\\\",\\n  \\\"repo\\\": \\\"miniride-client\\\",\\n  \\\"path\\\": \\\"src/store/session.ts\\\",\\n  \\\"start_line\\\": 1,\\n  \\\"end_line\\\": 101,\\n  \\\"total_lines\\\": 101,\\n  \\\"content\\\": \\\"    1  // Rider session store. The persisted session is restored asynchronously at launch (as with\\\\n    2  // IndexedDB), so `session` is undefined until `hydrated` becomes true.\\\\n    3  import { createStore } from \\\\\\\"zustand/vanilla\\\\\\\";\\\\n    4  import { useStore } from \\\\\\\"zustand\\\\\\\";\\\\n    5  import type { Place, Ride } from \\",
+     "ms": 411,
+     "evidence_id": "ev_code_d0db9ded6b"
+    },
+    {
+     "name": "read_file",
+     "args": {
+      "repo": "miniride-client",
+      "path": "test/router.test.ts"
+     },
+     "ok": true,
+     "result_preview": "[{\"type\": \"text\", \"text\": \"{\\n  \\\"evidence_id\\\": \\\"ev_code_0cbd23e312\\\",\\n  \\\"kind\\\": \\\"file_excerpt\\\",\\n  \\\"repo\\\": \\\"miniride-client\\\",\\n  \\\"path\\\": \\\"test/router.test.ts\\\",\\n  \\\"start_line\\\": 1,\\n  \\\"end_line\\\": 87,\\n  \\\"total_lines\\\": 87,\\n  \\\"content\\\": \\\"    1  import { afterEach, beforeEach, describe, expect, it, vi } from \\\\\\\"vitest\\\\\\\";\\\\n    2  \\\\n    3  const flags = vi.hoisted(() => ({ v2: false }));\\\\n    4  vi.mock(\\\\\\\"../src/flags\\\\\\\", () => ({\\\\n    5    FLAGS: { notifRouterV2: \\\\\\\"notif_router_v2\\\\\\\" },\\\\n    6    flag: () => flags.v2,\\\\n    7  }));\\\\n    8  \\\\n    9  import {",
+     "ms": 485,
+     "evidence_id": "ev_code_0cbd23e312"
+    }
+   ]
+  }
+ },
+ "mitigation": {
+  "flag": "notif_router_v2",
+  "correlation": {
+   "exposed": {
+    "sessions": 8,
+    "affected": 4,
+    "rate": 0.5
+   },
+   "unexposed": {
+    "sessions": 232,
+    "affected": 0,
+    "rate": 0.0
+   },
+   "z": 10.861,
+   "p_value": 1.763767601939505e-27,
+   "significant": true,
+   "share_of_affected_exposed": 1.0
+  },
+  "decision": {
+   "p": 0.983,
+   "band": "act",
+   "action": "rollback_flag"
+  },
+  "action": "dry_run",
+  "detail": "notif_router_v2: 5% \u2192 0% (dry run \u2014 policy requires approval)"
+ },
+ "fix_attempts": [
+  {
+   "n": 1,
+   "repro": {
+    "test_file": "test/router_v2_hydration.test.ts",
+    "asserts": "The test asserts that routeV2 should wait for session hydration (await whenHydrated()) before accessing state.session.riderId. When a push notification is tapped right after launch (before the ~350ms hydration completes), routeDeepLink should not crash but instead wait for hydration to complete, then navigate with the riderId in the navigation state.",
+    "failure": "TypeError: Cannot read properties of undefined (reading 'riderId') at src/notifications/router.ts:27:34 - routeV2 accesses state.session!.riderId without awaiting whenHydrated(), causing a crash when the session hasn't been hydrated yet."
+   },
+   "repro_verified": true,
+   "repro_run": {
+    "command": "pnpm exec vitest run test/router_v2_hydration.test.ts",
+    "exit_code": 1,
+    "output_tail": "/vitest/dist/chunks/run.BTlFXlnv.js:\u001b[2m3301:20\u001b[22m\u001b[39m\n\n\u001b[31mThis error originated in \"\u001b[1mtest/router_v2_hydration.test.ts\u001b[22m\" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.\u001b[39m\n\u001b[31mThe last test to run before this error was \"\u001b[1ma tap right after launch waits for session hydration before accessing riderId\u001b[22m\". This means either:\n- the error was thrown while Vitest was running this test, or\n- the error was thrown after the test completed, and this was the most recent test at that point.\u001b[39m\n\u001b[31m\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u001b[39m\n\n"
+   },
+   "output": null,
+   "diff": "diff --git a/src/notifications/router.ts b/src/notifications/router.ts\nindex 9c5ab71..ea44bd9 100644\n--- a/src/notifications/router.ts\n+++ b/src/notifications/router.ts\n@@ -23,6 +23,7 @@ async function routeV1(link: string, navigate: Navigate) {\n }\n \n async function routeV2(link: string, navigate: Navigate) {\n+  await whenHydrated();\n   const state = sessionStore.getState();\n   const riderId = state.session!.riderId;\n   const rideMatch = RIDE_LINK.exec(link);\ndiff --git a/test/router_v2_hydration.test.ts b/test/router_v2_hydration.test.ts\nnew file mode 100644\nindex 0000000..90a73ad\n--- /dev/null\n+++ b/test/router_v2_hydration.test.ts\n@@ -0,0 +1,54 @@\n+import { afterEach, beforeEach, describe, expect, it, vi } from \"vitest\";\n+\n+const flags = vi.hoisted(() => ({ v2: false }));\n+vi.mock(\"../src/flags\", () => ({\n+  FLAGS: { notifRouterV2: \"notif_router_v2\" },\n+  flag: () => flags.v2,\n+}));\n+\n+import { routeDeepLink } from \"../src/notifications/router\";\n+import { hydrate, resetSessionForTests, sessionStore, whenHydrated } from \"../src/store/session\";\n+\n+describe(\"router v2 hydration bug reproduction\", () => {\n+  beforeEach(() => {\n+    flags.v2 = true;\n+    resetSessionForTests();\n+    vi.useFakeTimers();\n+  });\n+  afterEach(() => vi.useRealTimers());\n+\n+  it(\"a tap right after launch waits for session hydration before accessing riderId\", async () => {\n+    const navigate = vi.fn();\n+    \n+    // Start hydration with realistic delay (350ms as per the bug report)\n+    void hydrate({ delayMs: 350 });\n+    \n+    // Immediately call routeDeepLink (simulating push notification tap right after launch)\n+    // This should NOT crash - it should wait for hydration to complete\n+    const routed = routeDeepLink(\"/ride/abc\", navigate, \"push\");\n+    \n+    // At this point, hydration hasn't completed (only 100ms passed, need 350ms)\n+    await vi.advanceTimersByTimeAsync(100);\n+    \n+    // navigate should NOT have been called yet because session isn't hydrated\n+    expect(navigate).not.toHaveBeenCalled();\n+    \n+    // Now advance past hydration delay\n+    await vi.advanceTimersByTimeAsync(300);\n+    \n+    // The route should now complete successfully\n+    await expect(routed).resolves.toBeUndefined();\n+    \n+    // navigate should have been called with the correct link and riderId in state\n+    expect(navigate).toHaveBeenCalledTimes(1);\n+    expect(navigate.mock.calls[0]![0]).toBe(\"/ride/abc\");\n+    expect(navigate.mock.calls[0]![1]).toEqual(\n+      expect.objectContaining({\n+        state: expect.objectContaining({\n+          riderId: expect.any(String),\n+          prefill: null,\n+        }),\n+      })\n+    );\n+  });\n+});\n\\ No newline at end of file",
+   "files": [
+    "src/notifications/router.ts",
+    "test/router_v2_hydration.test.ts"
+   ],
+   "llm": {
+    "reproduce": {
+     "status": "ok",
+     "mode": "live",
+     "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+     "turns": 8,
+     "cost_usd": 0.0,
+     "input_tokens": 32180,
+     "output_tokens": 1697,
+     "error": null,
+     "tool_calls": [
+      {
+       "name": "list_dir",
+       "args": {
+        "path": "."
+       },
+       "ok": true,
+       "result_preview": ".DebugAssist/\n.dockerignore\n.github/\n.gitignore\n.pnpm-store/\nDockerfile\nREADME.md\ne2e/\neslint.config.js\nindex.html\nnginx.conf\npackage.json\nplaywright.config.ts\npnpm-lock.yaml\npnpm-workspace.yaml\npublic/\nscripts/\nsrc/\ntest/\ntsconfig.json\nvite.config.ts",
+       "ms": 1,
+       "evidence_id": null
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "src/notifications/router.ts"
+       },
+       "ok": true,
+       "result_preview": "    1  // Deep-link routing for notifications (in-app and push).\n    2  //\n    3  // v1 (default): wait until the session is restored, then navigate.\n    4  // v2 (flag notif_router_v2): navigates immediately \u2014 the ride screen loads its own data, so there is\n    5  // no need to wait for the session restore \u2014 and resolves ride links against the active ride so the\n    6  // screen can open with the driver card prefilled, tagging the navigation with the rider id.\n    7  import { FLAGS, flag } from \"../flags\";\n    8  import { sessionStore, whenHydrated } from \"../store/session\";\n    9  import { a",
+       "ms": 0,
+       "evidence_id": null
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "src/store/session.ts"
+       },
+       "ok": true,
+       "result_preview": "    1  // Rider session store. The persisted session is restored asynchronously at launch (as with\n    2  // IndexedDB), so `session` is undefined until `hydrated` becomes true.\n    3  import { createStore } from \"zustand/vanilla\";\n    4  import { useStore } from \"zustand\";\n    5  import type { Place, Ride } from \"../api/rides\";\n    6  \n    7  export interface RiderSession {\n    8    riderId: string;\n    9    displayName: string;\n   10    city: string;\n   11    homePlace: Place | null;\n   12  }\n   13  \n   14  export interface SessionState {\n   15    hydrated: boolean;\n   16    session: RiderSe",
+       "ms": 1,
+       "evidence_id": null
+      }
+     ]
+    },
+    "fix": {
+     "status": "max_turns",
+     "mode": "live",
+     "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+     "turns": 21,
+     "cost_usd": 0.0,
+     "input_tokens": 182566,
+     "output_tokens": 1849,
+     "error": null,
+     "tool_calls": [
+      {
+       "name": "read_file",
+       "args": {
+        "path": "src/notifications/router.ts"
+       },
+       "ok": true,
+       "result_preview": "    1  // Deep-link routing for notifications (in-app and push).\n    2  //\n    3  // v1 (default): wait until the session is restored, then navigate.\n    4  // v2 (flag notif_router_v2): navigates immediately \u2014 the ride screen loads its own data, so there is\n    5  // no need to wait for the session restore \u2014 and resolves ride links against the active ride so the\n    6  // screen can open with the driver card prefilled, tagging the navigation with the rider id.\n    7  import { FLAGS, flag } from \"../flags\";\n    8  import { sessionStore, whenHydrated } from \"../store/session\";\n    9  import { a",
+       "ms": 2,
+       "evidence_id": null
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "src/store/session.ts"
+       },
+       "ok": true,
+       "result_preview": "    1  // Rider session store. The persisted session is restored asynchronously at launch (as with\n    2  // IndexedDB), so `session` is undefined until `hydrated` becomes true.\n    3  import { createStore } from \"zustand/vanilla\";\n    4  import { useStore } from \"zustand\";\n    5  import type { Place, Ride } from \"../api/rides\";\n    6  \n    7  export interface RiderSession {\n    8    riderId: string;\n    9    displayName: string;\n   10    city: string;\n   11    homePlace: Place | null;\n   12  }\n   13  \n   14  export interface SessionState {\n   15    hydrated: boolean;\n   16    session: RiderSe",
+       "ms": 1,
+       "evidence_id": null
+      },
+      {
+       "name": "read_file",
+       "args": {
+        "path": "test/router_v2_hydration.test.ts"
+       },
+       "ok": true,
+       "result_preview": "    1  import { afterEach, beforeEach, describe, expect, it, vi } from \"vitest\";\n    2  \n    3  const flags = vi.hoisted(() => ({ v2: false }));\n    4  vi.mock(\"../src/flags\", () => ({\n    5    FLAGS: { notifRouterV2: \"notif_router_v2\" },\n    6    flag: () => flags.v2,\n    7  }));\n    8  \n    9  import { routeDeepLink } from \"../src/notifications/router\";\n   10  import { hydrate, resetSessionForTests, sessionStore, whenHydrated } from \"../src/store/session\";\n   11  \n   12  describe(\"router v2 hydration bug reproduction\", () => {\n   13    beforeEach(() => {\n   14      flags.v2 = true;\n   15    ",
+       "ms": 1,
+       "evidence_id": null
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "validation": {
+  "attempts": [
+   {
+    "attempt": 1,
+    "tier": "unit",
+    "failing_before_exit": 1,
+    "passing_after_exit": 0,
+    "suite_exit": 0,
+    "suite_tail": "",
+    "after_tail": ""
+   }
+  ],
+  "passed": true,
+  "failing_before": {
+   "label": "reproduction test on the release (expected to fail)",
+   "command": "pnpm exec vitest run test/router_v2_hydration.test.ts",
+   "exit_code": 1,
+   "output_tail": "/vitest/dist/chunks/run.BTlFXlnv.js:\u001b[2m3301:20\u001b[22m\u001b[39m\n\n\u001b[31mThis error originated in \"\u001b[1mtest/router_v2_hydration.test.ts\u001b[22m\" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.\u001b[39m\n\u001b[31mThe last test to run before this error was \"\u001b[1ma tap right after launch waits for session hydration before accessing riderId\u001b[22m\". This means either:\n- the error was thrown while Vitest was running this test, or\n- the error was thrown after the test completed, and this was the most recent test at that point.\u001b[39m\n\u001b[31m\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u23af\u001b[39m\n\n"
+  },
+  "passing_after": {
+   "label": "reproduction test with the fix",
+   "command": "pnpm exec vitest run test/router_v2_hydration.test.ts",
+   "exit_code": 0,
+   "output_tail": "\n\u001b[1m\u001b[30m\u001b[46m RUN \u001b[49m\u001b[39m\u001b[22m \u001b[36mv5.0.3 \u001b[39m\u001b[90m/work\u001b[39m\n\n \u001b[32m\u2713\u001b[39m test/router_v2_hydration.test.ts \u001b[2m(\u001b[22m\u001b[2m1 test\u001b[22m\u001b[2m)\u001b[22m\u001b[32m 4\u001b[2mms\u001b[22m\u001b[39m\n\n\u001b[2m Test Files \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m1 passed\u001b[39m\u001b[22m\u001b[90m (1)\u001b[39m\n\u001b[2m   Start at \u001b[22m 09:56:39\n\u001b[2m   Duration \u001b[22m 899ms\u001b[2m (environment 91%, transform 6%, import 2%)\u001b[22m\n\n"
+  },
+  "suite": {
+   "label": "full component suite with the fix",
+   "command": "pnpm test",
+   "exit_code": 0,
+   "output_tail": "\u001b[2m      Tests \u001b[22m \u001b[1m\u001b[32m19 passed\u001b[39m\u001b[22m\u001b[90m (19)\u001b[39m\n\u001b[2m   Start at \u001b[22m 09:56:43\n\u001b[2m   Duration \u001b[22m 4.99s\u001b[2m (environment 96%, transform 2%, import 1%, tests 1%)\u001b[22m\n\n\u001b[2mEnvironment \u001b[22m \u001b[33mjsdom was created 6 times\u001b[39m\u001b[2m \u00b7 4.35s total, 96% of tracked time\u001b[22m\n\u001b[2m            \u001b[22m \u001b[2mcreate it once per worker with \u001b[22m\u001b[33mpool: 'vmThreads'\u001b[39m\u001b[2m (keeps per-file isolation) or \u001b[22m\u001b[33misolate: false\u001b[39m\u001b[2m (shares it across files)\u001b[22m\n\u001b[2m            \u001b[22m \u001b[2mlearn more: https://vitest.dev/guide/improving-performance#test-environments\u001b[22m\n\n$ vitest run\n"
+  }
+ },
+ "ship": {
+  "outcome": "draft_pr",
+  "risk": 1.623,
+  "decision": {
+   "p": 0.4992,
+   "band": "escalate",
+   "chosen": {
+    "outcome": "open_pr",
+    "risk": 1.623
+   }
+  }
+ },
+ "pr": {
+  "url": "https://github.com/IshaanNene/miniride-client/pull/1",
+  "number": 1,
+  "branch": "debugassist/vit-1001-typeerror-cannot-read-properties-of-unde",
+  "base": "release/1.6.1",
+  "draft": true,
+  "mode": "live"
+ },
+ "notifications": [
+  {
+   "kind": "slack",
+   "to": "lucas.meyer",
+   "channel": "@lucas.meyer",
+   "mode": "mock"
+  },
+  {
+   "kind": "watch",
+   "detail": "post-merge watch arrives in P8"
+  }
+ ],
+ "decisions": [
+  "02069858-7176-428c-b7b7-b57850c5daad",
+  "83ac7913-9804-48e2-8d0c-2c8eaa4b888a",
+  "425e60ae-e666-4b1b-94a0-e2c666529b57",
+  "579ecfdc-061c-44d8-8bf8-6eab22dd5927"
+ ],
+ "costs": {
+  "classify_rca": 0.0,
+  "reproduce": 0.0,
+  "fix": 0.0
+ },
+ "timings_ms": {
+  "ingest": 27,
+  "auto_triage": 2587,
+  "context_collector": 289,
+  "classify_rca": 119151,
+  "mitigate": 713,
+  "fix": 153342,
+  "validate": 9361,
+  "ship_gate": 1191,
+  "pr_and_notify": 7392,
+  "post_merge_watch": 0
+ },
+ "errors": [],
+ "status": "done"
+}
