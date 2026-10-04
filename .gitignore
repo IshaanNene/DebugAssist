@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+.data/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+node_modules/
+.DS_Store
+.claude/settings.local.json
