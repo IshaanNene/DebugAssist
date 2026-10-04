@@ -1,0 +1,6 @@
+[submodule "targets/miniride-client"]
+	path = targets/miniride-client
+	url = https://github.com/IshaanNene/miniride-client.git
+[submodule "targets/miniride-services"]
+	path = targets/miniride-services
+	url = https://github.com/IshaanNene/miniride-services.git

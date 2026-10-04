@@ -1,10 +1,10 @@
 # DebugAssist developer entry points. Everything works without API keys (mock mode).
 SHELL := /bin/bash
 COMPOSE := docker compose -f infra/docker-compose.yml
-PROFILES ?= core obs flags faults
+PROFILES ?= core obs flags faults target
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
-.PHONY: help sync bootstrap lint fmt typecheck test check up down ps logs clean clef-smoke
+.PHONY: help targets seed flags e2e sync bootstrap lint fmt typecheck test check up down ps logs clean clef-smoke
 
 help:  ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -32,8 +32,8 @@ test:  ## Unit tests (mock mode)
 
 check: lint typecheck test  ## Everything CI runs
 
-up:  ## Start infra (PROFILES="core obs flags faults")
-	$(COMPOSE) $(PROFILE_FLAGS) up -d --wait
+up:  ## Build and start the stack (PROFILES="core obs flags faults target")
+	$(COMPOSE) $(PROFILE_FLAGS) up -d --build --wait
 
 down:  ## Stop infra (keeps volumes)
 	$(COMPOSE) --profile '*' down
@@ -49,3 +49,14 @@ clean:  ## Stop infra and delete volumes
 
 clef-smoke:  ## One live Clef + Clef-flash call (needs CLOUDFLARE_* in .env; ~$0.0001)
 	scripts/clef_smoke.sh
+
+flags:  ## Create MiniRide feature flags in Unleash (idempotent)
+	uv run --no-sync python infra/unleash/bootstrap.py
+
+e2e:  ## Playwright E2E against the running stack (client on :8080)
+	cd targets/miniride-client && pnpm exec playwright test
+
+targets:  ## Fetch the MiniRide target repos (submodules; miniride-services is private)
+	git submodule update --init --recursive
+
+seed: flags  ## Seed local state (flags today; BugDrop/Vitals data in P2b)

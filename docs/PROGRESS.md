@@ -4,7 +4,8 @@
 |---|---|---|---|
 | P0 Plan & scaffold | ✅ done | 2026-10-04 | See below |
 | P1 Decision engine | ✅ done | 2026-10-04 | See below |
-| P2a Target system + telemetry | ⏭ next | | |
+| P2a Target system + telemetry | ✅ done | 2026-10-04 | See below |
+| P2b Sources + catalog + simulator | ⏭ next | | |
 
 ## P0 — Plan & scaffold (2026-10-04)
 
@@ -52,3 +53,28 @@ uv run debugassist decide D05 --state '{"error":"TypeError at routeDeepLink","fl
 - OpenRouter default routing for gpt-oss-120b sometimes returns whitespace-padded or unparseable structured output; pinning hosts + `require_parameters` fixed it in testing.
 - macOS: every file created inside a dot-directory under `~/Desktop` gets the hidden flag, and Python 3.13 skips hidden `.pth` files (editable installs vanish). Fix: `make sync` installs a `sitecustomize.py` path hook, and uv now uses its managed CPython (Homebrew's Python ships its own `sitecustomize`). Moving the repo out of `~/Desktop` would also avoid it.
 - Template packaging for wheels/PEX is deferred to P11 (templates are read from `packages/decisions/templates/`).
+
+## P2a — Target system + telemetry (2026-10-04)
+
+**Done**
+- `IshaanNene/miniride-services` (private, v1.4.0): gateway (Node/TS GraphQL Yoga), dispatch (FastAPI + SQLAlchemy 2.0 + Postgres), payments (Go). Unit tests (gateway 5, dispatch 7, payments 6), `scripts/integration.sh`, Dockerfiles with healthchecks, CI, CODEOWNERS, `.DebugAssist/pipeline.yaml`.
+- `IshaanNene/miniride-client` (public, v1.4.0): React 19 PWA — booking flow, notification center + launch-from-push deep links (router v1/v2 behind `notif_router_v2`), visibility-aware ETA poller, idempotent ride requests with timeout retries, OpenFeature/Unleash flags, OTel fetch tracing, batched analytics, crash screen. 18 vitest tests, 2 Playwright E2E tests, CI, CODEOWNERS, `.DebugAssist/pipeline.yaml`.
+- Both repos added as submodules under `targets/`; `configs/catalog.yaml` (7 teams, on-call rotations, service → path ownership).
+- Compose profile `target` (client, gateway, dispatch, payments) + OTel Collector (traces → Jaeger, logs → Loki OTLP, metrics → Prometheus remote write); Unleash dev tokens + `make flags` bootstrap (`notif_router_v2`, `surge_pricing` at 0% gradual rollout).
+- Verified live: booking via Playwright; one trace spans miniride-client → gateway → dispatch (incl. SQL spans); gateway GraphQL operation logs and dispatch/payments logs in Loki; dispatch/payments/HTTP metrics in Prometheus.
+- `docs/ARCHITECTURE.md` with the stand-in mapping table.
+
+**Verify**
+```
+make up && make flags
+make e2e                                              # Playwright: book a ride, open from push
+bash targets/miniride-services/scripts/integration.sh
+open http://localhost:8080  http://localhost:16686    # book a ride, then find the trace in Jaeger
+```
+
+**Findings**
+- Jaeger 2.21 serves only the v3 query API, which streams one JSON document per trace.
+- `opentelemetry-instrumentation-sqlalchemy` silently skips SQLAlchemy 2.1 → pinned 2.0.x.
+- Node ESM apps need `module.register("@opentelemetry/instrumentation/hook.mjs")` or pino/graphql are never instrumented.
+- Go: `resource.NewWithAttributes(semconv.SchemaURL, …)` conflicts with the SDK default schema → `NewSchemaless`.
+- TypeScript pinned to 6.0.3 (typescript-eslint does not support TS 7 yet).
