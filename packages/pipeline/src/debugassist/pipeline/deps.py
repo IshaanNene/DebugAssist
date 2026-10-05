@@ -31,6 +31,11 @@ APPS: dict[str, tuple[str, str, str, str]] = {
 }
 
 
+# Mock Clef answers are pseudo-random per state; pin the ones that would stop a keyless run before it
+# writes a fix (a random "needs a human" strategy or "cannot reproduce" tier). Labelled mock as always.
+MOCK_DECISIONS: dict[str, Any] = {"strategy": "race_ordering", "tier": "unit"}
+
+
 @dataclass
 class Deps:
     run_id: str
@@ -88,7 +93,7 @@ async def build_deps(
         if s.mode(Integration.GITHUB) is Mode.LIVE and s.github_token
         else GitHubMock()
     )
-    engine = await build_engine(s, "auto")
+    engine = await build_engine(s, "auto", mock_overrides=MOCK_DECISIONS)
     agent_type = yaml.safe_load((ROOT / "configs" / "agent_types" / "web-crash.yaml").read_text())
     catalog = yaml.safe_load((ROOT / "configs" / "catalog.yaml").read_text())
     os.environ["DEBUGASSIST_RUN_ID"] = run_id

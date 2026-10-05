@@ -63,7 +63,16 @@ class Sandbox:
         exclude = exclude if exclude.is_absolute() else self.worktree / exclude
         exclude.parent.mkdir(parents=True, exist_ok=True)
         lines = exclude.read_text().splitlines() if exclude.exists() else []
-        for pat in (".corepack/", ".pnpm-store/", "node_modules/", ".venv/", ".cache/", "go-build/"):
+        for pat in (
+            ".corepack/",
+            ".pnpm-store/",
+            "node_modules/",
+            ".venv/",
+            ".cache/",
+            "go-build/",
+            ".da-e2e/",
+            "test-results/",
+        ):
             if pat not in lines:
                 lines.append(pat)
         exclude.write_text("\n".join(lines) + "\n")

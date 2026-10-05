@@ -73,6 +73,7 @@ def wrap(
         update["timings_ms"] = {**state.timings_ms, name: ms}
         if deps.extra.get("until") == name and update.get("status") not in ("failed", "duplicate"):
             update["status"] = "stopped"  # --until: end the run after this step
+            update["stopped_after"] = name
         _persist(deps, state, name, update, ms)
         return update
 
@@ -101,7 +102,13 @@ def build_graph(deps: Deps, log: Callable[[str], None] = print) -> StateGraph[Ru
         after_rca,
     )
     g.add_conditional_edges("mitigate", ok("fix"))
-    g.add_conditional_edges("fix", ok("validate"))
+
+    def after_fix(s: RunState) -> str:
+        if s.status in ("failed", "stopped"):
+            return END
+        return "ship_gate" if s.fix_plan and s.fix_plan.skip else "validate"
+
+    g.add_conditional_edges("fix", after_fix)
 
     async def after_validate(s: RunState) -> str:
         if s.status in ("failed", "stopped"):

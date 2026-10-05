@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P6 done, P7–P14 not started (a few pieces pulled forward). Next: P7.
+Overall: P0–P7 done, P8–P14 not started (a few pieces pulled forward). Next: P8.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -46,15 +46,23 @@ Overall: P0–P6 done, P7–P14 not started (a few pieces pulled forward). Next:
 - [x] D9 grounding check per claim — one Clef call per claim with only its cited evidence (drop/flag unsupported claims)
 - [x] D10 effort routing by difficulty
 - [x] Accept: BUG-001 RCA names the hot loop and ~17 min backgrounding; BUG-002 names the flag and the race
-- [ ] Known gap: for BugDrop reports the suspect commit is unreliable (no last-good/first-bad window for reports) — revisit in P7 with D12
+- [x] Suspect commit for BugDrop reports: P7 lists the commits in the release window that touched the chosen fix location
 
-## P7 · Mitigation + fix + validation (D11–D15)
-- [x] D11 flag correlation (z-test) + policy-gated rollback (dry-run); supervised interrupt
+## P7 · Mitigation + fix + validation (D11–D15) ✅ (one acceptance item partly met)
+- [x] D11 flag correlation (z-test) + policy-gated rollback (dry-run); supervised interrupt; "already at 0%" is reported, not rolled back
 - [x] Reproduce → fix → validate with failing-before / passing-after, suite, repo CI checks; D15 retry ≤ 3
-- [ ] D12 fix localization (two-stage choice over code-search candidates)
-- [ ] D13 fix strategy choice
-- [ ] D14 validation tier + ladder: unit → integration/component → E2E with captured environment mocked
-- [ ] Accept: BUG-001 fixed with a CPU-while-hidden test; BUG-003 validated by throttled-network Playwright E2E
+- [x] D12 fix localization: candidates from the RCA, stack, release diff and callers; two-stage over many; Clef-safe ids
+- [x] Commits in the release window that touched the chosen location (closes P6's suspect-commit gap)
+- [x] D13 fix strategy choice ("needs a human" escalates; "flag only" only if the flag was actually rolled back)
+- [x] D14 validation tier + ladder: from the choice upwards, then cheaper tiers; E2E left out when it can't run
+- [x] E2E tier: Playwright (official image) against a build of the worktree on an internal Docker network (no internet),
+      captured environment (network profile, CPU, visibility, flag exposure) via `e2e/support/emulate.ts`; `run_e2e` tool
+- [x] Accept: BUG-001 fixed with a background-loop test (fail → pass, suite + CI checks green)
+- [x] Accept: BUG-002 rollback recommended (dry-run per policy) + unit fail → pass (E2E tried first, fell back)
+- [~] Accept: BUG-003 reproduced by a throttled-network Playwright E2E (fails on the release), but both fix attempts
+      only reused the idempotency key and kept the 3 s timeout, so the E2E still fails — validation not passed
+- [ ] Follow-up: make the fix step use every RCA fact (here: "times out after 3 s, shorter than matching takes"),
+      e.g. pass grounded claims, not just the summary, to the fix agent; re-run BUG-003 with retries
 
 ## P8 · Ship gate, PR / Jira / Slack, post-merge (D16–D17)
 - [x] D16 ship gate (verified repro + source change required; draft without proof); PR + Jira link/comment/transition

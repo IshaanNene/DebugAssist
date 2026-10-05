@@ -197,3 +197,27 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
   - The evidence was truncated: tool results were kept only as 600-character previews, and lookups were capped at 1,500 characters. Tool calls that return an evidence ID now keep up to 6,000 characters for grounding.
 - Evidence IDs for fetched items had used Python `hash()`, which changes between processes; they now use `evidence_id()`.
 - Tests: `test_rca.py` covers per-claim grounding (and that each call sees only its own citations), the fuller tool text, D7 ordering and cap, and the D6 loop.
+
+## P7 — Mitigation, fix, validation, D11–D15 (2026-10-05) — done, one acceptance item partly met
+
+**Done** (`pipeline/fixplan.py`, `pipeline/e2e.py`, fix/validate nodes)
+- Fix plan, decided once before the first attempt:
+  - D12 localization: code lists candidate functions from the RCA location, stack frames, files the RCA mentions, files changed in the release that introduced the bug, and callers of what the RCA names. Clef picks the location (two-stage when there are more than 40).
+  - The commits in that release window that touched the chosen file are listed for the fix agent and the run summary. This closes P6's suspect-commit gap.
+  - D13 strategy: "needs a human" escalates at the ship gate; "flag only" skips the fix only if the flag really was rolled back.
+  - D14 tier: the ladder starts at the chosen tier, climbs, then falls back to the cheaper tiers. E2E is left out when it can't run.
+- E2E tier: the agent writes a Playwright spec and checks it with a `run_e2e` tool. The pipeline builds the worktree in the network-less sandbox (cached by source state) and runs the spec in the official Playwright image on an internal Docker network that reaches only the MiniRide backends (no internet; verified). The captured environment (reported network profile, device, flag exposure from the report or crash event) is emulated with `e2e/support/emulate.ts` (CDP network/CPU throttling, visibility, flag overrides, script-time metric), which ships with the test.
+- Failing-before / passing-after, the suite and the repo's CI checks run per tier. `--resume` now continues a run stopped by `--until`.
+- Mitigation reports a flag already at 0% instead of a pointless dry-run rollback.
+
+**Live results** (GitHub/Jira/Slack mocked, stopped after validate)
+- BUG-001 (BD-1002): D12 → `EtaPoller.refreshLocally`; window commit `8d0f4fa` (the right one); D13 lifecycle/backgrounding. Unit test of ticks while hidden fails on the release and passes with the fix; suite and CI checks green. Fix stage about $0.06.
+- BUG-002 (VIT-1001): D11 rollback p=0.955 with z=10.9 (dry-run). D12 → `routeV2` of 41 candidates (two-stage); window commit `d1f5020`. D14 chose E2E; it did not reproduce, the ladder fell back to unit, and the unit test failed and then passed with the fix; suite and CI checks green. About $0.26.
+- BUG-003 (BD-1003, reporter on 2g / rtt 1950 ms / 250 kbps): RCA right (fresh idempotency key per retry); D12 → `requestRide`; window commit `c811fa9`. Playwright E2E with the reporter's network fails on the release. Both fix attempts reused the key but kept the 3 s timeout, so on that network every attempt still times out and the E2E still fails. **Validation not passed.** About $0.60.
+
+**Findings**
+- Two-stage D12 sent `path::function` as Clef question ids; Clef only accepts `[A-Za-z0-9_.-]`. Fixed with opaque ids and a test through the real engine.
+- Vitals crashes carry the flag exposure on the event, not a report; the captured environment now reads both. Without it, the E2E ran with the flag off and could not reproduce.
+- Without a way to run its spec, the E2E agent only "submitted" at the turn cap and got one rejection with no turns left; `run_e2e` fixed that.
+- Playwright's attachment listings buried the error; they are stripped.
+- The scratch dir first chosen (`.debugassist/`) collides with the tracked `.DebugAssist/` on macOS (case-insensitive); it is now `.da-e2e/`.

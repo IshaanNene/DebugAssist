@@ -142,5 +142,7 @@ def changed_files(diff: str) -> list[str]:
 
 def is_test_path(path: str) -> bool:
     return bool(
-        re.search(r"(^|/)(test|tests|__tests__)/|\.test\.|_test\.(go|py)$|(^|/)test_[^/]+\.py$", path)
+        re.search(
+            r"(^|/)(test|tests|__tests__|e2e)/|\.(test|spec)\.|_test\.(go|py)$|(^|/)test_[^/]+\.py$", path
+        )
     ) or Path(path).name.startswith("test_")
