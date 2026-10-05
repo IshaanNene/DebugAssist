@@ -134,6 +134,9 @@ def run(
     resume: Annotated[
         str | None, typer.Option(help="run id to resume from its last completed node (checkpoint)")
     ] = None,
+    until: Annotated[
+        str | None, typer.Option(help="stop after this step, e.g. classify_rca (cheap stage-by-stage runs)")
+    ] = None,
     from_node: Annotated[
         str | None,
         typer.Option(help="with --resume: rewind to the checkpoint just before this node's first run"),
@@ -156,6 +159,8 @@ def run(
             issue = _latest_issue()
         run_id = resume or new_run_id(issue)
         deps = await build_deps(run_id, mode=mode, llm_mode=llm, replay_from=replay_from)
+        if until:
+            deps.extra["until"] = until
         typer.echo(f"run {run_id} ({mode}, LLM {llm}); artifacts in .data/runs/{run_id}/")
         (ROOT / ".data").mkdir(exist_ok=True)
         async with AsyncSqliteSaver.from_conn_string(str(ROOT / ".data" / "checkpoints.sqlite")) as saver:

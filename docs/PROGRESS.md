@@ -176,3 +176,24 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - **Bug found and fixed:** D2 marked VIT-1001 (the original crash) as a duplicate of BD-1001, a report filed 1.5 hours later. Candidates are now only issues opened *before* the one being triaged; the earliest is canonical.
 - D3 pruned more than the budget required; leftover budget now goes to windows scored "background" or better.
 - Earlier the token was IP-restricted to an old address and every call returned 401 with a silent fallback; the run summary now reports the decision backend.
+
+## P6 — Root cause, D5–D10 (2026-10-05) — done
+
+**Done** (`pipeline/rca.py`, `configs/subagents.yaml`)
+- D10 sets the RCA agent's reasoning effort by difficulty; non-actionable categories (incident, third party, device) get a short routed RCA with no fan-out and go straight to the ship gate.
+- D6 evidence loop before the agent (at most 2 rounds): Clef decides whether more data is needed and from which source — related BugDrop reports, related Vitals issues, incidents, each service's logs around the event, session perf, last-good/first-bad. Each fetch is deterministic code, and a source already offered is not offered again.
+- D7 picks up to 4 of 10 specialised subagents. Each gets only its slice of the evidence and a few MCP servers, runs in parallel with tight limits (8 turns, 12 tool calls, $0.10, 300 s), and returns findings with evidence IDs that the RCA agent consolidates.
+- D8 checks the RCA agent's last 12 tool calls every 6 calls: continue, warn (a note is injected) or stop early.
+- D9 grounds each claim separately against the evidence it cites. Supported claims are kept, unverified ones are flagged, unsupported ones are dropped (and listed in the run state). A citation to an ID no source returned is dropped without a model call.
+
+**Live results**
+- BUG-002 (VIT-1001): names `notif_router_v2` and the hydration race; subagents code-localizer, crash-correlator and commit-bisector; D9 kept 6 claims and flagged 1; about $0.03.
+- BUG-001 (BD-1002, run `20261005-055140-bd-1002`, $0.12): "`refreshLocally()` does not update `this.last.at`, so each tick re-schedules with near-zero delay: ~286 wakeups/s while hidden" — `src/eta/poller.ts`. Subagents perf-profiler, log-analyst, trace-analyst and screenshot-analyst. D9: 8 supported, 1 unverified (p=0.65), 0 dropped, including the ~17 minutes hidden (0.99) and the code mechanism (0.97).
+- Miss: that run named the file's initial commit as the suspect instead of the refactor that introduced the defect (an earlier run got it right). BugDrop reports have no last-good/first-bad window yet; P7's localization (D12) should close this.
+
+**Findings**
+- D9 at first dropped true claims for two reasons:
+  - Batching every claim with all cited evidence into one Clef state lost track of which evidence belonged to which claim. True claims scored 0.03–0.27 batched and 0.87–0.99 alone, with a false control at 0.007. Fixed with one call per claim.
+  - The evidence was truncated: tool results were kept only as 600-character previews, and lookups were capped at 1,500 characters. Tool calls that return an evidence ID now keep up to 6,000 characters for grounding.
+- Evidence IDs for fetched items had used Python `hash()`, which changes between processes; they now use `evidence_id()`.
+- Tests: `test_rca.py` covers per-claim grounding (and that each call sees only its own citations), the fuller tool text, D7 ordering and cap, and the D6 loop.

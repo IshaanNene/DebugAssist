@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P5 done, P6–P14 not started (a few pieces pulled forward). Next: P6.
+Overall: P0–P6 done, P7–P14 not started (a few pieces pulled forward). Next: P7.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -36,16 +36,17 @@ Overall: P0–P5 done, P6–P14 not started (a few pieces pulled forward). Next:
 - [~] Slack ping for P0/P1 to the mock inbox (inbox UI comes with the dashboard, P9)
 - [x] Live Clef verification of D2/D3/D4 (after the token's IP filter was widened)
 
-## P6 · Root cause (D5–D10)
+## P6 · Root cause (D5–D10) ✅
 - [x] RCA agent with evidence-cited claims; D5 categorization
-- [ ] Early exit with a routed RCA for non-actionable categories (incident, third-party, device)
-- [ ] D6 evidence loop (need more data? which source next?)
-- [ ] D7 fan-out + parallel subagents: breadcrumb-analyst, crash-correlator, commit-bisector, flag-correlator,
-      trace-analyst, log-analyst, incident-checker, screenshot-analyst, perf-profiler, code-localizer (pruned inputs)
-- [ ] D8 rabbit-hole monitor as a hook (watchdog exists; add the Clef check every N calls)
-- [ ] D9 grounding check per claim (drop/flag unsupported claims)
-- [ ] D10 model routing (effort / model by difficulty)
-- [ ] Accept: BUG-001 RCA names the hot loop and ~17 min backgrounding; BUG-002 names the flag and the race
+- [x] Early exit with a routed RCA for non-actionable categories (incident, third-party, device): low effort, no fan-out, straight to the ship gate as `rca_only`
+- [x] D6 evidence loop (need more data? which source next?), ≤ 2 rounds, every fetch deterministic
+- [x] D7 fan-out + parallel subagents (≤ 4) from `configs/subagents.yaml`: breadcrumb-analyst, crash-correlator, commit-bisector,
+      flag-correlator, trace-analyst, log-analyst, incident-checker, screenshot-analyst, perf-profiler, code-localizer (pruned inputs)
+- [x] D8 rabbit-hole monitor as agent middleware (Clef check every 6 tool calls: continue / warn / stop early)
+- [x] D9 grounding check per claim — one Clef call per claim with only its cited evidence (drop/flag unsupported claims)
+- [x] D10 effort routing by difficulty
+- [x] Accept: BUG-001 RCA names the hot loop and ~17 min backgrounding; BUG-002 names the flag and the race
+- [ ] Known gap: for BugDrop reports the suspect commit is unreliable (no last-good/first-bad window for reports) — revisit in P7 with D12
 
 ## P7 · Mitigation + fix + validation (D11–D15)
 - [x] D11 flag correlation (z-test) + policy-gated rollback (dry-run); supervised interrupt

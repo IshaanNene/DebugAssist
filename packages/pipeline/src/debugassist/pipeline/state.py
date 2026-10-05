@@ -85,11 +85,25 @@ class RCAOutput(BaseModel):
     fix_direction: str = Field(description="what a correct fix should do (not code)")
 
 
+class Finding(BaseModel):
+    """What a specialised subagent found (consolidated by the RCA agent)."""
+
+    summary: str = Field(description="what you found, in 1-3 sentences; say plainly if you found nothing")
+    facts: list[Claim] = Field(description="each finding with the evidence ids (ev_…) that support it")
+    confidence: Literal["low", "medium", "high"]
+    open_questions: list[str] = Field(default_factory=list[str], description="what is still unclear")
+
+
 class RCA(BaseModel):
     output: RCAOutput | None = None
     category_decision: dict[str, Any] = Field(default_factory=dict[str, Any])
     actionable: bool = True
     llm: dict[str, Any] = Field(default_factory=dict[str, Any])
+    routing: dict[str, Any] | None = None  # D10: difficulty → reasoning effort
+    evidence_rounds: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # D6
+    subagents: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # D7 + findings
+    grounding: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # D9 per claim
+    dropped_claims: list[Claim] = Field(default_factory=list[Claim])  # D9: unsupported
 
 
 class Mitigation(BaseModel):

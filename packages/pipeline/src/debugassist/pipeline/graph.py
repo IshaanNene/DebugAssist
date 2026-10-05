@@ -71,6 +71,8 @@ def wrap(
             log(f"  ✗ {name}: {exc}")
         ms = int((time.perf_counter() - t0) * 1000)
         update["timings_ms"] = {**state.timings_ms, name: ms}
+        if deps.extra.get("until") == name and update.get("status") not in ("failed", "duplicate"):
+            update["status"] = "stopped"  # --until: end the run after this step
         _persist(deps, state, name, update, ms)
         return update
 
@@ -83,10 +85,10 @@ def build_graph(deps: Deps, log: Callable[[str], None] = print) -> StateGraph[Ru
         g.add_node(name, cast(Any, wrap(name, getattr(nodes, name), deps, log)))  # pyright: ignore[reportUnknownMemberType]
 
     def ok(next_node: str) -> Callable[[RunState], str]:
-        return lambda s: END if s.status in ("failed", "duplicate") else next_node
+        return lambda s: END if s.status in ("failed", "duplicate", "stopped") else next_node
 
     def after_rca(s: RunState) -> str:
-        if s.status == "failed":
+        if s.status in ("failed", "stopped"):
             return END
         return "mitigate" if s.rca and s.rca.actionable else "ship_gate"
 
@@ -102,7 +104,7 @@ def build_graph(deps: Deps, log: Callable[[str], None] = print) -> StateGraph[Ru
     g.add_conditional_edges("fix", ok("validate"))
 
     async def after_validate(s: RunState) -> str:
-        if s.status == "failed":
+        if s.status in ("failed", "stopped"):
             return END
         return "fix" if await nodes.decide_retry(s, deps) else "ship_gate"
 
