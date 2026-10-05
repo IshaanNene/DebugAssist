@@ -12,6 +12,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field
 
+from debugassist.core import tracing
 from debugassist.core.ledger import DecisionRow, Ledger, content_hash
 from debugassist.core.redaction import redact
 from debugassist.core.settings import Mode
@@ -141,10 +142,25 @@ class DecisionEngine:
         fitted = redact(fit_state(state, template.state_budget_tokens))
         image_urls = prepare_images(images) if images else None
 
-        if template.two_stage is not None:
-            return await self._two_stage(template, fitted, image_urls, params, ctx, chosen_model)
-        questions = template.render(params)
-        return await self._run(template, fitted, image_urls, questions, ctx, chosen_model)
+        with tracing.span(template.id, kind="decision", **{"input.value": fitted}) as sp:
+            if template.two_stage is not None:
+                d = await self._two_stage(template, fitted, image_urls, params, ctx, chosen_model)
+            else:
+                questions = template.render(params)
+                d = await self._run(template, fitted, image_urls, questions, ctx, chosen_model)
+            tracing.set_attributes(
+                sp,
+                **{"output.value": d.chosen},
+                p=d.p,
+                band=d.band.value if d.band else "per_item",
+                action=d.action,
+                backend=d.backend,
+                model=d.model,
+                cost_usd=d.cost_usd,
+                fallback_reason=d.fallback_reason,
+                ledger_id=d.ledger_id,
+            )
+            return d
 
     @staticmethod
     def _is_criteria_param(template: Template, name: str) -> bool:

@@ -12,6 +12,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from debugassist.core import tracing
 from debugassist.core.guards import check_command
 from debugassist.core.policy import ROOT
 
@@ -124,11 +125,14 @@ class Sandbox:
             "-lc",
             setup + command,
         ]
-        try:
-            p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-            return CommandResult(command, p.returncode, (p.stdout + p.stderr)[-12000:])
-        except subprocess.TimeoutExpired:
-            return CommandResult(command, 124, f"timed out after {timeout}s")
+        with tracing.span("sandbox", kind="tool", **{"tool.name": "sandbox", "input.value": command}) as sp:
+            try:
+                p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+                result = CommandResult(command, p.returncode, (p.stdout + p.stderr)[-12000:])
+            except subprocess.TimeoutExpired:
+                result = CommandResult(command, 124, f"timed out after {timeout}s")
+            tracing.set_attributes(sp, exit_code=result.exit_code, **{"output.value": result.output[-2000:]})
+            return result
 
     def install(self, setup: str, workdir: str = ".") -> CommandResult:
         """Install dependencies (the one step allowed network access)."""

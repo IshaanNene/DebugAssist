@@ -62,6 +62,8 @@ export interface RunDetail {
   state: RunState;
   graph: GraphNode[];
   phoenix_url: string;
+  phoenix_trace: boolean;
+  traces: string[];
 }
 
 export interface TestRun {

@@ -21,6 +21,7 @@ import httpx
 import yaml
 from langchain_core.tools import BaseTool, tool
 
+from debugassist.core import untrusted
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT, Verdict
 from debugassist.core.settings import Integration, Mode
@@ -31,7 +32,7 @@ from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
-from debugassist.pipeline import collector, e2e, fixplan, postmerge, pr_body, skills
+from debugassist.pipeline import budget, collector, e2e, fixplan, postmerge, pr_body, skills
 from debugassist.pipeline import rca as rca_mod
 from debugassist.pipeline.deps import APPS, Deps
 from debugassist.pipeline.state import (
@@ -590,7 +591,7 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
     env = _code_repos_env(state)
     st = state.model_copy(update={"rca": rca})
     # D10: reasoning effort by difficulty. Non-actionable categories get a short, routed RCA.
-    cfg = dict(deps.agent_type["nodes"]["classify_rca"])
+    cfg = budget.cap(dict(deps.agent_type["nodes"]["classify_rca"]), deps)
     effort, rca.routing, d10 = await rca_mod.route_effort(st, deps)
     decisions.append(d10 or "")
     cfg["reasoning_effort"] = effort if actionable else "low"
@@ -609,21 +610,7 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
             costs[f"subagent_{f['id']}"] = float(f.get("cost_usd") or 0.0)
     skill_prompt, skill_tools = skills.for_node(deps.agent_type, "classify_rca", issue)
     spec = LLMNodeSpec(node="classify_rca", system_prompt=_prompt("rca_system.md") + skill_prompt, **cfg)
-    found = rca_mod.findings_text(findings)
-    prompt = (
-        f"Issue {issue.id} from {'Vitals' if issue.source == 'vitals' else 'BugDrop'} in repo {issue.repo} "
-        f"(component '{issue.component}', {issue.language}).\n"
-        f"Title: {issue.title}\nEvents: {issue.events}; versions {issue.first_version}→{issue.last_version}.\n"
-        + (f"User report: {json.dumps(issue.report, default=str)[:1500]}\n" if issue.report else "")
-        + "\n"
-        + f"Evidence bundle (pre-collected, pruned):\n{_bundle(st.evidence)}\n\n"
-        + (
-            f"Findings from specialised subagents (verify before relying on them; cite their evidence ids):\n{found}\n\n"
-            if found
-            else ""
-        )
-        + "Code paths are repo-relative; the client lives at the repo root. Investigate and submit the RCA."
-    )
+    prompt = rca_prompt(issue, _bundle(st.evidence), rca_mod.findings_text(findings))
     monitor_ledgers: list[str] = []
     r = await deps.runner().run(
         spec,
@@ -645,6 +632,32 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
     rca.output, rca.grounding, rca.dropped_claims, d9 = await rca_mod.ground_claims(st, deps, output, lookup)
     decisions += d9
     return {"rca": rca, "decisions": decisions, "costs": costs, "evidence": st.evidence}
+
+
+def rca_prompt(issue: Issue, bundle: str, findings: str) -> str:
+    """The RCA agent's task. Everything that came from users, logs, code or other agents is fenced as data."""
+    return (
+        f"Issue {issue.id} from {'Vitals' if issue.source == 'vitals' else 'BugDrop'} in repo {issue.repo} "
+        f"(component '{issue.component}', {issue.language}).\n"
+        + untrusted.fence("issue title", issue.title)
+        + f"\nEvents: {issue.events}; versions {issue.first_version}→{issue.last_version}.\n"
+        + (
+            untrusted.fence("user report", json.dumps(issue.report, default=str)[:1500]) + "\n"
+            if issue.report
+            else ""
+        )
+        + "\nEvidence bundle (pre-collected, pruned):\n"
+        + untrusted.fence("collected evidence", bundle)
+        + "\n\n"
+        + (
+            "Findings from specialised subagents (verify before relying on them; cite their evidence ids):\n"
+            + untrusted.fence("subagent findings", findings)
+            + "\n\n"
+            if findings
+            else ""
+        )
+        + "Code paths are repo-relative; the client lives at the repo root. Investigate and submit the RCA."
+    )
 
 
 # ---- N4 mitigate ----------------------------------------------------------------------------
@@ -861,7 +874,7 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     if plan.skip:
         return {"fix_plan": plan, "decisions": decisions}
     o = rca.output
-    cfg = deps.agent_type["nodes"]["fix"]
+    cfg = budget.cap(dict(deps.agent_type["nodes"]["fix"]), deps)
     context = (
         f"Repository {issue.repo}, component dir '{issue.component}' ({issue.language}); commands run from there. Release {base}.\n"
         f"Component test command: `{comp['test']}`; tests live under `{comp.get('test_file_glob', 'test/')}`.\n"
@@ -872,7 +885,13 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
         f"Correct fix direction: {o.fix_direction}\n" + fixplan.prompt_section(plan)
     )
     if state.validation and state.validation.attempts:
-        context += f"\nThe previous attempt failed validation:\n{json.dumps(state.validation.attempts[-1], default=str)[:3000]}\nTry a different approach.\n"
+        context += (
+            "\nThe previous attempt failed validation:\n"
+            + untrusted.fence(
+                "validation output", json.dumps(state.validation.attempts[-1], default=str)[:3000]
+            )
+            + "\nTry a different approach.\n"
+        )
     fa = FixAttempt(n=attempt)
 
     # Phase 1: reproduce (only test files may be written), up the ladder from the last tier that worked
@@ -1016,8 +1035,10 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
         else f"run with `{fa.repro_run['command']}`"
     )
     prompt = (
-        context + f"\nReproduction test ({fa.tier}): `{repro.test_file}` — {how}; it currently fails:\n"
-        f"{fa.repro_run['output_tail'][-1500:]}\n\nFix the bug so this test and the component suite pass, then submit."
+        context
+        + f"\nReproduction test ({fa.tier}): `{repro.test_file}` — {how}; it currently fails:\n"
+        + untrusted.fence("test output", fa.repro_run["output_tail"][-1500:])
+        + "\n\nFix the bug so this test and the component suite pass, then submit."
     )
 
     def check_fix(out: dict[str, Any]) -> str | None:

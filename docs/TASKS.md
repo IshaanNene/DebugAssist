@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P11 done, P12–P14 not started (a few pieces pulled forward). Next: P12.
+Overall: P0–P12 done, P13–P14 not started. Next: P13.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -91,7 +91,7 @@ Overall: P0–P11 done, P12–P14 not started (a few pieces pulled forward). Nex
 - [x] Marketplace & agent types: skills (token footprint, used by), agent types, subagents, decision templates
 - [x] Chat inbox screen; `make dashboard`; CI job (typecheck, lint, build)
 - [x] Diff fixer, Ask AI, Open-in-machine (P10)
-- [ ] Per-run Phoenix deep link once runs emit traces (observability phase); accuracy/calibration need P11 labels
+- [x] Per-run Phoenix deep link (P12) · [ ] accuracy/calibration need P13 labels
 
 ## P10 · Post-PR features + feedback (D18) ✅
 - [x] Diff fixer: one instruction → agent in the run's sandbox → the fix contract re-proved (fails on the release,
@@ -122,11 +122,17 @@ Overall: P0–P11 done, P12–P14 not started (a few pieces pulled forward). Nex
       `debugassist harness run` in a container; Redis + Arq workers (`make worker`, `POST /api/runs`)
 - [ ] PEXes/images built so far: perf-regression (the others build the same way)
 
-## P12 · Observability, cost, guardrails, privacy
-- [x] Bash / path / egress guards; write policy + audit log; redaction at BugDrop intake and before every LLM/Clef call; untrusted-input marking
+## P12 · Observability, cost, guardrails, privacy ✅
+- [x] Bash / path / egress guards; write policy + audit log; redaction at BugDrop intake and before every LLM/Clef call
 - [x] Live agent progress + watchdog (wall clock, repeated calls, logged retries)
-- [ ] Phoenix traces for full runs (OpenInference LangChain instrumentor; Clef + MCP + bash spans)
-- [ ] Global run budget; cost per node in the run view; redaction tests on agent inputs
+- [x] Phoenix traces for full runs: run root (session = run id), node spans, OpenInference LangChain instrumentor (LLM,
+      tools incl. MCP), Clef DECISION spans, sandbox TOOL spans, subagent AGENT spans; trace id on the run; dashboard deep link
+- [x] Global run budget (agent type `run_budget_usd`, LLM + Clef spend): LLM nodes stop once spent, per-agent caps lowered
+      to what is left; cost by node (LLM and Clef per decision) in the run view
+- [x] Untrusted-data fencing (`<untrusted_data>` with closing-tag neutralising) for reports, logs, evidence, findings,
+      test output, diffs and Ask-AI context; prompt-injection fixtures (report text, log lines, code comment) + tests for
+      fencing, redaction of agent inputs, guards and the write policy
+- [ ] Raw tool outputs inside Phoenix spans are not redacted (self-hosted; LLM/Clef inputs are)
 
 ## P13 · Evaluation harness + ablations
 - [~] Bug catalog: 8 bugs (BUG-001..008) → at least 25 across TS / Python / Go, incl. "not our bug" cases
