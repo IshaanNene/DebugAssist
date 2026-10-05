@@ -347,7 +347,8 @@ def marketplace(p: Paths) -> dict[str, Any]:
                 k: {kk: vv for kk, vv in v.items() if kk != "system_prompt"}
                 for k, v in obj(cfg.get("nodes")).items()
             },
-            "skills": cfg.get("skills", []),
+            "skills": sorted({n for names in obj(cfg.get("skills")).values() for n in arr(names)}),
+            "skills_by_node": obj(cfg.get("skills")),
             "run_budget_usd": cfg.get("run_budget_usd"),
         }
     skills: list[dict[str, Any]] = []

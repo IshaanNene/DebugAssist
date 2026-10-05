@@ -3,6 +3,7 @@ import { api, PUBLIC_API_URL } from "@/lib/api";
 import type { RunDetail, TestRun } from "@/lib/types";
 import { ApiDown, Badge, Card, Empty, outcomeTone } from "@/components/ui";
 import { Diff } from "@/components/Diff";
+import { AskAi, DiffFixer, OpenInMachine } from "@/components/PostPr";
 
 interface Artifact {
   path: string;
@@ -22,17 +23,6 @@ function Proof({ run, expectFail }: { run: TestRun | null; expectFail?: boolean 
       </summary>
       <pre className="max-h-72 overflow-auto border-t border-line bg-bg p-3 text-xs">{run.output_tail}</pre>
     </details>
-  );
-}
-
-function Planned({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded border border-dashed border-line p-3 opacity-70">
-      <div className="mb-2 flex items-center justify-between text-sm font-medium">
-        {title} <Badge>arrives in P10</Badge>
-      </div>
-      {children}
-    </div>
   );
 }
 
@@ -99,6 +89,18 @@ export default async function PrPanel(props: PageProps<"/runs/[id]/pr">) {
                 </div>
               )}
             </Card>
+            {(s.post_pr?.length ?? 0) > 0 && (
+              <Card title="Review revisions">
+                <ul className="space-y-1 text-xs">
+                  {s.post_pr!.map((p, i) => (
+                    <li key={i}>
+                      <Badge tone={p.status === "committed" ? "green" : "red"}>{String(p.status)}</Badge> {String(p.instruction)}
+                      {p.commit ? <span className="font-mono text-muted"> → {String(p.commit)}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
             {fa.output && (
               <Card title="Why this fix">
                 <p className="text-sm">{fa.output.summary}</p>
@@ -106,18 +108,9 @@ export default async function PrPanel(props: PageProps<"/runs/[id]/pr">) {
                 <div className="mt-2 flex gap-2 text-xs"><Badge>{fa.output.strategy}</Badge><Badge tone={fa.output.risk === "low" ? "green" : "amber"}>risk {fa.output.risk}</Badge></div>
               </Card>
             )}
-            <Planned title="Diff fixer">
-              <input disabled placeholder='e.g. "use the existing helper instead"' className="w-full rounded border border-line bg-bg px-2 py-1 text-sm" />
-              <div className="mt-2 flex flex-wrap gap-1 text-xs">
-                {["add a test", "smaller diff", "follow repo style", "explain"].map((p) => <Badge key={p}>{p}</Badge>)}
-              </div>
-            </Planned>
-            <Planned title="Ask AI">
-              <input disabled placeholder="Ask about the root cause, the evidence or the fix…" className="w-full rounded border border-line bg-bg px-2 py-1 text-sm" />
-            </Planned>
-            <Planned title="Open in your machine">
-              <p className="text-xs text-muted">A devcontainer pinned to the bad commit plus the fix branch, with the failing test ready.</p>
-            </Planned>
+            <DiffFixer runId={id} />
+            <AskAi runId={id} />
+            <OpenInMachine runId={id} />
           </div>
         </div>
       )}

@@ -231,6 +231,7 @@ class RunState(BaseModel):
     mitigation: Mitigation | None = None
     fix_plan: FixPlan | None = None
     watch: Watch | None = None
+    post_pr: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # diff fixer runs
     fix_attempts: list[FixAttempt] = Field(default_factory=list[FixAttempt])
     validation: Validation | None = None
     ship: Ship | None = None

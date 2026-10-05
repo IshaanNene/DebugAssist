@@ -6,12 +6,15 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import subprocess
+import sys
+import uuid
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any, Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -110,9 +113,121 @@ def run_feedback(run_id: str) -> list[dict[str, Any]]:
 
 
 @app.post("/api/runs/{run_id}/feedback", status_code=201)
-def post_feedback(run_id: str, body: FeedbackIn) -> dict[str, Any]:
+def post_feedback(run_id: str, body: FeedbackIn, background: BackgroundTasks) -> dict[str, Any]:
     _state(run_id)
-    return data.add_feedback(PATHS, {"run_id": run_id, **body.model_dump()})
+    row = data.add_feedback(PATHS, {"run_id": run_id, **body.model_dump()})
+    background.add_task(_route_feedback, run_id, body.model_dump(), str(row["at"]))
+    return row
+
+
+async def _route_feedback(run_id: str, entry: dict[str, Any], at: str) -> None:
+    """D18 in the background; the routed outcome is appended next to the feedback it answers."""
+    from debugassist.pipeline import feedback, postpr
+
+    try:
+        state, _ = postpr._load(run_id)  # pyright: ignore[reportPrivateUsage]
+        deps = await postpr._deps(state)  # pyright: ignore[reportPrivateUsage]
+        try:
+            routed = await feedback.route(state, deps, entry)
+        finally:
+            if deps.engine.ledger is not None:
+                await deps.engine.ledger.close()
+    except Exception as exc:
+        routed = {"error": f"{type(exc).__name__}: {exc}"[:300]}
+    data.add_feedback(PATHS, {"run_id": run_id, "routed_for": at, "routed": routed})
+
+
+# ---- post-PR tools --------------------------------------------------------------------------
+
+
+class DiffFixIn(BaseModel):
+    instruction: str = Field(min_length=3, max_length=500)
+
+
+@app.post("/api/runs/{run_id}/diff-fix", status_code=202)
+def start_diff_fix(run_id: str, body: DiffFixIn) -> dict[str, str]:
+    """Start the diff fixer as a background job (minutes); poll GET …/jobs/{job}."""
+    _state(run_id)
+    job = uuid.uuid4().hex[:10]
+    jobs = PATHS.runs / run_id / "jobs"
+    jobs.mkdir(exist_ok=True)
+    cli = Path(sys.executable).parent / "debugassist"
+    with (jobs / f"{job}.log").open("w") as log:
+        subprocess.Popen(  # noqa: S603 - fixed argv, instruction passed as one argument
+            [str(cli), "fix-diff", run_id, body.instruction, "--job", job],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            cwd=PATHS.root,
+            start_new_session=True,
+        )
+    return {"job": job}
+
+
+@app.get("/api/runs/{run_id}/jobs/{job}")
+def get_job(run_id: str, job: str) -> dict[str, Any]:
+    if not job.isalnum():
+        raise HTTPException(404, "no such job")
+    d = PATHS.runs / run_id / "jobs"
+    result, log = d / f"{job}.json", d / f"{job}.log"
+    if result.is_file():
+        return {"status": "done", "result": json.loads(result.read_text())}
+    if log.is_file():
+        tail = [ln for ln in log.read_text().splitlines() if ln.strip()][-6:]
+        return {"status": "running", "log": tail}
+    raise HTTPException(404, "no such job")
+
+
+class AskIn(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    session_id: str | None = None
+    correction: bool = False
+
+
+@app.post("/api/runs/{run_id}/ask")
+async def ask(run_id: str, body: AskIn) -> dict[str, Any]:
+    from debugassist.pipeline import postpr
+
+    _state(run_id)
+    return await postpr.ask(run_id, body.message, body.session_id, correction=body.correction)
+
+
+@app.get("/api/runs/{run_id}/chat")
+def chat_sessions(run_id: str) -> list[dict[str, Any]]:
+    from debugassist.pipeline import postpr
+
+    _state(run_id)
+    return postpr.sessions(run_id)
+
+
+@app.get("/api/runs/{run_id}/chat/{session_id}")
+def chat_session(run_id: str, session_id: str) -> list[dict[str, Any]]:
+    from debugassist.pipeline import postpr
+
+    _state(run_id)
+    return postpr.session(run_id, session_id)
+
+
+@app.post("/api/runs/{run_id}/open")
+def open_in_machine(run_id: str) -> dict[str, Any]:
+    from debugassist.pipeline import postpr
+
+    _state(run_id)
+    try:
+        return postpr.open_env(run_id)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
+@app.get("/api/proposals")
+def proposals() -> list[dict[str, Any]]:
+    """Skill updates proposed by the feedback loop (local marketplace PRs awaiting a human)."""
+    d = PATHS.data / "mock" / "github"
+    rows = [json.loads(f.read_text()) for f in sorted(d.glob("marketplace-pr-*.json"))] if d.is_dir() else []
+    return [
+        {k: v for k, v in r.items() if k != "patch"}
+        | {"patch_lines": len(str(r.get("patch", "")).splitlines())}
+        for r in rows
+    ]
 
 
 def _files_snapshot(run_dir: Path) -> dict[str, int]:

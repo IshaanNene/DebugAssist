@@ -280,3 +280,29 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - The Phoenix link opens the project, not the run (runs don't emit traces yet).
 - Metrics shows no accuracy or calibration until P11 labels decisions.
 - Mock runs are badged "scripted, not evidence" in Metrics.
+
+## P10 — Post-PR features and the feedback loop, D18 (2026-10-05) — done
+
+**Done**
+- **Diff fixer** (`pipeline/postpr.py`, `debugassist fix-diff`, PR-panel box): an agent revises the committed fix in the run's sandbox per one instruction. The same fix contract is re-proved — now factored out as `nodes.fix_contract_problem` — before it commits, pushes to the bot branch and comments on the PR (policy-gated). From the dashboard it runs as a background job (`POST /api/runs/{id}/diff-fix`, polled).
+- **Ask AI** (`debugassist ask`, PR-panel chat): seeded with the RCA, claims, timeline, evidence, fix and proof. Only evidence IDs that exist are kept as citations; invented ones are reported. Sessions are JSONL and resumable. A message marked as a correction goes through D18.
+- **Open in your machine** (`debugassist open`, button): writes a devcontainer and a compose override for the run's worktree, pinned to the bad release and the fix branch, with the user's flags and the failing test, and returns a `vscode://` link.
+- **D18 feedback loop** (`pipeline/feedback.py`, run in the background when a reaction arrives):
+  - A bare 👍/👎 labels the ledger rows behind what was rated (RCA → D05; claim → its D09 check), so Metrics can show accuracy and Brier.
+  - Comments are classified: root cause / location → labels and the prompt-improvement log; fix approach / style → the lesson appended to the fix skill on a local `debugassist/skill-…` branch with a marketplace PR record; other → the owner in chat.
+- The fix step now loads the skills its agent type lists (`skills: {fix: [web-client-fixes]}`). The new `web-client-fixes` skill holds generic conventions only, so no catalog fixes leak into prompts.
+
+**Verified (live LLM and live Clef; mocked GitHub for the demo PR)**
+- **Diff fixer** on the BUG-002 demo PR, CLI and the dashboard's job path: two revisions committed after re-validation (`7ac88bc`, `2465792`), pushed and commented on the mock PR. About $0.03 each.
+- **Ask AI** on BUG-001 and BUG-002: correct, cited answers for about $0.005.
+- **D18:**
+  - A style correction was classified `style` (p=0.94) → proposal branch `debugassist/skill-web-client-fixes-ed21a0cc` with the lesson.
+  - A fix-approach correction scored p=0.595, under τ=0.6 → escalated to the on-call in chat, as designed.
+  - A 👍 on a BUG-001 claim labelled its D09 row (`correct: true`).
+- Tests: 6 new pipeline tests and 1 API test.
+
+**Findings**
+- The contract check reverted "the source change" with `git diff HEAD`. Once a fix is committed (diff fixer), HEAD already contains it, so every revision was rejected as "no longer reproduces". It now diffs against the release tag.
+- Claim ↔ D09 matching compared against `json.dumps` output, which escapes quotes and non-ASCII characters. It now compares instruction text.
+- A new run on the same issue reuses the bot branch and removes the older run's worktree; Open-in-machine reports this instead of failing.
+- A proposal cut from HEAD can't see an uncommitted skill; it falls back to the working copy (after this commit, proposals are one-line patches).

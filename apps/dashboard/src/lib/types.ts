@@ -115,6 +115,7 @@ export interface RunState {
   pr: { url: string; number: number; branch: string; base: string; draft: boolean; mode: string } | null;
   watch: { status: string; reason: string | null; before: Json; after: Json; decision: Json; actions: string[] } | null;
   notifications: Json[];
+  post_pr?: Json[];
   costs: Record<string, number>;
   timings_ms: Record<string, number>;
   errors: string[];
