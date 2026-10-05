@@ -8,6 +8,7 @@ actions:
   jira.create_issue: live
   jira.comment: live
   jira.transition: live
+  jira.link: live
   github.push_branch: live      # bot branches only (see branches below)
   github.open_pr: live
   github.comment: live

@@ -1,0 +1,1 @@
+{"maps-provider":{"description":"Geocoding and routing API","status":"operational"},"payment-processor":{"description":"Card authorization network","status":"operational"},"push-provider":{"description":"Mobile push delivery","status":"operational"},"sms-provider":{"description":"SMS OTP delivery","status":"operational"}}

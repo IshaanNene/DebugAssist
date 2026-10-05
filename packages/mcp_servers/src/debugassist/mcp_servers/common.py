@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 from debugassist.core.evidence import evidence_id
+from debugassist.core.policy import PolicyGate, Verdict
 from debugassist.core.redaction import redact
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -48,3 +50,24 @@ def truncate(text: str, limit: int = MAX_RESULT_CHARS) -> str:
     return (
         text if len(text) <= limit else text[: limit - 60] + f"\n… [truncated {len(text) - limit + 60} chars]"
     )
+
+
+def gated_write(
+    action: str, detail: dict[str, Any], perform: Callable[[], Any], *, dry_run: bool = True
+) -> dict[str, Any]:
+    """Run a write through the policy gate: dry-run unless asked otherwise AND the policy says live.
+
+    Every call, applied or not, lands in the audit log (configs/policies/writes.yaml, .data/audit.jsonl).
+    """
+    gate = PolicyGate(mode=os.environ.get("DEBUGASSIST_MODE", "autonomous"))
+    verdict = gate.verdict(action)
+    live = not dry_run and verdict is Verdict.LIVE
+    result = perform() if live else None
+    gate.record(
+        action,
+        Verdict.LIVE if live else Verdict.DRY_RUN,
+        run_id=os.environ.get("DEBUGASSIST_RUN_ID"),
+        detail=detail,
+        result=result,
+    )
+    return {"action": action, "policy": verdict.value, "applied": live, "detail": detail, "result": result}

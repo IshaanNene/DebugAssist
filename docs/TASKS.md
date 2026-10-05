@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P3 done, P4–P14 not started (a few pieces pulled forward). Next: P4.
+Overall: P0–P4 done, P5–P14 not started (a few pieces pulled forward). Next: P5.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -15,17 +15,17 @@ Overall: P0–P3 done, P4–P14 not started (a few pieces pulled forward). Next:
 - [x] Submodule pointers verified at `main` (the working tree is on the scenario branch by design)
 - [x] Keyless demo fixtures refreshed from the final live run (unedited)
 
-## P4 · All 11 MCP servers (§5)
+## P4 · All 11 MCP servers (§5) ✅
 - [x] code-search · crash-analytics · feature-flags · git-history
-- [ ] bug-reports (BugDrop): list_reports, get_report, get_logs, get_screenshots, get_ui_state_timeline
-- [ ] jira: create/update, comment, link PR, transition (Jira Cloud or mock)
-- [ ] tracing (Jaeger v3): find_traces, get_trace summarized (critical path, errors, slow spans), service_dependencies
-- [ ] logging (Loki): query_logs with pruning (dedupe, collapse repeats, error-first), log_stats, log_patterns
-- [ ] incidents: list_active_incidents, incident_details, third-party status
-- [ ] releases: list_releases, release_diff, version_adoption, rollout_status, last_good_and_first_bad
-- [ ] metrics-profiles (Prometheus): PromQL, CPU / memory / script-time samples, profile summaries
-- [ ] Evidence IDs, pagination, max result sizes and read-only defaults in every server; write tools gated
-- [ ] `.mcp.json` for Claude Code / Desktop; `docs/mcp.md`; fixtures + integration tests
+- [x] bug-reports (BugDrop): list_reports, get_report, get_logs, get_screenshots (+ get_screenshot_image), get_ui_state_timeline
+- [x] jira: get, find_open (dedup), create, comment, link PR, transition (Jira Cloud or mock; writes gated)
+- [x] tracing (Jaeger v3): find_traces (health checks excluded), get_trace summarized, service_dependencies
+- [x] logging (Loki): query_logs with pruning (repeats collapsed, errors first), log_stats, log_patterns
+- [x] incidents: list_active_incidents, incident_details, dependency_status
+- [x] releases: list_releases, release_diff, version_adoption, rollout_status, last_good_and_first_bad
+- [x] metrics-profiles: promql (summarized), service_profile, session_perf (client CPU/wakeups/long tasks)
+- [x] Evidence IDs, pagination, result caps, PII redaction, read-only defaults in every server; writes gated + audited
+- [x] `.mcp.json` (11 servers, 55 tools, verified over stdio); `docs/mcp.md`; recorded live fixtures + offline tests
 
 ## P5 · Triage + context collector (D1–D4)
 - [x] D1 triage (priority, severity, owner, customer impact, worth a run); CODEOWNERS + catalog; Jira create + dedup by label

@@ -144,3 +144,16 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Step limit was ~3 graph steps per turn but a turn takes ~5; agents were cut off early and their transcripts lost. Now 6/turn + 20, and state is streamed so failures keep the transcript.
 - Earlier gpt-oss runs: a symptom-suppressing fix (optional chaining), a test asserting the buggy behaviour, and a test-only draft PR. The ship gate now requires a verified reproduction and a source change; the reproduce step rejects tests that don't fail or don't exist.
 - Duplicate Jira ticket SCRUM-5 from an early run (dedup by label added since).
+
+## P4 — All 11 MCP servers (2026-10-05)
+
+**Done**
+- Seven new servers: bug-reports (BugDrop), jira, tracing (Jaeger v3), logging (Loki), incidents, releases, metrics-profiles — 11 servers and 55 tools in total, all started over stdio and listed in a smoke test; every tool called against the live stack.
+- Shared rules: evidence IDs on every result, pagination and result caps, PII redaction, read-only by default; writes (`jira.*`, flag rollback) go through `gated_write` → policy + audit log, dry-run by default (`jira.link` added to the policy).
+- Pruning where the talk asks for it: logs collapse into templates with counts and first/last times, errors first (2,000 gateway lines → 3 groups in a live check); traces come back summarized (critical path, error spans, slowest spans) and searches go per entry operation so health checks can't crowd out real traffic.
+- `.mcp.json` for Claude Code / Desktop; `docs/mcp.md`; 15 recorded live responses (`tests/fixtures/live`, scanned for secrets) and offline tests that replay them.
+
+**Findings**
+- Health checks every few seconds filled Jaeger's "latest N traces" window, so filtering after the fetch returned nothing; searching per server-side operation fixed it.
+- The log template masked `13` but not `13ms` (no word boundary), so timing-only differences didn't collapse; fixed with a test.
+- The new servers are not yet wired into the agents' tool lists; P5/P6 (collector, evidence loop, subagents) decide which agent gets which server.

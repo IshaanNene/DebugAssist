@@ -49,6 +49,13 @@ MCP_MODULES = {
     "crash-analytics": "debugassist.mcp_servers.crash_analytics",
     "feature-flags": "debugassist.mcp_servers.feature_flags",
     "git-history": "debugassist.mcp_servers.git_history",
+    "bug-reports": "debugassist.mcp_servers.bug_reports",
+    "jira": "debugassist.mcp_servers.jira",
+    "tracing": "debugassist.mcp_servers.tracing",
+    "logging": "debugassist.mcp_servers.logging_",
+    "incidents": "debugassist.mcp_servers.incidents",
+    "releases": "debugassist.mcp_servers.releases",
+    "metrics-profiles": "debugassist.mcp_servers.metrics_profiles",
 }
 
 

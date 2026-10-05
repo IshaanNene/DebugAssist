@@ -27,6 +27,11 @@ def _git(repo: str, *args: str) -> str:
     return out.stdout
 
 
+def run_git(repo: str, *args: str) -> str:
+    """Run git in a known repository (read-only commands; used by sibling servers)."""
+    return _git(repo, *args)
+
+
 def _check_ref(ref: str) -> None:
     if not REF.match(ref) or ".." in ref:
         raise ValueError(f"invalid ref {ref!r}")

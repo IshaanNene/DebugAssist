@@ -1,0 +1,125 @@
+{
+  "mcpServers": {
+    "code-search": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.code_search"
+      ]
+    },
+    "crash-analytics": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.crash_analytics"
+      ]
+    },
+    "feature-flags": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.feature_flags"
+      ]
+    },
+    "git-history": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.git_history"
+      ]
+    },
+    "bug-reports": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.bug_reports"
+      ]
+    },
+    "jira": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.jira"
+      ]
+    },
+    "tracing": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.tracing"
+      ]
+    },
+    "logging": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.logging_"
+      ]
+    },
+    "incidents": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.incidents"
+      ]
+    },
+    "releases": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.releases"
+      ]
+    },
+    "metrics-profiles": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "--no-sync",
+        "python",
+        "-m",
+        "debugassist.mcp_servers.metrics_profiles"
+      ]
+    }
+  }
+}
