@@ -31,7 +31,7 @@ from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
-from debugassist.pipeline import collector, e2e, fixplan, postmerge, pr_body
+from debugassist.pipeline import collector, e2e, fixplan, postmerge, pr_body, skills
 from debugassist.pipeline import rca as rca_mod
 from debugassist.pipeline.deps import APPS, Deps
 from debugassist.pipeline.state import (
@@ -162,8 +162,9 @@ def _run_on_release(sb: Sandbox, base: str, run: Callable[[], CommandResult]) ->
     src = [f for f in changed_files(sb.diff(base)) if not is_test_path(f)]
     if not src:
         return None
+    # Against the release, not HEAD: once a fix is committed (diff fixer), HEAD already contains it.
     src_diff = subprocess.run(
-        ["git", "diff", "HEAD", "--", *src], cwd=sb.worktree, capture_output=True, text=True, check=True
+        ["git", "diff", base, "--", *src], cwd=sb.worktree, capture_output=True, text=True, check=True
     ).stdout
     subprocess.run(["git", "apply", "-R", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
     try:
@@ -769,6 +770,30 @@ def _e2e_tool(sb: Sandbox, issue: Issue) -> BaseTool:
     return run_e2e
 
 
+def fix_contract_problem(
+    sb: Sandbox, issue: Issue, comp: dict[str, Any], base: str, cmd: str, test_file: str
+) -> str | None:
+    """Why the worktree's change is not (yet) a proven fix; None when it is: the reproduction test still
+    fails on the release with only the source change reverted, passes with it, and the suite and the
+    repository's CI checks pass. A test weakened to pass is therefore rejected."""
+    if not (sb.worktree / test_file).is_file():
+        return f"the reproduction test {test_file} is missing; restore it"
+    before = _run_on_release(sb, base, lambda: _run_test(sb, issue, cmd))
+    if before is None:
+        return "you have not changed any source file yet"
+    if problem := _repro_problem(cmd, before.exit_code, before.output, issue):
+        return (
+            f"with your source change reverted, the reproduction test no longer reproduces the bug: {problem}"
+        )
+    res = _run_test(sb, issue, cmd)
+    if res.exit_code != 0:
+        return f"the reproduction test still fails with your change:\n{res.output[-1200:]}"
+    suite = sb.run(str(comp["test"]), workdir=issue.component)
+    if suite.exit_code != 0:
+        return f"the component suite fails:\n{suite.output[-1200:]}"
+    return _static_problem(sb, comp, issue.component)
+
+
 def _reset_to(sb: Sandbox, base: str) -> None:
     # Every attempt (and a resumed run) starts from the release tag, not the branch head: after a PR
     # the bot branch holds the previous fix commit. Ignored dirs (node_modules…) survive.
@@ -936,7 +961,9 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     if fa.tier == "e2e_env":
         tools.append(_e2e_tool(sb, issue))
     fix_spec = LLMNodeSpec(
-        node=f"fix_{attempt}" if attempt > 1 else "fix", system_prompt=_prompt("fix_system.md"), **cfg
+        node=f"fix_{attempt}" if attempt > 1 else "fix",
+        system_prompt=_prompt("fix_system.md") + skills.for_node(deps.agent_type, "fix"),
+        **cfg,
     )
     how = (
         "run it with the run_e2e tool (E2E against a fresh build of your change)"
@@ -949,21 +976,7 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     )
 
     def check_fix(out: dict[str, Any]) -> str | None:
-        cmd = str(fa.repro_run["command"])
-        if not (sb.worktree / repro.test_file).is_file():
-            return f"the reproduction test {repro.test_file} is missing; restore it"
-        before = _run_on_release(sb, base, lambda: _run_test(sb, issue, cmd))
-        if before is None:
-            return "you have not changed any source file yet"
-        if problem := _repro_problem(cmd, before.exit_code, before.output, issue):
-            return f"with your source change reverted, the reproduction test no longer reproduces the bug: {problem}"
-        res = _run_test(sb, issue, cmd)
-        if res.exit_code != 0:
-            return f"the reproduction test still fails with your change:\n{res.output[-1200:]}"
-        suite = sb.run(str(comp["test"]), workdir=issue.component)
-        if suite.exit_code != 0:
-            return f"the component suite fails:\n{suite.output[-1200:]}"
-        return _static_problem(sb, comp, issue.component)
+        return fix_contract_problem(sb, issue, comp, base, str(fa.repro_run["command"]), repro.test_file)
 
     r2 = await deps.runner(_apply_diff(sb)).run(
         fix_spec, prompt, FixOutput, tools=tools, diff_fn=lambda: sb.diff(base), validate_output=check_fix
@@ -1257,3 +1270,13 @@ async def post_merge_watch(state: RunState, deps: Deps) -> dict[str, Any]:
             {"kind": "watch", "detail": f"watching after merge + deploy: debugassist watch {state.run_id}"},
         ],
     }
+
+
+# Public names for the post-PR tools (diff fixer, open-in-your-machine), which reuse the fix machinery.
+sandbox_for = _sandbox
+component_cfg = _component_cfg
+pipeline_yaml = _pipeline_yaml
+run_test = _run_test
+e2e_tool = _e2e_tool
+llm_summary = _llm_summary
+stop_if_out_of_quota = _stop_if_out_of_quota

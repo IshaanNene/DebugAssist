@@ -14,6 +14,8 @@ nodes:
     max_turns: 20  # free-tier model: ~50 requests/day (PLAN A11)
     max_tool_calls: 40
     max_budget_usd: 1.00
+skills:  # markdown skills (marketplace/plugins/*/skills/<name>/SKILL.md) loaded into each node's prompt
+  fix: [web-client-fixes]
 validation:
   max_attempts: 3
 run_budget_usd: 3.00

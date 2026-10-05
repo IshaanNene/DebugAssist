@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P9 done, P10–P14 not started (a few pieces pulled forward). Next: P10.
+Overall: P0–P10 done, P11–P14 not started (a few pieces pulled forward). Next: P11.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -90,12 +90,22 @@ Overall: P0–P9 done, P10–P14 not started (a few pieces pulled forward). Next
 - [x] Metrics: pipeline outcomes per LLM mode; per-D# volume, bands, backends, latency, $/1k, accuracy/Brier when labelled
 - [x] Marketplace & agent types: skills (token footprint, used by), agent types, subagents, decision templates
 - [x] Chat inbox screen; `make dashboard`; CI job (typecheck, lint, build)
-- [ ] Diff fixer, Ask AI, Open-in-machine are visible but disabled until P10
+- [x] Diff fixer, Ask AI, Open-in-machine (P10)
 - [ ] Per-run Phoenix deep link once runs emit traces (observability phase); accuracy/calibration need P11 labels
 
-## P10 · Post-PR features + feedback (D18)
-- [ ] Diff fixer · Ask AI chat (resumable, cites evidence) · Open in your machine (devcontainer / compose override)
-- [ ] D18 correction triage → label store, proposed skill update PR, prompt improvements
+## P10 · Post-PR features + feedback (D18) ✅
+- [x] Diff fixer: one instruction → agent in the run's sandbox → the fix contract re-proved (fails on the release,
+      passes with the change, suite + CI checks) → commit, push to the bot branch, PR comment (policy-gated);
+      `debugassist fix-diff`, dashboard box with presets (background job)
+- [x] Ask AI: chat seeded with RCA, claims, evidence, fix and proof; cites only known evidence ids; resumable
+      sessions (`debugassist ask --session`); a message marked as a correction goes to D18
+- [x] Open in your machine: devcontainer + compose override pinned to the bad release and the fix branch, flags at the
+      user's exposure, failing test command, `vscode://` link (`debugassist open`)
+- [x] D18: bare 👍/👎 → ledger labels (RCA → D05, claim → its D09); root cause / location → labels + prompt log;
+      fix approach / style → lesson appended to the fix skill on a local `debugassist/skill-…` branch with a
+      marketplace PR record (this repo is outside the push policy); other / low confidence → owner in chat
+- [x] Fix step loads its agent type's skills (`skills: {fix: [web-client-fixes]}`), so approved lessons reach the next fix
+- [ ] Warm container pool / remote "open" (stretch)
 
 ## P11 · Harness
 - [~] Agent types: `web-crash` (add `backend-error`, `perf-regression`, `user-bug-report`; optional `flaky-test`)

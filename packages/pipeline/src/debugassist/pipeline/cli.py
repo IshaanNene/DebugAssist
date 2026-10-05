@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sqlite3
 import sys
@@ -288,3 +289,89 @@ def watch(
         )
     for a in w.actions:
         typer.echo(f"  action    {a}")
+
+
+def fix_diff(
+    run_id: Annotated[str, typer.Argument(help="run whose fix to revise")],
+    instruction: Annotated[str, typer.Argument(help='e.g. "use the existing clamp helper"')],
+    job: Annotated[
+        str | None, typer.Option(help="write the result to .data/runs/<run>/jobs/<job>.json")
+    ] = None,
+) -> None:
+    """Diff fixer: revise the run's fix per one instruction, re-validate, commit, push and comment."""
+    from debugassist.pipeline import postpr
+
+    try:
+        entry = asyncio.run(postpr.fix_diff(run_id, instruction))
+    except (FileNotFoundError, ValueError) as exc:
+        entry = {"status": "error", "reason": str(exc)}
+    if job:
+        d = ROOT / ".data" / "runs" / run_id / "jobs"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{job}.json").write_text(json.dumps(entry, indent=2, default=str))
+    typer.echo(
+        f"diff fixer: {entry.get('status')}" + (f" — {entry.get('reason')}" if entry.get("reason") else "")
+    )
+    if entry.get("commit"):
+        typer.echo(
+            f"  commit {entry['commit']} {entry.get('title')} · pushed={entry.get('pushed')} · commented={entry.get('commented')}"
+        )
+
+
+def ask(
+    run_id: Annotated[str, typer.Argument(help="run to ask about")],
+    message: Annotated[str, typer.Argument(help="your question or correction")],
+    session: Annotated[str | None, typer.Option(help="resume a chat session")] = None,
+    correction: Annotated[
+        bool, typer.Option(help="this corrects the analysis: route it through D18")
+    ] = False,
+) -> None:
+    """Ask AI about a run (answers cite evidence ids; sessions are resumable)."""
+    from debugassist.pipeline import postpr
+
+    r = asyncio.run(postpr.ask(run_id, message, session, correction=correction))
+    typer.echo(r["answer"])
+    typer.echo(
+        f"\n  session {r['session_id']} · cited {', '.join(r['evidence_ids']) or '-'} · ${r['cost_usd']:.4f} ({r['mode']})"
+    )
+    if r.get("routed"):
+        typer.echo(f"  D18: {r['routed'].get('kind')} → {r['routed'].get('action')}")
+
+
+def open_run(run_id: Annotated[str, typer.Argument(help="run to open locally")]) -> None:
+    """Open in your machine: devcontainer + compose override pinned to the bad release and the fix."""
+    from debugassist.pipeline import postpr
+
+    r = postpr.open_env(run_id)
+    typer.echo(f"VS Code:      {r['vscode']}")
+    typer.echo(f"devcontainer: {r['devcontainer']}  (Dev Containers: Open Folder in Container)")
+    typer.echo(
+        f"bad release:  {r['bad_ref']} · fix branch {r['fix_branch']} · flags {json.dumps(r['flags'])}"
+    )
+    for c in r["commands"]:
+        typer.echo(f"  $ {c}")
+
+
+def feedback_cmd(
+    run_id: Annotated[str, typer.Argument(help="run the feedback is about")],
+    reaction: Annotated[str, typer.Option(help="up | down")] = "down",
+    target: Annotated[str, typer.Option(help="rca | claim:<n> | fix | chat")] = "rca",
+    comment: Annotated[str, typer.Option(help="the correction, if any")] = "",
+) -> None:
+    """Record a reaction/correction and route it through D18 (labels, skill update, prompt log, human)."""
+
+    async def main() -> dict[str, Any]:
+        from debugassist.pipeline import feedback, postpr
+
+        state, _ = postpr._load(run_id)  # pyright: ignore[reportPrivateUsage]
+        deps = await postpr._deps(state)  # pyright: ignore[reportPrivateUsage]
+        try:
+            return await feedback.route(
+                state, deps, {"target": target, "reaction": reaction, "comment": comment}
+            )
+        finally:
+            if deps.engine.ledger is not None:
+                await deps.engine.ledger.close()
+
+    r = asyncio.run(main())
+    typer.echo(json.dumps(r, indent=2, default=str))

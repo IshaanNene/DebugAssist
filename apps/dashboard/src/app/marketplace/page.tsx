@@ -8,8 +8,19 @@ interface Market {
   templates: { id: string; stage: string; model: string; description: string }[];
 }
 
+interface Proposal {
+  id: string;
+  branch: string;
+  skill: string;
+  lesson: string;
+  title: string;
+  run_id: string;
+  pushed: boolean;
+  patch_lines: number;
+}
+
 export default async function Marketplace() {
-  const m = await api<Market>("/api/marketplace");
+  const [m, proposals] = await Promise.all([api<Market>("/api/marketplace"), api<Proposal[]>("/api/proposals")]);
   if (!m) return <ApiDown />;
   return (
     <div className="space-y-4">
@@ -35,6 +46,27 @@ export default async function Marketplace() {
             </div>
           ))}
         </div>
+      </Card>
+      <Card title={`Proposed skill updates (${proposals?.length ?? 0})`}>
+        {(proposals?.length ?? 0) === 0 ? (
+          <p className="text-sm text-muted">None yet. Review corrections classified as fix approach or style (D18) become proposals here.</p>
+        ) : (
+          <ul className="space-y-2 text-sm">
+            {proposals!.map((p) => (
+              <li key={p.id} className="rounded border border-line p-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone="amber">{p.skill}</Badge>
+                  <span className="font-medium">{p.title}</span>
+                  <span className="ml-auto font-mono text-xs text-muted">{p.branch}</span>
+                </div>
+                <p className="mt-1 text-xs">{p.lesson}</p>
+                <p className="text-xs text-muted">
+                  local branch, not pushed (this repository is outside the write policy) · {p.patch_lines}-line patch · from run {p.run_id}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
       <Card title="Agent types">
         {Object.entries(m.agent_types).map(([name, t]) => (

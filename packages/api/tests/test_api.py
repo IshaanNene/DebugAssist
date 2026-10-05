@@ -145,3 +145,17 @@ def test_stream_ends_when_the_run_is_not_running(client: TestClient) -> None:
 def test_artifact_paths_cannot_escape(client: TestClient) -> None:
     assert client.get(f"/api/runs/{RUN}/artifacts").json() == []
     assert client.get(f"/api/runs/{RUN}/artifacts/../../state.json").status_code == 404
+
+
+def test_diff_fix_jobs_report_running_then_done(client: TestClient) -> None:
+    jobs = app_module.PATHS.runs / RUN / "jobs"
+    jobs.mkdir()
+    (jobs / "abc123.log").write_text("starting\nrepro test …\n")
+    assert client.get(f"/api/runs/{RUN}/jobs/abc123").json() == {
+        "status": "running",
+        "log": ["starting", "repro test …"],
+    }
+    (jobs / "abc123.json").write_text(json.dumps({"status": "committed", "commit": "7ac88bc"}))
+    assert client.get(f"/api/runs/{RUN}/jobs/abc123").json()["result"]["commit"] == "7ac88bc"
+    assert client.get(f"/api/runs/{RUN}/jobs/..%2Fx").status_code == 404
+    assert client.post(f"/api/runs/{RUN}/diff-fix", json={"instruction": "x"}).status_code == 422
