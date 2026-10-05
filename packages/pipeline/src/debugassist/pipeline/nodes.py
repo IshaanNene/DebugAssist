@@ -18,7 +18,7 @@ from typing import Any
 import httpx
 import yaml
 
-from debugassist.core.evidence import EvidenceItem, Source
+from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT, Verdict
 from debugassist.core.settings import Integration, Mode
 from debugassist.decisions.engine import RunContext
@@ -27,6 +27,7 @@ from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
+from debugassist.pipeline import collector
 from debugassist.pipeline.deps import APPS, Deps
 from debugassist.pipeline.state import (
     RCA,
@@ -87,16 +88,6 @@ def _code_repos_env(state: RunState) -> dict[str, str]:
         "PATH": os.environ.get("PATH", ""),
     }
     return env
-
-
-def _ev(source: Source, d: dict[str, Any], summary: str) -> EvidenceItem:
-    return EvidenceItem(
-        id=d["evidence_id"],
-        source=source,
-        kind=d.get("kind", source),
-        summary=summary,  # pyright: ignore[reportArgumentType]
-        data={k: v for k, v in d.items() if k not in ("evidence_id", "kind")},
-    )
 
 
 def _top_in_app(frames: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -188,8 +179,12 @@ def _component_cfg(state: RunState, worktree: Path) -> dict[str, Any]:
 
 async def ingest(state: RunState, deps: Deps) -> dict[str, Any]:
     ref = state.issue_ref
+    if ref.upper().startswith("BD-"):
+        return {"issue": await collector.ingest_bugdrop(ref, deps)}
     if not ref.upper().startswith("VIT-"):
-        raise ValueError("the walking skeleton ingests Vitals issues (VIT-…); BugDrop reports arrive in P5")
+        raise ValueError(
+            f"unknown issue reference {ref!r}: expected a Vitals issue (VIT-…) or a BugDrop report (BD-…)"
+        )
     async with httpx.AsyncClient(base_url=deps.vitals_url, timeout=15) as http:
         d = (await http.get(f"/api/issues/{ref.upper()}")).raise_for_status().json()
     g = d["group"]
@@ -214,11 +209,17 @@ async def ingest(state: RunState, deps: Deps) -> dict[str, Any]:
         component=component,
         language=language,
         latest_event=ev,
+        session_id=ev.get("session_id"),
     )
     return {"issue": issue}
 
 
 # ---- N1 auto_triage -------------------------------------------------------------------------
+
+
+def _jira_label(issue_id: str) -> str:
+    """One Jira ticket per source issue: vitals-vit-1001, bugdrop-bd-1001."""
+    return f"{'bugdrop' if issue_id.upper().startswith('BD-') else 'vitals'}-{issue_id.lower()}"
 
 
 def _oncall(catalog: dict[str, Any], team: str) -> str:
@@ -238,13 +239,14 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
         owners = code_search.codeowners_for(issue.repo, str(top["file"]))
         owner_team = owners.get("team")
         owner_source = "codeowners" if owner_team else "clef"
-    async with httpx.AsyncClient(base_url=deps.vitals_url, timeout=15) as http:
-        flags: list[dict[str, Any]] = (
-            (await http.get(f"/api/groups/{issue.fingerprint}/flags")).json() if issue.fingerprint else []
-        )
-        versions = (
-            await http.get(f"/api/groups/{issue.fingerprint}/distribution", params={"by": "version"})
-        ).json()
+    flags: list[dict[str, Any]] = []
+    versions: dict[str, Any] = {}
+    if issue.fingerprint:
+        async with httpx.AsyncClient(base_url=deps.vitals_url, timeout=15) as http:
+            flags = (await http.get(f"/api/groups/{issue.fingerprint}/flags")).json()
+            versions = (
+                await http.get(f"/api/groups/{issue.fingerprint}/distribution", params={"by": "version"})
+            ).json()
     teams = {k: v["description"] for k, v in deps.catalog["teams"].items()}
     cs = (
         CompactState()
@@ -275,6 +277,12 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
         )
         .add("flag_exposure", flags, priority=3)
     )
+    if issue.report:
+        cs.add(
+            "user_report",
+            {k: issue.report.get(k) for k in ("description", "route", "flags", "network", "device", "city")},
+            priority=0,
+        )
     d = await deps.engine.decide(
         "D01", cs, params={"teams": teams}, ctx=RunContext(run_id=state.run_id, issue_id=issue.id)
     )
@@ -298,11 +306,51 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
         customer_impacting=float(d.probabilities["customer_impacting"]["true"]),
         worth_agent_run=float(d.probabilities["worth_agent_run"]["true"]),
     )
+    decisions = [*state.decisions, d.ledger_id or ""]
+    # D2: same root cause as an open issue or a recent report? Then attach to it instead of a second run.
+    candidates = await collector.dedup_candidates(issue, deps)
+    if candidates:
+        d2 = await deps.engine.decide(
+            "D02",
+            CompactState()
+            .add("new_issue", collector.issue_summary(issue), priority=0)
+            .add("open_candidates", candidates, priority=1),
+            params={"candidates": [*candidates, {"id": "none", "description": "none of these: a new issue"}]},
+            ctx=RunContext(run_id=state.run_id, issue_id=issue.id),
+        )
+        decisions.append(d2.ledger_id or "")
+        triage.dedup = {
+            "chosen": d2.chosen.get("duplicate_of"),
+            "p": d2.p,
+            "band": d2.band,
+            "action": d2.action,
+        }
+        if d2.action == "mark_duplicate":
+            triage.duplicate_of = str(d2.chosen["duplicate_of"])
+            note = (
+                f"{issue.source} {issue.id} looks like a duplicate of {triage.duplicate_of} "
+                f"(Clef D02 p={d2.p:.2f}); attached here, no new investigation started."
+            )
+            dup_label = _jira_label(triage.duplicate_of)
+            verdict = deps.gate.verdict("jira.comment")
+            target = deps.jira.find_open(dup_label) if verdict is Verdict.LIVE else None
+            if target:
+                deps.jira.comment(target.key, [("para", note), ("para", issue.url)])
+                triage.jira_key, triage.jira_url, triage.jira_mode = target.key, target.url, target.mode
+            deps.gate.record(
+                "jira.comment",
+                verdict,
+                run_id=state.run_id,
+                detail={"duplicate_of": triage.duplicate_of},
+                result=triage.jira_key,
+            )
+            return {"triage": triage, "decisions": decisions, "status": "duplicate"}
     # Jira ticket (policy-gated)
     blocks = [
         (
             "para",
-            f"Opened automatically from Vitals issue {issue.id} ({issue.events} events, {issue.app} {issue.first_version}→{issue.last_version}).",
+            f"Opened automatically from {'Vitals issue' if issue.source == 'vitals' else 'BugDrop report'} {issue.id} "
+            f"({issue.events} events, {issue.app} {issue.first_version}→{issue.last_version}).",
         ),
         ("heading", "Signal"),
         (
@@ -316,11 +364,11 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
             f"Priority {priority} (Clef), severity: {severity}\nOwner: {team} (from {owner_source}); on-call {triage.oncall}\n"
             f"Customer impacting: p={triage.customer_impacting:.2f}; worth an agent run: p={triage.worth_agent_run:.2f}",
         ),
-        ("para", f"Vitals: {issue.url}"),
+        ("para", f"{'Vitals' if issue.source == 'vitals' else 'BugDrop'}: {issue.url}"),
         ("para", f"DebugAssist run {state.run_id} is investigating."),
     ]
     verdict = deps.gate.verdict("jira.create_issue")
-    label = f"vitals-{issue.id.lower()}"
+    label = _jira_label(issue.id)
     if verdict is Verdict.LIVE:
         ticket = deps.jira.find_open(label)  # one ticket per Vitals issue: reuse it on re-runs
         if ticket:
@@ -345,19 +393,15 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
             {"vitals": issue.url, "jira": triage.jira_url or ""},
         )
         notes.append({"kind": "slack", "to": triage.oncall, **r})
-    return {"triage": triage, "decisions": [*state.decisions, d.ledger_id or ""], "notifications": notes}
+    return {"triage": triage, "decisions": decisions, "notifications": notes}
 
 
 # ---- N2 context_collector -------------------------------------------------------------------
 
 
 async def context_collector(state: RunState, deps: Deps) -> dict[str, Any]:
-    from debugassist.mcp_servers import crash_analytics as ca
-    from debugassist.mcp_servers import feature_flags as ff
-    from debugassist.mcp_servers import git_history as gh
-
     issue = state.issue
-    assert issue and issue.fingerprint
+    assert issue
     # The sandbox worktree at the shipped release: code search and the fix both work on it.
     sb = _sandbox(state)
     branch = (
@@ -367,76 +411,7 @@ async def context_collector(state: RunState, deps: Deps) -> dict[str, Any]:
         branch += "-mock"  # never collide with (and clean up) a live run's worktree for the real PR branch
     sb.create(f"v{issue.last_version}", branch)
     os.environ["CODE_REPOS"] = json.dumps({issue.repo: str(sb.worktree)})
-
-    items: list[EvidenceItem] = []
-    group = ca.get_crash_group(issue.fingerprint, events=5)
-    items.append(
-        _ev(
-            "vitals",
-            group,
-            f"Crash group: {group['group']['count']} events, {group['group']['first_version']}→{group['group']['last_version']}, latest stacks and breadcrumbs",
-        )
-    )
-    fe = ca.flag_exposure(issue.fingerprint)
-    items.append(_ev("vitals", fe, "Feature-flag exposure among all vs affected sessions"))
-    vd = ca.distribution(issue.fingerprint, by="version")
-    items.append(_ev("vitals", vd, "Affected sessions by app version"))
-    for by in ("os", "city"):
-        dd = ca.distribution(issue.fingerprint, by=by)
-        items.append(_ev("vitals", dd, f"Affected sessions by {by}"))
-    for f in fe["flags"]:
-        if f["exposed_share_of_affected"] >= 0.5:
-            corr = ff.flag_crash_correlation(issue.fingerprint, f["flag"])
-            items.append(
-                _ev(
-                    "flags",
-                    corr,
-                    f"Crash rate with {f['flag']} on vs off (z={corr['z']}, p={corr['p_value']:.2g})",
-                )
-            )
-            items.append(_ev("flags", ff.get_flag(f["flag"]), f"Current rollout of {f['flag']}"))
-    # Releases: last good and first bad, history filtered to the modules in the stack (pruned input).
-    tags = [t["tag"] for t in gh.list_tags(issue.repo, limit=100)["tags"]]
-    first_bad = f"v{issue.first_version}"
-    last_good = gh.previous_release(issue.repo, first_bad)["previous_release"] if first_bad in tags else None
-    frames: list[dict[str, Any]] = issue.latest_event.get("frames") or []
-    comp_prefix = "" if issue.component == "." else f"{issue.component}/"
-    suspects = sorted(
-        {
-            comp_prefix + str(f["file"]).removeprefix(comp_prefix)
-            for f in frames
-            if f.get("in_app", True) and f.get("file") and "vendor/" not in str(f["file"])
-        }
-    )
-    if last_good and first_bad in tags:
-        dirs = sorted({s.rsplit("/", 1)[0] for s in suspects}) or None
-        commits = gh.commits_between(issue.repo, last_good, first_bad, dirs)
-        items.append(
-            _ev("git", commits, f"Commits {last_good}..{first_bad} touching {', '.join(dirs or ['all'])}")
-        )
-        cands = gh.bisect_candidates(issue.repo, last_good, first_bad, suspects)
-        items.append(_ev("git", cands, "Commits in the window ranked by overlap with files in the stack"))
-        if cands["candidates"]:
-            top_c = gh.commit_details(issue.repo, cands["candidates"][0]["sha"], max_diff_chars=4000)
-            items.append(
-                _ev("git", top_c, f"Top suspect commit {top_c['sha']}: {top_c['message'].splitlines()[0]}")
-            )
-    top = _top_in_app(frames)
-    if top and top.get("file") and top.get("line"):
-        from debugassist.mcp_servers import code_search
-
-        path = comp_prefix + str(top["file"]).removeprefix(comp_prefix)
-        line = int(top["line"])
-        ex = code_search.read_file(issue.repo, path, max(1, line - 20), line + 20)
-        if "error" not in ex:
-            items.append(
-                _ev(
-                    "code",
-                    ex,
-                    f"Source around the crashing line {path}:{line} (release v{issue.last_version})",
-                )
-            )
-    return {"evidence": items}
+    return await collector.collect(state, deps)
 
 
 def _bundle(items: list[EvidenceItem], budget_chars: int = 40_000) -> str:

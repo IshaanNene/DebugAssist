@@ -83,7 +83,7 @@ def build_graph(deps: Deps, log: Callable[[str], None] = print) -> StateGraph[Ru
         g.add_node(name, cast(Any, wrap(name, getattr(nodes, name), deps, log)))  # pyright: ignore[reportUnknownMemberType]
 
     def ok(next_node: str) -> Callable[[RunState], str]:
-        return lambda s: END if s.status == "failed" else next_node
+        return lambda s: END if s.status in ("failed", "duplicate") else next_node
 
     def after_rca(s: RunState) -> str:
         if s.status == "failed":
