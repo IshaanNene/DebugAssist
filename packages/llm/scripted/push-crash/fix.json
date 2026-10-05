@@ -1,12 +1,12 @@
 {
   "output": {
-    "commit_title": "fix(notifications): wait for session hydration before routing v2 deep links",
-    "summary": "routeV2 now awaits whenHydrated() before reading the session, as routeV1 does.",
-    "rationale": "A push tap right after launch reaches routeV2 before the persisted session is restored (~350 ms), so state.session is still undefined; waiting for hydration restores the ordering the router relies on.",
-    "strategy": "lifecycle / ordering",
+    "commit_title": "fix(notifications): await session hydration in routeV2 before accessing riderId",
+    "summary": "Restored the `await whenHydrated()` call at the start of `routeV2` in `src/notifications/router.ts` to ensure the session is hydrated before accessing `state.session!.riderId`. Also updated the reproduction test to verify the correct behavior (waiting for hydration) instead of expecting a crash.",
+    "rationale": "The root cause was that `routeV2` accessed `state.session!.riderId` without waiting for the session to be restored. The session store initializes with `session: undefined` and `hydrated: false`, then asynchronously restores the persisted session after ~350ms. When a push notification is tapped right after launch (before hydration completes), `state.session` is undefined, causing a TypeError. The fix restores the `await whenHydrated()` call that was present in the previous implementation, ensuring the session is hydrated before accessing riderId.",
+    "strategy": "lifecycle",
     "risk": "low",
     "tests_added": [
-      "test/router_v2_hydration.test.ts"
+      "test/router.v2.bug.test.ts"
     ]
   },
   "tool_calls": [
@@ -19,33 +19,13 @@
     {
       "name": "read_file",
       "args": {
+        "path": "test/router.v2.bug.test.ts"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
         "path": "src/store/session.ts"
-      }
-    },
-    {
-      "name": "read_file",
-      "args": {
-        "path": "test/router_v2_hydration.test.ts"
-      }
-    },
-    {
-      "name": "run_command",
-      "args": {
-        "command": "pnpm exec vitest run test/router_v2_hydration.test.ts"
-      }
-    },
-    {
-      "name": "edit_file",
-      "args": {
-        "path": "src/notifications/router.ts",
-        "new_text": "async function routeV2(link: string, navigate: Navigate) {\n    await whenHydrated();\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;",
-        "old_text": "async function routeV2(link: string, navigate: Navigate) {\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;"
-      }
-    },
-    {
-      "name": "read_file",
-      "args": {
-        "path": "src/notifications/router.ts"
       }
     },
     {
@@ -59,37 +39,57 @@
     {
       "name": "read_file",
       "args": {
-        "end_line": 30,
         "path": "src/notifications/router.ts",
-        "start_line": 23
+        "start_line": 24,
+        "end_line": 42
       }
     },
     {
       "name": "edit_file",
       "args": {
         "path": "src/notifications/router.ts",
-        "new_text": "}\n\nasync function routeV2(link: string, navigate: Navigate) {\n    await whenHydrated();\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;",
-        "old_text": "}\n\nasync function routeV2(link: string, navigate: Navigate) {\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;"
+        "old_text": "async function routeV2(link: string, navigate: Navigate) {\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;\n    const rideMatch = RIDE_LINK.exec(link);\n    if (rideMatch) {\n      const prefill = state.activeRide?.id === rideMatch[1] ? state.activeRide : null;\n      navigate(link, { state: { prefill, riderId } });\n      return;\n    }\n    navigate(isSupportedLink(link) ? link : \"/\", { state: { riderId } });\n  }",
+        "new_text": "async function routeV2(link: string, navigate: Navigate) {\n    await whenHydrated();\n    const state = sessionStore.getState();\n    const riderId = state.session!.riderId;\n    const rideMatch = RIDE_LINK.exec(link);\n    if (rideMatch) {\n      const prefill = state.activeRide?.id === rideMatch[1] ? state.activeRide : null;\n      navigate(link, { state: { prefill, riderId } });\n      return;\n    }\n    navigate(isSupportedLink(link) ? link : \"/\", { state: { riderId } });\n  }"
       }
     },
     {
-      "name": "run_command",
+      "name": "read_file",
       "args": {
-        "command": "cat -A src/notifications/router.ts | head -35"
-      }
-    },
-    {
-      "name": "edit_file",
-      "args": {
-        "old_text": "async function routeV2(link: string, navigate: Navigate) {\n  const state = sessionStore.getState();\n  const riderId = state.session!.riderId;",
-        "new_text": "async function routeV2(link: string, navigate: Navigate) {\n  await whenHydrated();\n  const state = sessionStore.getState();\n  const riderId = state.session!.riderId;",
         "path": "src/notifications/router.ts"
       }
     },
     {
+      "name": "edit_file",
+      "args": {
+        "path": "src/notifications/router.ts",
+        "old_text": "async function routeV2(link: string, navigate: Navigate) {\n  const state = sessionStore.getState();\n  const riderId = state.session!.riderId;\n  const rideMatch = RIDE_LINK.exec(link);\n  if (rideMatch) {\n    const prefill = state.activeRide?.id === rideMatch[1] ? state.activeRide : null;\n    navigate(link, { state: { prefill, riderId } });\n    return;\n  }\n  navigate(isSupportedLink(link) ? link : \"/\", { state: { riderId } });\n}",
+        "new_text": "async function routeV2(link: string, navigate: Navigate) {\n  await whenHydrated();\n  const state = sessionStore.getState();\n  const riderId = state.session!.riderId;\n  const rideMatch = RIDE_LINK.exec(link);\n  if (rideMatch) {\n    const prefill = state.activeRide?.id === rideMatch[1] ? state.activeRide : null;\n    navigate(link, { state: { prefill, riderId } });\n    return;\n  }\n  navigate(isSupportedLink(link) ? link : \"/\", { state: { riderId } });\n}"
+      }
+    },
+    {
       "name": "run_command",
       "args": {
-        "command": "pnpm exec vitest run test/router_v2_hydration.test.ts"
+        "command": "pnpm exec vitest run test/router.v2.bug.test.ts"
+      }
+    },
+    {
+      "name": "read_file",
+      "args": {
+        "path": "test/router.v2.bug.test.ts"
+      }
+    },
+    {
+      "name": "edit_file",
+      "args": {
+        "path": "test/router.v2.bug.test.ts",
+        "old_text": "import { afterEach, beforeEach, describe, expect, it, vi } from \"vitest\";\n\nconst flags = vi.hoisted(() => ({ v2: false }));\nvi.mock(\"../src/flags\", () => ({\n  FLAGS: { notifRouterV2: \"notif_router_v2\" },\n  flag: () => flags.v2,\n}));\n\nimport { routeDeepLink } from \"../src/notifications/router\";\nimport { hydrate, resetSessionForTests } from \"../src/store/session\";\n\ndescribe(\"router v2 bug reproduction\", () => {\n  beforeEach(() => {\n    flags.v2 = true;\n    resetSessionForTests();\n    vi.useFakeTimers();\n  });\n  afterEach(() => vi.useRealTimers());\n\n  it(\"crashes when tapping push notification before session hydrates\", () => {\n    const navigate = vi.fn();\n    // Start hydration with ~350ms delay (simulating IndexedDB restore)\n    void hydrate({ delayMs: 350 });\n    // Immediately tap a push notification (before hydration completes)\n    const routedPromise = routeDeepLink(\"/ride/abc\", navigate, \"push\");\n    // Advance timers slightly but NOT past hydration delay\n    return vi.advanceTimersByTimeAsync(100).then(() => {\n      // The routeV2 should have crashed by now trying to access state.session!.riderId\n      // when session is still undefined (hydrated: false)\n      return expect(routedPromise).rejects.toThrow(\"Cannot read properties of undefined (reading 'riderId')\");\n    });\n  });\n});",
+        "new_text": "import { afterEach, beforeEach, describe, expect, it, vi } from \"vitest\";\n\nconst flags = vi.hoisted(() => ({ v2: false }));\nvi.mock(\"../src/flags\", () => ({\n  FLAGS: { notifRouterV2: \"notif_router_v2\" },\n  flag: () => flags.v2,\n}));\n\nimport { routeDeepLink } from \"../src/notifications/router\";\nimport { hydrate, resetSessionForTests } from \"../src/store/session\";\n\ndescribe(\"router v2 waits for session hydration\", () => {\n  beforeEach(() => {\n    flags.v2 = true;\n    resetSessionForTests();\n    vi.useFakeTimers();\n  });\n  afterEach(() => vi.useRealTimers());\n\n  it(\"waits for hydration before navigating when push notification tapped early\", async () => {\n    const navigate = vi.fn();\n    // Start hydration with ~350ms delay (simulating IndexedDB restore)\n    void hydrate({ delayMs: 350 });\n    // Immediately tap a push notification (before hydration completes)\n    const routedPromise = routeDeepLink(\"/ride/abc\", navigate, \"push\");\n    // Advance timers slightly but NOT past hydration delay\n    await vi.advanceTimersByTimeAsync(100);\n    // Navigation should not have happened yet (waiting for hydration)\n    expect(navigate).not.toHaveBeenCalled();\n    // Now advance past hydration delay\n    await vi.advanceTimersByTimeAsync(300);\n    // Navigation should now have happened\n    expect(navigate).toHaveBeenCalledWith(\"/ride/abc\", expect.objectContaining({\n      state: expect.objectContaining({ riderId: expect.any(String) })\n    }));\n    // The promise should resolve\n    await expect(routedPromise).resolves.toBeUndefined();\n  });\n});"
+      }
+    },
+    {
+      "name": "run_command",
+      "args": {
+        "command": "pnpm exec vitest run test/router.v2.bug.test.ts"
       }
     },
     {
@@ -101,45 +101,20 @@
     {
       "name": "run_command",
       "args": {
-        "command": "pnpm typecheck 2>/dev/null || echo \"no typecheck script\""
+        "command": "pnpm lint && pnpm typecheck"
       }
     },
     {
-      "name": "run_command",
+      "name": "submit_result",
       "args": {
-        "command": "cat package.json | grep -A 20 '\"scripts\"'"
-      }
-    },
-    {
-      "name": "run_command",
-      "args": {
-        "command": "pnpm typecheck"
-      }
-    },
-    {
-      "name": "run_command",
-      "args": {
-        "command": "pnpm lint"
-      }
-    },
-    {
-      "name": "read_file",
-      "args": {
-        "path": "test/router_v2_hydration.test.ts"
-      }
-    },
-    {
-      "name": "edit_file",
-      "args": {
-        "path": "test/router_v2_hydration.test.ts",
-        "old_text": "import { routeDeepLink } from \"../src/notifications/router\";\nimport { hydrate, resetSessionForTests, sessionStore, whenHydrated } from \"../src/store/session\";",
-        "new_text": "import { routeDeepLink } from \"../src/notifications/router\";\nimport { hydrate, resetSessionForTests } from \"../src/store/session\";"
-      }
-    },
-    {
-      "name": "run_command",
-      "args": {
-        "command": "pnpm lint -- src"
+        "commit_title": "fix(notifications): await session hydration in routeV2 before accessing riderId",
+        "summary": "Restored the `await whenHydrated()` call at the start of `routeV2` in `src/notifications/router.ts` to ensure the session is hydrated before accessing `state.session!.riderId`. Also updated the reproduction test to verify the correct behavior (waiting for hydration) instead of expecting a crash.",
+        "rationale": "The root cause was that `routeV2` accessed `state.session!.riderId` without waiting for the session to be restored. The session store initializes with `session: undefined` and `hydrated: false`, then asynchronously restores the persisted session after ~350ms. When a push notification is tapped right after launch (before hydration completes), `state.session` is undefined, causing a TypeError. The fix restores the `await whenHydrated()` call that was present in the previous implementation, ensuring the session is hydrated before accessing riderId.",
+        "strategy": "lifecycle",
+        "risk": "low",
+        "tests_added": [
+          "test/router.v2.bug.test.ts"
+        ]
       }
     }
   ]

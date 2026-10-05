@@ -103,7 +103,7 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - **Mistake, corrected:** a `git push --tags` in the target repos published local scenario tags (v1.6.0–1.6.4, v1.6.6); they were deleted from GitHub within minutes. Rule added to CLAUDE.md.
 - DebugAssist is a public repo, so `groundtruth/` is public; isolation from agents is enforced at the sandbox (P3/P12), with a leak test on every regression patch.
 
-## P3 — Walking skeleton (2026-10-04) — in progress
+## P3 — Walking skeleton (2026-10-04 → 05) — done
 
 **Done**
 - Fixed LangGraph pipeline (`debugassist run <VIT-id|latest>`): ingest → triage (D01, CODEOWNERS, Jira) → context collector (evidence bundle from 4 MCP servers) → RCA agent (D05) → mitigation (D11, policy-gated flag rollback) → reproduce + fix agents → validate → ship gate (D16) → PR + Jira. Checkpointed; `--resume <run> [--from-node fix]` restarts from a step without redoing earlier ones.
@@ -126,6 +126,11 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Re-run on paid Nemotron 3 Ultra (OpenRouter) from the fix step: reproduction test fails on v1.6.1 with the production error, fix passes it, suite and the repo's lint/typecheck pass; the ship gate chose a ready PR. PR #1 now passes the target repo's CI (`client`, GitGuardian). That final run: $0.18, about 6 minutes end to end.
 - Live agent progress and a watchdog (time limit per step, repeated-call detection, logged retries); the reproduction rule requires the production error (timeouts rejected); the fix step may repair a broken test while every check re-proves the contract.
 - Run screenshots 08–18 (report, PR, diff, checks, Jira) in `docs/screenshots/`.
+
+**Closed out (2026-10-05)**
+- PII redaction before every LLM and Clef call (agent prompt, every tool result, Clef state), with tests that check what the model and the backend actually receive.
+- Agents are nudged to submit two turns before their cap; PR #1 marked ready for review (the ship gate's decision); keyless demo fixtures refreshed from the final live run.
+- Task list for the remaining phases: `docs/TASKS.md`.
 
 **GroqCloud (added 2026-10-04, PLAN A12 / ADR 0007)**
 - Works live on the free plan: agent tool calls, strict structured extraction and LLM-decider decisions with `openai/gpt-oss-120b`.

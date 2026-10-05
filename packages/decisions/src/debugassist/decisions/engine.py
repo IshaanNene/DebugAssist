@@ -13,6 +13,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field
 
 from debugassist.core.ledger import DecisionRow, Ledger, content_hash
+from debugassist.core.redaction import redact
 from debugassist.core.settings import Mode
 from debugassist.decisions.backends.base import DecisionBackend
 from debugassist.decisions.images import ImageSource, prepare_images
@@ -136,7 +137,8 @@ class DecisionEngine:
             chosen_model = model
         elif self.model_override is not None:
             chosen_model = self.model_override
-        fitted = fit_state(state, template.state_budget_tokens)
+        # PII never reaches Clef: emails, phones, tokens, card numbers, precise GPS (SPEC §11).
+        fitted = redact(fit_state(state, template.state_budget_tokens))
         image_urls = prepare_images(images) if images else None
 
         if template.two_stage is not None:

@@ -1,9 +1,9 @@
-diff --git a/test/router_v2_hydration.test.ts b/test/router_v2_hydration.test.ts
+diff --git a/test/router.v2.bug.test.ts b/test/router.v2.bug.test.ts
 new file mode 100644
-index 0000000..90a73ad
+index 0000000..c6a411b
 --- /dev/null
-+++ b/test/router_v2_hydration.test.ts
-@@ -0,0 +1,54 @@
++++ b/test/router.v2.bug.test.ts
+@@ -0,0 +1,39 @@
 +import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 +
 +const flags = vi.hoisted(() => ({ v2: false }));
@@ -15,7 +15,7 @@ index 0000000..90a73ad
 +import { routeDeepLink } from "../src/notifications/router";
 +import { hydrate, resetSessionForTests } from "../src/store/session";
 +
-+describe("router v2 hydration bug reproduction", () => {
++describe("router v2 waits for session hydration", () => {
 +  beforeEach(() => {
 +    flags.v2 = true;
 +    resetSessionForTests();
@@ -23,39 +23,24 @@ index 0000000..90a73ad
 +  });
 +  afterEach(() => vi.useRealTimers());
 +
-+  it("a tap right after launch waits for session hydration before accessing riderId", async () => {
++  it("waits for hydration before navigating when push notification tapped early", async () => {
 +    const navigate = vi.fn();
-+    
-+    // Start hydration with realistic delay (350ms as per the bug report)
++    // Start hydration with ~350ms delay (simulating IndexedDB restore)
 +    void hydrate({ delayMs: 350 });
-+    
-+    // Immediately call routeDeepLink (simulating push notification tap right after launch)
-+    // This should NOT crash - it should wait for hydration to complete
-+    const routed = routeDeepLink("/ride/abc", navigate, "push");
-+    
-+    // At this point, hydration hasn't completed (only 100ms passed, need 350ms)
++    // Immediately tap a push notification (before hydration completes)
++    const routedPromise = routeDeepLink("/ride/abc", navigate, "push");
++    // Advance timers slightly but NOT past hydration delay
 +    await vi.advanceTimersByTimeAsync(100);
-+    
-+    // navigate should NOT have been called yet because session isn't hydrated
++    // Navigation should not have happened yet (waiting for hydration)
 +    expect(navigate).not.toHaveBeenCalled();
-+    
 +    // Now advance past hydration delay
 +    await vi.advanceTimersByTimeAsync(300);
-+    
-+    // The route should now complete successfully
-+    await expect(routed).resolves.toBeUndefined();
-+    
-+    // navigate should have been called with the correct link and riderId in state
-+    expect(navigate).toHaveBeenCalledTimes(1);
-+    expect(navigate.mock.calls[0]![0]).toBe("/ride/abc");
-+    expect(navigate.mock.calls[0]![1]).toEqual(
-+      expect.objectContaining({
-+        state: expect.objectContaining({
-+          riderId: expect.any(String),
-+          prefill: null,
-+        }),
-+      })
-+    );
++    // Navigation should now have happened
++    expect(navigate).toHaveBeenCalledWith("/ride/abc", expect.objectContaining({
++      state: expect.objectContaining({ riderId: expect.any(String) })
++    }));
++    // The promise should resolve
++    await expect(routedPromise).resolves.toBeUndefined();
 +  });
 +});
 \ No newline at end of file
