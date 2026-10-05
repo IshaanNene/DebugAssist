@@ -31,6 +31,7 @@ class Issue(BaseModel):
     language: str
     latest_event: dict[str, Any] = Field(default_factory=dict[str, Any])
     session_id: str | None = None
+    opened_at: str | None = None  # when the source first saw it (dedup only looks at older issues)
     report: dict[str, Any] = Field(default_factory=dict[str, Any])  # BugDrop: the report as filed
 
 

@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P4 done, P5 built (live Clef check pending), P6–P14 not started. Next: P6.
+Overall: P0–P5 done, P6–P14 not started (a few pieces pulled forward). Next: P6.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -27,14 +27,14 @@ Overall: P0–P4 done, P5 built (live Clef check pending), P6–P14 not started.
 - [x] Evidence IDs, pagination, result caps, PII redaction, read-only defaults in every server; writes gated + audited
 - [x] `.mcp.json` (11 servers, 55 tools, verified over stdio); `docs/mcp.md`; recorded live fixtures + offline tests
 
-## P5 · Triage + context collector (D1–D4) — built; live Clef check pending
+## P5 · Triage + context collector (D1–D4) ✅
 - [x] D1 triage (priority, severity, owner, customer impact, worth a run); CODEOWNERS + catalog; Jira create + dedup by label
-- [x] D2 dedup over open Vitals issues + recent BugDrop reports (+ none); a duplicate is commented on the open ticket and the run stops
-- [x] D3 relevance scoring of optional windows; kept by action then score within a 12k-token budget; pruned list kept in state
+- [x] D2 dedup over *older* open Vitals issues + recent BugDrop reports (+ none); a duplicate is commented on the open ticket and the run stops
+- [x] D3 relevance scoring of optional windows; kept by action then score, leftover budget to "background or better"; pruned list kept in state
 - [x] D4 vision questions over a report's images (≤ 4), findings as evidence + ledger
 - [x] Collector: BugDrop ingest (`BD-…`), core evidence + optional windows (session, perf samples, trace, logs around the event, incidents, adoption, report log rings); isolated per source
 - [~] Slack ping for P0/P1 to the mock inbox (inbox UI comes with the dashboard, P9)
-- [ ] Live Clef verification of D2/D3/D4 — blocked: the Cloudflare token is IP-restricted and the IP changed (HTTP 401)
+- [x] Live Clef verification of D2/D3/D4 (after the token's IP filter was widened)
 
 ## P6 · Root cause (D5–D10)
 - [x] RCA agent with evidence-cited claims; D5 categorization

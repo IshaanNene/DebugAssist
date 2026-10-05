@@ -125,3 +125,38 @@ async def test_duplicate_report_attaches_to_the_open_ticket_and_stops(
     assert out["status"] == "duplicate" and out["triage"].duplicate_of == "VIT-1001"
     assert out["triage"].jira_key == existing.key and out["decisions"] == ["d1", "d2"]
     assert "duplicate of VIT-1001" in jira.snapshot(existing.key)["comments"][0]["text"]
+
+
+def test_dedup_only_considers_older_issues() -> None:
+    assert collector._older("2026-10-04T08:41:05+00:00", "2026-10-04T10:09:25+00:00")  # pyright: ignore[reportPrivateUsage]
+    assert not collector._older("2026-10-04T10:09:25Z", "2026-10-04T08:41:05Z")  # pyright: ignore[reportPrivateUsage]
+    assert collector._older(None, "2026-10-04T08:41:05Z")  # pyright: ignore[reportPrivateUsage]
+
+
+class LowScores:
+    """Everything below the keep threshold: background (1.4, 1.1) and irrelevant (0.3)."""
+
+    async def decide(self, decision_id: str, state: Any, **kw: Any) -> Any:
+        ids = [w["id"] for w in kw["params"]["windows"]]
+        scores = dict(zip(ids, [1.4, 0.3, 1.1], strict=True))
+        items = {i: Verdict(p=0.2, chosen=None, band=Band.SAFE_DEFAULT, action="drop") for i in ids}
+        return SimpleNamespace(
+            chosen={f"relevance.{i}": s for i, s in scores.items()}, items=items, ledger_id="d3"
+        )
+
+
+async def test_leftover_budget_goes_to_background_windows_not_irrelevant_ones() -> None:
+    core = [item(0, 100, "vitals")]
+    kept, pruned, _ = await collector.score_and_fit(
+        bug_issue(), core, [item(1, 100), item(2, 100), item(3, 100)], fake_deps(LowScores()), RunContext()
+    )
+    assert [k.summary for k in kept] == ["window 0", "window 1", "window 3"]
+    assert pruned == [
+        {
+            "id": item(2, 100).id,
+            "summary": "window 2",
+            "score": 0.3,
+            "tokens": collector.tokens(item(2, 100)),
+            "reason": "not relevant",
+        }
+    ]

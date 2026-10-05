@@ -210,6 +210,7 @@ async def ingest(state: RunState, deps: Deps) -> dict[str, Any]:
         language=language,
         latest_event=ev,
         session_id=ev.get("session_id"),
+        opened_at=d.get("opened_at"),
     )
     return {"issue": issue}
 
