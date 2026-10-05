@@ -155,3 +155,89 @@ def test_budget_note_lists_dropped_calls() -> None:
     out = fit_to_budget(_steps(12, 3_000), 2_500)
     note = str(out[1].content)
     assert "Already done: read_file(f0)" in note and "Do not repeat" in note
+
+
+async def test_prompt_and_tool_results_are_redacted(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+    from langchain_core.messages import AIMessage, BaseMessage
+    from langchain_core.tools import tool
+
+    from debugassist.llm import runner as runner_mod
+
+    seen: list[BaseMessage] = []
+
+    class ScriptedModel(FakeMessagesListChatModel):
+        def bind_tools(self, tools: Any, **kwargs: Any) -> Any:
+            return self
+
+        def _generate(self, messages: list[BaseMessage], *args: Any, **kwargs: Any) -> Any:
+            seen.extend(messages)
+            return super()._generate(messages, *args, **kwargs)
+
+    script = [
+        AIMessage("", tool_calls=[{"name": "read_log", "args": {}, "id": "c1"}]),
+        AIMessage("", tool_calls=[{"name": "submit_result", "args": {"answer": "ok"}, "id": "c2"}]),
+    ]
+    responses: list[BaseMessage] = list(script)
+
+    def fake_chat(*_: object, **__: object) -> ScriptedModel:
+        return ScriptedModel(responses=responses)
+
+    monkeypatch.setattr(runner_mod, "chat_model", fake_chat)
+
+    @tool
+    def read_log() -> str:
+        """Read the session log."""
+        return "user jane.doe@example.com tapped the push at 37.774929,-122.419416"
+
+    r = await runner_mod.AgentRunner(record_dir=tmp_path).run(
+        LLMNodeSpec(node="t", system_prompt="s", model="m", max_turns=5),
+        "Report from rider jane.doe@example.com: app crashed",
+        Out,
+        tools=[read_log],
+    )
+    shown = " ".join(str(m.content) for m in seen)
+    assert r.output == {"answer": "ok"}
+    assert "jane.doe@example.com" not in shown and "37.774929" not in shown
+    assert "[email]" in shown
+
+
+async def test_agent_is_nudged_to_submit_before_the_cap(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+    from langchain_core.messages import AIMessage, BaseMessage
+
+    from debugassist.llm import runner as runner_mod
+
+    seen: list[BaseMessage] = []
+
+    class ScriptedModel(FakeMessagesListChatModel):
+        def bind_tools(self, tools: Any, **kwargs: Any) -> Any:
+            return self
+
+        def _generate(self, messages: list[BaseMessage], *args: Any, **kwargs: Any) -> Any:
+            seen.extend(messages)
+            return super()._generate(messages, *args, **kwargs)
+
+    think = [AIMessage("", tool_calls=[{"name": "noop", "args": {"i": i}, "id": f"c{i}"}]) for i in range(3)]
+    done = AIMessage("", tool_calls=[{"name": "submit_result", "args": {"answer": "ok"}, "id": "s"}])
+    responses: list[BaseMessage] = [*think, done]
+
+    def fake_chat(*_: object, **__: object) -> ScriptedModel:
+        return ScriptedModel(responses=responses)
+
+    monkeypatch.setattr(runner_mod, "chat_model", fake_chat)
+
+    from langchain_core.tools import tool
+
+    @tool
+    def noop(i: int) -> str:
+        """Do nothing."""
+        return f"step {i}"
+
+    r = await runner_mod.AgentRunner(record_dir=tmp_path).run(
+        LLMNodeSpec(node="t", system_prompt="s", model="m", max_turns=5), "task", Out, tools=[noop]
+    )
+    assert r.output == {"answer": "ok"} and r.status == "ok"
+    assert any("turns left" in str(m.content) for m in seen)

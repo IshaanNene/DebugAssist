@@ -36,6 +36,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from pydantic import BaseModel
 
 from debugassist.core.policy import ROOT
+from debugassist.core.redaction import redact_text
 from debugassist.core.settings import get_settings
 from debugassist.llm.chat import chat_model, cost_usd, structured_method
 from debugassist.llm.spec import LLMNodeSpec, LLMResult, ToolCall
@@ -301,9 +302,25 @@ class AgentRunner:
             description="Submit your final result when you are done. It is checked; if rejected, fix and resubmit.",
         )
 
+        nudged: list[bool] = []
+
         @before_model(can_jump_to=["end"])
         def stop_when_submitted(state: Any, runtime: Any) -> dict[str, Any] | None:
-            return {"jump_to": "end"} if submitted or watch.check() else None
+            if submitted or watch.check():
+                return {"jump_to": "end"}
+            # Agents tend to keep polishing until the cap instead of submitting: warn two turns ahead.
+            if not nudged and watch.turn >= spec.max_turns - 2:
+                nudged.append(True)
+                watch.note(f"t{watch.turn} nudged to submit ({spec.max_turns - watch.turn} turns left)")
+                return {
+                    "messages": [
+                        HumanMessage(
+                            f"[runner] {spec.max_turns - watch.turn} turns left. If the work is done, call "
+                            "submit_result now; otherwise submit your best result on the next turn."
+                        )
+                    ]
+                }
+            return None
 
         calls: list[ToolCall] = []
 
@@ -320,6 +337,9 @@ class AgentRunner:
                 out = ToolMessage(content=f"Error: {exc}", tool_call_id=request.tool_call["id"], name=name)
                 content, ok = out.content, False
             text = _text(content)
+            if (clean := redact_text(text)) != text and isinstance(out, ToolMessage):
+                out = out.model_copy(update={"content": clean})  # PII never reaches the model (SPEC §11)
+                text = clean
             ms = int((time.perf_counter() - t0) * 1000)
             if (note := watch.tool(name, args, ok, ms, text)) and isinstance(out, ToolMessage):
                 out = out.model_copy(update={"content": f"{text}{note}"})
@@ -371,7 +391,7 @@ class AgentRunner:
             # A turn is ~5 graph steps (limit/submit hooks + model + tools); the turn cap is the real limit.
             # Stream state so a failure keeps the transcript (for extraction and the cassette).
             async for chunk in agent.astream(
-                {"messages": [HumanMessage(prompt)]},
+                {"messages": [HumanMessage(redact_text(prompt))]},
                 config={"recursion_limit": spec.max_turns * 6 + 20},
                 stream_mode="values",
             ):

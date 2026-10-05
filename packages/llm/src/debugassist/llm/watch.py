@@ -114,6 +114,9 @@ class Watchdog:
             )
         return None
 
+    def note(self, line: str) -> None:
+        self._emit("note", line)
+
     def stop(self, reason: str) -> None:
         if self.stop_reason is None:
             self.stop_reason = reason

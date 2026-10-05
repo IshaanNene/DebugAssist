@@ -141,3 +141,17 @@ async def test_images_are_prepared_and_sent() -> None:
     d = await DecisionEngine(backend).decide("D04", {"report": "my screen is blank"}, images=[buf.getvalue()])
     assert backend.requests[0].images and str(backend.requests[0].images[0]).startswith("data:image/png")
     assert d.action in {"flag_battery_evidence", "keep_for_rca", "none"}
+
+
+async def test_pii_is_redacted_before_clef_sees_the_state() -> None:
+    rec = Recording()
+    engine = DecisionEngine(rec)
+    state = CompactState().add(
+        "report",
+        {"text": "rider jane.doe@example.com, +1 415-555-0134, at 37.774929,-122.419416"},
+        priority=0,
+    )
+    await engine.decide("D05", state)
+    sent = str(rec.requests[0].state)
+    assert "jane.doe@example.com" not in sent and "415-555-0134" not in sent and "37.774929" not in sent
+    assert "[email]" in sent and "[phone]" in sent
