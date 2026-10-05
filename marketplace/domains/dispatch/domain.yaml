@@ -1,0 +1,13 @@
+name: dispatch
+description: Ride matching, drivers and ETAs (Python/FastAPI service).
+owners: [dispatch]
+components:
+  - { repo: miniride-services, path: dispatch }
+subagents:
+  dispatch-data-analyst:
+    description: reads dispatch logs, traces and ride records for the affected requests
+    inputs: [logs, traces]
+    mcp_servers: [logging, tracing]
+    focus: >-
+      For the failing requests, follow them through dispatch: inputs, database queries, external calls and
+      the response. Report where the request diverges from a healthy one.

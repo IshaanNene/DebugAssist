@@ -28,5 +28,7 @@ Read `docs/SPEC.md` (requirements, verbatim) and `docs/PLAN.md` (§0 amendments 
 
 ## Commands
 - Scenarios: `make scenarios` · `make trigger BUG=002` · `make reset-scenario WIPE=1` · `make verify-scenarios` · `make traffic` · `make load`
+- Harness: `make lint-skills` · `make pex AGENT_TYPE=…` · `make runtime-image AGENT_TYPE=…` · `make worker` · `debugassist run --agent-type … --issue …` · `debugassist harness run <issue>` (in its runtime container)
+- Dashboard: `make dashboard` (API :8400 + Next.js :3000) · post-merge: `make deploy REF=…` then `debugassist watch <run>`
 - `make bootstrap` · `make sync` (use instead of bare `uv sync` on macOS) · `make check` (lint + pyright + pytest) · `make up PROFILES="core obs flags faults"` · `make down` · `make clef-smoke`
 - Ports: client 8080 (previous release 8081 during scenarios), Vitals 8100, BugDrop 8200, incidents 8300, gateway 4000, dispatch 8001, payments 8002, OTLP 4317/4318 (collector), Postgres 5432, Redis 6379, MinIO 9000/9001, Jaeger 16686 (query API is v3: `/api/v3/traces?query.service_name=…`), Loki 3100, Prometheus 9090, Phoenix 6006, Unleash 4242, Toxiproxy 8474.

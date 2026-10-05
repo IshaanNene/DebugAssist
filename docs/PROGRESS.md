@@ -306,3 +306,35 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Claim ↔ D09 matching compared against `json.dumps` output, which escapes quotes and non-ASCII characters. It now compares instruction text.
 - A new run on the same issue reuses the bot branch and removes the older run's worktree; Open-in-machine reports this instead of failing.
 - A proposal cut from HEAD can't see an uncommitted skill; it falls back to the working copy (after this commit, proposals are one-line patches).
+
+## P11 — Harness (2026-10-05) — done
+
+**Done** (`packages/harness`)
+- **Agent types** (`configs/agent_types/*.yaml`, validated by a Pydantic model): `web-crash`, `backend-error`, `perf-regression`, `user-bug-report`. Each sets per-node limits, MCP servers and skills; preferred subagents; the validation ladder; its runtime image; and the marketplace ref. Resolution order: `--agent-type`, then the most specific match on source, kind, repo and language, then the target repo's `default_agent_type`, then web-crash. The type is chosen at ingest and re-applied on resume.
+- **Marketplace**: exactly five plugins, each with a `plugin.yaml` (owners, version) and skills: `pr-authoring`, `test-planning`, `web-client-fixes`, `backend-fixes`, `perf-and-battery`.
+  - It is fetched at a pinned git ref into `.data/marketplace/<sha>` (`working` means this checkout; `DA_MARKETPLACE_REF` overrides).
+  - `make lint-skills` checks the plugin count, frontmatter, listings, per-node token budgets, and references to bug ids or ground truth.
+  - `CONTRIBUTING-SKILLS.md` explains how to add skills and domains.
+- **Progressive disclosure**: a node's prompt lists skills by name and description; the agent calls `load_skill(name)` for a body, within the node's token budget. Used by classify_rca, reproduce, fix and the diff fixer.
+- **Domain extensions**: `marketplace/domains/{rider,dispatch,payments,platform}` with owners and components. Domain subagents join the pool D7 picks from (merged with the agent type's preferences); knowledge-base docs are loadable as `kb/<domain>/<doc>`. The KB was checked against the code (two docs corrected).
+- **Packaging and launching**:
+  - `debugassist harness pex <type>` builds a Linux PEX from the locked workspace in a `python:3.13-slim` container and stores it in MinIO under `pex/<type>/<commit>[-dirty].pex`.
+  - `harness image <type>` builds the runtime image (Python, git, Docker CLI, PEX).
+  - `harness run <issue>` runs the pipeline in the type's container: on the compose network, with the checkout mounted at the same path (`DEBUGASSIST_ROOT`), the Docker socket for sandboxes, service names via env, and the host's `DA_*` settings passed through.
+  - Redis + Arq: `harness enqueue`, `make worker`, `POST /api/runs`.
+- Decision templates ship inside the wheel; MCP servers start through the PEX (`PEX_MODULE`) when packaged; service URLs in deps and nodes are env-driven.
+
+**Verified**
+- `make lint-skills` is clean (5 plugins, 5 skills, 4 domains; at most ~580 tokens per node).
+- The resolver picks the right type for each issue shape.
+- PEX built (102 MB) and uploaded; image `debugassist/runtime-perf-regression` built (619 MB).
+- **In the container**, a live RCA of VIT-1002: the harness resolved `perf-regression` itself (kind `perf`). Subagents used MCP tools, and the RCA agent loaded `perf-and-battery` and `kb/rider/module-map` on demand. Result: `src/eta/poller.ts → refreshLocally`, commit `8d0f4fa`. $0.08.
+- **Worker**: an enqueued VIT-1002 was processed by a burst worker in its runtime container.
+- 277 tests (8 harness, 1 runner).
+
+**Findings**
+- The first PEX build copied the whole checkout. Files under `targets/` failed with "Resource deadlock avoided": the checkout is on an **iCloud-synced Desktop**, which leaves unreadable placeholders and `* 2` conflict copies. The build now copies only the Python workspace.
+- Inside a PEX, file-relative paths (repo root, decision templates) and `python -m` for MCP servers don't work. Fixed with `DEBUGASSIST_ROOT`, templates packaged into the wheel, and `PEX_MODULE`.
+- Docker Desktop here has no host networking, so the runtime container joins the compose network and uses service names; links shown to people stay on localhost.
+- Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
+- D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.

@@ -122,9 +122,11 @@ class D7Engine:
 
 
 async def test_pick_subagents_spawns_first_then_fills_by_probability_up_to_the_cap() -> None:
-    chosen, ps, ledger = await rca.pick_subagents(state(), SimpleNamespace(engine=D7Engine()))  # pyright: ignore[reportArgumentType]
+    deps: Any = SimpleNamespace(engine=D7Engine(), agent_type={"marketplace_ref": "working"})
+    chosen, ps, ledger = await rca.pick_subagents(state(), deps)
     assert chosen == ["log-analyst", "perf-profiler", "code-localizer", "trace-analyst"]
     assert ps["commit-bisector"] == 0.5 and ledger == "d7"
+    assert "client-state-analyst" in ps  # the rider domain's subagent joins the pool for client issues
 
 
 class D6Engine:

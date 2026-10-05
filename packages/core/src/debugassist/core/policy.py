@@ -7,6 +7,7 @@ first and is written to the audit log whatever the verdict.
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -16,7 +17,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field
 
-ROOT = Path(__file__).resolve().parents[5]
+# The repository checkout. Packaged runs (PEX in a runtime image) point it at the mounted checkout.
+ROOT = Path(os.environ.get("DEBUGASSIST_ROOT") or Path(__file__).resolve().parents[5])
 DEFAULT_POLICY = ROOT / "configs" / "policies" / "writes.yaml"
 DEFAULT_AUDIT = ROOT / ".data" / "audit.jsonl"
 

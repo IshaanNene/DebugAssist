@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from functools import cache
 from pathlib import Path
 from typing import Any, Literal
@@ -9,7 +10,8 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-ROOT = Path(__file__).resolve().parents[5]
+# The repository checkout. Packaged runs (PEX in a runtime image) point it at the mounted checkout.
+ROOT = Path(os.environ.get("DEBUGASSIST_ROOT") or Path(__file__).resolve().parents[5])
 GROUNDTRUTH = ROOT / "groundtruth"
 
 Category = Literal["own_code", "third_party_lib", "infra", "network", "flag_config", "device_os", "not_a_bug"]

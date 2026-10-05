@@ -10,6 +10,7 @@ A template declares questions in Clef's wire format plus three extensions resolv
 
 from __future__ import annotations
 
+import os
 from functools import cache
 from pathlib import Path
 from typing import Any, Literal
@@ -147,7 +148,12 @@ class _Defaulting(dict[str, Any]):
 
 
 def templates_dir() -> Path:
-    return _PACKAGED if _PACKAGED.is_dir() else _REPO
+    if _PACKAGED.is_dir():
+        return _PACKAGED
+    root = os.environ.get("DEBUGASSIST_ROOT")  # a packaged run with the checkout mounted
+    if root and (Path(root) / "packages" / "decisions" / "templates").is_dir():
+        return Path(root) / "packages" / "decisions" / "templates"
+    return _REPO
 
 
 @cache

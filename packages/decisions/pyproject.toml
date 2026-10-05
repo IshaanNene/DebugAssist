@@ -26,3 +26,7 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/debugassist"]
+
+[tool.hatch.build.targets.wheel.force-include]
+# Decision templates ship inside the wheel (and so inside PEX builds); see templates.templates_dir().
+"templates" = "debugassist/decisions/template_files"

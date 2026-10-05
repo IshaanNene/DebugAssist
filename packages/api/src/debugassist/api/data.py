@@ -329,48 +329,68 @@ def add_feedback(p: Paths, entry: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def _frontmatter(text: str) -> dict[str, Any]:
-    if not text.startswith("---"):
-        return {}
-    _, fm, _ = text.split("---", 2)
-    return obj(yaml.safe_load(fm))
-
-
 def marketplace(p: Paths) -> dict[str, Any]:
-    """Skills (markdown in plugins), agent types and what they load, subagents, decision templates."""
-    types: dict[str, Any] = {}
-    for f in sorted((p.root / "configs" / "agent_types").glob("*.yaml")):
-        cfg = yaml.safe_load(f.read_text())
-        types[cfg.get("name", f.stem)] = {
-            "description": cfg.get("description"),
-            "nodes": {
-                k: {kk: vv for kk, vv in v.items() if kk != "system_prompt"}
-                for k, v in obj(cfg.get("nodes")).items()
-            },
-            "skills": sorted({n for names in obj(cfg.get("skills")).values() for n in arr(names)}),
-            "skills_by_node": obj(cfg.get("skills")),
-            "run_budget_usd": cfg.get("run_budget_usd"),
+    """Plugins and their skills, agent types and what they load, domains, subagents, decision templates."""
+    from debugassist.harness import agent_types, domains
+    from debugassist.harness import marketplace as mkt
+
+    root = p.root / "marketplace"
+    ats = agent_types.all_types(p.root / "configs" / "agent_types")
+    types: dict[str, Any] = {
+        name: {
+            "description": t.description,
+            "match": t.match.model_dump(exclude_defaults=True),
+            "nodes": t.nodes,
+            "skills": sorted({n for names in t.skills.values() for n in names}),
+            "skills_by_node": t.skills,
+            "subagents_prefer": t.subagents.prefer,
+            "ladder": t.validation.ladder,
+            "runtime_image": t.runtime_image,
+            "marketplace_ref": t.marketplace_ref,
+            "skill_token_budget": t.skill_token_budget,
+            "run_budget_usd": t.run_budget_usd,
         }
-    skills: list[dict[str, Any]] = []
-    for f in sorted((p.root / "marketplace").glob("plugins/*/skills/*/SKILL.md")):
-        text = f.read_text()
-        fm = _frontmatter(text)
-        name = str(fm.get("name", f.parent.name))
-        skills.append(
-            {
-                "name": name,
-                "plugin": f.parts[-4],
-                "description": fm.get("description"),
-                "tokens": len(text) // 4,
-                "path": str(f.relative_to(p.root)),
-                "used_by": [t for t, c in types.items() if name in (arr(c.get("skills")))]
-                + (["pipeline (pr_and_notify)"] if name == "pr-authoring" else []),
-            }
-        )
+        for name, t in ats.items()
+    }
+    ss = mkt.skills(root)
+    skills: list[dict[str, Any]] = [
+        {
+            "name": s.name,
+            "plugin": s.plugin,
+            "description": s.description,
+            "tokens": s.tokens,
+            "path": str(s.path.relative_to(p.root)),
+            "used_by": sorted(
+                {
+                    f"{t} ({node})"
+                    for t, c in ats.items()
+                    for node, names in c.skills.items()
+                    if s.name in names
+                }
+            )
+            + (["pipeline (pr_and_notify)"] if s.name == "pr-authoring" else []),
+        }
+        for s in ss.values()
+    ]
+    plugins = [pl.model_dump() for pl in mkt.plugins(root).values()]
+    doms = [
+        {
+            "name": d.name,
+            "description": d.description,
+            "owners": d.owners,
+            "components": [f"{c.repo}/{c.path}" for c in d.components],
+            "subagents": sorted(d.subagents),
+            "knowledge": sorted(domains.knowledge(root, [d])),
+        }
+        for d in domains.load_all(root).values()
+    ]
     sub_file = p.root / "configs" / "subagents.yaml"
     subagents = obj(obj(yaml.safe_load(sub_file.read_text())).get("subagents")) if sub_file.is_file() else {}
     return {
         "agent_types": types,
+        "plugins": plugins,
+        "domains": doms,
+        "lint": mkt.lint(root, ats),
         "skills": skills,
         "subagents": [
             {"id": k, **{kk: obj(v).get(kk) for kk in ("description", "inputs", "mcp_servers")}}

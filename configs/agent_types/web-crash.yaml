@@ -1,7 +1,11 @@
-# Agent type: crashes in the MiniRide web client. The plan (graph) is fixed in code; this file only
-# configures what each LLM node may use. Expanded with plugins/skills/subagents in later phases.
+# Agent type: crashes in the MiniRide web client. The plan (graph) is fixed in code; an agent type only
+# configures what each LLM node may use (limits, MCP servers, skills), the subagent pool and the ladder.
 name: web-crash
 description: Client-side crashes and errors reported by Vitals
+priority: 10
+match: { sources: [vitals], kinds: [crash], repos: [miniride-client] }
+marketplace_ref: working
+skill_token_budget: 3000
 nodes:
   classify_rca:
     reasoning_effort: high
@@ -11,11 +15,14 @@ nodes:
     mcp_servers: [crash-analytics, code-search, git-history, feature-flags]
   fix:
     reasoning_effort: high
-    max_turns: 20  # free-tier model: ~50 requests/day (PLAN A11)
+    max_turns: 20
     max_tool_calls: 40
     max_budget_usd: 1.00
-skills:  # markdown skills (marketplace/plugins/*/skills/<name>/SKILL.md) loaded into each node's prompt
-  fix: [web-client-fixes]
-validation:
-  max_attempts: 3
+skills:
+  reproduce: [test-planning]
+  fix: [web-client-fixes, test-planning]
+subagents:
+  prefer: [crash-correlator, code-localizer, commit-bisector, flag-correlator, breadcrumb-analyst]
+validation: { max_attempts: 3, ladder: [unit, integration, e2e_env] }
+runtime_image: debugassist/runtime-web-crash
 run_budget_usd: 3.00

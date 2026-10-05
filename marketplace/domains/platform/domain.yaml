@@ -1,0 +1,5 @@
+name: platform
+description: The GraphQL gateway in front of dispatch and payments (TypeScript).
+owners: [rider-platform]
+components:
+  - { repo: miniride-services, path: gateway }

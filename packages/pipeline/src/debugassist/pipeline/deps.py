@@ -15,6 +15,7 @@ from debugassist.core.policy import ROOT, PolicyGate
 from debugassist.core.settings import Integration, Mode, Settings, get_settings
 from debugassist.decisions.engine import DecisionEngine
 from debugassist.decisions.factory import build_engine
+from debugassist.harness import agent_types
 from debugassist.integrations.chat import Chat, ChatMock, DiscordWebhook
 from debugassist.integrations.github import GitHub, GitHubLive, GitHubMock
 from debugassist.integrations.jira import Jira, JiraCloud, JiraMock
@@ -57,10 +58,11 @@ class Deps:
     llm_mode: str
     replay_from: str | None = None
     scripted_scenario: str = "push-crash"
-    vitals_url: str = "http://localhost:8100"
-    vitals_ui: str = "http://localhost:8100"
-    bugdrop_url: str = "http://localhost:8200"
-    bugdrop_ui: str = "http://localhost:8200"
+    # API base URLs (service names inside a runtime container) and the UI URLs people click (localhost).
+    vitals_url: str = field(default_factory=lambda: os.environ.get("VITALS_URL", "http://localhost:8100"))
+    vitals_ui: str = field(default_factory=lambda: os.environ.get("VITALS_UI_URL", "http://localhost:8100"))
+    bugdrop_url: str = field(default_factory=lambda: os.environ.get("BUGDROP_URL", "http://localhost:8200"))
+    bugdrop_ui: str = field(default_factory=lambda: os.environ.get("BUGDROP_UI_URL", "http://localhost:8200"))
     extra: dict[str, Any] = field(default_factory=dict[str, Any])
 
     @property
@@ -101,7 +103,7 @@ async def build_deps(
         else GitHubMock()
     )
     engine = await build_engine(s, "auto", mock_overrides=MOCK_DECISIONS)
-    agent_type = yaml.safe_load((ROOT / "configs" / "agent_types" / "web-crash.yaml").read_text())
+    agent_type = agent_types.load(agent_types.DEFAULT).model_dump()  # re-resolved per issue at ingest
     catalog = yaml.safe_load((ROOT / "configs" / "catalog.yaml").read_text())
     os.environ["DEBUGASSIST_RUN_ID"] = run_id
     os.environ["DEBUGASSIST_MODE"] = mode

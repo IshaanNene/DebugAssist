@@ -1,0 +1,27 @@
+# Agent type: bug reports filed by users through BugDrop (screenshots, log rings, a description).
+name: user-bug-report
+description: User-filed bug reports from BugDrop — symptoms in the user's words, screenshots and log rings
+priority: 15
+match: { sources: [bugdrop] }
+marketplace_ref: working
+skill_token_budget: 3500
+nodes:
+  classify_rca:
+    reasoning_effort: high
+    max_turns: 20
+    max_tool_calls: 30
+    max_budget_usd: 0.50
+    mcp_servers: [bug-reports, crash-analytics, code-search, git-history, logging, tracing, metrics-profiles]
+  fix:
+    reasoning_effort: high
+    max_turns: 20
+    max_tool_calls: 40
+    max_budget_usd: 1.00
+skills:
+  reproduce: [test-planning]
+  fix: [web-client-fixes, test-planning]
+subagents:
+  prefer: [screenshot-analyst, breadcrumb-analyst, log-analyst, perf-profiler, trace-analyst]
+validation: { max_attempts: 3, ladder: [unit, integration, e2e_env] }
+runtime_image: debugassist/runtime-user-bug-report
+run_budget_usd: 3.00

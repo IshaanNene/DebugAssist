@@ -41,6 +41,10 @@ def wrap(
 ) -> Callable[[RunState], Awaitable[dict[str, Any]]]:
     async def node(state: RunState) -> dict[str, Any]:
         log(f"▶ {name}")
+        if state.agent_type and deps.agent_type.get("name") != state.agent_type:  # resumed run
+            from debugassist.harness import agent_types
+
+            deps.agent_type = agent_types.load(state.agent_type).model_dump()
         t0 = time.perf_counter()
         try:
             update = await fn(state, deps)

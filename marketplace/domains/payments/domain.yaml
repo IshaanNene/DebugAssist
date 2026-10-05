@@ -1,0 +1,5 @@
+name: payments
+description: Fare quotes and charges (Go service).
+owners: [payments]
+components:
+  - { repo: miniride-services, path: payments }

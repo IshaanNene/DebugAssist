@@ -229,6 +229,8 @@ class RunState(BaseModel):
     evidence: list[EvidenceItem] = Field(default_factory=list[EvidenceItem])
     rca: RCA | None = None
     mitigation: Mitigation | None = None
+    agent_type: str | None = None  # resolved by the harness at ingest
+    agent_type_reason: str | None = None
     fix_plan: FixPlan | None = None
     watch: Watch | None = None
     post_pr: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # diff fixer runs

@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P10 done, P11–P14 not started (a few pieces pulled forward). Next: P11.
+Overall: P0–P11 done, P12–P14 not started (a few pieces pulled forward). Next: P12.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -107,14 +107,20 @@ Overall: P0–P10 done, P11–P14 not started (a few pieces pulled forward). Nex
 - [x] Fix step loads its agent type's skills (`skills: {fix: [web-client-fixes]}`), so approved lessons reach the next fix
 - [ ] Warm container pool / remote "open" (stretch)
 
-## P11 · Harness
-- [~] Agent types: `web-crash` (add `backend-error`, `perf-regression`, `user-bug-report`; optional `flaky-test`)
+## P11 · Harness ✅
+- [x] Agent types: `web-crash`, `backend-error`, `perf-regression`, `user-bug-report` — limits, MCP servers, skills per
+      node, subagent preferences, validation ladder, runtime image, pinned marketplace ref; resolved per issue
+      (`--agent-type` → most specific match → the target repo's `default_agent_type` → web-crash)
+- [ ] Optional `flaky-test` agent type
 - [x] `.DebugAssist/pipeline.yaml` in both target repos, read at run time
-- [ ] Marketplace with exactly 5 plugins (pr-authoring, test-planning, web-client-fixes, backend-fixes, perf-and-battery);
-      runtime fetch at a pinned ref; skill token budget; `CONTRIBUTING-SKILLS.md`; `make lint-skills`
-- [ ] Skill loading for our runner (progressive disclosure: names + descriptions, `load_skill` tool) — PLAN A4
-- [ ] Domain extensions (`marketplace/domains/<domain>/`: subagents, knowledge base, owners)
-- [ ] PEX per agent type → MinIO; Docker runtime image per type; `debugassist run --agent-type`; Redis + Arq workers
+- [x] Marketplace with exactly 5 plugins (pr-authoring, test-planning, web-client-fixes, backend-fixes, perf-and-battery);
+      fetch at a pinned git ref (`DA_MARKETPLACE_REF`); per-node skill token budget; `CONTRIBUTING-SKILLS.md`;
+      `make lint-skills` (plugin count, frontmatter, listings, budgets, no evaluation answers)
+- [x] Skill loading for our runner with progressive disclosure: names + descriptions in the prompt, `load_skill` tool
+- [x] Domain extensions (`marketplace/domains/<domain>/`: owners, components, subagents joining D7's pool, knowledge base)
+- [x] PEX per agent type (built in a Linux container) → MinIO; runtime image per type; `debugassist run --agent-type`;
+      `debugassist harness run` in a container; Redis + Arq workers (`make worker`, `POST /api/runs`)
+- [ ] PEXes/images built so far: perf-regression (the others build the same way)
 
 ## P12 · Observability, cost, guardrails, privacy
 - [x] Bash / path / egress guards; write policy + audit log; redaction at BugDrop intake and before every LLM/Clef call; untrusted-input marking

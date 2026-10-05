@@ -218,6 +218,26 @@ def open_in_machine(run_id: str) -> dict[str, Any]:
         raise HTTPException(409, str(exc)) from exc
 
 
+class EnqueueIn(BaseModel):
+    issue: str = Field(pattern=r"^(VIT|BD)-\d+$")
+    agent_type: str | None = None
+    llm: Literal["live", "mock"] = "live"
+
+
+@app.post("/api/runs", status_code=202)
+async def enqueue_run(body: EnqueueIn) -> dict[str, str]:
+    """Queue an issue for a worker (Redis + Arq); it runs in its agent type's runtime container."""
+    from debugassist.harness import agent_types, worker
+
+    if body.agent_type:
+        try:
+            agent_types.load(body.agent_type)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    job = await worker.enqueue(body.issue, body.agent_type, ["--llm", body.llm])
+    return {"job": job}
+
+
 @app.get("/api/proposals")
 def proposals() -> list[dict[str, Any]]:
     """Skill updates proposed by the feedback loop (local marketplace PRs awaiting a human)."""

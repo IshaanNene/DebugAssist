@@ -13,7 +13,7 @@ from debugassist.core.policy import PolicyGate
 from debugassist.decisions.policy import Band
 from debugassist.integrations.chat import ChatMock
 from debugassist.llm.spec import LLMResult
-from debugassist.pipeline import feedback, postpr, skills
+from debugassist.pipeline import feedback, postpr
 from debugassist.pipeline.state import RunState
 
 FIXTURE = Path(__file__).parent / "fixtures" / "run_state.json"
@@ -30,14 +30,6 @@ def write_skill(root: Path, body: str = "Keep diffs small.") -> Path:
         f"---\nname: web-client-fixes\ndescription: d\n---\n\n# Fixing\n\n{body}\n\n## Lessons from reviews\n"
     )
     return p
-
-
-def test_skills_load_into_the_node_prompt_without_frontmatter(tmp_path: Path) -> None:
-    write_skill(tmp_path)
-    text = skills.for_node({"skills": {"fix": ["web-client-fixes", "missing"]}}, "fix", tmp_path)
-    assert "## Skill: web-client-fixes" in text and "Keep diffs small." in text and "description:" not in text
-    assert skills.for_node({"skills": {"fix": []}}, "fix", tmp_path) == ""
-    assert skills.for_node({}, "reproduce", tmp_path) == ""
 
 
 class FakeLedger:

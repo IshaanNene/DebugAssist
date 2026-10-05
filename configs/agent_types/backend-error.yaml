@@ -1,0 +1,27 @@
+# Agent type: errors and crashes in the MiniRide services (gateway, dispatch, payments).
+name: backend-error
+description: Backend exceptions and failing requests in the gateway, dispatch or payments services
+priority: 10
+match: { repos: [miniride-services] }
+marketplace_ref: working
+skill_token_budget: 3000
+nodes:
+  classify_rca:
+    reasoning_effort: high
+    max_turns: 20
+    max_tool_calls: 30
+    max_budget_usd: 0.50
+    mcp_servers: [crash-analytics, code-search, git-history, logging, tracing, incidents]
+  fix:
+    reasoning_effort: high
+    max_turns: 20
+    max_tool_calls: 40
+    max_budget_usd: 1.00
+skills:
+  reproduce: [test-planning]
+  fix: [backend-fixes, test-planning]
+subagents:
+  prefer: [trace-analyst, log-analyst, incident-checker, commit-bisector, code-localizer]
+validation: { max_attempts: 3, ladder: [unit, integration] }
+runtime_image: debugassist/runtime-backend-error
+run_budget_usd: 3.00

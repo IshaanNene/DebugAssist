@@ -247,10 +247,30 @@ async def evidence_loop(
 # ---- D7 + subagents ---------------------------------------------------------------------------
 
 
+def subagent_pool(state: RunState, deps: Deps) -> dict[str, dict[str, Any]]:
+    """The subagents D7 may choose from: the platform's (configs/subagents.yaml) plus those of the issue's
+    domains (marketplace/domains), filtered by the agent type's allow list, its preferred ones first."""
+    from debugassist.harness import domains
+    from debugassist.pipeline import skills
+
+    issue = state.issue
+    assert issue
+    pool: dict[str, dict[str, Any]] = dict(subagent_config()["subagents"])
+    root = skills.root_for(deps.agent_type)
+    pool.update(domains.subagents(domains.for_issue(root, issue.repo, issue.component)))
+    prefs: dict[str, list[str]] = deps.agent_type.get("subagents") or {}
+    allow = prefs.get("allow") or []
+    prefer = prefs.get("prefer") or []
+    if allow:
+        pool = {k: v for k, v in pool.items() if k in allow or "domain" in v}
+    ordered = [k for k in prefer if k in pool] + [k for k in pool if k not in prefer]
+    return {k: pool[k] for k in ordered}
+
+
 async def pick_subagents(state: RunState, deps: Deps) -> tuple[list[str], dict[str, float], str | None]:
     assert state.issue
     cfg = subagent_config()
-    subs = [{"id": sid, "description": s["description"]} for sid, s in cfg["subagents"].items()]
+    subs = [{"id": sid, "description": s["description"]} for sid, s in subagent_pool(state, deps).items()]
     cs = (
         CompactState()
         .add("issue", collector.issue_summary(state.issue), priority=0)
@@ -268,7 +288,7 @@ async def run_subagent(
 ) -> tuple[dict[str, Any], LLMResult]:
     assert state.issue
     cfg = subagent_config()
-    s = cfg["subagents"][sid]
+    s = subagent_pool(state, deps)[sid]
     limits = {**cfg["defaults"], **{k: v for k, v in s.items() if k in cfg["defaults"]}}
     inputs = [e for e in state.evidence if e.source in s["inputs"]]
     spec = LLMNodeSpec(
