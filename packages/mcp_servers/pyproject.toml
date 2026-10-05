@@ -3,16 +3,24 @@ name = "debugassist-mcp-servers"
 version = "0.1.0"
 description = "DebugAssist's MCP servers (one module and entry point per server)"
 requires-python = ">=3.13,<3.14"
-dependencies = ["debugassist-core", "mcp>=1.30,<2", "httpx>=0.28"]
+dependencies = ["debugassist-core", "debugassist-integrations", "mcp>=1.30,<2", "httpx>=0.28"]
 
 [project.scripts]
 debugassist-mcp-code-search = "debugassist.mcp_servers.code_search:main"
 debugassist-mcp-crash-analytics = "debugassist.mcp_servers.crash_analytics:main"
 debugassist-mcp-feature-flags = "debugassist.mcp_servers.feature_flags:main"
 debugassist-mcp-git-history = "debugassist.mcp_servers.git_history:main"
+debugassist-mcp-bug-reports = "debugassist.mcp_servers.bug_reports:main"
+debugassist-mcp-jira = "debugassist.mcp_servers.jira:main"
+debugassist-mcp-tracing = "debugassist.mcp_servers.tracing:main"
+debugassist-mcp-logging = "debugassist.mcp_servers.logging_:main"
+debugassist-mcp-incidents = "debugassist.mcp_servers.incidents:main"
+debugassist-mcp-releases = "debugassist.mcp_servers.releases:main"
+debugassist-mcp-metrics-profiles = "debugassist.mcp_servers.metrics_profiles:main"
 
 [tool.uv.sources]
 debugassist-core = { workspace = true }
+debugassist-integrations = { workspace = true }
 
 [build-system]
 requires = ["hatchling>=1.27"]

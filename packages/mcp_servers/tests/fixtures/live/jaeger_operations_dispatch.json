@@ -1,0 +1,1 @@
+{"operations":[{"name":"POST /rides","spanKind":"server"},{"name":"GET /healthz","spanKind":"server"},{"name":"GET /places","spanKind":"server"},{"name":"GET /rides/{ride_id}","spanKind":"server"},{"name":"PUT /internal/drivers/{driver_id}/location","spanKind":"server"},{"name":"GET /rides/{ride_id}/eta","spanKind":"server"}]}
