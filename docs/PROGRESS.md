@@ -253,3 +253,30 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 **Findings**
 - The keyless demo stopped after RCA: new decisions shifted the mock's pseudo-random answers and D5 came out non-actionable. The demo now pins category, rollback, strategy, tier and ship outcome (still labelled mock).
 - The first watch attempt tried to comment on mock ticket `MOCK-1` in the real Jira (404, nothing written) because it rebuilt integrations from `.env`. The watch now uses the run's own backends (mock ticket → mock Jira, mock PR → mock GitHub), and Jira errors are reported per action instead of aborting.
+
+## P9 — Dashboard (2026-10-05) — done
+
+**Done**
+- **API** (`packages/api`, FastAPI on :8400, `make api`): a read layer over what runs leave on disk (state, node updates, agent logs, E2E artifacts), the decision ledger (read-only SQLite), the chat inbox and feedback. It also joins Vitals issues and BugDrop reports with their latest run. `GET /api/runs/{id}/stream` pushes graph changes and new agent calls as server-sent events until the run stops. Placed under `packages/` to follow the workspace convention (PLAN sketched `apps/api`).
+- **Dashboard** (`apps/dashboard`, Next.js 16 App Router + Tailwind 4 + React Flow 12, `make dashboard`), built against the docs bundled with Next 16 (async `params`, generated `PageProps`, dynamic rendering). Screens:
+  - Inbox: issues with priority, severity, owner and on-call; Clef D1 probabilities on hover; the latest run.
+  - Issue / RCA: root cause on the left (category and confidence, location, window commit, flag, key facts with grounding badges, mitigation, fix and PR); evidence timeline and evidence list on the right; 👍/👎 with a comment, per RCA and per claim.
+  - Run view: the fixed plan as a React Flow graph (deterministic gray, LLM blue, Clef amber) with subagent lanes, live over SSE; every agent call; the decision ledger (probability bar against thresholds, band, action, backend, latency, cost); turns and cost per LLM node.
+  - PR panel: diff, validation proof, Playwright artifacts.
+  - Metrics: pipeline outcomes per LLM mode, and per-decision volume, bands, backends, latency and $/1k. Accuracy and Brier appear only once outcomes are labelled.
+  - Marketplace: skills with token footprint, agent types, subagents, templates.
+  - Chat inbox.
+- No web fonts are fetched, so it builds offline. CI gained a dashboard job (typecheck, lint, build).
+
+**Verified** in the browser against the live stack and real runs:
+- Inbox with all five issues.
+- BUG-001's run (graph, four subagent lanes, 77 agent calls, the ledger including D12–D14), its RCA page and window commit.
+- BUG-002's PR panel (diff and proof), Metrics and Marketplace.
+- A mock run watched live: nodes advanced from `fix` to `open_pr` without a reload, then the page refreshed its ledger when the stream ended.
+- No console errors. API tests: 8.
+
+**Not yet**
+- Diff fixer, Ask AI and Open-in-machine are shown disabled (P10).
+- The Phoenix link opens the project, not the run (runs don't emit traces yet).
+- Metrics shows no accuracy or calibration until P11 labels decisions.
+- Mock runs are badged "scripted, not evidence" in Metrics.

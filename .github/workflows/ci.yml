@@ -40,6 +40,22 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dashboard
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with: { package_json_file: "apps/dashboard/package.json" }
+      - uses: actions/setup-node@v7
+        with: { node-version: 22 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm build
+
   compose:
     runs-on: ubuntu-latest
     steps:

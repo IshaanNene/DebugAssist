@@ -1,0 +1,28 @@
+[project]
+name = "debugassist-api"
+version = "0.1.0"
+description = "Read API for the dashboard: runs, issues, decision ledger, inbox, metrics, marketplace (SSE for live runs)"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "debugassist-core",
+  "debugassist-decisions",
+  "debugassist-integrations",
+  "debugassist-pipeline",
+  "fastapi>=0.142",
+  "uvicorn[standard]>=0.54",
+  "httpx>=0.28",
+  "pyyaml>=6.0",
+]
+
+[tool.uv.sources]
+debugassist-core = { workspace = true }
+debugassist-decisions = { workspace = true }
+debugassist-integrations = { workspace = true }
+debugassist-pipeline = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/debugassist"]

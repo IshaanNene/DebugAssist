@@ -5,7 +5,7 @@ description = "DebugAssist: crash/bug report → RCA → mitigation → validate
 requires-python = ">=3.13,<3.14"
 readme = "README.md"
 license = "MIT"
-dependencies = ["debugassist-core", "debugassist-decisions", "vitals-service", "bugdrop-service", "incidents-service", "debugassist-simulator", "debugassist-scenarios", "debugassist-cli", "debugassist-integrations", "debugassist-mcp-servers", "debugassist-llm", "debugassist-pipeline"]
+dependencies = ["debugassist-core", "debugassist-decisions", "vitals-service", "bugdrop-service", "incidents-service", "debugassist-simulator", "debugassist-scenarios", "debugassist-cli", "debugassist-integrations", "debugassist-mcp-servers", "debugassist-llm", "debugassist-pipeline", "debugassist-api"]
 
 [tool.uv]
 package = false
@@ -28,6 +28,7 @@ debugassist-integrations = { workspace = true }
 debugassist-mcp-servers = { workspace = true }
 debugassist-llm = { workspace = true }
 debugassist-pipeline = { workspace = true }
+debugassist-api = { workspace = true }
 
 [dependency-groups]
 dev = [

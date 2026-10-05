@@ -244,3 +244,18 @@ class RunState(BaseModel):
     stopped_after: str | None = None  # the node --until stopped after (a resume continues from it)
     evidence_pruned: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # dropped by D3
     screenshots: dict[str, Any] | None = None  # D4 findings
+
+
+# The fixed plan, in order (the run view colours: deterministic gray, LLM blue, Clef amber).
+NODE_KIND = {  # for the run view: deterministic, llm, decision-heavy
+    "ingest": "deterministic",
+    "auto_triage": "deterministic+clef",
+    "context_collector": "deterministic",
+    "classify_rca": "llm+clef",
+    "mitigate": "deterministic+clef",
+    "fix": "llm",
+    "validate": "deterministic",
+    "ship_gate": "clef",
+    "pr_and_notify": "deterministic",
+    "post_merge_watch": "deterministic",
+}

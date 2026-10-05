@@ -17,22 +17,9 @@ from langgraph.graph import END, START, StateGraph
 
 from debugassist.pipeline import nodes
 from debugassist.pipeline.deps import Deps
-from debugassist.pipeline.state import RunState
+from debugassist.pipeline.state import NODE_KIND, RunState
 
 Node = Callable[[RunState, Deps], Awaitable[dict[str, Any]]]
-
-NODE_KIND = {  # for the run view: deterministic, llm, decision-heavy
-    "ingest": "deterministic",
-    "auto_triage": "deterministic+clef",
-    "context_collector": "deterministic",
-    "classify_rca": "llm+clef",
-    "mitigate": "deterministic+clef",
-    "fix": "llm",
-    "validate": "deterministic",
-    "ship_gate": "clef",
-    "pr_and_notify": "deterministic",
-    "post_merge_watch": "deterministic",
-}
 
 
 def _persist(deps: Deps, state: RunState, node: str, update: dict[str, Any], ms: int) -> None:
