@@ -80,6 +80,8 @@ def _transient(exc: Exception) -> bool:
 # OpenRouter pads queued responses with keep-alive whitespace, which resets the HTTP read timeout, so a
 # call on an overloaded host can wait forever. Bound each model call by wall clock instead.
 MODEL_CALL_TIMEOUT_S = 180
+MONITOR_EVERY = 6  # tool calls between D8 rabbit-hole checks
+EVIDENCE_TEXT_CHARS = 6_000  # how much of an evidence-bearing tool result is kept for grounding (D9)
 
 
 @wrap_model_call
@@ -222,6 +224,7 @@ class LLMRunner(Protocol):
         mcp_env: dict[str, str] | None = None,
         diff_fn: Any = None,
         validate_output: Any = None,
+        monitor: Any = None,
     ) -> LLMResult: ...
 
 
@@ -287,6 +290,7 @@ class AgentRunner:
         mcp_env: dict[str, str] | None = None,
         diff_fn: Any = None,
         validate_output: Any = None,
+        monitor: Any = None,
     ) -> LLMResult:
         submitted: dict[str, Any] = {}
         watch = Watchdog(
@@ -330,6 +334,25 @@ class AgentRunner:
             return None
 
         calls: list[ToolCall] = []
+        next_check = [MONITOR_EVERY]
+
+        @wrap_model_call
+        async def trajectory_monitor(request: Any, handler: Any) -> Any:
+            """D8: every MONITOR_EVERY tool calls, ask `monitor` whether the agent is still getting
+            somewhere. "stop_early" ends the step at the next turn; "warn" adds a note for the model."""
+            if len(calls) >= next_check[0]:
+                next_check[0] = len(calls) + MONITOR_EVERY
+                verdict = await monitor(calls[-MONITOR_EVERY * 2 :])
+                if verdict == "stop_early":
+                    watch.stop("stalled: the rabbit-hole monitor (D8) saw no progress")
+                elif verdict == "warn":
+                    watch.note(f"t{watch.turn} monitor (D8): drifting — told the agent to refocus")
+                    note = HumanMessage(
+                        "[monitor] Your recent tool calls are not narrowing the root cause. Step back: use "
+                        "what you already have, check the most likely hypothesis directly, or submit."
+                    )
+                    request = request.override(messages=[*request.messages, note])
+            return await handler(request)
 
         @wrap_tool_call
         async def record(request: Any, handler: Any) -> Any:
@@ -360,6 +383,7 @@ class AgentRunner:
                     result_preview=_preview(content),
                     ms=ms,
                     evidence_id=ev,
+                    evidence_text=text[:EVIDENCE_TEXT_CHARS] if ev else None,
                 )
             )
             return out
@@ -380,6 +404,7 @@ class AgentRunner:
             *([token_budget_middleware(budget)] if (budget := get_settings().request_token_budget()) else []),
             ToolCallLimitMiddleware(run_limit=spec.max_tool_calls, exit_behavior="end"),
             stop_when_submitted,
+            *([trajectory_monitor] if monitor is not None else []),
             record,
         ]
         agent: Any = create_agent(
@@ -535,6 +560,7 @@ class CassetteRunner:
         mcp_env: dict[str, str] | None = None,
         diff_fn: Any = None,
         validate_output: Any = None,
+        monitor: Any = None,
     ) -> LLMResult:
         data = json.loads((self.dir / f"{spec.node}.json").read_text())["result"]
         result = LLMResult.model_validate({**data, "mode": "replay"})
@@ -560,8 +586,20 @@ class ScriptedRunner:
         mcp_env: dict[str, str] | None = None,
         diff_fn: Any = None,
         validate_output: Any = None,
+        monitor: Any = None,
     ) -> LLMResult:
-        script = json.loads((self.dir / f"{spec.node}.json").read_text())
+        path = self.dir / f"{spec.node}.json"
+        if not path.is_file():  # no script for this node (e.g. a subagent): report no output, labelled mock
+            return LLMResult(
+                node=spec.node,
+                output=None,
+                status="no_output",
+                turns=0,
+                tool_calls=[],
+                model="scripted",
+                mode="mock",
+            )
+        script = json.loads(path.read_text())
         output = output_schema.model_validate(script["output"]).model_dump(mode="json")
         diff = None
         patch = self.dir / f"{spec.node}.patch"

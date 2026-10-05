@@ -30,6 +30,9 @@ class ToolCall(BaseModel):
     result_preview: str
     ms: int
     evidence_id: str | None = None
+    evidence_text: str | None = (
+        None  # fuller result (≤ 6,000 chars) for calls that return evidence: grounding
+    )
 
 
 class LLMResult(BaseModel):

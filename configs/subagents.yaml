@@ -1,0 +1,73 @@
+# Specialised RCA subagents (SPEC §7). Each gets only its slice of the evidence (`inputs`: evidence
+# sources) plus a few MCP servers, runs in parallel with the others, and returns findings with evidence
+# ids for the RCA agent to consolidate. Clef (D7) decides which ones run for a given issue.
+defaults:
+  max_turns: 8
+  max_tool_calls: 12
+  max_budget_usd: 0.10
+  reasoning_effort: low
+  max_wall_s: 300
+max_parallel: 4
+subagents:
+  breadcrumb-analyst:
+    description: rebuilds the user's timeline (actions, routes, visibility, time hidden) from session data
+    inputs: [vitals, bugdrop]
+    mcp_servers: [crash-analytics, bug-reports]
+    focus: >-
+      Rebuild what the user did and what the app was doing, in order, right before the problem: routes,
+      taps, launches from notifications, foreground/background changes and how long the app was hidden.
+  crash-correlator:
+    description: ties the problem to a release, version, flag variant, city, device or OS
+    inputs: [vitals, releases, flags]
+    mcp_servers: [crash-analytics, releases]
+    focus: >-
+      Find which dimension the problem correlates with (version, flag variant, OS, device, city) and
+      which release it first appeared in. Report rates, not just counts.
+  commit-bisector:
+    description: finds the offending commit between the last good and the first bad release
+    inputs: [git, releases]
+    mcp_servers: [git-history, releases, code-search]
+    focus: >-
+      Using only the last-good..first-bad window and the modules involved, identify the commit that
+      introduced the defect and quote the changed lines that matter.
+  flag-correlator:
+    description: checks whether a feature flag gates the faulty path and how its rollout correlates
+    inputs: [flags, vitals]
+    mcp_servers: [feature-flags, crash-analytics]
+    focus: >-
+      Decide whether a feature flag gates the failing path: compare exposed and unexposed rates, note
+      the rollout percentage and recent rollout changes.
+  trace-analyst:
+    description: reads distributed traces for the failing requests (critical path, errors, slow spans)
+    inputs: [traces]
+    mcp_servers: [tracing]
+    focus: Find failing or slow requests related to the issue and where along the critical path they break.
+  log-analyst:
+    description: reads backend and client logs around the event for errors and anomalies
+    inputs: [logs, bugdrop]
+    mcp_servers: [logging, bug-reports]
+    focus: Find log lines around the event that explain it; prefer errors and anything that changed in volume.
+  incident-checker:
+    description: checks for an ongoing incident or a third-party outage that would explain the issue
+    inputs: [incident]
+    mcp_servers: [incidents]
+    focus: Is an incident or a third-party dependency problem a better explanation than a code defect?
+  screenshot-analyst:
+    description: interprets the screenshot findings and what the user saw
+    inputs: [screenshot, bugdrop]
+    mcp_servers: [bug-reports]
+    focus: What do the screenshots and the report say about the screen, state and symptom the user saw?
+  perf-profiler:
+    description: reads CPU, wakeup, long-task and memory samples for performance or battery problems
+    inputs: [metrics, bugdrop]
+    mcp_servers: [metrics-profiles, bug-reports]
+    focus: >-
+      For performance or battery symptoms: what was busy, when (foreground or hidden), how often timers
+      woke the app, and which code path the samples point to.
+  code-localizer:
+    description: narrows the defect to a file and function from the stack and the code
+    inputs: [code, vitals, git]
+    mcp_servers: [code-search, git-history]
+    focus: >-
+      From stack frames, routes or symptoms, locate the file and function where the defect lives and
+      read the relevant code.

@@ -28,6 +28,7 @@ from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
 from debugassist.pipeline import collector
+from debugassist.pipeline import rca as rca_mod
 from debugassist.pipeline.deps import APPS, Deps
 from debugassist.pipeline.state import (
     RCA,
@@ -489,26 +490,59 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
         actionable=actionable,
     )
     decisions = [*state.decisions, d5.ledger_id or ""]
-    spec = LLMNodeSpec(
-        node="classify_rca",
-        system_prompt=_prompt("rca_system.md"),
-        **deps.agent_type["nodes"]["classify_rca"],
-    )
+    costs = dict(state.costs)
+    env = _code_repos_env(state)
+    st = state.model_copy(update={"rca": rca})
+    # D10: reasoning effort by difficulty. Non-actionable categories get a short, routed RCA.
+    cfg = dict(deps.agent_type["nodes"]["classify_rca"])
+    effort, rca.routing, d10 = await rca_mod.route_effort(st, deps)
+    decisions.append(d10 or "")
+    cfg["reasoning_effort"] = effort if actionable else "low"
+    findings: list[dict[str, Any]] = []
+    sub_results: list[LLMResult] = []
+    if actionable:
+        # D6: a short evidence loop before the agent; D7: specialised subagents in parallel.
+        added, rca.evidence_rounds, d6 = await rca_mod.evidence_loop(st, deps)
+        decisions += d6
+        if added:
+            st = st.model_copy(update={"evidence": [*st.evidence, *added]})
+        findings, sub_results, d7 = await rca_mod.fan_out(st, deps, env)
+        decisions += d7
+        rca.subagents = findings
+        for f in findings:
+            costs[f"subagent_{f['id']}"] = float(f.get("cost_usd") or 0.0)
+    spec = LLMNodeSpec(node="classify_rca", system_prompt=_prompt("rca_system.md"), **cfg)
+    found = rca_mod.findings_text(findings)
     prompt = (
-        f"Issue {issue.id} from Vitals in repo {issue.repo} (component '{issue.component}', {issue.language}).\n"
+        f"Issue {issue.id} from {'Vitals' if issue.source == 'vitals' else 'BugDrop'} in repo {issue.repo} "
+        f"(component '{issue.component}', {issue.language}).\n"
         f"Title: {issue.title}\nEvents: {issue.events}; versions {issue.first_version}→{issue.last_version}.\n"
-        "\n"
-        f"Evidence bundle (pre-collected, pruned):\n{_bundle(state.evidence)}\n\n"
-        f"Code paths are repo-relative; the client lives at the repo root. Investigate and submit the RCA."
+        + (f"User report: {json.dumps(issue.report, default=str)[:1500]}\n" if issue.report else "")
+        + "\n"
+        + f"Evidence bundle (pre-collected, pruned):\n{_bundle(st.evidence)}\n\n"
+        + (
+            f"Findings from specialised subagents (verify before relying on them; cite their evidence ids):\n{found}\n\n"
+            if found
+            else ""
+        )
+        + "Code paths are repo-relative; the client lives at the repo root. Investigate and submit the RCA."
     )
-    r = await deps.runner().run(spec, prompt, RCAOutput, mcp_env=_code_repos_env(state))
+    monitor_ledgers: list[str] = []
+    r = await deps.runner().run(
+        spec, prompt, RCAOutput, mcp_env=env, monitor=rca_mod.make_monitor(st, deps, monitor_ledgers)
+    )
+    decisions += monitor_ledgers
     _stop_if_out_of_quota(r, state, "classify_rca")
-    if r.output:
-        rca.output = RCAOutput.model_validate(r.output)
     rca.llm = _llm_summary(r)
-    if r.status != "ok" or rca.output is None:
+    costs["classify_rca"] = r.cost_usd
+    if r.status not in ("ok", "max_turns", "stalled", "timeout") or not r.output:
         raise RuntimeError(f"RCA agent ended with status {r.status}: {r.error or 'no result'}")
-    return {"rca": rca, "decisions": decisions, "costs": {**state.costs, "classify_rca": r.cost_usd}}
+    output = RCAOutput.model_validate(r.output)
+    # D9: every claim checked against the evidence it cites.
+    lookup = rca_mod.evidence_lookup(st, [r, *sub_results])
+    rca.output, rca.grounding, rca.dropped_claims, d9 = await rca_mod.ground_claims(st, deps, output, lookup)
+    decisions += d9
+    return {"rca": rca, "decisions": decisions, "costs": costs, "evidence": st.evidence}
 
 
 # ---- N4 mitigate ----------------------------------------------------------------------------
