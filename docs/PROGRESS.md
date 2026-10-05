@@ -157,3 +157,16 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Health checks every few seconds filled Jaeger's "latest N traces" window, so filtering after the fetch returned nothing; searching per server-side operation fixed it.
 - The log template masked `13` but not `13ms` (no word boundary), so timing-only differences didn't collapse; fixed with a test.
 - The new servers are not yet wired into the agents' tool lists; P5/P6 (collector, evidence loop, subagents) decide which agent gets which server.
+
+## P5 — Triage + context collector (2026-10-05) — built, live Clef check pending
+
+**Done**
+- BugDrop reports are first-class issues: `debugassist run BD-1001` ingests the report (description, device, flags, network, files) and triages it (owner by Clef when there is no stack).
+- D2 dedup at triage over open Vitals issues and recent BugDrop reports (plus "none"). A confident duplicate is commented on the existing ticket and the run stops (`status: duplicate`) instead of starting a second investigation.
+- Collector (`pipeline/collector.py`): core evidence always kept; optional windows — the session, its perf samples, the linked trace, logs from each service in the 10 minutes around the event (`query_logs(around=…)`), active incidents, dependency status, version adoption, and for reports their log rings — scored by D3 and kept by action then score within a 12k-token budget. What was pruned (with scores and why) stays in the run state. Each source is isolated, so one being down is a note, not a failed run.
+- D4: Clef vision questions over a report's images (blank screen, error dialog, which screen, abnormal battery use); the findings become evidence and the decision is in the ledger.
+- The run summary now shows dedup, evidence kept/pruned, screenshot findings, and **which backend made the decisions** (with the reason for any fallback).
+
+**Verified** with the keyless pipeline on VIT-1001 (17 kept / 2 pruned) and BD-1001 (13 kept, D4 ran), plus unit tests for D3 budget selection and the duplicate path.
+
+**Not verified yet:** D2/D3/D4 with live Clef. Every Clef call now returns HTTP 401: the Cloudflare token is IP-restricted to 122.172.85.246 and the connection's IP changed to 122.172.80.145. Decisions fell back silently — which is why the summary now reports the backend. Needs the token's IP filter updated.

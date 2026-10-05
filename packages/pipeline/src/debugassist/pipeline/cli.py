@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sqlite3
 import sys
+from collections import Counter
 from typing import Annotated, Any
 
 import httpx
@@ -24,6 +26,25 @@ from debugassist.pipeline.graph import build_graph
 from debugassist.pipeline.state import RunState
 
 
+def _decision_backends(run_id: str) -> str | None:
+    """Which backend made this run's decisions — and why any fell back (a silent fallback looks normal)."""
+    db = ROOT / ".data" / "debugassist.db"
+    if not db.is_file():
+        return None
+    with sqlite3.connect(db) as con:
+        rows = con.execute(
+            "select backend, fallback_reason from decision_ledger where run_id = ?", (run_id,)
+        ).fetchall()
+    if not rows:
+        return None
+    counts = Counter(str(b) for b, _ in rows)
+    line = " · ".join(f"{n} {b}" for b, n in counts.most_common())
+    reasons = [str(r) for _, r in rows if r and r != "circuit open"]
+    if reasons:
+        line += f"  ⚠ fell back: {reasons[0][:110]}"
+    return line
+
+
 def _summary(s: RunState) -> None:
     typer.echo("")
     typer.echo(f"run {s.run_id}: {s.status}")
@@ -32,6 +53,20 @@ def _summary(s: RunState) -> None:
     if s.triage:
         typer.echo(
             f"  triage    {s.triage.priority} · {s.triage.owner_team} ({s.triage.owner_source}) · on-call {s.triage.oncall} · Jira {s.triage.jira_key} {s.triage.jira_url or ''}"
+        )
+        if s.triage.dedup:
+            dd = s.triage.dedup
+            typer.echo(f"  dedup     D02 → {dd.get('chosen')} (p={dd.get('p') or 0:.2f}, {dd.get('action')})")
+    if (dec := _decision_backends(s.run_id)) is not None:
+        typer.echo(f"  decisions {dec}")
+    if s.evidence:
+        kept = len(s.evidence)
+        dropped = [p for p in s.evidence_pruned if "id" in p]
+        typer.echo(f"  evidence  {kept} items kept · {len(dropped)} pruned by D3/budget")
+    if s.screenshots:
+        sh = s.screenshots
+        typer.echo(
+            f"  screens   D04 screen={sh.get('screen')} · blank p={sh.get('blank_screen')} · abnormal battery p={sh.get('abnormal_battery')}"
         )
     if s.rca and s.rca.output:
         o = s.rca.output

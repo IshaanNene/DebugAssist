@@ -55,13 +55,18 @@ def _selector(service: str | None, logql: str | None, contains: str | None, leve
     return q
 
 
-def _window(minutes: int) -> tuple[str, str]:
+def _window(minutes: int, around: str | None = None) -> tuple[str, str]:
+    """The last `minutes`, or `minutes` centred on `around` (ISO 8601) when given."""
+    if around:
+        mid = int(datetime.fromisoformat(around.replace("Z", "+00:00")).timestamp() * 1e9)
+        half = minutes * 30 * 10**9
+        return str(mid - half), str(mid + half)
     end = int(datetime.now(UTC).timestamp() * 1e9)
     return str(end - minutes * 60 * 10**9), str(end)
 
 
-def _entries(query: str, minutes: int, raw_limit: int) -> list[dict[str, Any]]:
-    start, end = _window(minutes)
+def _entries(query: str, minutes: int, raw_limit: int, around: str | None = None) -> list[dict[str, Any]]:
+    start, end = _window(minutes, around)
     r = _http.get(
         "/loki/api/v1/query_range",
         params={"query": query, "start": start, "end": end, "limit": raw_limit, "direction": "backward"},
@@ -113,16 +118,24 @@ def query_logs(
     logql: str | None = None,
     minutes: int = 60,
     limit: int = 30,
+    around: str | None = None,
 ) -> dict[str, Any]:
     """Logs for a service (or a raw LogQL selector), collapsed into repeated-line groups with counts and
-    first/last times, errors first. Filter with `contains` (substring) and `level` (error, warn, info)."""
+    first/last times, errors first. Filter with `contains` (substring) and `level` (error, warn, info).
+    The window is the last `minutes`, or `minutes` centred on `around` (ISO time of an event)."""
     query = _selector(service, logql, contains, level)
-    entries = _entries(query, minutes, raw_limit=2000)
+    entries = _entries(query, minutes, raw_limit=2000, around=around)
     groups = prune(entries)
     return with_evidence(
         "logs",
         "log_groups",
-        {"query": query, "minutes": minutes, "lines_scanned": len(entries), **cap(groups, limit)},
+        {
+            "query": query,
+            "minutes": minutes,
+            "around": around,
+            "lines_scanned": len(entries),
+            **cap(groups, limit),
+        },
     )
 
 

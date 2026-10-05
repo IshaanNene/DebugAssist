@@ -199,3 +199,9 @@ def test_metrics_promql(monkeypatch: pytest.MonkeyPatch) -> None:
         "payments",
     }
     assert all({"last", "min", "max", "avg"} <= set(s) for s in out["items"] if s["points"])
+
+
+def test_log_window_centred_on_an_event() -> None:
+    start, end = logging_._window(10, around="2026-10-04T08:41:50.372000+00:00")  # pyright: ignore[reportPrivateUsage]
+    mid = 1791103310372000000
+    assert int(end) - int(start) == 10 * 60 * 10**9 and abs((int(start) + int(end)) // 2 - mid) < 10**6

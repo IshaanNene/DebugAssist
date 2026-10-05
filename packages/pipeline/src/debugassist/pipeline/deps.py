@@ -47,6 +47,8 @@ class Deps:
     scripted_scenario: str = "push-crash"
     vitals_url: str = "http://localhost:8100"
     vitals_ui: str = "http://localhost:8100"
+    bugdrop_url: str = "http://localhost:8200"
+    bugdrop_ui: str = "http://localhost:8200"
     extra: dict[str, Any] = field(default_factory=dict[str, Any])
 
     @property

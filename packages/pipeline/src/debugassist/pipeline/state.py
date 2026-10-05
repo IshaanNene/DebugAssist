@@ -30,6 +30,8 @@ class Issue(BaseModel):
     component: str  # component dir in the repo ("." for the client)
     language: str
     latest_event: dict[str, Any] = Field(default_factory=dict[str, Any])
+    session_id: str | None = None
+    report: dict[str, Any] = Field(default_factory=dict[str, Any])  # BugDrop: the report as filed
 
 
 class Triage(BaseModel):
@@ -43,6 +45,8 @@ class Triage(BaseModel):
     jira_key: str | None = None
     jira_url: str | None = None
     jira_mode: str | None = None
+    duplicate_of: str | None = None  # D2: an open issue/report with the same root cause
+    dedup: dict[str, Any] | None = None
 
 
 class CodeLocation(BaseModel):
@@ -178,4 +182,6 @@ class RunState(BaseModel):
     costs: dict[str, float] = Field(default_factory=dict[str, float])
     timings_ms: dict[str, int] = Field(default_factory=dict[str, int])
     errors: list[str] = Field(default_factory=list[str])
-    status: Literal["running", "done", "failed", "stopped"] = "running"
+    status: Literal["running", "done", "failed", "stopped", "duplicate"] = "running"
+    evidence_pruned: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # dropped by D3
+    screenshots: dict[str, Any] | None = None  # D4 findings
