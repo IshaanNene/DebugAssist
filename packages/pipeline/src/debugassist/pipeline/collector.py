@@ -27,6 +27,7 @@ from debugassist.pipeline.state import Issue, RunState
 log = logging.getLogger(__name__)
 EVIDENCE_BUDGET_TOKENS = 12_000  # what the RCA agent gets in its prompt (core + kept optional windows)
 LOG_SERVICES = ("gateway", "dispatch", "payments")
+BACKGROUND_SCORE = 1.0  # D3 levels: 0 irrelevant · 1 background · 2 related · 3 important · 4 decisive
 
 
 def ev(source: Source, data: dict[str, Any], summary: str) -> EvidenceItem:
@@ -73,6 +74,7 @@ async def ingest_bugdrop(ref: str, deps: Deps) -> Issue:
         component=component,
         language=language,
         session_id=r.get("session_id"),
+        opened_at=r.get("created_at"),
         report={
             k: r.get(k)
             for k in (
@@ -90,14 +92,28 @@ async def ingest_bugdrop(ref: str, deps: Deps) -> Issue:
     )
 
 
+def _older(when: str | None, than: str | None) -> bool:
+    """True when `when` is before `than` (unknown times count as older, so they stay candidates)."""
+    if not when or not than:
+        return True
+    return datetime.fromisoformat(when.replace("Z", "+00:00")) < datetime.fromisoformat(
+        than.replace("Z", "+00:00")
+    )
+
+
 async def dedup_candidates(issue: Issue, deps: Deps, k: int = 8) -> list[dict[str, str]]:
-    """Open Vitals issues and recent BugDrop reports for the same app, newest first (D2's options)."""
+    """Open Vitals issues and recent BugDrop reports for the same app opened *before* this one (the earliest
+    issue is the canonical one), newest first — D2's options."""
     out: list[dict[str, str]] = []
     async with httpx.AsyncClient(timeout=15) as http:
         try:
             issues = (await http.get(f"{deps.vitals_url}/api/issues", params={"status": "open"})).json()
             for i in issues:
-                if i["id"] != issue.id and i.get("app") == issue.app:
+                if (
+                    i["id"] != issue.id
+                    and i.get("app") == issue.app
+                    and _older(i.get("opened_at"), issue.opened_at)
+                ):
                     out.append({"id": i["id"], "description": f"Vitals {i.get('kind')}: {i['title']}"})
         except httpx.HTTPError:
             pass
@@ -109,7 +125,7 @@ async def dedup_candidates(issue: Issue, deps: Deps, k: int = 8) -> list[dict[st
                 )
             ).json()
             for r in reports:
-                if r["id"] != issue.id:
+                if r["id"] != issue.id and _older(r.get("created_at"), issue.opened_at):
                     text = " ".join((r.get("description") or "").split())[:200]
                     out.append(
                         {"id": r["id"], "description": f"BugDrop report (v{r.get('version')}): {text}"}
@@ -437,22 +453,32 @@ async def score_and_fit(
     order = sorted(
         optional, key=lambda i: ({"keep": 0, "keep_if_budget": 1}.get(action[i.id], 2), -score[i.id])
     )
+    leftover: list[EvidenceItem] = []
     for it in order:
         cost = tokens(it)
         if action[it.id] in ("keep", "keep_if_budget") and used + cost <= budget:
             kept.append(it)
             used += cost
         else:
-            reason = "over budget" if action[it.id] != "drop" else "not relevant"
-            pruned.append(
-                {
-                    "id": it.id,
-                    "summary": it.summary,
-                    "score": round(score[it.id], 2),
-                    "tokens": cost,
-                    "reason": reason,
-                }
-            )
+            leftover.append(it)
+    # D3's job is to fit the budget, not to prune for its own sake: spend what is left on windows scored
+    # "background" or better; clearly irrelevant ones stay out.
+    for it in sorted(leftover, key=lambda i: -score[i.id]):
+        cost = tokens(it)
+        if score[it.id] >= BACKGROUND_SCORE and used + cost <= budget:
+            kept.append(it)
+            used += cost
+            continue
+        reason = "over budget" if score[it.id] >= BACKGROUND_SCORE else "not relevant"
+        pruned.append(
+            {
+                "id": it.id,
+                "summary": it.summary,
+                "score": round(score[it.id], 2),
+                "tokens": cost,
+                "reason": reason,
+            }
+        )
     return kept, pruned, d.ledger_id
 
 

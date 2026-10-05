@@ -158,7 +158,7 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - The log template masked `13` but not `13ms` (no word boundary), so timing-only differences didn't collapse; fixed with a test.
 - The new servers are not yet wired into the agents' tool lists; P5/P6 (collector, evidence loop, subagents) decide which agent gets which server.
 
-## P5 — Triage + context collector (2026-10-05) — built, live Clef check pending
+## P5 — Triage + context collector (2026-10-05) — done
 
 **Done**
 - BugDrop reports are first-class issues: `debugassist run BD-1001` ingests the report (description, device, flags, network, files) and triages it (owner by Clef when there is no stack).
@@ -169,4 +169,10 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 
 **Verified** with the keyless pipeline on VIT-1001 (17 kept / 2 pruned) and BD-1001 (13 kept, D4 ran), plus unit tests for D3 budget selection and the duplicate path.
 
-**Not verified yet:** D2/D3/D4 with live Clef. Every Clef call now returns HTTP 401: the Cloudflare token is IP-restricted to 122.172.85.246 and the connection's IP changed to 122.172.80.145. Decisions fell back silently — which is why the summary now reports the backend. Needs the token's IP filter updated.
+**Live Clef check (after the token's IP filter was widened):**
+- D4 on BD-1001's screenshot: screen `search` (correct — the "Where to?" home screen), blank p=0.08 (correct, the rider had reopened the app), abnormal battery p=0.007 (correct, no battery screenshot).
+- D2 on BD-1001: VIT-1001 at p=0.61 → escalate band, run continued — a fair call: same symptom, but that rider had the flag off.
+- D3 on VIT-1001: kept the crashing session and version adoption; pruned backend logs, OS/city breakdowns, incidents and dependency status — right for a client-side race.
+- **Bug found and fixed:** D2 marked VIT-1001 (the original crash) as a duplicate of BD-1001, a report filed 1.5 hours later. Candidates are now only issues opened *before* the one being triaged; the earliest is canonical.
+- D3 pruned more than the budget required; leftover budget now goes to windows scored "background" or better.
+- Earlier the token was IP-restricted to an old address and every call returned 401 with a silent fallback; the run summary now reports the decision backend.
