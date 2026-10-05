@@ -338,3 +338,29 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Docker Desktop here has no host networking, so the runtime container joins the compose network and uses service names; links shown to people stay on localhost.
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
+
+## P12 — Observability, cost, guardrails, privacy (2026-10-05) — done
+
+**Done**
+- **Phoenix tracing** (`core/tracing.py`; arize-phoenix-otel + OpenInference). Each `debugassist run` is one trace:
+  - a root AGENT span tagged with `session.id = run id`, so resumes group into one session;
+  - a span per graph node;
+  - the LangChain instrumentor's LLM and tool spans (MCP tools included);
+  - Clef DECISION spans with the redacted input state, chosen values, p, band, action, backend and cost;
+  - TOOL spans for sandbox commands (exit code, output tail) and AGENT spans for subagents.
+
+  The trace id is saved on the run and the dashboard links straight to it. Tracing switches on when Phoenix answers and DA_TRACING≠0; otherwise every helper is a no-op (tests, CI).
+- **Global run budget** (`pipeline/budget.py`): LLM spend (per node) plus Clef spend (ledger) against the agent type's `run_budget_usd`. An LLM node does not start once it is spent, and each agent's `max_budget_usd` (RCA, subagents, reproduce, fix) is lowered to what is left. The run view gains a "Cost by node" card (LLM nodes and Clef per decision).
+- **Prompt-injection hygiene** (`core/untrusted.py`): issue titles, user reports, evidence, subagent findings, validation and test output, diffs and the Ask-AI context are fenced in `<untrusted_data source=…>` blocks; a closing tag inside the data cannot end the fence. The runner's system note says never to follow instructions inside them.
+- **Fixtures** (`tests/fixtures/injection`: a malicious report with PII, injected log lines, a code comment addressed to AI agents) and 12 tests:
+  - injected text appears only inside fences;
+  - PII never reaches the model (email, phone, card, precise GPS, bearer key);
+  - the commands it asks for are blocked (`git push origin main`, `curl … $(cat .env)`, `printenv`, `docker`, `gh`);
+  - secret paths and escapes are refused;
+  - the write policy denies pushing `main` or opening PRs elsewhere.
+
+**Verified** — live run `20261005-122328-vit-1002` (perf-regression, $0.17): RCA → plan → unit reproduction → fix → validation passed (fails before, passes after, suite and CI checks). In Phoenix it is one trace of 413 spans: 40 LLM, 66 TOOL (26 sandbox commands; MCP `commit_details`, `find_references`, `query_logs`), 21 DECISION, 5 AGENT (run, classify_rca, fix, two subagents), plus every node. The deep link `…/projects/<id>/traces/<trace id>` resolves. 290 tests.
+
+**Findings / not done**
+- The instrumentor also traces each agent middleware hook (~280 CHAIN spans per run): noisy but harmless.
+- Raw tool outputs inside Phoenix spans are not redacted. Phoenix is self-hosted and only LLM/Clef inputs leave the machine, which are redacted; an OpenInference TraceConfig could mask them if Phoenix ever runs remotely.

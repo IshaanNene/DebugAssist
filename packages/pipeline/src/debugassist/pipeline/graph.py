@@ -15,7 +15,8 @@ from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
 
-from debugassist.pipeline import nodes
+from debugassist.core import tracing
+from debugassist.pipeline import budget, nodes
 from debugassist.pipeline.deps import Deps
 from debugassist.pipeline.state import NODE_KIND, RunState
 
@@ -46,20 +47,17 @@ def wrap(
 
             deps.agent_type = agent_types.load(state.agent_type).model_dump()
         t0 = time.perf_counter()
-        try:
-            update = await fn(state, deps)
-        except Exception as exc:
-            if type(exc).__name__ == "GraphInterrupt":
-                raise
-            update: dict[str, Any] = {
-                "status": "failed",
-                "errors": [
-                    *state.errors,
-                    f"{name}: {type(exc).__name__}: {exc}",
-                    traceback.format_exc()[-2000:],
-                ],
-            }
-            log(f"  ✗ {name}: {exc}")
+        kind = NODE_KIND.get(name, "deterministic")
+        with tracing.span(name, kind="agent" if "llm" in kind else "chain", node=name, node_kind=kind) as sp:
+            update = await _run_node(name, kind, fn, state, deps, log)
+            tracing.set_attributes(
+                sp,
+                status=update.get("status", "ok"),
+                error=(update.get("errors") or [None])[-2] if update.get("status") == "failed" else None,
+            )
+        trace_id = deps.extra.get("trace_id")
+        if trace_id and trace_id not in state.traces:
+            update["traces"] = [*state.traces, trace_id]
         ms = int((time.perf_counter() - t0) * 1000)
         update["timings_ms"] = {**state.timings_ms, name: ms}
         if deps.extra.get("until") == name and update.get("status") not in ("failed", "duplicate"):
@@ -69,6 +67,34 @@ def wrap(
         return update
 
     return node
+
+
+async def _run_node(
+    name: str, kind: str, fn: Node, state: RunState, deps: Deps, log: Callable[[str], None]
+) -> dict[str, Any]:
+    if "llm" in kind:  # the global run budget: no new LLM work once it is spent
+        spent = await budget.spent(state, deps)
+        left = budget.limit(deps) - spent["total"]
+        deps.extra["budget_remaining"] = left
+        if left <= 0:
+            msg = f"{name}: run budget exhausted (${spent['total']:.4f} of ${budget.limit(deps):.2f})"
+            log(f"  ✗ {msg}")
+            return {"status": "failed", "errors": [*state.errors, msg, ""]}
+    try:
+        update = await fn(state, deps)
+    except Exception as exc:
+        if type(exc).__name__ == "GraphInterrupt":
+            raise
+        update: dict[str, Any] = {
+            "status": "failed",
+            "errors": [
+                *state.errors,
+                f"{name}: {type(exc).__name__}: {exc}",
+                traceback.format_exc()[-2000:],
+            ],
+        }
+        log(f"  ✗ {name}: {exc}")
+    return update
 
 
 def build_graph(deps: Deps, log: Callable[[str], None] = print) -> StateGraph[RunState]:

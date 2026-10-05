@@ -18,6 +18,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.types import Command
 from pydantic import BaseModel
 
+from debugassist.core import tracing
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT
 from debugassist.decisions.policy import Band
@@ -212,6 +213,20 @@ def run(
             deps.extra["agent_type"] = agent_type
         typer.echo(f"run {run_id} ({mode}, LLM {llm}); artifacts in .data/runs/{run_id}/")
         (ROOT / ".data").mkdir(exist_ok=True)
+        if tracing.setup():
+            typer.echo(f"  tracing → {tracing.phoenix_url()} (project {tracing.PROJECT})")
+        with (
+            tracing.session(run_id, issue=issue),
+            tracing.span(f"run {run_id}", kind="agent", **{"session.id": run_id, "issue": issue}),
+        ):
+            deps.extra["trace_id"] = tracing.current_trace_id()
+            result = await _invoke(run_id, deps)
+        tracing.shutdown()
+        if deps.engine.ledger is not None:
+            await deps.engine.ledger.close()
+        return RunState.model_validate(result)
+
+    async def _invoke(run_id: str, deps: Any) -> dict[str, Any]:
         async with AsyncSqliteSaver.from_conn_string(str(ROOT / ".data" / "checkpoints.sqlite")) as saver:
             saver.serde = JsonPlusSerializer(allowed_msgpack_modules=CHECKPOINT_TYPES)
             builder = build_graph(deps, log=lambda m: typer.echo(f"  {m}"))
@@ -245,9 +260,7 @@ def run(
                 ask = result["__interrupt__"][0].value
                 approved = typer.confirm(f"  ⏸ {ask.get('question')}", default=False)
                 result = await graph.ainvoke(Command(resume=approved), cfg)
-        if deps.engine.ledger is not None:
-            await deps.engine.ledger.close()
-        return RunState.model_validate(result)
+        return result
 
     _summary(asyncio.run(main()))
 

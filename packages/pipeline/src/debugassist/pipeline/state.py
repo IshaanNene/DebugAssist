@@ -244,7 +244,10 @@ class RunState(BaseModel):
     timings_ms: dict[str, int] = Field(default_factory=dict[str, int])
     errors: list[str] = Field(default_factory=list[str])
     status: Literal["running", "done", "failed", "stopped", "duplicate", "watching"] = "running"
-    stopped_after: str | None = None  # the node --until stopped after (a resume continues from it)
+    stopped_after: str | None = None
+    traces: list[str] = Field(
+        default_factory=list[str]
+    )  # Phoenix trace ids, one per invocation  # the node --until stopped after (a resume continues from it)
     evidence_pruned: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # dropped by D3
     screenshots: dict[str, Any] | None = None  # D4 findings
 

@@ -5,6 +5,35 @@ import { ApiDown, Badge, Card, priorityTone } from "@/components/ui";
 import { DecisionLedger } from "@/components/DecisionLedger";
 import { RunLive } from "@/components/RunLive";
 
+function CostTable({ costs, decisions }: { costs: Record<string, number>; decisions: Decision[] }) {
+  const clef = new Map<string, number>();
+  for (const d of decisions) clef.set(d.decision_id, (clef.get(d.decision_id) ?? 0) + d.cost_usd);
+  const llmTotal = Object.values(costs).reduce((a, b) => a + b, 0);
+  const clefTotal = [...clef.values()].reduce((a, b) => a + b, 0);
+  const rows: [string, number, string][] = [
+    ...Object.entries(costs).map(([k, v]) => [k, v, "LLM"] as [string, number, string]),
+    ...[...clef.entries()].map(([k, v]) => [k, v, "Clef"] as [string, number, string]),
+  ].sort((a, b) => b[1] - a[1]);
+  return (
+    <table className="w-full text-xs">
+      <tbody>
+        {rows.map(([k, v, kind]) => (
+          <tr key={`${kind}-${k}`} className="border-t border-line">
+            <td className="py-1 font-mono">{k}</td>
+            <td><Badge tone={kind === "LLM" ? "blue" : "amber"}>{kind}</Badge></td>
+            <td className="text-right">${v.toFixed(5)}</td>
+          </tr>
+        ))}
+        <tr className="border-t border-line font-semibold">
+          <td className="py-1">total</td>
+          <td className="text-muted">LLM ${llmTotal.toFixed(4)} · Clef ${clefTotal.toFixed(4)}</td>
+          <td className="text-right">${(llmTotal + clefTotal).toFixed(4)}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
 export default async function RunPage(props: PageProps<"/runs/[id]">) {
   const { id } = await props.params;
   const [run, decisions, calls] = await Promise.all([
@@ -28,7 +57,9 @@ export default async function RunPage(props: PageProps<"/runs/[id]">) {
           {s.triage && <Badge tone={priorityTone(s.triage.priority)}>{s.triage.priority}</Badge>}
           <Link href={`/issues/${s.issue?.source}/${s.issue?.id}`} className="text-llm hover:underline">{s.issue?.id} RCA →</Link>
           {s.fix_attempts.length > 0 && <Link href={`/runs/${id}/pr`} className="text-llm hover:underline">PR panel →</Link>}
-          <a href={run.phoenix_url} className="hover:underline" title="Per-run traces arrive with the observability phase">Phoenix ↗</a>
+          <a href={run.phoenix_url} className="hover:underline" title={run.phoenix_trace ? "this run's trace in Phoenix" : "this run has no trace (Phoenix was off)"}>
+            {run.phoenix_trace ? `Phoenix trace ↗${run.traces.length > 1 ? ` (latest of ${run.traces.length})` : ""}` : "Phoenix ↗"}
+          </a>
         </div>
         <h1 className="text-xl font-semibold">{s.issue?.title}</h1>
       </header>
@@ -55,6 +86,9 @@ export default async function RunPage(props: PageProps<"/runs/[id]">) {
               </tbody>
             </table>
             <p className="mt-2 text-xs text-muted">Turn caps come from the agent type (configs/agent_types).</p>
+          </Card>
+          <Card title="Cost by node">
+            <CostTable costs={s.costs} decisions={decisions ?? []} />
           </Card>
           {s.errors.length > 0 && (
             <Card title="Errors">

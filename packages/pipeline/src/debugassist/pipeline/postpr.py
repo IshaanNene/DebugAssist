@@ -21,6 +21,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from debugassist.core import untrusted
 from debugassist.core.policy import Verdict
 from debugassist.core.settings import Integration, get_settings
 from debugassist.integrations.sandbox import IMAGES
@@ -129,7 +130,9 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
             f"Repository {issue.repo}, component '{issue.component}'. Release {base}.\n"
             f"Root cause: {state.rca.output.root_cause if state.rca and state.rca.output else '-'}\n"
             f"Reproduction test: `{repro.test_file}` (`{cmd}`).\n\n"
-            f"Current fix (diff against the release):\n```diff\n{fa.diff[-6000:]}\n```\n"
+            "Current fix (diff against the release):\n"
+            + untrusted.fence("current diff", fa.diff[-6000:])
+            + "\n"
             "Apply the instruction, check the tests, then submit."
         )
 
@@ -305,7 +308,9 @@ async def ask(
         )
         r = await deps.runner(None).run(
             spec,
-            f"Run context:\n{context}\n\nConversation so far:\n{convo or '(new)'}\n\nEngineer: {message}\n\nAnswer with submit_result.",
+            "Run context:\n"
+            + untrusted.fence("run context", context)
+            + f"\n\nConversation so far:\n{convo or '(new)'}\n\nEngineer: {message}\n\nAnswer with submit_result.",
             ChatAnswer,
         )
         if r.output:

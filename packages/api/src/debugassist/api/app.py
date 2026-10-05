@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from debugassist.api import data
 from debugassist.api.data import Paths, arr, obj
+from debugassist.core import tracing
 
 VITALS = os.environ.get("VITALS_URL", "http://localhost:8100")
 BUGDROP = os.environ.get("BUGDROP_URL", "http://localhost:8200")
@@ -57,11 +58,15 @@ def list_runs(issue: str | None = None, limit: int = 100) -> list[dict[str, Any]
 @app.get("/api/runs/{run_id}")
 def get_run(run_id: str) -> dict[str, Any]:
     s = _state(run_id)
+    traces = [t for t in arr(s.get("traces")) if isinstance(t, str)]
+    trace_url = tracing.trace_url(traces[-1]) if traces else None
     return {
         "summary": data.summary(s),
         "state": s,
         "graph": data.graph(PATHS, s),
-        "phoenix_url": f"{PHOENIX}/projects",
+        "phoenix_url": trace_url or f"{PHOENIX}/projects",
+        "phoenix_trace": bool(trace_url),
+        "traces": traces,
     }
 
 

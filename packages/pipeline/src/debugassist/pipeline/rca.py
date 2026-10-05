@@ -20,6 +20,7 @@ from typing import Any
 import httpx
 import yaml
 
+from debugassist.core import tracing, untrusted
 from debugassist.core.evidence import EvidenceItem, evidence_id
 from debugassist.core.policy import ROOT
 from debugassist.decisions.engine import RunContext
@@ -289,7 +290,9 @@ async def run_subagent(
     assert state.issue
     cfg = subagent_config()
     s = subagent_pool(state, deps)[sid]
-    limits = {**cfg["defaults"], **{k: v for k, v in s.items() if k in cfg["defaults"]}}
+    from debugassist.pipeline import budget
+
+    limits = budget.cap({**cfg["defaults"], **{k: v for k, v in s.items() if k in cfg["defaults"]}}, deps)
     inputs = [e for e in state.evidence if e.source in s["inputs"]]
     spec = LLMNodeSpec(
         node=f"subagent_{sid}",
@@ -301,10 +304,17 @@ async def run_subagent(
     )
     prompt = (
         f"Issue: {json.dumps(collector.issue_summary(state.issue), default=str)}\n\n"
-        f"Your evidence ({len(inputs)} items):\n{_bundle(inputs, SUBAGENT_EVIDENCE_TOKENS) or '(none — use your tools)'}\n\n"
+        f"Your evidence ({len(inputs)} items):\n"
+        + (
+            untrusted.fence("collected evidence", b)
+            if (b := _bundle(inputs, SUBAGENT_EVIDENCE_TOKENS))
+            else "(none — use your tools)"
+        )
+        + "\n\n"
         "Report your findings with submit_result."
     )
-    r = await deps.runner().run(spec, prompt, Finding, mcp_env=mcp_env)
+    with tracing.span(f"subagent {sid}", kind="agent", subagent=sid, domain=s.get("domain")):
+        r = await deps.runner().run(spec, prompt, Finding, mcp_env=mcp_env)
     finding = Finding.model_validate(r.output) if r.output else None
     record: dict[str, Any] = {
         "id": sid,

@@ -304,3 +304,35 @@ async def test_mitigation_rolls_back_only_a_live_significant_flag(
     )
     m = (await nodes.mitigate(st, deps))["mitigation"]
     assert m.action == action and detail in m.detail
+
+
+async def test_llm_nodes_do_not_start_once_the_run_budget_is_spent(tmp_path: Path) -> None:
+    from debugassist.pipeline import budget
+    from debugassist.pipeline.graph import wrap
+
+    calls: list[str] = []
+
+    async def step(state: RunState, deps: Any) -> dict[str, Any]:
+        calls.append("ran")
+        return {"costs": {**state.costs, "fix": 0.1}}
+
+    class Ledger:
+        async def list(self, *, run_id: str | None = None, decision_id: str | None = None) -> list[Any]:
+            return [SimpleNamespace(cost_usd=0.25)]
+
+    deps: Any = SimpleNamespace(
+        extra={},
+        run_dir=tmp_path,
+        agent_type={"name": "t", "run_budget_usd": 1.0},
+        engine=SimpleNamespace(ledger=Ledger()),
+    )
+    st = rca_state()
+    st.costs = {"classify_rca": 0.5}
+    out = await wrap("fix", step, deps, lambda _m: None)(st)
+    assert calls == ["ran"] and deps.extra["budget_remaining"] == pytest.approx(0.25)
+    assert budget.cap({"max_budget_usd": 1.0}, deps)["max_budget_usd"] == pytest.approx(0.25)
+    st.costs = {"classify_rca": 0.8}
+    out = await wrap("fix", step, deps, lambda _m: None)(st)
+    assert calls == ["ran"] and out["status"] == "failed" and "run budget exhausted" in out["errors"][-2]
+    out = await wrap("validate", step, deps, lambda _m: None)(st)  # deterministic nodes still run
+    assert calls == ["ran", "ran"]
