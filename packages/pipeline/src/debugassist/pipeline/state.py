@@ -112,6 +112,7 @@ class Mitigation(BaseModel):
     decision: dict[str, Any] = Field(default_factory=dict[str, Any])
     action: Literal["none", "rolled_back", "dry_run", "awaiting_approval"] = "none"
     detail: str = ""
+    rolled_back_from: int | None = None  # rollout % before the rollback (restored after a verified fix)
 
 
 class ReproOutput(BaseModel):
@@ -200,6 +201,24 @@ class PRInfo(BaseModel):
     mode: str
 
 
+class Watch(BaseModel):
+    """Post-merge watch (D17): is the issue gone after the fix was deployed?"""
+
+    pr_url: str | None = None
+    pr_number: int | None = None
+    started_at: str
+    status: Literal["watching", "resolved", "reopened"] = "watching"
+    merged: bool | None = None  # None: unknown (mock GitHub; the deploy stands in for the merge)
+    deploy: dict[str, Any] = Field(default_factory=dict[str, Any])
+    before: dict[str, Any] = Field(default_factory=dict[str, Any])
+    after: dict[str, Any] = Field(default_factory=dict[str, Any])
+    decision: dict[str, Any] = Field(default_factory=dict[str, Any])
+    actions: list[str] = Field(default_factory=list[str])
+    reason: str | None = None  # why it is still watching
+    checks: int = 0
+    last_checked: str | None = None
+
+
 class RunState(BaseModel):
     run_id: str
     issue_ref: str
@@ -211,6 +230,7 @@ class RunState(BaseModel):
     rca: RCA | None = None
     mitigation: Mitigation | None = None
     fix_plan: FixPlan | None = None
+    watch: Watch | None = None
     fix_attempts: list[FixAttempt] = Field(default_factory=list[FixAttempt])
     validation: Validation | None = None
     ship: Ship | None = None
@@ -220,7 +240,7 @@ class RunState(BaseModel):
     costs: dict[str, float] = Field(default_factory=dict[str, float])
     timings_ms: dict[str, int] = Field(default_factory=dict[str, int])
     errors: list[str] = Field(default_factory=list[str])
-    status: Literal["running", "done", "failed", "stopped", "duplicate"] = "running"
+    status: Literal["running", "done", "failed", "stopped", "duplicate", "watching"] = "running"
     stopped_after: str | None = None  # the node --until stopped after (a resume continues from it)
     evidence_pruned: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # dropped by D3
     screenshots: dict[str, Any] | None = None  # D4 findings

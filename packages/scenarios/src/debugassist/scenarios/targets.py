@@ -63,6 +63,11 @@ class TargetRepo:
             self.git("tag", "-d", tag)
         run(["./scripts/release.sh", version], self.path)
 
+    def checkout_ref(self, ref: str) -> str:
+        """Detached checkout (a bot branch may be checked out in a run's worktree). Returns the sha."""
+        self.git("checkout", "-q", "--detach", ref)
+        return self.git("rev-parse", "--short", "HEAD").strip()
+
     def checkout_main(self) -> None:
         self.git("checkout", "-q", "main")
 

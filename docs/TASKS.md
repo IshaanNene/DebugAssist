@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P7 done, P8–P14 not started (a few pieces pulled forward). Next: P8.
+Overall: P0–P8 done, P9–P14 not started (a few pieces pulled forward). Next: P9.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -33,7 +33,7 @@ Overall: P0–P7 done, P8–P14 not started (a few pieces pulled forward). Next:
 - [x] D3 relevance scoring of optional windows; kept by action then score, leftover budget to "background or better"; pruned list kept in state
 - [x] D4 vision questions over a report's images (≤ 4), findings as evidence + ledger
 - [x] Collector: BugDrop ingest (`BD-…`), core evidence + optional windows (session, perf samples, trace, logs around the event, incidents, adoption, report log rings); isolated per source
-- [~] Slack ping for P0/P1 to the mock inbox (inbox UI comes with the dashboard, P9)
+- [x] Chat page for P0/P1: Discord webhook (free) or the mock inbox (inbox UI comes with the dashboard, P9)
 - [x] Live Clef verification of D2/D3/D4 (after the token's IP filter was widened)
 
 ## P6 · Root cause (D5–D10) ✅
@@ -64,11 +64,19 @@ Overall: P0–P7 done, P8–P14 not started (a few pieces pulled forward). Next:
 - [ ] Follow-up: make the fix step use every RCA fact (here: "times out after 3 s, shorter than matching takes"),
       e.g. pass grounded claims, not just the summary, to the fix agent; re-run BUG-003 with retries
 
-## P8 · Ship gate, PR / Jira / Slack, post-merge (D16–D17)
+## P8 · Ship gate, PR / Jira / chat, post-merge (D16–D17) ✅
 - [x] D16 ship gate (verified repro + source change required; draft without proof); PR + Jira link/comment/transition
-- [ ] `pr-authoring` skill-driven PR description (summary, root cause, evidence, proof, risk, rollback plan)
-- [ ] Link the Vitals / BugDrop issue; Slack DM (real or mock inbox UI)
-- [ ] `post_merge_watch` + D17: after merge + `make deploy`, watch crash/report rates, resolve or reopen, restore flag
+- [x] `pr-authoring` skill (`marketplace/plugins/core/skills/pr-authoring/SKILL.md`): its template drives every PR
+      description — summary, links, root cause + window commit, evidence with grounding marks, mitigation, fix,
+      test proof table (tier, fail → pass, suite, CI checks), risk & rollback
+- [x] Link the PR / ticket back on the Vitals issue or BugDrop report (new `links` endpoints; BugDrop report status)
+- [x] Chat instead of Slack (not free): Discord channel webhook (`DISCORD_WEBHOOK_URL`) or the local mock inbox;
+      PII-redacted, mentions disabled, policy-gated + audited; a chat outage never fails a run
+- [x] `post_merge_watch` + `debugassist watch <run>` + D17: after merge + `make deploy REF=…`, compare the issue's
+      rate in equal windows before/after (Vitals `/api/stats`, BugDrop reports per session); resolve (Vitals,
+      BugDrop, Jira → Done, restore a rolled-back flag behind approval, chat) or reopen
+- [x] Keyless demo runs every node end to end (`make demo-push-crash`), then deploy + watch resolves the issue
+- [ ] README logo wall still shows Slack (needs a Discord icon in `docs/assets/icons`)
 
 ## P9 · Dashboard (Next.js + Tailwind + React Flow)
 - [ ] Inbox · Issue/RCA page (RCA left, evidence timeline right) · Run view (graph, ledger, turns, cost, Phoenix link)

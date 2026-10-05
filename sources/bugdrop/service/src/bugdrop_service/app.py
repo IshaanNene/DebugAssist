@@ -10,7 +10,7 @@ from collections.abc import AsyncGenerator, Iterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import httpx
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -22,7 +22,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from bugdrop_service.blobs import BlobStore, from_env
-from bugdrop_service.db import Base, Report, make_engine, make_sessionmaker
+from bugdrop_service.db import Base, Report, ReportLink, make_engine, make_sessionmaker
 from bugdrop_service.timeline import ui_state_timeline
 from debugassist.core.redaction import redact, redact_text
 
@@ -231,7 +231,45 @@ def list_reports(
 
 @app.get("/api/reports/{rid}")
 def get_report(rid: str, s: DB) -> dict[str, Any]:
-    return report_out(_report(s, rid))
+    return {**report_out(_report(s, rid)), "links": _links(s, rid)}
+
+
+class LinkIn(BaseModel):
+    kind: Literal["jira", "pr", "rca", "other"] = "other"
+    url: str = Field(min_length=1, max_length=2000)
+    title: str = Field(default="", max_length=300)
+
+
+class StatusIn(BaseModel):
+    status: Literal["new", "triaged", "in_progress", "resolved", "duplicate"]
+
+
+def _links(s: Session, rid: str) -> list[dict[str, Any]]:
+    rows = s.scalars(select(ReportLink).where(ReportLink.report_id == rid).order_by(ReportLink.id))
+    return [
+        {"kind": r.kind, "url": r.url, "title": r.title, "created_at": r.created_at.isoformat()} for r in rows
+    ]
+
+
+@app.post("/api/reports/{rid}/links", status_code=201)
+def add_link(rid: str, link: LinkIn, s: DB) -> list[dict[str, Any]]:
+    """Attach a Jira ticket / PR / RCA to the report; the same URL is only stored once."""
+    _report(s, rid)
+    if (
+        s.scalars(select(ReportLink).where(ReportLink.report_id == rid, ReportLink.url == link.url)).first()
+        is None
+    ):
+        s.add(ReportLink(report_id=rid, kind=link.kind, url=link.url, title=link.title))
+        s.commit()
+    return _links(s, rid)
+
+
+@app.post("/api/reports/{rid}/status")
+def set_status(rid: str, body: StatusIn, s: DB) -> dict[str, Any]:
+    r = _report(s, rid)
+    r.status = body.status
+    s.commit()
+    return get_report(rid, s)
 
 
 @app.get("/api/reports/{rid}/logs")

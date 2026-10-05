@@ -15,9 +15,9 @@ from debugassist.core.policy import ROOT, PolicyGate
 from debugassist.core.settings import Integration, Mode, Settings, get_settings
 from debugassist.decisions.engine import DecisionEngine
 from debugassist.decisions.factory import build_engine
+from debugassist.integrations.chat import Chat, ChatMock, DiscordWebhook
 from debugassist.integrations.github import GitHub, GitHubLive, GitHubMock
 from debugassist.integrations.jira import Jira, JiraCloud, JiraMock
-from debugassist.integrations.slack import SlackMock
 from debugassist.llm.runner import CASSETTES, AgentRunner, CassetteRunner, LLMRunner, ScriptedRunner
 
 SCRIPTED = ROOT / "packages" / "llm" / "scripted"
@@ -32,8 +32,15 @@ APPS: dict[str, tuple[str, str, str, str]] = {
 
 
 # Mock Clef answers are pseudo-random per state; pin the ones that would stop a keyless run before it
-# writes a fix (a random "needs a human" strategy or "cannot reproduce" tier). Labelled mock as always.
-MOCK_DECISIONS: dict[str, Any] = {"strategy": "race_ordering", "tier": "unit"}
+# writes a fix or opens a PR (e.g. a random non-code category, "needs a human" strategy or "cannot reproduce"
+# tier). Labelled mock as always.
+MOCK_DECISIONS: dict[str, Any] = {
+    "category": "own_code",
+    "rollback_flag": 0.93,
+    "strategy": "race_ordering",
+    "tier": "unit",
+    "outcome": "open_pr",
+}
 
 
 @dataclass
@@ -44,7 +51,7 @@ class Deps:
     gate: PolicyGate
     jira: Jira
     github: GitHub
-    slack: SlackMock
+    chat: Chat
     agent_type: dict[str, Any]
     catalog: dict[str, Any]
     llm_mode: str
@@ -105,7 +112,11 @@ async def build_deps(
         gate=PolicyGate(mode=mode),
         jira=jira,
         github=github,
-        slack=SlackMock(),
+        chat=(
+            DiscordWebhook(s.discord_webhook_url.get_secret_value())
+            if s.mode(Integration.CHAT) is Mode.LIVE and s.discord_webhook_url
+            else ChatMock()
+        ),
         agent_type=agent_type,
         catalog=catalog,
         llm_mode=llm_mode,

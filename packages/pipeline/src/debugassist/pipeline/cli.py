@@ -20,6 +20,9 @@ from pydantic import BaseModel
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT
 from debugassist.decisions.policy import Band
+from debugassist.integrations.github import GitHubMock
+from debugassist.integrations.jira import JiraMock
+from debugassist.pipeline import postmerge
 from debugassist.pipeline import state as state_module
 from debugassist.pipeline.deps import build_deps, new_run_id
 from debugassist.pipeline.graph import build_graph
@@ -108,6 +111,15 @@ def _summary(s: RunState) -> None:
         typer.echo(f"  ship      {s.ship.outcome}")
     if s.pr:
         typer.echo(f"  PR        {s.pr.url} ({s.pr.branch} → {s.pr.base}, {s.pr.mode})")
+    for n in s.notifications:
+        if n.get("kind") == "chat":
+            typer.echo(f"  chat      {n.get('to')} ({n.get('mode')}): {str(n.get('title', ''))[:90]}")
+        elif n.get("kind") == "link":
+            typer.echo(f"  link      {n.get('issue')} ← {n.get('url')} ({n.get('result')})")
+    if s.watch:
+        typer.echo(
+            f"  watch     {s.watch.status} — after merge + `make deploy`: debugassist watch {s.run_id}"
+        )
     typer.echo(f"  cost      ${sum(s.costs.values()):.4f} LLM · {sum(s.timings_ms.values()) / 1000:.0f}s")
     for e in s.errors[:1]:
         typer.echo(f"  error     {e}")
@@ -220,3 +232,59 @@ def run(
         return RunState.model_validate(result)
 
     _summary(asyncio.run(main()))
+
+
+def watch(
+    run_id: Annotated[str, typer.Argument(help="run id of a run that opened a PR")],
+    min_sessions: Annotated[int, typer.Option(help="sessions needed after the deploy before deciding")] = (
+        postmerge.MIN_SESSIONS
+    ),
+    approve_flag_restore: Annotated[
+        bool, typer.Option(help="approve restoring a rolled-back flag (policy: approval)")
+    ] = False,
+) -> None:
+    """Post-merge check (D17): after merge + `make deploy`, is the issue gone? Resolve or reopen."""
+
+    async def main() -> RunState:
+        path = ROOT / ".data" / "runs" / run_id / "state.json"
+        if not path.is_file():
+            raise typer.BadParameter(f"no run {run_id}")
+        s = RunState.model_validate_json(path.read_text())
+        if s.watch is None:
+            raise typer.BadParameter(f"run {run_id} opened no PR; nothing to watch")
+        deps = await build_deps(run_id, mode=s.mode, llm_mode="mock")
+        # Act through the same backends the run used: a mock ticket or PR is never looked up live.
+        if s.triage and s.triage.jira_mode == "mock":
+            deps.jira = JiraMock()
+        if s.pr and s.pr.mode == "mock":
+            deps.github = GitHubMock()
+        try:
+            s.watch = await postmerge.check(
+                s, deps, min_sessions=min_sessions, approve_flag_restore=approve_flag_restore
+            )
+        finally:
+            if deps.engine.ledger is not None:
+                await deps.engine.ledger.close()
+        if s.watch.status != "watching":
+            s.status = "done"
+        path.write_text(s.model_dump_json(indent=2))
+        with (path.parent / "watch.jsonl").open("a") as f:
+            f.write(s.watch.model_dump_json() + "\n")
+        return s
+
+    s = asyncio.run(main())
+    w = s.watch
+    assert w
+    typer.echo(f"run {run_id}: {w.status}" + (f" — {w.reason}" if w.reason else ""))
+    if w.deploy:
+        typer.echo(f"  deploy    {w.deploy.get('ref')} ({w.deploy.get('sha')}) at {w.deploy.get('at')}")
+    if w.after:
+        typer.echo(
+            f"  rate      before {w.before.get('rate')} ({w.before.get('sessions')} sessions) → after {w.after.get('rate')} ({w.after.get('sessions')} sessions)"
+        )
+    if w.decision:
+        typer.echo(
+            f"  D17       {w.decision.get('action')} (p={w.decision.get('p')}, {w.decision.get('band')})"
+        )
+    for a in w.actions:
+        typer.echo(f"  action    {a}")

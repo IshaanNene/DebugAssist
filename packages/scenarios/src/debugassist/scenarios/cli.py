@@ -66,6 +66,18 @@ def inject(
 
 
 @app.command()
+def deploy(
+    ref: Annotated[str, typer.Argument(help="branch, tag or sha to ship, e.g. a merged release branch")],
+    repo: Annotated[str, typer.Option(help="target repo")] = "miniride-client",
+) -> None:
+    """Deploy a ref of a target repo to the local stack (stands in for merge + deploy)."""
+    from debugassist.scenarios import injector
+
+    entry = injector.deploy(repo, ref, log=log)
+    typer.echo(f"deployed {entry['repo']} {entry['ref']} ({entry['sha']}) at {entry['at']}")
+
+
+@app.command()
 def reset(
     wipe: Annotated[bool, typer.Option(help="Also wipe Vitals, BugDrop and ride data")] = False,
 ) -> None:

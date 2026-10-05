@@ -7,6 +7,7 @@ import os
 import re
 from collections.abc import AsyncGenerator, Iterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -19,8 +20,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from vitals_service import ingest, queries
-from vitals_service.db import AppSession, Base, Event, Group, Issue, make_engine, make_sessionmaker
-from vitals_service.models import EventBatch, SessionIn
+from vitals_service.db import (
+    AppSession,
+    Base,
+    Event,
+    Group,
+    Issue,
+    IssueLink,
+    make_engine,
+    make_sessionmaker,
+)
+from vitals_service.models import EventBatch, LinkIn, SessionIn
 
 log = logging.getLogger("vitals")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -206,7 +216,28 @@ def get_issue(issue_id: str, s: DB) -> dict[str, Any]:
     ).first()
     out = issue_out(i, g)
     out["latest_event"] = event_out(latest, full=True) if latest else None
+    out["links"] = _links(s, issue_id)
     return out
+
+
+def _links(s: DbSession, issue_id: str) -> list[dict[str, Any]]:
+    rows = s.scalars(select(IssueLink).where(IssueLink.issue_id == issue_id).order_by(IssueLink.id))
+    return [
+        {"kind": r.kind, "url": r.url, "title": r.title, "created_at": r.created_at.isoformat()} for r in rows
+    ]
+
+
+@app.post("/api/issues/{issue_id}/links", status_code=201)
+def add_link(issue_id: str, link: LinkIn, s: DB) -> list[dict[str, Any]]:
+    """Attach a Jira ticket / PR / RCA to the issue; the same URL is only stored once."""
+    _issue(s, issue_id)
+    exists = s.scalars(
+        select(IssueLink).where(IssueLink.issue_id == issue_id, IssueLink.url == link.url)
+    ).first()
+    if exists is None:
+        s.add(IssueLink(issue_id=issue_id, kind=link.kind, url=link.url, title=link.title))
+        s.commit()
+    return _links(s, issue_id)
 
 
 @app.post("/api/issues/{issue_id}/resolve")
@@ -284,6 +315,18 @@ def get_session(session_id: str, s: DB) -> dict[str, Any]:
         "started_at": row.started_at.isoformat(),
         "events": [event_out(e) for e in events],
     }
+
+
+@app.get("/api/stats")
+def get_stats(
+    s: DB,
+    since: datetime,
+    until: datetime | None = None,
+    fingerprint: str | None = None,
+    app_name: Annotated[str, Query(alias="app")] = "miniride-client",
+) -> dict[str, Any]:
+    """Sessions (and one issue's affected sessions) in a time window."""
+    return queries.window_stats(s, app_name, since, until or datetime.now(UTC), fingerprint)
 
 
 @app.get("/api/releases")

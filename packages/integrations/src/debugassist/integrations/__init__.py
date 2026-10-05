@@ -1,1 +1,1 @@
-"""External integrations (live + mock): Jira, GitHub, Slack, sandbox."""
+"""External integrations (live + mock): Jira, GitHub, chat (Discord), sandbox."""

@@ -4,6 +4,9 @@
 <p><a href="/">← issues</a></p>
 <h1 style="font-size:20px">{{ issue.id }} · {{ issue.title }}</h1>
 <p class="muted">{{ issue.app }} · {{ issue.kind }} · {{ issue.group.count }} events · first seen {{ issue.group.first_seen[:19] }} in {{ issue.group.first_version }} · <span class="pill {{ 'open' if issue.status == 'open' else '' }}">{{ issue.status }}</span></p>
+{% if issue.links %}
+<section><h2>Links</h2><ul>{% for l in issue.links %}<li><span class="pill">{{ l.kind }}</span> <a href="{{ l.url }}">{{ l.title or l.url }}</a></li>{% endfor %}</ul></section>
+{% endif %}
 {% set ev = issue.latest_event %}
 {% if ev %}
 <section><h2>Stack trace {% if ev.symbolicated %}<span class="pill">symbolicated</span>{% endif %}</h2>

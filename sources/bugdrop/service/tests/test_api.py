@@ -106,3 +106,21 @@ def test_rejects_non_images(client: TestClient) -> None:
 def test_bad_log_kind(client: TestClient) -> None:
     rid = submit(client)["id"]
     assert client.get(f"/api/reports/{rid}/logs", params={"kind": "secrets"}).status_code == 400
+
+
+def test_links_and_status(client: TestClient) -> None:
+    rid = submit(client)["id"]
+    for _ in range(2):  # the same URL is stored once
+        r = client.post(
+            f"/api/reports/{rid}/links",
+            json={"kind": "pr", "url": "https://github.com/o/r/pull/1", "title": "PR #1"},
+        )
+        assert r.status_code == 201 and len(r.json()) == 1
+    assert (
+        client.post(f"/api/reports/{rid}/status", json={"status": "in_progress"}).json()["status"]
+        == "in_progress"
+    )
+    got = client.get(f"/api/reports/{rid}").json()
+    assert got["links"][0]["title"] == "PR #1" and got["status"] == "in_progress"
+    assert client.post(f"/api/reports/{rid}/status", json={"status": "bogus"}).status_code == 422
+    assert "PR #1" in client.get(f"/reports/{rid}").text

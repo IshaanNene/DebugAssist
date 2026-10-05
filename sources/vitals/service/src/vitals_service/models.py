@@ -88,3 +88,9 @@ class SessionIn(BaseModel):
     started_at: datetime | None = None
     flags: dict[str, bool | str] = Field(default_factory=dict[str, bool | str])
     device: Device = Field(default_factory=Device)
+
+
+class LinkIn(BaseModel):
+    kind: Literal["jira", "pr", "rca", "other"] = "other"
+    url: str = Field(min_length=1, max_length=2000)
+    title: str = Field(default="", max_length=300)

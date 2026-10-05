@@ -35,7 +35,21 @@ class Report(Base):
     network: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # captured network profile
     log_counts: Mapped[dict[str, int]] = mapped_column(JSON, default=dict)
     files: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
-    status: Mapped[str] = mapped_column(String(16), default="new")
+    status: Mapped[str] = mapped_column(
+        String(16), default="new"
+    )  # new | triaged | in_progress | resolved | duplicate
+
+
+class ReportLink(Base):
+    """Something a report points to: a Jira ticket, a pull request, an RCA report."""
+
+    __tablename__ = "report_links"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    report_id: Mapped[str] = mapped_column(String(16), index=True)
+    kind: Mapped[str] = mapped_column(String(32))  # jira | pr | rca | other
+    url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
 
 
 def make_engine(url: str | None = None) -> Engine:

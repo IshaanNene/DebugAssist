@@ -38,7 +38,7 @@ class Integration(StrEnum):
     CLEF = "clef"
     GITHUB = "github"
     JIRA = "jira"
-    SLACK = "slack"
+    CHAT = "chat"  # team chat: a Discord channel webhook, or the local mock inbox
 
 
 class Settings(BaseSettings):
@@ -126,7 +126,7 @@ class Settings(BaseSettings):
     jira_base_url: str | None = None
     jira_email: str | None = None
 
-    slack_bot_token: SecretStr | None = None
+    discord_webhook_url: SecretStr | None = None  # the URL embeds its token: treat it as a secret
 
     # Dev default is SQLite; set postgresql+psycopg://debugassist:debugassist@localhost:5432/debugassist
     database_url: str = "sqlite+aiosqlite:///.data/debugassist.db"
@@ -135,7 +135,7 @@ class Settings(BaseSettings):
     da_mode_clef: Mode | None = None
     da_mode_github: Mode | None = None
     da_mode_jira: Mode | None = None
-    da_mode_slack: Mode | None = None
+    da_mode_chat: Mode | None = None
 
     def _has_credentials(self, integration: Integration) -> bool:
         match integration:
@@ -147,8 +147,8 @@ class Settings(BaseSettings):
                 return self.github_token is not None
             case Integration.JIRA:
                 return None not in (self.jira_api_key, self.jira_base_url, self.jira_email)
-            case Integration.SLACK:
-                return self.slack_bot_token is not None
+            case Integration.CHAT:
+                return self.discord_webhook_url is not None
 
     def mode(self, integration: Integration) -> Mode:
         explicit: Mode | None = getattr(self, f"da_mode_{integration.value}")

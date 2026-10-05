@@ -12,7 +12,9 @@ actions:
   github.push_branch: live      # bot branches only (see branches below)
   github.open_pr: live
   github.comment: live
-  slack.message: live           # goes to the mock inbox unless SLACK_BOT_TOKEN is set
+  source.link: live             # link PR / ticket back to our own Vitals and BugDrop
+  source.resolve: live          # resolve / reopen our own Vitals issue or BugDrop report after a deploy
+  chat.message: live            # goes to the mock inbox unless DISCORD_WEBHOOK_URL is set
   flags.rollback: approval      # automatic only if Clef p ≥ τ AND stats are significant AND this says live
   flags.restore: approval
 repos:                          # the only repositories DebugAssist may push to or open PRs on

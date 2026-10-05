@@ -119,3 +119,34 @@ def releases(db: DbSession, app: str) -> list[dict[str, Any]]:
         s["first_seen"] = s["first_seen"].isoformat()
         s["last_seen"] = s["last_seen"].isoformat()
     return out
+
+
+def window_stats(
+    db: DbSession, app: str, since: datetime, until: datetime, fingerprint: str | None = None
+) -> dict[str, Any]:
+    """Sessions started in [since, until) and, for one issue, its events and affected sessions there —
+    the before/after comparison a post-deploy check needs."""
+    sessions = db.execute(
+        select(AppSession.id, AppSession.version).where(
+            AppSession.app == app, AppSession.started_at >= since, AppSession.started_at < until
+        )
+    ).all()
+    out: dict[str, Any] = {
+        "since": since.isoformat(),
+        "until": until.isoformat(),
+        "sessions": len(sessions),
+        "by_version": dict(Counter(v for _, v in sessions)),
+    }
+    if fingerprint:
+        events = db.execute(
+            select(Event.session_id).where(
+                Event.fingerprint == fingerprint, Event.ts >= since, Event.ts < until
+            )
+        ).all()
+        affected = {sid for (sid,) in events if sid}
+        out |= {
+            "events": len(events),
+            "affected_sessions": len(affected),
+            "rate": round(len(affected) / len(sessions), 4) if sessions else None,
+        }
+    return out
