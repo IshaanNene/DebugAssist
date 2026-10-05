@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P8 done, P9–P14 not started (a few pieces pulled forward). Next: P9.
+Overall: P0–P9 done, P10–P14 not started (a few pieces pulled forward). Next: P10.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -78,9 +78,20 @@ Overall: P0–P8 done, P9–P14 not started (a few pieces pulled forward). Next:
 - [x] Keyless demo runs every node end to end (`make demo-push-crash`), then deploy + watch resolves the issue
 - [ ] README logo wall still shows Slack (needs a Discord icon in `docs/assets/icons`)
 
-## P9 · Dashboard (Next.js + Tailwind + React Flow)
-- [ ] Inbox · Issue/RCA page (RCA left, evidence timeline right) · Run view (graph, ledger, turns, cost, Phoenix link)
-- [ ] PR panel (diff, proof, diff fixer, Ask AI, open-in-machine) · Metrics · Marketplace & agent types
+## P9 · Dashboard (Next.js + Tailwind + React Flow) ✅
+- [x] API (`packages/api`, :8400): runs, run detail + graph status, agent calls, decision ledger with template policy,
+      E2E artifacts, feedback, issues (Vitals + BugDrop joined with runs), chat inbox, metrics, marketplace; SSE stream
+- [x] Inbox: source, priority/severity, owner/on-call, Clef D1 probabilities on hover, run outcome
+- [x] Issue / RCA page: RCA left (category + confidence, location, window commit, flag, key facts with grounding
+      badges, mitigation, fix + PR); evidence timeline + evidence list right; 👍/👎 + comment per RCA and claim
+- [x] Run view: React Flow pipeline graph (gray/blue/amber), live over SSE, subagent lanes, every agent call,
+      decision ledger (probability bar vs thresholds, band, action, backend, cost), turns and cost per LLM node
+- [x] PR panel: diff viewer, validation proof (fail → pass, suite, CI), Playwright screenshots/video
+- [x] Metrics: pipeline outcomes per LLM mode; per-D# volume, bands, backends, latency, $/1k, accuracy/Brier when labelled
+- [x] Marketplace & agent types: skills (token footprint, used by), agent types, subagents, decision templates
+- [x] Chat inbox screen; `make dashboard`; CI job (typecheck, lint, build)
+- [ ] Diff fixer, Ask AI, Open-in-machine are visible but disabled until P10
+- [ ] Per-run Phoenix deep link once runs emit traces (observability phase); accuracy/calibration need P11 labels
 
 ## P10 · Post-PR features + feedback (D18)
 - [ ] Diff fixer · Ask AI chat (resumable, cites evidence) · Open in your machine (devcontainer / compose override)

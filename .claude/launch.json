@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--no-sync", "python", "-m", "debugassist.api"],
+      "port": 8400
+    },
+    {
+      "name": "dashboard",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/dashboard", "dev"],
+      "port": 3000
+    }
+  ]
+}

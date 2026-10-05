@@ -4,7 +4,7 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 PROFILES ?= core obs flags faults target sources
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
-.PHONY: help deploy demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
+.PHONY: help deploy api dashboard demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
 
 help:  ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -95,6 +95,13 @@ screenshots:  ## Proof screenshots into docs/screenshots/ (WHAT=stack|run|all; J
 
 deploy:  ## Ship a ref to the local stack (stands in for merge + deploy): make deploy REF=debugassist/vit-1001 [REPO=miniride-services]
 	uv run --no-sync debugassist scenario deploy $(REF) $(if $(REPO),--repo $(REPO),)
+
+api:  ## Dashboard API on :8400 (runs, ledger, inbox, metrics; SSE for live runs)
+	uv run --no-sync python -m debugassist.api
+
+dashboard:  ## API on :8400 + dashboard on :3000 (then open http://localhost:3000)
+	cd apps/dashboard && pnpm install --frozen-lockfile
+	@trap 'kill 0' EXIT; uv run --no-sync python -m debugassist.api & (cd apps/dashboard && pnpm dev)
 
 reset-scenario:  ## Back to the clean release (WIPE=1 also wipes Vitals/BugDrop/ride data)
 	uv run --no-sync debugassist scenario reset $(if $(WIPE),--wipe,)
