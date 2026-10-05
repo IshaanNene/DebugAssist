@@ -306,6 +306,11 @@ async def plan(
         else "no E2E setup for this language"
     )
     tier, ladder, skip_tier, l14 = await choose_tier(state, deps, unavailable, env)
+    validation: dict[str, Any] = deps.agent_type.get("validation") or {}
+    allowed: set[str] = set(validation.get("ladder") or TIERS)
+    kept: list[Tier] = [t for t in ladder if t in allowed]
+    if ladder and not kept:
+        skip_tier = f"no test tier allowed by agent type {deps.agent_type.get('name')} applies"
     ledgers.append(l14 or "")
     p = FixPlan(
         candidates=n,
@@ -314,7 +319,7 @@ async def plan(
         suspect_commits=commits,
         strategy=strategy,
         tier=tier,
-        ladder=ladder,
+        ladder=kept,
         captured_env=env,
         skip=skip or skip_tier,
     )

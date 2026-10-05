@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from debugassist.decisions.cli import decide, list_templates, modes
+from debugassist.harness.cli import app as harness_app
 from debugassist.pipeline.cli import ask, feedback_cmd, fix_diff, open_run, run, watch
 from debugassist.pipeline.report import report
 from debugassist.scenarios.cli import app as scenario_app
@@ -21,3 +22,4 @@ app.command()(ask)
 app.command("open")(open_run)
 app.command("feedback")(feedback_cmd)
 app.add_typer(scenario_app, name="scenario")
+app.add_typer(harness_app, name="harness")

@@ -1,0 +1,5 @@
+name: pr-authoring
+version: 1.0.0
+description: "How DebugAssist writes pull requests: sections, evidence, test proof, risk and rollback."
+owners: [dev-platform]
+skills: [pr-authoring]

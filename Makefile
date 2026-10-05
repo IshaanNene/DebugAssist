@@ -4,7 +4,7 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 PROFILES ?= core obs flags faults target sources
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
-.PHONY: help deploy api dashboard demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
+.PHONY: help deploy api dashboard lint-skills pex runtime-image worker demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
 
 help:  ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -102,6 +102,18 @@ api:  ## Dashboard API on :8400 (runs, ledger, inbox, metrics; SSE for live runs
 dashboard:  ## API on :8400 + dashboard on :3000 (then open http://localhost:3000)
 	cd apps/dashboard && pnpm install --frozen-lockfile
 	@trap 'kill 0' EXIT; uv run --no-sync python -m debugassist.api & (cd apps/dashboard && pnpm dev)
+
+lint-skills:  ## Check the marketplace (5 plugins, skill frontmatter, token budgets, no eval answers)
+	uv run --no-sync debugassist harness lint-skills
+
+pex:  ## Build an agent type's PEX and store it in MinIO: make pex AGENT_TYPE=perf-regression
+	uv run --no-sync debugassist harness pex $(AGENT_TYPE)
+
+runtime-image:  ## Build an agent type's runtime image from its PEX: make runtime-image AGENT_TYPE=perf-regression
+	uv run --no-sync debugassist harness image $(AGENT_TYPE)
+
+worker:  ## Process queued issues (Redis + Arq), each in its agent type's runtime container
+	uv run --no-sync debugassist harness worker
 
 reset-scenario:  ## Back to the clean release (WIPE=1 also wipes Vitals/BugDrop/ride data)
 	uv run --no-sync debugassist scenario reset $(if $(WIPE),--wipe,)

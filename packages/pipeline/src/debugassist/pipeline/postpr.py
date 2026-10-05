@@ -73,6 +73,10 @@ async def _deps(state: RunState) -> Deps:
 
     if state.pr and state.pr.mode == "mock":
         deps.github = GitHubMock()
+    if state.agent_type:
+        from debugassist.harness import agent_types
+
+        deps.agent_type = agent_types.load(state.agent_type).model_dump()
     return deps
 
 
@@ -117,9 +121,9 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
             tools.append(nodes.e2e_tool(sb, issue))
         cfg: dict[str, Any] = dict(deps.agent_type["nodes"]["fix"])
         cfg["max_turns"] = min(12, int(cfg["max_turns"]))
-        spec = LLMNodeSpec(
-            node="diff_fixer", system_prompt=FIX_DIFF_SYSTEM + skills.for_node(deps.agent_type, "fix"), **cfg
-        )
+        skill_prompt, skill_tools = skills.for_node(deps.agent_type, "fix", issue)
+        tools += skill_tools
+        spec = LLMNodeSpec(node="diff_fixer", system_prompt=FIX_DIFF_SYSTEM + skill_prompt, **cfg)
         prompt = (
             f"Reviewer instruction: {instruction}\n\n"
             f"Repository {issue.repo}, component '{issue.component}'. Release {base}.\n"

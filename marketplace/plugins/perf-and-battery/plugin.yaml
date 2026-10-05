@@ -1,0 +1,5 @@
+name: perf-and-battery
+version: 1.0.0
+description: "Diagnosing and fixing CPU, battery and responsiveness problems in the client."
+owners: [rider-app]
+skills: [perf-and-battery]

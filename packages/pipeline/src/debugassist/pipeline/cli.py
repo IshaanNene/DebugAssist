@@ -72,6 +72,8 @@ def _summary(s: RunState) -> None:
         typer.echo(
             f"  screens   D04 screen={sh.get('screen')} · blank p={sh.get('blank_screen')} · abnormal battery p={sh.get('abnormal_battery')}"
         )
+    if s.agent_type:
+        typer.echo(f"  agent     {s.agent_type} ({s.agent_type_reason})")
     if s.rca and s.rca.output:
         o = s.rca.output
         typer.echo(
@@ -151,8 +153,14 @@ def _latest_issue(vitals_url: str = "http://localhost:8100") -> str:
 
 def run(
     issue: Annotated[
-        str, typer.Argument(help="Vitals issue id, e.g. VIT-1001, or 'latest' (newest open crash)")
-    ],
+        str | None,
+        typer.Argument(help="Vitals issue (VIT-…), BugDrop report (BD-…), or 'latest' (newest open crash)"),
+    ] = None,
+    issue_opt: Annotated[str | None, typer.Option("--issue", help="same as the positional issue")] = None,
+    agent_type: Annotated[
+        str | None,
+        typer.Option(help="force an agent type (web-crash, backend-error, perf-regression, user-bug-report)"),
+    ] = None,
     mode: Annotated[str, typer.Option(help="autonomous | supervised (pauses for approvals)")] = "autonomous",
     llm: Annotated[str, typer.Option(help="live | replay | mock")] = "live",
     replay_from: Annotated[
@@ -185,14 +193,23 @@ def run(
         timings = list(cast(dict[str, int], values.get("timings_ms") or {}))
         return timings[-1] if timings else None
 
+    issue = issue or issue_opt
+    if not issue and not resume:
+        raise typer.BadParameter("give an issue (positional or --issue) or --resume <run>")
+
     async def main() -> RunState:
         nonlocal issue
         if issue == "latest":
             issue = _latest_issue()
-        run_id = resume or new_run_id(issue)
+        run_id = resume or new_run_id(issue or "resume")
         deps = await build_deps(run_id, mode=mode, llm_mode=llm, replay_from=replay_from)
         if until:
             deps.extra["until"] = until
+        if agent_type:
+            from debugassist.harness import agent_types
+
+            agent_types.load(agent_type)  # fail fast on a typo
+            deps.extra["agent_type"] = agent_type
         typer.echo(f"run {run_id} ({mode}, LLM {llm}); artifacts in .data/runs/{run_id}/")
         (ROOT / ".data").mkdir(exist_ok=True)
         async with AsyncSqliteSaver.from_conn_string(str(ROOT / ".data" / "checkpoints.sqlite")) as saver:

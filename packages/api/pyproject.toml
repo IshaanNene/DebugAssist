@@ -8,6 +8,7 @@ dependencies = [
   "debugassist-decisions",
   "debugassist-integrations",
   "debugassist-pipeline",
+  "debugassist-harness",
   "fastapi>=0.142",
   "uvicorn[standard]>=0.54",
   "httpx>=0.28",
@@ -19,6 +20,7 @@ debugassist-core = { workspace = true }
 debugassist-decisions = { workspace = true }
 debugassist-integrations = { workspace = true }
 debugassist-pipeline = { workspace = true }
+debugassist-harness = { workspace = true }
 
 [build-system]
 requires = ["hatchling>=1.27"]

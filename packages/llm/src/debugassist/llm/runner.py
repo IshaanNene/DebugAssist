@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import sys
 import time
@@ -229,6 +230,18 @@ class LLMRunner(Protocol):
 
 
 def mcp_connections(names: list[str], env: dict[str, str]) -> dict[str, Any]:
+    pex = os.environ.get("PEX")  # running from a PEX (runtime image): start servers through it
+    if pex:
+        extra = {k: os.environ[k] for k in ("PEX_ROOT", "PATH") if k in os.environ}
+        return {
+            n: {
+                "command": sys.executable,
+                "args": [pex],
+                "transport": "stdio",
+                "env": {**env, **extra, "PEX_MODULE": MCP_MODULES[n]},
+            }
+            for n in names
+        }
     return {
         n: {"command": sys.executable, "args": ["-m", MCP_MODULES[n]], "transport": "stdio", "env": env}
         for n in names

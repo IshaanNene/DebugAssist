@@ -1,0 +1,5 @@
+name: test-planning
+version: 1.0.0
+description: "Planning reproduction tests at the cheapest tier that proves the bug."
+owners: [dev-platform]
+skills: [test-planning]

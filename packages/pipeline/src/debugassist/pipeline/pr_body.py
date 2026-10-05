@@ -9,19 +9,29 @@ from __future__ import annotations
 
 import re
 from functools import cache
+from pathlib import Path
 
-from debugassist.core.policy import ROOT
 from debugassist.pipeline.state import RunState
 
-SKILL = ROOT / "marketplace" / "plugins" / "core" / "skills" / "pr-authoring" / "SKILL.md"
+
+def _skill() -> Path:
+    from debugassist.harness import marketplace
+
+    path = marketplace.find("pr-authoring")
+    if path is None:
+        raise RuntimeError("the pr-authoring skill is missing from the marketplace")
+    return path
+
+
 GROUNDING_MARK = {"supported": "✓", "unverified": "? unverified", "unsupported": "✗"}
 
 
 @cache
 def template() -> str:
-    m = re.search(r"```template\n(.*?)```", SKILL.read_text(), re.S)
+    skill = _skill()
+    m = re.search(r"```template\n(.*?)```", skill.read_text(), re.S)
     if not m:
-        raise RuntimeError(f"{SKILL} has no ```template block")
+        raise RuntimeError(f"{skill} has no ```template block")
     return m.group(1)
 
 

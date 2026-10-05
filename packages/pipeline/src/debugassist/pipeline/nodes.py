@@ -85,9 +85,19 @@ def _sandbox(state: RunState) -> Sandbox:
 def _code_repos_env(state: RunState) -> dict[str, str]:
     assert state.issue
     sb = _sandbox(state)
+    # Service URLs for the MCP servers: localhost by default; service names inside a runtime container.
+    passthrough = (
+        "LOKI_URL",
+        "JAEGER_URL",
+        "PROMETHEUS_URL",
+        "BUGDROP_URL",
+        "INCIDENTS_URL",
+        "DEBUGASSIST_ROOT",
+    )
     env = {
-        "VITALS_URL": "http://localhost:8100",
-        "UNLEASH_URL": "http://localhost:4242",
+        "VITALS_URL": os.environ.get("VITALS_URL", "http://localhost:8100"),
+        "UNLEASH_URL": os.environ.get("UNLEASH_URL", "http://localhost:4242"),
+        **{k: os.environ[k] for k in passthrough if k in os.environ},
         "CODE_REPOS": json.dumps({state.issue.repo: str(sb.worktree)}),
         "DEBUGASSIST_RUN_ID": state.run_id,
         "DEBUGASSIST_MODE": state.mode,
@@ -187,7 +197,7 @@ def _component_cfg(state: RunState, worktree: Path) -> dict[str, Any]:
 async def ingest(state: RunState, deps: Deps) -> dict[str, Any]:
     ref = state.issue_ref
     if ref.upper().startswith("BD-"):
-        return {"issue": await collector.ingest_bugdrop(ref, deps)}
+        return _with_agent_type(await collector.ingest_bugdrop(ref, deps), deps)
     if not ref.upper().startswith("VIT-"):
         raise ValueError(
             f"unknown issue reference {ref!r}: expected a Vitals issue (VIT-…) or a BugDrop report (BD-…)"
@@ -219,7 +229,28 @@ async def ingest(state: RunState, deps: Deps) -> dict[str, Any]:
         session_id=ev.get("session_id"),
         opened_at=d.get("opened_at"),
     )
-    return {"issue": issue}
+    return _with_agent_type(issue, deps)
+
+
+def _with_agent_type(issue: Issue, deps: Deps) -> dict[str, Any]:
+    """Resolve the agent type for this issue (harness): --agent-type, else the most specific matching type,
+    else the target repo's default_agent_type (its .DebugAssist/pipeline.yaml)."""
+    from debugassist.harness import agent_types
+
+    pipeline = ROOT / "targets" / issue.repo / ".DebugAssist" / "pipeline.yaml"
+    repo_default = (
+        yaml.safe_load(pipeline.read_text()).get("default_agent_type") if pipeline.is_file() else None
+    )
+    t, why = agent_types.resolve(
+        source=issue.source,
+        kind=issue.kind,
+        repo=issue.repo,
+        language=issue.language,
+        repo_default=repo_default,
+        override=deps.extra.get("agent_type"),
+    )
+    deps.agent_type = t.model_dump()
+    return {"issue": issue, "agent_type": t.name, "agent_type_reason": why}
 
 
 # ---- N1 auto_triage -------------------------------------------------------------------------
@@ -576,7 +607,8 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
         rca.subagents = findings
         for f in findings:
             costs[f"subagent_{f['id']}"] = float(f.get("cost_usd") or 0.0)
-    spec = LLMNodeSpec(node="classify_rca", system_prompt=_prompt("rca_system.md"), **cfg)
+    skill_prompt, skill_tools = skills.for_node(deps.agent_type, "classify_rca", issue)
+    spec = LLMNodeSpec(node="classify_rca", system_prompt=_prompt("rca_system.md") + skill_prompt, **cfg)
     found = rca_mod.findings_text(findings)
     prompt = (
         f"Issue {issue.id} from {'Vitals' if issue.source == 'vitals' else 'BugDrop'} in repo {issue.repo} "
@@ -594,7 +626,12 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
     )
     monitor_ledgers: list[str] = []
     r = await deps.runner().run(
-        spec, prompt, RCAOutput, mcp_env=env, monitor=rca_mod.make_monitor(st, deps, monitor_ledgers)
+        spec,
+        prompt,
+        RCAOutput,
+        tools=skill_tools or None,
+        mcp_env=env,
+        monitor=rca_mod.make_monitor(st, deps, monitor_ledgers),
     )
     decisions += monitor_ledgers
     _stop_if_out_of_quota(r, state, "classify_rca")
@@ -855,9 +892,15 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
                 + "\n"
             )
         node = f"reproduce_{tier}" + (f"_{attempt}" if attempt > 1 else "")
-        repro_spec = LLMNodeSpec(node=node, system_prompt=_prompt("reproduce_system.md"), **repro_cfg)
-        tools = build_workspace_tools(
-            sb, allow_edits=True, allow_commands=True, editable=is_test_path, workdir=issue.component
+        skill_prompt, skill_tools = skills.for_node(deps.agent_type, "reproduce", issue)
+        repro_spec = LLMNodeSpec(
+            node=node, system_prompt=_prompt("reproduce_system.md") + skill_prompt, **repro_cfg
+        )
+        tools = (
+            build_workspace_tools(
+                sb, allow_edits=True, allow_commands=True, editable=is_test_path, workdir=issue.component
+            )
+            + skill_tools
         )
         if tier == "e2e_env":
             tools.append(_e2e_tool(sb, issue))
@@ -960,9 +1003,11 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     )
     if fa.tier == "e2e_env":
         tools.append(_e2e_tool(sb, issue))
+    skill_prompt, skill_tools = skills.for_node(deps.agent_type, "fix", issue)
+    tools += skill_tools
     fix_spec = LLMNodeSpec(
         node=f"fix_{attempt}" if attempt > 1 else "fix",
-        system_prompt=_prompt("fix_system.md") + skills.for_node(deps.agent_type, "fix"),
+        system_prompt=_prompt("fix_system.md") + skill_prompt,
         **cfg,
     )
     how = (
@@ -1081,7 +1126,8 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
 async def decide_retry(state: RunState, deps: Deps) -> bool:
     """D15 inside the fixed attempt cap."""
     v = state.validation
-    cap = int(deps.agent_type.get("validation", {}).get("max_attempts", 3))
+    validation: dict[str, Any] = deps.agent_type.get("validation") or {}
+    cap = int(validation.get("max_attempts", 3))
     if v is None or v.passed or len(state.fix_attempts) >= cap:
         return False
     if (

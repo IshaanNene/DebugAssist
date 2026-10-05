@@ -1,0 +1,5 @@
+name: web-client-fixes
+version: 1.0.0
+description: "Fix conventions for the TypeScript/React web client."
+owners: [rider-app]
+skills: [web-client-fixes]

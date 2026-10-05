@@ -1,0 +1,5 @@
+name: backend-fixes
+version: 1.0.0
+description: "Fix conventions for the gateway (TypeScript), dispatch (Python) and payments (Go) services."
+owners: [rider-platform]
+skills: [backend-fixes]

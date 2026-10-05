@@ -1,0 +1,28 @@
+# Agent type: performance and battery regressions (Vitals perf issues; jank, CPU, wakeups).
+name: perf-regression
+description: Performance and battery regressions — CPU while hidden, timer wakeups, long tasks
+priority: 20
+match: { kinds: [perf] }
+marketplace_ref: working
+skill_token_budget: 3500
+nodes:
+  classify_rca:
+    reasoning_effort: high
+    max_turns: 20
+    max_tool_calls: 30
+    max_budget_usd: 0.50
+    mcp_servers: [crash-analytics, metrics-profiles, code-search, git-history, bug-reports]
+  fix:
+    reasoning_effort: high
+    max_turns: 20
+    max_tool_calls: 40
+    max_budget_usd: 1.00
+skills:
+  classify_rca: [perf-and-battery]
+  reproduce: [test-planning, perf-and-battery]
+  fix: [perf-and-battery, web-client-fixes]
+subagents:
+  prefer: [perf-profiler, breadcrumb-analyst, code-localizer, commit-bisector]
+validation: { max_attempts: 3, ladder: [unit, e2e_env] }
+runtime_image: debugassist/runtime-perf-regression
+run_budget_usd: 3.00

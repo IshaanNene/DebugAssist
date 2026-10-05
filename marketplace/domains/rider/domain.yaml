@@ -1,0 +1,13 @@
+name: rider
+description: The rider web app (MiniRide client) — booking, ride tracking, notifications.
+owners: [rider-app, rider-engagement]
+components:
+  - { repo: miniride-client, path: "." }
+subagents:
+  client-state-analyst:
+    description: reads the client's state timeline (routes, visibility, flags) around the problem
+    inputs: [bugdrop, vitals, flags]
+    mcp_servers: [bug-reports, crash-analytics, feature-flags]
+    focus: >-
+      Reconstruct the client state when the problem happened: route, visibility, which flags were on,
+      what had loaded and what had not. Point at the module that owned that state.

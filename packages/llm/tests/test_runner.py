@@ -241,3 +241,18 @@ async def test_agent_is_nudged_to_submit_before_the_cap(
     )
     assert r.output == {"answer": "ok"} and r.status == "ok"
     assert any("turns left" in str(m.content) for m in seen)
+
+
+def test_mcp_servers_start_through_the_pex_when_packaged(monkeypatch: pytest.MonkeyPatch) -> None:
+    from debugassist.llm.runner import MCP_MODULES, mcp_connections
+
+    monkeypatch.delenv("PEX", raising=False)
+    plain = mcp_connections(["code-search"], {"A": "1"})["code-search"]
+    assert plain["args"] == ["-m", MCP_MODULES["code-search"]]
+    monkeypatch.setenv("PEX", "/opt/debugassist.pex")
+    packed = mcp_connections(["code-search"], {"A": "1"})["code-search"]
+    assert (
+        packed["args"] == ["/opt/debugassist.pex"]
+        and packed["env"]["PEX_MODULE"] == MCP_MODULES["code-search"]
+    )
+    assert packed["env"]["A"] == "1"

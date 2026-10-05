@@ -9,6 +9,7 @@ dependencies = [
   "debugassist-integrations",
   "debugassist-llm",
   "debugassist-mcp-servers",
+  "debugassist-harness",
   "langgraph>=1.2",
   "langgraph-checkpoint-sqlite>=3.0",
   "pyyaml>=6.0",
@@ -16,6 +17,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
+debugassist-harness = { workspace = true }
 debugassist-core = { workspace = true }
 debugassist-decisions = { workspace = true }
 debugassist-integrations = { workspace = true }

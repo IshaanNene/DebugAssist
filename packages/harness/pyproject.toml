@@ -1,0 +1,16 @@
+[project]
+name = "debugassist-harness"
+version = "0.1.0"
+description = "Harness: agent types, marketplace (plugins + skills at a pinned ref), domain extensions, packaging and workers"
+requires-python = ">=3.13,<3.14"
+dependencies = ["debugassist-core", "pydantic>=2.12", "pyyaml>=6.0", "langchain-core>=1.0", "arq>=0.28", "minio>=7.2", "httpx>=0.28"]
+
+[tool.uv.sources]
+debugassist-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/debugassist"]
