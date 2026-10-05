@@ -7,10 +7,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
+from debugassist.core import ablation
 from debugassist.core.policy import ROOT, PolicyGate
 from debugassist.core.settings import Integration, Mode, Settings, get_settings
 from debugassist.decisions.engine import DecisionEngine
@@ -102,7 +103,15 @@ async def build_deps(
         if s.mode(Integration.GITHUB) is Mode.LIVE and s.github_token
         else GitHubMock()
     )
-    engine = await build_engine(s, "auto", mock_overrides=MOCK_DECISIONS)
+    # DA_DECIDER (evaluations): routed = each template's own Clef model; clef / clef-flash = one model for
+    # every decision; llm = no Clef (the LLM decides with self-reported confidence).
+    which = ablation.decider()
+    engine = await build_engine(
+        s,
+        "llm" if which == "llm" and s.mode(Integration.LLM) is Mode.LIVE else "auto",
+        mock_overrides=MOCK_DECISIONS,
+        model_override=cast(Any, which) if which in ("clef", "clef-flash") else None,
+    )
     agent_type = agent_types.load(agent_types.DEFAULT).model_dump()  # re-resolved per issue at ingest
     catalog = yaml.safe_load((ROOT / "configs" / "catalog.yaml").read_text())
     os.environ["DEBUGASSIST_RUN_ID"] = run_id

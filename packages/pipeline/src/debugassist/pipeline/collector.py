@@ -18,6 +18,7 @@ from typing import Any
 
 import httpx
 
+from debugassist.core.ablation import ablated
 from debugassist.core.evidence import EvidenceItem, Source
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
@@ -438,6 +439,24 @@ async def score_and_fit(
     budget" by score. Returns kept items, the pruned list (with scores) and the ledger id."""
     if not optional:
         return core, [], None
+    if ablated("D03"):  # no relevance scoring: keep windows in collection order until the budget is full
+        used, kept = sum(tokens(i) for i in core), list(core)
+        pruned_: list[dict[str, Any]] = []
+        for it in optional:
+            if used + tokens(it) <= budget:
+                kept.append(it)
+                used += tokens(it)
+            else:
+                pruned_.append(
+                    {
+                        "id": it.id,
+                        "summary": it.summary,
+                        "score": None,
+                        "tokens": tokens(it),
+                        "reason": "over budget",
+                    }
+                )
+        return kept, pruned_, None
     windows = [{"id": i.id, "summary": i.summary} for i in optional]
     state = (
         CompactState()
