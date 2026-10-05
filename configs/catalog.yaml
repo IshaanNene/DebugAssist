@@ -1,42 +1,42 @@
 # MiniRide service catalog: service → owning team → on-call rotation → code paths.
 # Used by auto-triage (D1 owner choice, on-call tagging) and by the code-search server's
-# codeowners_for(). People and channels are fictional; Slack runs against the local mock inbox.
+# codeowners_for(). People and channels are fictional; chat goes to Discord or the local mock inbox.
 version: 1
 
 teams:
   rider-app:
     description: Rider PWA screens, booking flow, ETA display
-    slack_channel: "#rider-app"
+    chat_channel: "#rider-app"
     oncall: [maya.chen, omar.haddad, priya.nair]
     escalation: rider-platform
   rider-engagement:
     description: Notifications, deep links, push delivery in the rider app
-    slack_channel: "#rider-engagement"
+    chat_channel: "#rider-engagement"
     oncall: [lucas.meyer, aiko.tanaka]
     escalation: rider-app
   rider-platform:
     description: GraphQL gateway, rider API contracts, notification center backend
-    slack_channel: "#rider-platform"
+    chat_channel: "#rider-platform"
     oncall: [sam.okafor, elena.rossi]
     escalation: developer-platform
   dispatch:
     description: Driver matching, ride lifecycle, ETA computation
-    slack_channel: "#dispatch"
+    chat_channel: "#dispatch"
     oncall: [jonas.berg, fatima.zahra, diego.alvarez]
     escalation: sre-infra
   payments:
     description: Fares, tariffs, surge, payment authorization
-    slack_channel: "#payments"
+    chat_channel: "#payments"
     oncall: [hana.kim, victor.ng]
     escalation: sre-infra
   developer-platform:
     description: Telemetry SDKs, CI, build tooling, feature-flag platform
-    slack_channel: "#dev-platform"
+    chat_channel: "#dev-platform"
     oncall: [ravi.iyer, chloe.martin]
     escalation: sre-infra
   sre-infra:
     description: Databases, networking, deploys, incident command
-    slack_channel: "#sre"
+    chat_channel: "#sre"
     oncall: [ana.silva, tom.walker]
     escalation: null
 

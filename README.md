@@ -54,7 +54,7 @@ The plan is a fixed <b>LangGraph</b> graph; models never choose the next step. A
 | Step | What happens | Decision |
 |---|---|---|
 | **Ingest** | Pull the issue from Vitals (crash analytics) or BugDrop (in-app reports): symbolicated stack, breadcrumbs, versions, flag exposure. | |
-| **Triage** | Owner from `CODEOWNERS`, priority and severity, a deduplicated Jira ticket, a Slack page for P0/P1 (mock for now). | `D01` |
+| **Triage** | Owner from `CODEOWNERS`, priority and severity, a deduplicated Jira ticket, a chat page for P0/P1 (Discord webhook, or a local mock inbox). | `D01` |
 | **Context** | Deterministic evidence bundle from the MCP servers: crash group, distributions, flag ↔ crash correlation, previous release, commits in the window, bisect candidates, code at the crash site. | |
 | **Root cause** | An agent investigates with MCP tools and returns a structured RCA: mechanism, location, suspect commit, timeline, claims that each cite evidence. | `D05` |
 | **Mitigate** | Two-proportion z-test between flag-exposed and unexposed sessions; a rollback is proposed and policy-gated (dry-run by default). | `D11` |
@@ -109,12 +109,12 @@ Getting there took real iteration — early runs produced a symptom patch, a tes
 git clone --recurse-submodules https://github.com/IshaanNene/DebugAssist && cd DebugAssist
 make bootstrap                                      # uv workspace (Python 3.13) + git hooks
 make up PROFILES="core obs flags faults target sources" && make flags
-make demo-push-crash                                # keyless: scripted LLM, mock Clef/GitHub/Jira/Slack
+make demo-push-crash                                # keyless: scripted LLM, mock Clef/GitHub/Jira/chat
 ```
 
 <sub>The client target repo (<code>miniride-client</code>) is public; the services repo is private, so a fresh clone builds the stack only with access to it.</sub>
 
-Then open the run report with `make report`. To go live, add keys to `.env` (see [`.env.example`](.env.example)); each integration switches to live as soon as its credentials are present, or force one with `DA_MODE_<LLM|CLEF|GITHUB|JIRA|SLACK>=live|mock`:
+Then open the run report with `make report`. To go live, add keys to `.env` (see [`.env.example`](.env.example)); each integration switches to live as soon as its credentials are present, or force one with `DA_MODE_<LLM|CLEF|GITHUB|JIRA|CHAT>=live|mock`:
 
 ```bash
 uv run debugassist run latest --llm live            # real agents, Clef, GitHub PR and Jira ticket

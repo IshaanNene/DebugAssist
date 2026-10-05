@@ -174,3 +174,31 @@ def test_backend_exception_with_structured_frames(client: TestClient) -> None:
     assert issue["group"]["culprit"] == "GET /rides/{ride_id}/eta"
     ev = client.get(f"/api/issues/{issue['id']}").json()["latest_event"]
     assert ev["frames"][-1]["function"] == "eta_seconds"
+
+
+def test_links_attach_once_and_show_on_the_issue(client: TestClient) -> None:
+    session(client, "s1", v2=True)
+    crash(client, "s1")
+    url = "/api/issues/VIT-1001/links"
+    for _ in range(2):
+        r = client.post(
+            url, json={"kind": "jira", "url": "https://x.atlassian.net/browse/SCRUM-1", "title": "SCRUM-1"}
+        )
+        assert r.status_code == 201 and len(r.json()) == 1
+    assert client.post(url, json={"kind": "nope", "url": "u"}).status_code == 422
+    assert client.get("/api/issues/VIT-1001").json()["links"][0]["kind"] == "jira"
+    assert "SCRUM-1" in client.get("/issues/VIT-1001").text
+    assert client.post("/api/issues/VIT-9999/links", json={"url": "u"}).status_code == 404
+
+
+def test_window_stats_count_sessions_and_affected_sessions(client: TestClient) -> None:
+    for i in range(10):
+        session(client, f"s{i}", v2=True)
+    crash(client, "s1")
+    crash(client, "s1")
+    crash(client, "s2")
+    fp = client.get("/api/issues/VIT-1001").json()["fingerprint"]
+    st = client.get("/api/stats", params={"since": "2000-01-01T00:00:00+00:00", "fingerprint": fp}).json()
+    assert st["sessions"] == 10 and st["events"] == 3 and st["affected_sessions"] == 2 and st["rate"] == 0.2
+    empty = client.get("/api/stats", params={"since": "2999-01-01T00:00:00+00:00", "fingerprint": fp}).json()
+    assert empty["sessions"] == 0 and empty["rate"] is None

@@ -85,6 +85,18 @@ class Issue(Base):
     score: Mapped[float] = mapped_column(Float, default=0.0)
 
 
+class IssueLink(Base):
+    """Something an issue points to: a Jira ticket, a pull request, an RCA report."""
+
+    __tablename__ = "issue_links"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    issue_id: Mapped[str] = mapped_column(String(32), index=True)
+    kind: Mapped[str] = mapped_column(String(32))  # jira | pr | rca | other
+    url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 def make_engine(url: str | None = None) -> Engine:
     url = url or os.environ.get("VITALS_DATABASE_URL", "sqlite:///./vitals.db")
     return create_engine(url, pool_pre_ping=True)

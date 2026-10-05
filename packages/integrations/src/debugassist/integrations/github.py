@@ -28,6 +28,7 @@ class GitHub(Protocol):
     def push(self, worktree: Path, branch: str) -> None: ...
     def open_pr(self, repo: str, head: str, base: str, title: str, body: str, draft: bool) -> PullRequest: ...
     def comment(self, repo: str, number: int, body: str) -> None: ...
+    def merged(self, repo: str, number: int) -> bool | None: ...
 
 
 class GitHubLive:
@@ -89,6 +90,10 @@ class GitHubLive:
     def comment(self, repo: str, number: int, body: str) -> None:
         self.http.post(f"/repos/{repo}/issues/{number}/comments", json={"body": body}).raise_for_status()
 
+    def merged(self, repo: str, number: int) -> bool | None:
+        r = self.http.get(f"/repos/{repo}/pulls/{number}")
+        return bool(r.json().get("merged")) if r.status_code == 200 else None
+
 
 class GitHubMock:
     def __init__(self, root: Path = ROOT / ".data" / "mock" / "github") -> None:
@@ -132,3 +137,6 @@ class GitHubMock:
     def comment(self, repo: str, number: int, body: str) -> None:
         with (self.root / f"pr-{number}-comments.md").open("a") as f:
             f.write(body + "\n\n---\n")
+
+    def merged(self, repo: str, number: int) -> bool | None:
+        return None  # unknown: a local deploy of the bot branch stands in for the merge

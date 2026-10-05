@@ -102,6 +102,28 @@ def inject(
     return result
 
 
+DEPLOYS = ROOT / ".data" / "deploys.jsonl"
+
+
+def deploy(repo_name: str, ref: str, *, log: Any = print) -> dict[str, Any]:
+    """Ship `ref` (a merged release branch, or a bot branch standing in for the merge) to the local stack
+    and record when, so a post-merge watch can compare before and after."""
+    repo = TargetRepo(repo_name)
+    if not repo.is_clean():
+        raise RuntimeError(f"{repo_name} has uncommitted changes; commit or stash them first")
+    sha = repo.checkout_ref(ref)
+    log(f"{repo_name}: deploying {ref} ({sha}); rebuilding {', '.join(repo.services)} …")
+    compose("up", "-d", "--build", "--wait", *repo.services)
+    entry = {"repo": repo_name, "ref": ref, "sha": sha, "at": datetime.now(UTC).isoformat()}
+    with DEPLOYS.open("a") as f:
+        f.write(json.dumps(entry) + "\n")
+    return entry
+
+
+def deploys() -> list[dict[str, Any]]:
+    return [json.loads(line) for line in DEPLOYS.read_text().splitlines()] if DEPLOYS.is_file() else []
+
+
 def reset(env: Environment, *, wipe: bool = False, log: Any = print) -> None:
     state = current()
     touched = list((state or {}).get("branches", {})) or list(COMPOSE_SERVICES)

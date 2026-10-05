@@ -221,3 +221,35 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Without a way to run its spec, the E2E agent only "submitted" at the turn cap and got one rejection with no turns left; `run_e2e` fixed that.
 - Playwright's attachment listings buried the error; they are stripped.
 - The scratch dir first chosen (`.debugassist/`) collides with the tracked `.DebugAssist/` on macOS (case-insensitive); it is now `.da-e2e/`.
+
+## P8 — Ship gate, PR / Jira / chat, post-merge watch, D16–D17 (2026-10-05) — done
+
+**Done**
+- **Chat replaces Slack** (the user's workspace isn't free): `integrations/chat.py`.
+  - A Discord channel webhook (`DISCORD_WEBHOOK_URL`, `DA_MODE_CHAT`), checked against Discord's docs: `?wait=true`, content ≤ 2,000 chars, ≤ 10 embeds.
+  - Otherwise the local mock inbox (`.data/mock/chat/inbox.jsonl`).
+  - Text is PII-redacted and `allowed_mentions` is empty. Every message goes through the write gate and the audit log, and a chat outage never fails a run.
+- **PR description from the `pr-authoring` skill**: its template block fixes the sections, and empty sections drop out with their heading. The PR now shows:
+  - links to the Vitals issue or BugDrop report and the ticket;
+  - the commit that introduced the bug, found in the release window;
+  - every claim with its evidence IDs and grounding mark;
+  - mitigation stats;
+  - a test-proof table (tier, failing before, passing after, suite, CI checks) and "draft" when validation did not pass;
+  - risk and rollback.
+- **Links back to the source issue**: Vitals and BugDrop gained `POST …/links` (stored once per URL and shown on their pages), and BugDrop reports gained a status. The PR and ticket are linked after shipping, and the report moves to `in_progress`.
+- **Post-merge watch (D17)**: the graph's last node leaves a run with a PR in `watching`. `debugassist watch <run>` then checks, in order:
+  - merged (GitHub when live);
+  - deployed (`make deploy REF=…` records `.data/deploys.jsonl`);
+  - enough sessions since the deploy;
+  - the issue's rate in equal windows before and after the deploy (new Vitals `/api/stats`; BugDrop reports per session).
+
+  D17 then decides to resolve, keep watching or reopen, and code acts: Vitals or BugDrop resolved, Jira moved to Done (or back to In Progress), a rolled-back flag restored only with approval, and a chat message.
+
+**Verified**
+- Keyless BUG-002 demo end to end: dry-run rollback (5%→0%), verified unit fix, mock PR with the new body, PR linked on VIT-1001, chat to on-call, run left `watching` ($0).
+- `make deploy` of the bot branch, the push-tap scenario and normal traffic, then `debugassist watch`: affected-session rate **0.025 (480 sessions) → 0.0 (260 sessions)**. Live Clef D17 `close_issue` p=0.96; VIT-1001 resolved, ticket → Done, chat sent. No flag restore (the rollback was a dry run).
+- Discord has not been exercised live: there is no webhook URL yet. The payload is tested against a mock transport.
+
+**Findings**
+- The keyless demo stopped after RCA: new decisions shifted the mock's pseudo-random answers and D5 came out non-actionable. The demo now pins category, rollback, strategy, tier and ship outcome (still labelled mock).
+- The first watch attempt tried to comment on mock ticket `MOCK-1` in the real Jira (404, nothing written) because it rebuilt integrations from `.env`. The watch now uses the run's own backends (mock ticket → mock Jira, mock PR → mock GitHub), and Jira errors are reported per action instead of aborting.

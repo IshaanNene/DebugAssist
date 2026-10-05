@@ -7,6 +7,7 @@ every write goes through the policy gate.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -25,11 +26,12 @@ from debugassist.core.policy import ROOT, Verdict
 from debugassist.core.settings import Integration, Mode
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
+from debugassist.integrations.chat import ChatMessage
 from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
-from debugassist.pipeline import collector, e2e, fixplan
+from debugassist.pipeline import collector, e2e, fixplan, postmerge, pr_body
 from debugassist.pipeline import rca as rca_mod
 from debugassist.pipeline.deps import APPS, Deps
 from debugassist.pipeline.state import (
@@ -222,6 +224,62 @@ async def ingest(state: RunState, deps: Deps) -> dict[str, Any]:
 # ---- N1 auto_triage -------------------------------------------------------------------------
 
 
+def _source_label(issue: Issue) -> str:
+    return "BugDrop report" if issue.source == "bugdrop" else "Vitals issue"
+
+
+def _notify(deps: Deps, run_id: str, msg: ChatMessage) -> dict[str, Any]:
+    """Every chat message goes through the write gate and the audit log (dry-run → not sent)."""
+    verdict = deps.gate.verdict("chat.message")
+    result: dict[str, Any] = {"to": msg.to, "mode": "dry_run"}
+    if verdict is Verdict.LIVE:
+        try:
+            result = deps.chat.send(msg)
+        except httpx.HTTPError as exc:  # a chat outage never fails the run
+            result = {"to": msg.to, "mode": deps.chat.mode, "error": f"{type(exc).__name__}: {exc}"[:200]}
+    deps.gate.record(
+        "chat.message", verdict, run_id=run_id, detail={"to": msg.to, "title": msg.title}, result=result
+    )
+    return {"kind": "chat", "title": msg.title, **result}
+
+
+def _link_source(
+    deps: Deps, state: RunState, links: list[tuple[str, str | None, str | None]], outcome: str
+) -> list[dict[str, Any]]:
+    """Attach links to the Vitals issue / BugDrop report and move the report's status along."""
+    issue = state.issue
+    assert issue
+    if issue.source == "bugdrop":
+        base = f"{deps.bugdrop_url}/api/reports/{issue.id}"
+    elif issue.source == "vitals":
+        base = f"{deps.vitals_url}/api/issues/{issue.id}"
+    else:
+        return []
+    notes: list[dict[str, Any]] = []
+    verdict = deps.gate.verdict("source.link")
+    for kind, url, title in links:
+        if not url:
+            continue
+        result: Any = "dry_run"
+        if verdict is Verdict.LIVE:
+            try:
+                httpx.post(
+                    f"{base}/links", json={"kind": kind, "url": url, "title": title or ""}, timeout=10
+                ).raise_for_status()
+                result = "linked"
+            except httpx.HTTPError as exc:
+                result = f"failed: {type(exc).__name__}"
+        deps.gate.record(
+            "source.link", verdict, run_id=state.run_id, detail={"issue": issue.id, "url": url}, result=result
+        )
+        notes.append({"kind": "link", "issue": issue.id, "url": url, "result": result})
+    if issue.source == "bugdrop" and verdict is Verdict.LIVE:
+        status = "in_progress" if outcome in ("open_pr", "draft_pr") else "triaged"
+        with contextlib.suppress(httpx.HTTPError):  # a convenience; the links above are what matter
+            httpx.post(f"{base}/status", json={"status": status}, timeout=10).raise_for_status()
+    return notes
+
+
 def _jira_label(issue_id: str) -> str:
     """One Jira ticket per source issue: vitals-vit-1001, bugdrop-bd-1001."""
     return f"{'bugdrop' if issue_id.upper().startswith('BD-') else 'vitals'}-{issue_id.lower()}"
@@ -392,12 +450,15 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
     )
     notes = list(state.notifications)
     if priority in ("P0", "P1"):
-        r = deps.slack.message(
-            f"@{triage.oncall}",
-            f"{priority} {issue.title} — {team} on-call. Jira {triage.jira_key}. DebugAssist is on it.",
-            {"vitals": issue.url, "jira": triage.jira_url or ""},
+        msg = ChatMessage(
+            to=f"@{triage.oncall}",
+            title=f"{priority} · {issue.title[:200]}",
+            text=f"Paging {team} on-call. DebugAssist has started root-cause analysis.",
+            level="alert",
+            links={_source_label(issue): issue.url, "Jira": triage.jira_url or ""},
+            fields={"App": f"{issue.app} {issue.last_version}", "Ticket": triage.jira_key or "-"},
         )
-        notes.append({"kind": "slack", "to": triage.oncall, **r})
+        notes.append(_notify(deps, state.run_id, msg))
     return {"triage": triage, "decisions": decisions, "notifications": notes}
 
 
@@ -606,6 +667,7 @@ async def mitigate(state: RunState, deps: Deps) -> dict[str, Any]:
             flag, 0, reason=f"{issue.id}: {rca.output.summary[:200]}", dry_run=verdict is not Verdict.LIVE
         )
         m.action = "rolled_back" if res["applied"] else "dry_run"
+        m.rolled_back_from = int(res["from_percent"])
         m.detail = f"{flag}: {res['from_percent']}% → 0% ({'applied' if res['applied'] else 'dry run — policy requires approval'})"
     else:
         m.detail = f"{flag}: no rollback (Clef band {d11.band}, significant={corr['significant']})"
@@ -1085,101 +1147,6 @@ async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
 # ---- N8 pr_and_notify -----------------------------------------------------------------------
 
 
-def _pr_body(state: RunState) -> str:
-    issue, tr, rca, m, v = state.issue, state.triage, state.rca, state.mitigation, state.validation
-    assert issue and rca and rca.output
-    o = rca.output
-    fa = state.fix_attempts[-1]
-    lines = [
-        "## Summary",
-        o.summary,
-        "",
-        f"Fixes the crash reported by Vitals [{issue.id}]({issue.url}) — `{issue.title}` ({issue.events} events, {issue.app} {issue.first_version}→{issue.last_version})."
-        + (
-            f" Jira: [{tr.jira_key}]({tr.jira_url})."
-            if tr and tr.jira_key and tr.jira_url and tr.jira_url.startswith("http")
-            else ""
-        ),
-        "",
-        "## Root cause",
-        o.root_cause,
-        "",
-        f"**Location:** `{o.location.file}` → `{o.location.function}`"
-        + (f" (line {o.location.line})" if o.location.line else ""),
-    ]
-    if o.suspect_commit:
-        lines.append(f"**Introduced by:** {o.suspect_commit}")
-    if o.implicated_flag:
-        lines.append(f"**Behind flag:** `{o.implicated_flag}`")
-    lines += ["", "## Evidence", "| Claim | Evidence |", "|---|---|"]
-    lines += [
-        f"| {c.text.replace('|', '/')} | {', '.join(f'`{e}`' for e in c.evidence_ids) or '—'} |"
-        for c in o.claims
-    ]
-    lines += ["", "<details><summary>Timeline</summary>", ""]
-    lines += [f"- **{t.when}** — {t.event} {' '.join(f'`{e}`' for e in t.evidence_ids)}" for t in o.timeline]
-    lines += ["", "</details>", ""]
-    if m and m.flag:
-        lines += [
-            "## Mitigation",
-            f"{m.detail}. Exposed sessions: {m.correlation.get('exposed')}; unexposed: {m.correlation.get('unexposed')}; "
-            f"z={m.correlation.get('z')}, p={m.correlation.get('p_value'):.2g}.",
-            "",
-        ]
-    if fa.output:
-        lines += [
-            "## Fix",
-            fa.output.summary,
-            "",
-            f"*Why:* {fa.output.rationale}",
-            f"*Strategy:* {fa.output.strategy} · *Risk:* {fa.output.risk}",
-            "",
-        ]
-    lines += ["## Validation"]
-    if v:
-        if v.failing_before:
-            lines += [
-                f"- ❌ before the fix: `{v.failing_before.command}` → exit {v.failing_before.exit_code} (reproduces the bug)"
-            ]
-        if v.passing_after:
-            lines += [f"- ✅ with the fix: `{v.passing_after.command}` → exit {v.passing_after.exit_code}"]
-        if v.suite:
-            lines += [
-                f"- {'✅' if v.suite.exit_code == 0 else '❌'} full suite: `{v.suite.command}` → exit {v.suite.exit_code}"
-            ]
-        if v.static:
-            lines += [
-                f"- {'✅' if v.static.exit_code == 0 else '❌'} CI checks: `{v.static.command}` → exit {v.static.exit_code}"
-            ]
-        if v.failing_before:
-            lines += [
-                "",
-                "<details><summary>Failing-before output</summary>",
-                "",
-                "```",
-                v.failing_before.output_tail[-1500:],
-                "```",
-                "</details>",
-            ]
-    lines += [
-        "",
-        "## Risk & rollback",
-        f"Risk: {fa.output.risk if fa.output else 'unknown'}. Rollback: revert this PR"
-        + (f"; the flag `{m.flag}` can stay off until it ships" if m and m.flag else "")
-        + ".",
-        "",
-    ]
-    rca_llm = rca.llm
-    cost = sum(state.costs.values())
-    lines += [
-        "---",
-        f"Opened by **DebugAssist** (automated) · run `{state.run_id}` · reasoning: {rca_llm.get('model')} "
-        f"({rca_llm.get('mode')}) · decisions: Clef · RCA {rca_llm.get('turns')} turns · total LLM cost ${cost:.4f}. "
-        "Review before merging.",
-    ]
-    return "\n".join(lines)
-
-
 async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
     issue, tr, rca, ship = state.issue, state.triage, state.rca, state.ship
     assert issue and rca and ship
@@ -1220,7 +1187,7 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
                 )
             deps.github.push(sb.worktree, branch)
             pr = deps.github.open_pr(
-                issue.gh_repo, branch, base, title, _pr_body(state), draft=ship.outcome == "draft_pr"
+                issue.gh_repo, branch, base, title, pr_body.pr_body(state), draft=ship.outcome == "draft_pr"
             )
             out["pr"] = PRInfo(
                 url=pr.url, number=pr.number, branch=branch, base=base, draft=pr.draft, mode=pr.mode
@@ -1240,31 +1207,53 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
         deps.jira.comment(tr.jira_key, jira_blocks or [("para", f"DebugAssist outcome: {ship.outcome}")])
         deps.jira.transition(tr.jira_key, "In Review" if pr_info else "In Progress")
         deps.gate.record("jira.comment", Verdict.LIVE, run_id=state.run_id, detail={"key": tr.jira_key})
+    # Link the PR / ticket back to the user-facing issue (Vitals or BugDrop).
+    links: list[tuple[str, str | None, str | None]] = (
+        [("jira", tr.jira_url, tr.jira_key)] if tr and tr.jira_url and tr.jira_url.startswith("http") else []
+    )
+    if pr_info:
+        links.append(("pr", pr_info.url, f"PR #{pr_info.number} (DebugAssist)"))
+    notes += _link_source(deps, state, links, ship.outcome)
     if tr:
-        text = (
-            f"{issue.id} {issue.title[:80]} — {'PR ' + pr_info.url if pr_info else ship.outcome}. "
-            f"Root cause: {rca.output.summary[:200] if rca.output else 'n/a'}"
-        )
-        notes.append(
-            {
-                "kind": "slack",
-                "to": tr.oncall,
-                **deps.slack.message(
-                    f"@{tr.oncall}",
-                    text,
-                    {"jira": tr.jira_url or "", "vitals": issue.url, "pr": pr_info.url if pr_info else ""},
+        o = rca.output
+        msg = ChatMessage(
+            to=f"@{tr.oncall}",
+            title=(
+                f"Fix ready for review: {issue.title[:180]}"
+                if pr_info
+                else f"{ship.outcome.replace('_', ' ')}: {issue.title[:180]}"
+            ),
+            text=(o.summary if o else "No root cause produced.")[:1500],
+            level="success" if pr_info and not pr_info.draft else "warning" if pr_info else "info",
+            links={
+                "PR": pr_info.url if pr_info else "",
+                "Jira": tr.jira_url or "",
+                _source_label(issue): issue.url,
+            },
+            fields={
+                "Outcome": ship.outcome,
+                "Location": f"{o.location.file} → {o.location.function}" if o else "-",
+                "Proof": (
+                    f"{state.fix_attempts[-1].tier or '-'} test fails before, passes after"
+                    if state.validation and state.validation.passed and state.fix_attempts
+                    else "not validated"
                 ),
-            }
+            },
         )
+        notes.append(_notify(deps, state.run_id, msg))
     return {**out, "notifications": notes}
 
 
 async def post_merge_watch(state: RunState, deps: Deps) -> dict[str, Any]:
-    """Placeholder (P8): after merge + deploy, watch crash rates (D17) and restore the flag."""
+    """Start watching the issue after a PR; `debugassist watch <run>` checks it after merge + deploy (D17)."""
+    w = postmerge.start(state)
+    if w is None:
+        return {"status": "done"}
     return {
-        "status": "done",
+        "status": "watching",
+        "watch": w,
         "notifications": [
             *state.notifications,
-            {"kind": "watch", "detail": "post-merge watch arrives in P8"},
+            {"kind": "watch", "detail": f"watching after merge + deploy: debugassist watch {state.run_id}"},
         ],
     }

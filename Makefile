@@ -4,7 +4,7 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 PROFILES ?= core obs flags faults target sources
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
-.PHONY: help demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
+.PHONY: help deploy demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
 
 help:  ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -79,9 +79,9 @@ inject:  ## Inject a catalog bug: make inject BUG=002
 trigger:  ## Inject (if needed) and run a bug's rider scenario: make trigger BUG=001
 	uv run --no-sync debugassist scenario trigger $(BUG)
 
-demo-push-crash:  ## BUG-002 end to end with no keys: scripted LLM, mock Clef/GitHub/Jira/Slack (LIVE=1: real everything)
+demo-push-crash:  ## BUG-002 end to end with no keys: scripted LLM, mock Clef/GitHub/Jira/chat (LIVE=1: real everything)
 	uv run --no-sync debugassist scenario trigger 002
-	$(if $(LIVE),,DA_MODE_LLM=mock DA_MODE_CLEF=mock DA_MODE_GITHUB=mock DA_MODE_JIRA=mock DA_MODE_SLACK=mock) uv run --no-sync debugassist run latest --llm $(if $(LIVE),live,mock)
+	$(if $(LIVE),,DA_MODE_LLM=mock DA_MODE_CLEF=mock DA_MODE_GITHUB=mock DA_MODE_JIRA=mock DA_MODE_CHAT=mock) uv run --no-sync debugassist run latest --llm $(if $(LIVE),live,mock)
 	uv run --no-sync debugassist report
 
 report:  ## Render the latest run (or RUN=<id>) as .data/runs/<id>/report.html
@@ -92,6 +92,9 @@ readme-assets:  ## Rebuild README visuals: hero, overview, pipeline, MiniRide, l
 
 screenshots:  ## Proof screenshots into docs/screenshots/ (WHAT=stack|run|all; Jira: scripts/screenshots.py jira-login once)
 	uv run --no-sync python scripts/screenshots.py $(or $(WHAT),all)
+
+deploy:  ## Ship a ref to the local stack (stands in for merge + deploy): make deploy REF=debugassist/vit-1001 [REPO=miniride-services]
+	uv run --no-sync debugassist scenario deploy $(REF) $(if $(REPO),--repo $(REPO),)
 
 reset-scenario:  ## Back to the clean release (WIPE=1 also wipes Vitals/BugDrop/ride data)
 	uv run --no-sync debugassist scenario reset $(if $(WIPE),--wipe,)
