@@ -67,6 +67,8 @@ known-first-party = ["debugassist"]
 "packages/mcp_servers/**" = ["S603", "S607"]
 # Nodes run one at a time, so their short git calls cannot starve the event loop.
 "packages/pipeline/src/debugassist/pipeline/nodes.py" = ["S603", "S607", "ASYNC221"]
+"packages/pipeline/src/debugassist/pipeline/fixplan.py" = ["S603", "S607"]
+"packages/pipeline/src/debugassist/pipeline/e2e.py" = ["S603", "S607", "S108"]
 # Vendored into the services repo verbatim (formatted by that repo's ruff config).
 "sources/vitals/sdk-py/**" = ["S310", "SIM105", "BLE001"]
 

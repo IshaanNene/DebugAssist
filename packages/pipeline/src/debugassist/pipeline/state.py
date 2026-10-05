@@ -133,8 +133,30 @@ class FixOutput(BaseModel):
     tests_added: list[str] = Field(description="repo-relative paths of new or changed test files")
 
 
+Tier = Literal["unit", "integration", "e2e_env"]
+TIERS: tuple[Tier, ...] = ("unit", "integration", "e2e_env")  # the validation ladder, cheapest first
+
+
+class FixPlan(BaseModel):
+    """Decided once before the first attempt: where to fix (D12), how (D13), at which test tier (D14)."""
+
+    candidates: int = 0
+    location: dict[str, Any] = Field(default_factory=dict[str, Any])  # D12 choice, p, band, action
+    focus: list[str] = Field(default_factory=list[str])  # "path::function" the fix agent should start from
+    suspect_commits: list[dict[str, str]] = Field(
+        default_factory=list[dict[str, str]]
+    )  # in the release window
+    strategy: dict[str, Any] = Field(default_factory=dict[str, Any])  # D13
+    tier: dict[str, Any] = Field(default_factory=dict[str, Any])  # D14
+    ladder: list[Tier] = Field(default_factory=list[Tier])  # tiers to try, in order
+    captured_env: dict[str, Any] = Field(default_factory=dict[str, Any])  # the user's env, for E2E
+    skip: str | None = None  # why no fix is attempted (needs a human, flag only, cannot reproduce)
+
+
 class FixAttempt(BaseModel):
     n: int
+    tier: Tier | None = None  # the ladder tier whose reproduction test was verified
+    tiers_tried: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])
     repro: ReproOutput | None = None
     repro_verified: bool = False
     repro_run: dict[str, Any] = Field(default_factory=dict[str, Any])
@@ -188,6 +210,7 @@ class RunState(BaseModel):
     evidence: list[EvidenceItem] = Field(default_factory=list[EvidenceItem])
     rca: RCA | None = None
     mitigation: Mitigation | None = None
+    fix_plan: FixPlan | None = None
     fix_attempts: list[FixAttempt] = Field(default_factory=list[FixAttempt])
     validation: Validation | None = None
     ship: Ship | None = None
@@ -198,5 +221,6 @@ class RunState(BaseModel):
     timings_ms: dict[str, int] = Field(default_factory=dict[str, int])
     errors: list[str] = Field(default_factory=list[str])
     status: Literal["running", "done", "failed", "stopped", "duplicate"] = "running"
+    stopped_after: str | None = None  # the node --until stopped after (a resume continues from it)
     evidence_pruned: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # dropped by D3
     screenshots: dict[str, Any] | None = None  # D4 findings

@@ -11,12 +11,14 @@ import json
 import os
 import re
 import subprocess
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 import yaml
+from langchain_core.tools import BaseTool, tool
 
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT, Verdict
@@ -27,7 +29,7 @@ from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
-from debugassist.pipeline import collector
+from debugassist.pipeline import collector, e2e, fixplan
 from debugassist.pipeline import rca as rca_mod
 from debugassist.pipeline.deps import APPS, Deps
 from debugassist.pipeline.state import (
@@ -43,6 +45,7 @@ from debugassist.pipeline.state import (
     Ship,
     ShipOutcome,
     TestRun,
+    Tier,
     Triage,
     Validation,
 )
@@ -152,8 +155,8 @@ def _repro_problem(cmd: str, exit_code: int, output: str, issue: Issue) -> str |
     return None
 
 
-def _run_on_release(sb: Sandbox, base: str, cmd: str, workdir: str) -> CommandResult | None:
-    """Run `cmd` with the source change reverted (tests kept), then re-apply it. None if no source change."""
+def _run_on_release(sb: Sandbox, base: str, run: Callable[[], CommandResult]) -> CommandResult | None:
+    """Run with the source change reverted (tests kept), then re-apply it. None if no source change."""
     src = [f for f in changed_files(sb.diff(base)) if not is_test_path(f)]
     if not src:
         return None
@@ -162,7 +165,7 @@ def _run_on_release(sb: Sandbox, base: str, cmd: str, workdir: str) -> CommandRe
     ).stdout
     subprocess.run(["git", "apply", "-R", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
     try:
-        return sb.run(cmd, workdir=workdir)
+        return run()
     finally:
         subprocess.run(["git", "apply", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
 
@@ -584,7 +587,9 @@ async def mitigate(state: RunState, deps: Deps) -> dict[str, Any]:
         },
         decision={"p": d11.p, "band": d11.band, "action": d11.action},
     )
-    if d11.action == "rollback_flag" and corr["significant"]:
+    if d11.action == "rollback_flag" and corr["significant"] and not current["rollout_pct"]:
+        m.detail = f"{flag}: rollback warranted, but the flag is already at 0% — nothing to roll back"
+    elif d11.action == "rollback_flag" and corr["significant"]:
         verdict = deps.gate.verdict("flags.rollback")
         if verdict is Verdict.APPROVAL:
             from langgraph.types import interrupt
@@ -661,22 +666,76 @@ def _test_cmd(language: str, test_file: str, component: str) -> str:
     return f"pnpm exec vitest run {rel}"
 
 
+def _run_test(sb: Sandbox, issue: Issue, cmd: str) -> CommandResult:
+    """Unit/integration tests run in the sandbox; E2E specs run against a build of the worktree."""
+    if e2e.is_e2e_cmd(cmd):
+        return e2e.run(sb, _pipeline_yaml(sb.worktree), issue.component, cmd)
+    return sb.run(cmd, workdir=issue.component)
+
+
+def _repro_cmd(issue: Issue, test_file: str) -> str:
+    rel = test_file if issue.component == "." else test_file.removeprefix(f"{issue.component}/")
+    if rel.startswith("e2e/"):
+        return e2e.e2e_cmd(test_file, issue.component)
+    return _test_cmd(issue.language, test_file, issue.component)
+
+
+def _tier_problem(tier: Tier, issue: Issue, test_file: str) -> str | None:
+    rel = test_file if issue.component == "." else test_file.removeprefix(f"{issue.component}/")
+    if tier == "e2e_env" and not rel.startswith("e2e/"):
+        return f"this step needs a Playwright spec under e2e/, not {test_file}."
+    if tier != "e2e_env" and rel.startswith("e2e/"):
+        return f"this step needs a {tier} test next to the existing tests, not a Playwright spec."
+    return None
+
+
+def _e2e_tool(sb: Sandbox, issue: Issue) -> BaseTool:
+    """Lets the agent check its spec: the pipeline builds the worktree and runs the spec in the isolated
+    E2E runner (the agent's own sandbox has no network)."""
+
+    @tool
+    def run_e2e(test_file: str) -> str:
+        """Build the app from the worktree and run one Playwright spec (e2e/….spec.ts) against the live
+        backends. Slow (about a minute): use it to check your spec before submitting."""
+        if _tier_problem("e2e_env", issue, test_file) or not (sb.worktree / test_file).is_file():
+            return f"{test_file} is not an existing spec under e2e/"
+        res = e2e.run(
+            sb, _pipeline_yaml(sb.worktree), issue.component, e2e.e2e_cmd(test_file, issue.component)
+        )
+        return f"exit code {res.exit_code}\n{res.output[-3500:]}"
+
+    return run_e2e
+
+
+def _reset_to(sb: Sandbox, base: str) -> None:
+    # Every attempt (and a resumed run) starts from the release tag, not the branch head: after a PR
+    # the bot branch holds the previous fix commit. Ignored dirs (node_modules…) survive.
+    subprocess.run(["git", "reset", "-q", "--hard", base], cwd=sb.worktree, check=True)
+    subprocess.run(["git", "clean", "-qfd"], cwd=sb.worktree, check=False)
+
+
 async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
-    """Two enforced phases: (1) reproduce — tests only, must fail on the release; (2) fix — make it pass."""
+    """Plan once (D12–D14), then two enforced phases per attempt: (1) reproduce — tests only, must fail on
+    the release, climbing the tier ladder until a tier reproduces; (2) fix — make it pass."""
     issue, rca = state.issue, state.rca
     assert issue and rca and rca.output
     sb = _sandbox(state)
     comp = _component_cfg(state, sb.worktree)
     attempt = len(state.fix_attempts) + 1
     base = f"v{issue.last_version}"
-    # Every attempt (and a resumed run) starts from the release tag, not the branch head: after a PR
-    # the bot branch holds the previous fix commit. Ignored dirs (node_modules…) survive.
-    subprocess.run(["git", "reset", "-q", "--hard", base], cwd=sb.worktree, check=True)
-    subprocess.run(["git", "clean", "-qfd"], cwd=sb.worktree, check=False)
+    _reset_to(sb, base)
     if attempt == 1:
         res = sb.install(str(comp["setup"]), workdir=issue.component)
         if res.exit_code:
             raise RuntimeError(f"dependency install failed: {res.output[-1500:]}")
+    costs = dict(state.costs)
+    decisions = list(state.decisions)
+    plan = state.fix_plan
+    if plan is None:
+        plan, ledgers = await fixplan.plan(sb, state, deps, _pipeline_yaml(sb.worktree))
+        decisions += ledgers
+    if plan.skip:
+        return {"fix_plan": plan, "decisions": decisions}
     o = rca.output
     cfg = deps.agent_type["nodes"]["fix"]
     context = (
@@ -686,87 +745,119 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
         + "\n"
         f"Root cause: {o.root_cause}\nLocation: {o.location.file} → {o.location.function}"
         f"{f' (line {o.location.line})' if o.location.line else ''}\nReproduction idea: {o.reproduction}\n"
-        f"Correct fix direction: {o.fix_direction}\n"
+        f"Correct fix direction: {o.fix_direction}\n" + fixplan.prompt_section(plan)
     )
     if state.validation and state.validation.attempts:
         context += f"\nThe previous attempt failed validation:\n{json.dumps(state.validation.attempts[-1], default=str)[:3000]}\nTry a different approach.\n"
-    costs = dict(state.costs)
     fa = FixAttempt(n=attempt)
 
-    # Phase 1: reproduce (only test files may be written)
+    # Phase 1: reproduce (only test files may be written), up the ladder from the last tier that worked
+    last = next((a.tier for a in reversed(state.fix_attempts) if a.tier), None)
+    ladder = plan.ladder[plan.ladder.index(last) :] if last in plan.ladder else plan.ladder
     repro_cfg: dict[str, Any] = {**cfg, "max_turns": min(15, int(cfg["max_turns"]))}
-    repro_spec = LLMNodeSpec(
-        node=f"reproduce_{attempt}" if attempt > 1 else "reproduce",
-        system_prompt=_prompt("reproduce_system.md"),
-        **repro_cfg,
-    )
-    tools = build_workspace_tools(
-        sb, allow_edits=True, allow_commands=True, editable=is_test_path, workdir=issue.component
-    )
-    feedback = ""
-
-    def check_repro(out: dict[str, Any]) -> str | None:
-        path = str(out.get("test_file", ""))
-        if not is_test_path(path) or not (sb.worktree / path).is_file():
-            return f"{path} does not exist as a test file. Create it with write_file first."
-        cmd = _test_cmd(issue.language, path, issue.component)
-        res = sb.run(cmd, workdir=issue.component)
-        if problem := _repro_problem(cmd, res.exit_code, res.output, issue):
-            return problem
-        if problem := _static_problem(sb, comp, issue.component):
-            return (
-                f"the test reproduces the bug, but {problem}\nClean up the test file (e.g. unused imports)."
+    for tier in ladder:
+        _reset_to(sb, base)
+        guide = fixplan.TIER_GUIDE[tier]
+        if tier == "e2e_env":
+            e2e.write_helpers(sb, issue.component)
+            guide += (
+                f"\n{e2e.helper_doc()}\nThe user's captured environment:\n"
+                f"{json.dumps(plan.captured_env, default=str)[:2000]}\n"
+                "Existing specs to copy conventions from: "
+                + ", ".join(sorted(p.name for p in (sb.worktree / issue.component / "e2e").glob("*.spec.ts")))
+                + "\n"
             )
-        return None
+        node = f"reproduce_{tier}" + (f"_{attempt}" if attempt > 1 else "")
+        repro_spec = LLMNodeSpec(node=node, system_prompt=_prompt("reproduce_system.md"), **repro_cfg)
+        tools = build_workspace_tools(
+            sb, allow_edits=True, allow_commands=True, editable=is_test_path, workdir=issue.component
+        )
+        if tier == "e2e_env":
+            tools.append(_e2e_tool(sb, issue))
+        feedback = ""
 
-    for _ in range(2):
-        r1 = await deps.runner(_apply_diff(sb)).run(
-            repro_spec,
-            context + feedback + "\nWrite and run the reproduction test, then submit.",
-            ReproOutput,
-            tools=tools,
-            diff_fn=lambda: sb.diff(base),
-            validate_output=check_repro,
-        )
-        _stop_if_out_of_quota(r1, state, "fix")
-        costs[repro_spec.node] = costs.get(repro_spec.node, 0.0) + r1.cost_usd
-        fa.llm["reproduce"] = _llm_summary(r1)
-        _revert_non_tests(sb)  # source is read-only while reproducing, whatever the agent ran
-        out = (
-            r1.output if r1.output and (sb.worktree / str(r1.output.get("test_file", ""))).is_file() else None
-        )
-        if out is None:
-            # The model sometimes stops without submitting: trust the worktree, not its word.
-            written = _new_test_files(sb)
-            if not written:
-                feedback = "\nYou did not write a reproduction test. Create one with write_file, run it, then submit."
-                continue
-            out = {
-                "test_file": written[-1],
-                "asserts": "(inferred from the test file the agent wrote)",
-                "failure": "(not reported by the agent; see the verification run)",
-            }
-            fa.llm["reproduce"]["note"] = "no valid submission; using the test file found in the worktree"
-        fa.repro = ReproOutput.model_validate(out)
-        cmd = _test_cmd(issue.language, fa.repro.test_file, issue.component)
-        run = sb.run(cmd, workdir=issue.component)
-        fa.repro_run = {"command": cmd, "exit_code": run.exit_code, "output_tail": run.output[-2500:]}
-        problem = _repro_problem(cmd, run.exit_code, run.output, issue) or _static_problem(
-            sb, comp, issue.component
-        )
-        fa.repro_verified = (
-            problem is None
-            and is_test_path(fa.repro.test_file)
-            and (sb.worktree / fa.repro.test_file).is_file()
-        )
+        def check_repro(out: dict[str, Any], bound_tier: Tier = tier) -> str | None:
+            path = str(out.get("test_file", ""))
+            if not is_test_path(path) or not (sb.worktree / path).is_file():
+                return f"{path} does not exist as a test file. Create it with write_file first."
+            if problem := _tier_problem(bound_tier, issue, path):
+                return problem
+            cmd = _repro_cmd(issue, path)
+            res = _run_test(sb, issue, cmd)
+            if problem := _repro_problem(cmd, res.exit_code, res.output, issue):
+                return problem
+            if problem := _static_problem(sb, comp, issue.component):
+                return f"the test reproduces the bug, but {problem}\nClean up the test file (e.g. unused imports)."
+            return None
+
+        tried: dict[str, Any] = {"tier": tier}
+        for _ in range(2):
+            r1 = await deps.runner(_apply_diff(sb)).run(
+                repro_spec,
+                context + guide + feedback + "\nWrite the reproduction test, run it if you can, then submit.",
+                ReproOutput,
+                tools=tools,
+                diff_fn=lambda: sb.diff(base),
+                validate_output=check_repro,
+            )
+            _stop_if_out_of_quota(r1, state, "fix")
+            costs[node] = costs.get(node, 0.0) + r1.cost_usd
+            fa.llm[node] = _llm_summary(r1)
+            _revert_non_tests(sb)  # source is read-only while reproducing, whatever the agent ran
+            out = (
+                r1.output
+                if r1.output and (sb.worktree / str(r1.output.get("test_file", ""))).is_file()
+                else None
+            )
+            if out is None:
+                # The model sometimes stops without submitting: trust the worktree, not its word.
+                helper = e2e.HELPER_PATH if issue.component == "." else f"{issue.component}/{e2e.HELPER_PATH}"
+                written = [f for f in _new_test_files(sb) if f != helper]
+                if not written:
+                    feedback = (
+                        "\nYou did not write a reproduction test. Create one with write_file, then submit."
+                    )
+                    continue
+                out = {
+                    "test_file": written[-1],
+                    "asserts": "(inferred from the test file the agent wrote)",
+                    "failure": "(not reported by the agent; see the verification run)",
+                }
+                fa.llm[node]["note"] = "no valid submission; using the test file found in the worktree"
+            fa.repro = ReproOutput.model_validate(out)
+            cmd = _repro_cmd(issue, fa.repro.test_file)
+            run = _run_test(sb, issue, cmd)
+            fa.repro_run = {"command": cmd, "exit_code": run.exit_code, "output_tail": run.output[-2500:]}
+            problem = (
+                _tier_problem(tier, issue, fa.repro.test_file)
+                or _repro_problem(cmd, run.exit_code, run.output, issue)
+                or _static_problem(sb, comp, issue.component)
+            )
+            fa.repro_verified = (
+                problem is None
+                and is_test_path(fa.repro.test_file)
+                and (sb.worktree / fa.repro.test_file).is_file()
+            )
+            if fa.repro_verified:
+                break
+            fa.llm[node]["rejected"] = (problem or "")[:300]
+            feedback = f"\nYour previous test was not a reproduction: {problem} Write a test that fails for the reason in the root cause."
+        tried["verified"] = fa.repro_verified
+        if fa.repro_run:
+            tried["exit_code"] = fa.repro_run.get("exit_code")
+        fa.tiers_tried.append(tried)
         if fa.repro_verified:
+            fa.tier = tier
             break
-        fa.llm["reproduce"]["rejected"] = (problem or "")[:300]
-        feedback = f"\nYour previous test was not a reproduction: {problem} Write a test that fails for the reason in the root cause."
     if not fa.repro_verified:
         fa.diff = sb.diff(base)
         fa.files = changed_files(fa.diff)
-        return {"fix_attempts": [*state.fix_attempts, fa], "costs": costs}
+        return {
+            "fix_attempts": [*state.fix_attempts, fa],
+            "costs": costs,
+            "fix_plan": plan,
+            "decisions": decisions,
+        }
 
     # Phase 2: fix. The reproduction test may be repaired (e.g. it hangs once the bug is fixed), but every
     # check re-proves the contract: with only the source change reverted it still fails with the production
@@ -780,12 +871,18 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
         editable=lambda p: not p.startswith(("src/vendor/", "vendor/")),
         workdir=issue.component,
     )
+    if fa.tier == "e2e_env":
+        tools.append(_e2e_tool(sb, issue))
     fix_spec = LLMNodeSpec(
         node=f"fix_{attempt}" if attempt > 1 else "fix", system_prompt=_prompt("fix_system.md"), **cfg
     )
+    how = (
+        "run it with the run_e2e tool (E2E against a fresh build of your change)"
+        if fa.tier == "e2e_env"
+        else f"run with `{fa.repro_run['command']}`"
+    )
     prompt = (
-        context
-        + f"\nReproduction test: `{repro.test_file}` — run with `{fa.repro_run['command']}`; it currently fails:\n"
+        context + f"\nReproduction test ({fa.tier}): `{repro.test_file}` — {how}; it currently fails:\n"
         f"{fa.repro_run['output_tail'][-1500:]}\n\nFix the bug so this test and the component suite pass, then submit."
     )
 
@@ -793,12 +890,12 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
         cmd = str(fa.repro_run["command"])
         if not (sb.worktree / repro.test_file).is_file():
             return f"the reproduction test {repro.test_file} is missing; restore it"
-        before = _run_on_release(sb, base, cmd, issue.component)
+        before = _run_on_release(sb, base, lambda: _run_test(sb, issue, cmd))
         if before is None:
             return "you have not changed any source file yet"
         if problem := _repro_problem(cmd, before.exit_code, before.output, issue):
             return f"with your source change reverted, the reproduction test no longer reproduces the bug: {problem}"
-        res = sb.run(cmd, workdir=issue.component)
+        res = _run_test(sb, issue, cmd)
         if res.exit_code != 0:
             return f"the reproduction test still fails with your change:\n{res.output[-1200:]}"
         suite = sb.run(str(comp["test"]), workdir=issue.component)
@@ -815,7 +912,12 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     fa.output = FixOutput.model_validate(r2.output) if r2.output else None
     fa.diff = sb.diff(base)
     fa.files = changed_files(fa.diff)
-    return {"fix_attempts": [*state.fix_attempts, fa], "costs": costs}
+    return {
+        "fix_attempts": [*state.fix_attempts, fa],
+        "costs": costs,
+        "fix_plan": plan,
+        "decisions": decisions,
+    }
 
 
 # ---- N6 validate ----------------------------------------------------------------------------
@@ -829,7 +931,7 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
     comp = _component_cfg(state, sb.worktree)
     fa = state.fix_attempts[-1]
     v = state.validation or Validation()
-    record: dict[str, Any] = {"attempt": fa.n, "tier": "unit"}
+    record: dict[str, Any] = {"attempt": fa.n, "tier": fa.tier, "tiers_tried": fa.tiers_tried}
     src = [f for f in fa.files if not is_test_path(f)]
     if not fa.repro_verified or not fa.repro:
         record.update(result="no reproduction test that fails on the release", repro_run=fa.repro_run)
@@ -837,9 +939,9 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
         record.update(result="no source change")
     else:
         cmd = str(fa.repro_run["command"])
-        after = sb.run(cmd, workdir=issue.component)
+        after = _run_test(sb, issue, cmd)
         v.passing_after = TestRun(
-            label="reproduction test with the fix",
+            label=f"reproduction test ({fa.tier}) with the fix",
             command=cmd,
             exit_code=after.exit_code,
             output_tail=after.output[-3000:],
@@ -850,11 +952,11 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
         ).stdout
         subprocess.run(["git", "apply", "-R", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
         try:
-            before = sb.run(cmd, workdir=issue.component)
+            before = _run_test(sb, issue, cmd)
         finally:
             subprocess.run(["git", "apply", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
         v.failing_before = TestRun(
-            label="reproduction test on the release (expected to fail)",
+            label=f"reproduction test ({fa.tier}) on the release (expected to fail)",
             command=cmd,
             exit_code=before.exit_code,
             output_tail=before.output[-3000:],
@@ -925,6 +1027,9 @@ async def decide_retry(state: RunState, deps: Deps) -> bool:
 
 async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
     rca, v = state.rca, state.validation
+    if state.fix_plan and state.fix_plan.skip:
+        outcome: ShipOutcome = "escalate" if state.fix_plan.skip.startswith("needs a human") else "rca_only"
+        return {"ship": Ship(outcome=outcome, decision={"reason": state.fix_plan.skip})}
     if rca is None or not rca.actionable or not state.fix_attempts:
         return {"ship": Ship(outcome="rca_only", decision={"reason": "not actionable or no fix"})}
     fa = state.fix_attempts[-1]

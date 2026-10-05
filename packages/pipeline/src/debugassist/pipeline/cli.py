@@ -7,7 +7,7 @@ import logging
 import sqlite3
 import sys
 from collections import Counter
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import httpx
 import typer
@@ -76,10 +76,24 @@ def _summary(s: RunState) -> None:
         typer.echo(f"            {o.summary[:300]}")
     if s.mitigation:
         typer.echo(f"  mitigate  {s.mitigation.action}: {s.mitigation.detail}")
-    for fa in s.fix_attempts:
-        rp, fx = fa.llm.get("reproduce", {}), fa.llm.get("fix", {})
+    if s.fix_plan:
+        fp = s.fix_plan
         typer.echo(
-            f"  fix #{fa.n}    repro {'✓' if fa.repro_verified else '✗'} {fa.repro.test_file if fa.repro else '-'} "
+            f"  plan      D12 {fp.location.get('action')} → {', '.join(fp.focus) or '-'} ({fp.candidates} candidates)"
+            f" · D13 {fp.strategy.get('choice')} ({fp.strategy.get('action')}) · D14 {fp.tier.get('choice')} ({fp.tier.get('action')}) → ladder {' → '.join(fp.ladder) or '-'}"
+            + (f" · skip: {fp.skip}" if fp.skip else "")
+        )
+        if fp.suspect_commits:
+            typer.echo(
+                "            commits in window: "
+                + "; ".join(f"{c['sha']} {c['subject']}" for c in fp.suspect_commits[:3])
+            )
+    for fa in s.fix_attempts:
+        reproduce = [cast(dict[str, Any], v) for k, v in fa.llm.items() if k.startswith("reproduce")]
+        rp = reproduce[-1] if reproduce else {}
+        fx = fa.llm.get("fix", {})
+        typer.echo(
+            f"  fix #{fa.n}    repro {'✓' if fa.repro_verified else '✗'} [{fa.tier or '/'.join(t['tier'] for t in fa.tiers_tried) or '-'}] {fa.repro.test_file if fa.repro else '-'} "
             f"({rp.get('turns')} turns) · fix {fx.get('status', '-')} ({fx.get('turns')} turns) · files: {', '.join(fa.files)}"
         )
     if s.validation:
@@ -153,6 +167,11 @@ def run(
         progress.setLevel(logging.INFO)
         progress.propagate = False
 
+    def _last_node(values: dict[str, Any]) -> str | None:
+        """Runs stopped before `stopped_after` existed: the last node that recorded a timing."""
+        timings = list(cast(dict[str, int], values.get("timings_ms") or {}))
+        return timings[-1] if timings else None
+
     async def main() -> RunState:
         nonlocal issue
         if issue == "latest":
@@ -181,6 +200,15 @@ def run(
                 if not before:
                     raise typer.BadParameter(f"run {run_id} never reached {from_node}")
                 cfg = RunnableConfig(configurable=before[-1].config["configurable"], recursion_limit=60)
+            elif resume:
+                # A run stopped by --until continues from the node that stopped it.
+                snap = await graph.aget_state(cfg)
+                values = cast(dict[str, Any], snap.values)
+                stopped_after = values.get("stopped_after") or _last_node(values)
+                if values.get("status") == "stopped" and not snap.next and stopped_after:
+                    cfg = await graph.aupdate_state(
+                        cfg, {"status": "running", "stopped_after": None}, as_node=stopped_after
+                    )
             result: dict[str, Any] = await graph.ainvoke(start, cfg)
             cfg = {"configurable": {"thread_id": run_id}, "recursion_limit": 60}  # later resumes: latest
             while "__interrupt__" in result:
