@@ -22,6 +22,7 @@ import yaml
 from langchain_core.tools import BaseTool, tool
 
 from debugassist.core import untrusted
+from debugassist.core.ablation import ablated
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT, Verdict
 from debugassist.core.settings import Integration, Mode
@@ -618,7 +619,7 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
         RCAOutput,
         tools=skill_tools or None,
         mcp_env=env,
-        monitor=rca_mod.make_monitor(st, deps, monitor_ledgers),
+        monitor=None if ablated("D08") else rca_mod.make_monitor(st, deps, monitor_ledgers),
     )
     decisions += monitor_ledgers
     _stop_if_out_of_quota(r, state, "classify_rca")
@@ -629,7 +630,12 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
     output = RCAOutput.model_validate(r.output)
     # D9: every claim checked against the evidence it cites.
     lookup = rca_mod.evidence_lookup(st, [r, *sub_results])
-    rca.output, rca.grounding, rca.dropped_claims, d9 = await rca_mod.ground_claims(st, deps, output, lookup)
+    if ablated("D09"):  # no grounding check: every claim is kept as written
+        rca.output, rca.grounding, rca.dropped_claims, d9 = output, [], [], []
+    else:
+        rca.output, rca.grounding, rca.dropped_claims, d9 = await rca_mod.ground_claims(
+            st, deps, output, lookup
+        )
     decisions += d9
     return {"rca": rca, "decisions": decisions, "costs": costs, "evidence": st.evidence}
 

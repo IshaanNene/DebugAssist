@@ -5,7 +5,7 @@ description = "DebugAssist: crash/bug report → RCA → mitigation → validate
 requires-python = ">=3.13,<3.14"
 readme = "README.md"
 license = "MIT"
-dependencies = ["debugassist-core", "debugassist-decisions", "vitals-service", "bugdrop-service", "incidents-service", "debugassist-simulator", "debugassist-scenarios", "debugassist-cli", "debugassist-integrations", "debugassist-mcp-servers", "debugassist-llm", "debugassist-pipeline", "debugassist-api", "debugassist-harness"]
+dependencies = ["debugassist-core", "debugassist-decisions", "vitals-service", "bugdrop-service", "incidents-service", "debugassist-simulator", "debugassist-scenarios", "debugassist-cli", "debugassist-integrations", "debugassist-mcp-servers", "debugassist-llm", "debugassist-pipeline", "debugassist-api", "debugassist-harness", "debugassist-evals"]
 
 [tool.uv]
 package = false
@@ -30,6 +30,7 @@ debugassist-llm = { workspace = true }
 debugassist-pipeline = { workspace = true }
 debugassist-api = { workspace = true }
 debugassist-harness = { workspace = true }
+debugassist-evals = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -72,6 +73,7 @@ known-first-party = ["debugassist"]
 "packages/pipeline/src/debugassist/pipeline/fixplan.py" = ["S603", "S607"]
 "packages/harness/src/debugassist/harness/marketplace.py" = ["S603", "S607"]
 "packages/harness/src/debugassist/harness/launcher.py" = ["S603", "S607"]
+"packages/evals/src/debugassist/evals/**" = ["S603", "S607"]
 "packages/pipeline/src/debugassist/pipeline/postpr.py" = ["S603", "S607", "ASYNC221"]
 "packages/pipeline/src/debugassist/pipeline/feedback.py" = ["S603", "S607"]
 "packages/pipeline/src/debugassist/pipeline/e2e.py" = ["S603", "S607", "S108"]

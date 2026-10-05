@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from langchain_openai import ChatOpenAI
 
+from debugassist.core import ablation
 from debugassist.core.llm_models import model_info
 from debugassist.core.settings import Settings, get_settings
 
@@ -36,6 +37,8 @@ def chat_model(
         kwargs["reasoning_effort"] = cap if cap and order.index(effort) > order.index(cap) else effort
     if s.provider() == "openrouter":
         kwargs["extra_body"] = {"provider": routing(s, name)}
+    if (seed := ablation.llm_seed()) is not None:  # repeat runs per eval configuration
+        kwargs["seed"] = seed
     return ChatOpenAI(
         model=name,
         base_url=s.llm_base_url(),

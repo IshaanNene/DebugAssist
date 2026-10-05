@@ -18,6 +18,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from debugassist.core.ablation import ablated
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
 from debugassist.integrations.sandbox import Sandbox
@@ -189,6 +190,8 @@ async def localize(
     """D12: (decision record, focus locations, number of candidates, ledger id)."""
     issue, rca = state.issue, state.rca
     assert issue and rca and rca.output
+    if ablated("D12"):
+        return {"action": "ablated"}, [], 0, None
     cands, _ = candidates(sb, state)
     if not cands:
         return {"action": "search_wider", "reason": "no candidates found"}, [], 0, None
@@ -267,6 +270,9 @@ async def choose_tier(
     issue, rca = state.issue, state.rca
     assert issue and rca and rca.output
     o = rca.output
+    if ablated("D14"):  # no tier choice: climb the full ladder from the cheapest tier
+        ladder_: list[Tier] = [t for t in TIERS if not (t == "e2e_env" and e2e_unavailable is not None)]
+        return {"action": "ablated"}, ladder_, None, None
     cs = (
         CompactState()
         .add("issue", collector.issue_summary(issue), priority=0)

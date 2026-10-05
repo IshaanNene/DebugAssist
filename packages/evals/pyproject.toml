@@ -1,0 +1,28 @@
+[project]
+name = "debugassist-evals"
+version = "0.1.0"
+description = "Evaluation harness: run catalog bugs end to end, score against ground truth, label decisions, ablations, reports"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "debugassist-core",
+  "debugassist-decisions",
+  "debugassist-integrations",
+  "debugassist-scenarios",
+  "debugassist-pipeline",
+  "matplotlib>=3.10",
+  "typer>=0.20",
+]
+
+[tool.uv.sources]
+debugassist-core = { workspace = true }
+debugassist-decisions = { workspace = true }
+debugassist-integrations = { workspace = true }
+debugassist-scenarios = { workspace = true }
+debugassist-pipeline = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/debugassist"]
