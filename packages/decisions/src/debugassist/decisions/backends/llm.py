@@ -7,6 +7,8 @@ text-only, so images are dropped (and the drop is reported via ``last_note``).
 
 from __future__ import annotations
 
+import asyncio
+import re
 from typing import Any, cast, override
 
 from system_one_adapter import AsyncSystemOneAdapterClient
@@ -87,6 +89,10 @@ class CompatProvider(AsyncOpenAIProvider):
         )
 
 
+RATE_LIMIT_BACKOFF_S = (5.0, 15.0, 30.0)
+_RETRYABLE = re.compile(r"\b(429|5\d\d)\b|rate.?limit|timed? ?out|overloaded", re.I)
+
+
 class LLMDecider:
     name = "llm"
     mode = Mode.LIVE
@@ -149,10 +155,17 @@ class LLMDecider:
             f"dropped {len(request.images)} image(s): text-only model" if request.images else None
         )
         body = request.body()
-        try:
-            result = await self._client.system_one(body["state"], body["questions"])
-        except TypeSafeError as exc:
-            raise ClefTransientError(f"LLM decider failed: {exc}") from exc
+        for delay in (*RATE_LIMIT_BACKOFF_S, None):
+            try:
+                result = await self._client.system_one(body["state"], body["questions"])
+                break
+            except TypeSafeError as exc:
+                # Provider rate limits and upstream hiccups clear in seconds, longer than the engine's retries.
+                if delay is None or not _RETRYABLE.search(str(exc)):
+                    raise ClefTransientError(f"LLM decider failed: {exc}") from exc
+                await asyncio.sleep(delay)
+        else:  # pragma: no cover - the loop always breaks or raises
+            raise AssertionError("unreachable")
         dumped = result.model_dump(mode="json")
         usage = result.usage
         parsed = ClefResponse.model_validate(
