@@ -1,0 +1,15 @@
+diff --git a/gateway/src/schema.ts b/gateway/src/schema.ts
+index 3177c68..10d822c 100644
+--- a/gateway/src/schema.ts
++++ b/gateway/src/schema.ts
+@@ -64,7 +64,9 @@ export const STATUS_NOTIFICATIONS: Record<string, { title: string; body: string
+ };
+ 
+ export function notifyStatus(ctx: Ctx, rideId: string, status: string) {
+-  const { title, body } = STATUS_NOTIFICATIONS[status] as { title: string; body: string };
++  const copy = STATUS_NOTIFICATIONS[status];
++  if (!copy) return; // e.g. in_trip: nothing to announce
++  const { title, body } = copy;
+   ctx.notifications.push(ctx.sessionId, { kind: `ride.${status}`, title, body, deepLink: `/ride/${rideId}` }, `${rideId}:${status}`);
+ }
+ 

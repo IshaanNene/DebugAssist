@@ -1,0 +1,14 @@
+diff --git a/gateway/src/backends.ts b/gateway/src/backends.ts
+index 229e72d..84ff5cb 100644
+--- a/gateway/src/backends.ts
++++ b/gateway/src/backends.ts
+@@ -80,7 +80,8 @@ export function httpBackends(
+       const r = await call<Place[]>(`${dispatchUrl}/places?city=${encodeURIComponent(city)}`);
+       if (r.status === 404) throw createGraphQLError(`unknown city ${city}`, { extensions: { code: "BAD_USER_INPUT" } });
+       // Dispatch's place records carry internal fields (ranking, geofence ids); only pass on what clients show.
+-      return r.body.map(({ name, lat, lng }) => ({ name, lat, lng }) as Place);
++      // Clients select places by id, so it must survive the trimming.
++      return r.body.map(({ id, name, lat, lng }) => ({ id, name, lat, lng }));
+     },
+     async requestRide(body) {
+       const r = await call<RideOut & { detail?: string }>(`${dispatchUrl}/rides`, {

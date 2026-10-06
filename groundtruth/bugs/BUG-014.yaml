@@ -1,0 +1,34 @@
+id: BUG-014
+title: Riders cannot book — "See prices" stays disabled after the place-payload change
+language: typescript
+component: gateway
+owner_team: rider-platform
+category: own_code
+priority: P0
+discovery: [bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.7.5
+  repos:
+    miniride-services: [patches/BUG-014/0001-perf-gateway-trim-place-payloads-to-what-clients-sho.patch]
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 3
+    city: nyc
+    flow: search
+    wait_s: 4
+    report_text: "I can't book anything. The pickup list shows places but the See prices button stays grey whatever I pick."
+ground_truth:
+  fix: fixes/BUG-014.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-014/places_http.hidden.test.ts, repo: miniride-services, dest: gateway/test/places_http.hidden.test.ts }
+  location: { repo: miniride-services, module: gateway, file: gateway/src/backends.ts, function: places }
+  rca_facts:
+    - 'No rider in any city can start a booking: places load but without ids, so the client cannot select a pickup or destination.'
+    - 'The gateway maps dispatch place records to {name, lat, lng} only, dropping id (the GraphQL field is nullable, so nothing errors).'
+    - 'Regression introduced in 1.7.5 by "perf(gateway): trim place payloads to what clients show".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

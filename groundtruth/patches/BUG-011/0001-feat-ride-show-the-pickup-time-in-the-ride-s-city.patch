@@ -1,0 +1,50 @@
+From aca91f0f5a9bd1dd12143be86d61617ecf0a9323 Mon Sep 17 00:00:00 2001
+From: Omar Haddad <omar.haddad@miniride.dev>
+Date: Tue, 6 Oct 2026 21:58:40 +0530
+Subject: [PATCH] feat(ride): show the pickup time in the ride's city
+
+Next to the minutes-to-pickup, show the clock time the driver should arrive, in the city's own time zone (riders travelling often have their phone on home time).
+---
+ src/screens/RideScreen.tsx | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/src/screens/RideScreen.tsx b/src/screens/RideScreen.tsx
+index 17b8312..35cffe1 100644
+--- a/src/screens/RideScreen.tsx
++++ b/src/screens/RideScreen.tsx
+@@ -11,6 +11,22 @@ const STATUS_TEXT: Record<string, string> = {
+   completed: "You've arrived",
+ };
+ 
++const CITY_TIME_ZONES: Record<string, string> = {
++  sf: "America/Los_Angeles",
++  nyc: "America/New_York",
++  blr: "Asia/Bangalore",
++  tokyo: "Asia/Tokyo",
++};
++
++/** The pickup time as a clock time in the ride's city, e.g. "4:12 PM". */
++export function pickupClock(etaSeconds: number, city: string, now: number = Date.now()): string {
++  return new Date(now + etaSeconds * 1000).toLocaleTimeString(undefined, {
++    hour: "numeric",
++    minute: "2-digit",
++    timeZone: CITY_TIME_ZONES[city],
++  });
++}
++
+ export function formatEta(seconds: number | null | undefined): string {
+   if (seconds === null || seconds === undefined) return "—";
+   if (seconds < 60) return "< 1 min";
+@@ -61,6 +77,9 @@ export function RideScreen() {
+         {status === "in_trip" ? "Arriving at destination in " : "Pickup in "}
+         <strong data-testid="eta">{formatEta(eta?.etaSeconds)}</strong>
+         {eta?.source === "local" && <span className="muted"> (estimated)</span>}
++        {ride && eta?.etaSeconds != null && status !== "in_trip" && (
++          <span className="muted" data-testid="pickup-clock"> · around {pickupClock(eta.etaSeconds, ride.city)}</span>
++        )}
+       </p>
+       {ride && (
+         <p className="muted">
+-- 
+2.55.0
+

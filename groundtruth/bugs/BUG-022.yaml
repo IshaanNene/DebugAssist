@@ -1,0 +1,31 @@
+id: BUG-022
+title: Crashes only on one Android WebView build, inside the browser engine (not our code)
+language: none
+component: device
+owner_team: rider-app
+category: device_os
+priority: P3
+discovery: [vitals]
+injection:
+  base: v1.5.1
+trigger:
+  scenario: device_crashes
+  params:
+    events: 12
+    device: SM-A515F
+    os: Android 11
+    browser: Android WebView 83
+    normal_sessions: 6
+ground_truth:
+  fix: null
+  hidden_tests: []
+  location: { repo: null, module: device, file: null, function: null }
+  rca_facts:
+    - 'Every crash comes from one device and OS build (SM-A515F, Android 11, WebView 83); no other device is affected.'
+    - 'The stack frames are inside the browser engine (chrome:// and webview:// internals); no frame is in MiniRide code.'
+    - 'No release or flag change correlates; other sessions on the same release are healthy.'
+  mitigation: none
+validation:
+  cheapest_tier: cannot_repro
+expected_outcome: rca_only
+route_to: rider-app

@@ -1,0 +1,36 @@
+id: BUG-013
+title: Pickup ETA never shows (always "—") after the gateway ETA refactor
+language: typescript
+component: gateway
+owner_team: rider-platform
+category: own_code
+priority: P2
+discovery: [bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.7.4
+  repos:
+    miniride-services: [patches/BUG-013/0001-refactor-gateway-camelCase-ETA-at-the-backend-bounda.patch]
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 3
+    city: sf
+    flow: book
+    testid: eta
+    pattern: "^—$"
+    wait_s: 12
+    report_text: "Driver is assigned but the pickup time just shows a dash, never a number of minutes."
+ground_truth:
+  fix: fixes/BUG-013.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-013/eta_http.hidden.test.ts, repo: miniride-services, dest: gateway/test/eta_http.hidden.test.ts }
+  location: { repo: miniride-services, module: gateway, file: gateway/src/backends.ts, function: eta }
+  rca_facts:
+    - 'ETA is null for every ride in every city; dispatch itself returns eta_seconds correctly.'
+    - 'The gateway reads etaSeconds/rideId from dispatch''s snake_case response (eta_seconds/ride_id), so the fields are undefined.'
+    - 'Regression introduced in 1.7.4 by "refactor(gateway): camelCase ETA at the backend boundary".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

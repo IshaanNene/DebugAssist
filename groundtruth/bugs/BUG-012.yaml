@@ -1,0 +1,34 @@
+id: BUG-012
+title: ETA stops updating once a trip starts (gateway errors on in-trip rides)
+language: typescript
+component: gateway
+owner_team: rider-platform
+category: own_code
+priority: P2
+discovery: [vitals, bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.7.3
+  repos:
+    miniride-services: [patches/BUG-012/0001-refactor-gateway-keep-ride-notification-copy-in-one-.patch]
+trigger:
+  scenario: normal_traffic
+  params:
+    sessions: 4
+    city: sf
+    seed: 25
+    book_share: 1.0
+    hold_s: 150
+ground_truth:
+  fix: fixes/BUG-012.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-012/eta_status.hidden.test.ts, repo: miniride-services, dest: gateway/test/eta_status.hidden.test.ts }
+  location: { repo: miniride-services, module: gateway, file: gateway/src/schema.ts, function: notifyStatus }
+  rca_facts:
+    - 'Every ETA query for a ride in the in_trip status fails in the gateway with a TypeError; earlier statuses work.'
+    - 'notifyStatus destructures the notification copy for statuses that have none (in_trip), instead of skipping them.'
+    - 'Regression introduced in 1.7.3 by "refactor(gateway): keep ride notification copy in one exported table".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

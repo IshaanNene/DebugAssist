@@ -1,0 +1,30 @@
+id: BUG-018
+title: Every fare quote fails (payments panics) after the quote-caching change
+language: go
+component: payments
+owner_team: payments
+category: own_code
+priority: P0
+discovery: [vitals]
+injection:
+  base: v1.5.1
+  release: 1.7.9
+  repos:
+    miniride-services: [patches/BUG-018/0001-perf-payments-reuse-a-session-s-quote-while-it-brows.patch]
+trigger:
+  scenario: fare_quotes
+  params:
+    sessions: 6
+ground_truth:
+  fix: fixes/BUG-018.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-018/estimate_session_hidden_test.go, repo: miniride-services, dest: payments/estimate_session_hidden_test.go }
+  location: { repo: miniride-services, module: payments, file: payments/main.go, function: NewServer }
+  rca_facts:
+    - 'Every fare quote from the app fails with a payments panic: assignment to entry in nil map.'
+    - 'The new per-session quote cache (Server.recent) is never initialised in NewServer; requests without a session id (the unit tests) never touch it.'
+    - 'Regression introduced in 1.7.9 by "perf(payments): reuse a session''s quote while it browses".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

@@ -1,0 +1,36 @@
+From 925608537a374c239ae7ab843fd137476f12f4e0 Mon Sep 17 00:00:00 2001
+From: Hana Kim <hana.kim@miniride.dev>
+Date: Tue, 6 Oct 2026 21:57:53 +0530
+Subject: [PATCH] perf(fares): cache money formatters
+
+Creating an Intl.NumberFormat on every render shows up in the request screen's render profile. Cache one formatter per currency and keep the formatting in one place.
+---
+ src/screens/RequestRide.tsx | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/src/screens/RequestRide.tsx b/src/screens/RequestRide.tsx
+index 354dda2..ce74d6d 100644
+--- a/src/screens/RequestRide.tsx
++++ b/src/screens/RequestRide.tsx
+@@ -4,9 +4,16 @@ import { api, requestRide, type FareQuote } from "../api/rides";
+ import { GraphQLRequestError } from "../api/graphql";
+ import { sessionStore, useSession } from "../store/session";
+ 
++const moneyFormats = new Map<string, Intl.NumberFormat>();
++
++/** Fares arrive in minor units (cents); format them in the rider's locale. Formatters are cached. */
+ export function formatMoney(cents: number, currency: string): string {
+-  const minor = currency === "JPY" ? 1 : 100;
+-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(cents / minor);
++  let fmt = moneyFormats.get(currency);
++  if (!fmt) {
++    fmt = new Intl.NumberFormat(undefined, { style: "currency", currency });
++    moneyFormats.set(currency, fmt);
++  }
++  return fmt.format(cents / 100);
+ }
+ 
+ export function RequestRide() {
+-- 
+2.55.0
+

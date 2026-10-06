@@ -1,0 +1,17 @@
+diff --git a/src/vendor/vitals/index.ts b/src/vendor/vitals/index.ts
+index 6523758..f76bdc4 100644
+--- a/src/vendor/vitals/index.ts
++++ b/src/vendor/vitals/index.ts
+@@ -196,10 +196,10 @@ export function init(config: VitalsConfig) {
+     }
+   };
+   // Hang detection: a heartbeat that fires late means the main thread was blocked.
+-  let expected = performance.now() + 1000;
++  let expected = performance.now() + HEARTBEAT_MS;
+   setInterval(() => {
+     const lag = performance.now() - expected;
+-    expected = performance.now() + 1000;
++    expected = performance.now() + HEARTBEAT_MS;
+     if (lag > HANG_MS && document.visibilityState === "visible") {
+       capturePerf("hang", "main_thread_blocked", Math.round(lag), "ms", {});
+     }

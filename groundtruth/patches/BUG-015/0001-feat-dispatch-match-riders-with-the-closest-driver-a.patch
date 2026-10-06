@@ -1,0 +1,30 @@
+From 76f1e313e4c8166dd5581a67d7a34ec2c4f60d80 Mon Sep 17 00:00:00 2001
+From: Jonas Berg <jonas.berg@miniride.dev>
+Date: Tue, 6 Oct 2026 22:03:26 +0530
+Subject: [PATCH] feat(dispatch): match riders with the closest driver across
+ markets
+
+Riders near a city edge were told no drivers were available while a driver registered to the neighbouring market sat a few blocks away. Match on distance only, not on the driver's home city.
+---
+ dispatch/src/dispatch/matching.py | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/dispatch/src/dispatch/matching.py b/dispatch/src/dispatch/matching.py
+index 4470d70..a63d326 100644
+--- a/dispatch/src/dispatch/matching.py
++++ b/dispatch/src/dispatch/matching.py
+@@ -21,8 +21,10 @@ class NoDriversAvailable(Exception):
+ 
+ 
+ def nearest_available_driver(session: Session, city: str, pickup: Point) -> Driver:
++    """The closest free driver to the pickup. Drivers are not restricted to their home market, so a rider
++    near a city edge can be matched with a driver registered to the neighbouring one."""
+     drivers = session.scalars(
+-        select(Driver).where(Driver.city == city, Driver.busy_ride_id.is_(None), Driver.lat.is_not(None))
++        select(Driver).where(Driver.busy_ride_id.is_(None), Driver.lat.is_not(None))
+     ).all()
+     if not drivers:
+         raise NoDriversAvailable(city)
+-- 
+2.55.0
+

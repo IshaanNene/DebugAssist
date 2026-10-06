@@ -1,0 +1,34 @@
+id: BUG-017
+title: Nobody can book — browsers block every gateway request after the CORS config change
+language: typescript
+component: gateway
+owner_team: rider-platform
+category: own_code
+priority: P0
+discovery: [bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.7.8
+  repos:
+    miniride-services: [patches/BUG-017/0001-chore-gateway-accept-spaces-in-CORS_ORIGINS.patch]
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 3
+    city: sf
+    flow: search
+    wait_s: 5
+    report_text: "The app opens but no places load and See prices is greyed out. Tried two phones."
+ground_truth:
+  fix: fixes/BUG-017.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-017/cors.hidden.test.ts, repo: miniride-services, dest: gateway/test/cors.hidden.test.ts }
+  location: { repo: miniride-services, module: gateway, file: gateway/src/app.ts, function: ALLOWED_ORIGINS }
+  rca_facts:
+    - 'Every browser request to the gateway fails its CORS preflight; the gateway receives no GraphQL operations from clients at all.'
+    - 'CORS_ORIGINS is split on comma-plus-whitespace, but the deployed value has no spaces, so the whole list becomes one origin that matches nothing.'
+    - 'Regression introduced in 1.7.8 by "chore(gateway): accept spaces in CORS_ORIGINS".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

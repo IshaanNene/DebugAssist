@@ -1,0 +1,79 @@
+From e51e855a56bec05eb0468b5cadd265a1e686d8d4 Mon Sep 17 00:00:00 2001
+From: Sam Okafor <sam.okafor@miniride.dev>
+Date: Tue, 6 Oct 2026 22:01:01 +0530
+Subject: [PATCH] refactor(gateway): camelCase ETA at the backend boundary
+
+The ETA resolver was the only place re-mapping snake_case fields by hand. Type the backend ETA in the schema's camelCase and return it as is.
+---
+ gateway/src/backends.ts      | 13 +++++++++----
+ gateway/src/schema.ts        |  2 +-
+ gateway/test/gateway.test.ts |  2 +-
+ 3 files changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/gateway/src/backends.ts b/gateway/src/backends.ts
+index 389f740..5180078 100644
+--- a/gateway/src/backends.ts
++++ b/gateway/src/backends.ts
+@@ -40,6 +40,13 @@ export interface FareQuote {
+   duration_min: number;
+ }
+ 
++/** ETA as the gateway uses it (camelCase at the boundary, like the GraphQL schema). */
++export interface Eta {
++  rideId: string;
++  status: string;
++  etaSeconds: number | null;
++}
++
+ export interface Backends {
+   places(city: string): Promise<Place[]>;
+   requestRide(body: {
+@@ -50,7 +57,7 @@ export interface Backends {
+     idempotency_key?: string | null;
+   }): Promise<RideOut>;
+   ride(id: string): Promise<RideOut | null>;
+-  eta(rideId: string): Promise<{ ride_id: string; status: string; eta_seconds: number | null }>;
++  eta(rideId: string): Promise<Eta>;
+   fare(body: { city: string; distance_km: number; duration_min: number; session_id: string }): Promise<FareQuote>;
+ }
+ 
+@@ -95,9 +102,7 @@ export function httpBackends(
+       return r.status === 404 ? null : r.body;
+     },
+     async eta(rideId) {
+-      const r = await call<{ ride_id: string; status: string; eta_seconds: number | null }>(
+-        `${dispatchUrl}/rides/${encodeURIComponent(rideId)}/eta`,
+-      );
++      const r = await call<Eta>(`${dispatchUrl}/rides/${encodeURIComponent(rideId)}/eta`);
+       if (r.status === 404) throw createGraphQLError("ride not found", { extensions: { code: "NOT_FOUND" } });
+       return r.body;
+     },
+diff --git a/gateway/src/schema.ts b/gateway/src/schema.ts
+index 7bcd06b..01b14e7 100644
+--- a/gateway/src/schema.ts
++++ b/gateway/src/schema.ts
+@@ -97,7 +97,7 @@ export const schema = createSchema<Ctx>({
+       eta: async (_: unknown, { rideId }: { rideId: string }, ctx: Ctx) => {
+         const e = await ctx.backends.eta(rideId);
+         notifyStatus(ctx, rideId, e.status);
+-        return { rideId: e.ride_id, status: e.status, etaSeconds: e.eta_seconds };
++        return e;
+       },
+       notifications: (_: unknown, __: unknown, ctx: Ctx) => ctx.notifications.list(ctx.sessionId),
+     },
+diff --git a/gateway/test/gateway.test.ts b/gateway/test/gateway.test.ts
+index 7a1ddf9..82ccd09 100644
+--- a/gateway/test/gateway.test.ts
++++ b/gateway/test/gateway.test.ts
+@@ -24,7 +24,7 @@ function fakeBackends(overrides: Partial<Backends> = {}): Backends & { calls: un
+       return ride;
+     },
+     ride: async (id) => (id === "r1" ? ride : null),
+-    eta: async () => ({ ride_id: "r1", status: "arriving", eta_seconds: 90 }),
++    eta: async () => ({ rideId: "r1", status: "arriving", etaSeconds: 90 }),
+     fare: async (b) => {
+       calls.push(b);
+       return { city: b.city, currency: "USD", amount_cents: 2295, surge: 1, distance_km: b.distance_km, duration_min: b.duration_min };
+-- 
+2.55.0
+

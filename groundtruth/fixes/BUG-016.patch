@@ -1,0 +1,14 @@
+diff --git a/dispatch/src/dispatch/app.py b/dispatch/src/dispatch/app.py
+index 2549b8f..1aaaae9 100644
+--- a/dispatch/src/dispatch/app.py
++++ b/dispatch/src/dispatch/app.py
+@@ -125,7 +125,8 @@ def places(city: str) -> list[dict[str, Any]]:
+     if city not in PLACES:
+         raise HTTPException(404, f"unknown city {city}")
+     # Most-requested pickups first (rank from last month's ride data).
+-    return sorted(PLACES[city], key=lambda p: p["rank"])
++    # Places without a rank yet (new cities, new places) keep their catalogue order after the ranked ones.
++    return sorted(PLACES[city], key=lambda p: float(p.get("rank", float("inf"))))
+ 
+ 
+ @app.post("/rides", status_code=201)

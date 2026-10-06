@@ -1,0 +1,19 @@
+diff --git a/src/screens/Search.tsx b/src/screens/Search.tsx
+index c3724da..0816b07 100644
+--- a/src/screens/Search.tsx
++++ b/src/screens/Search.tsx
+@@ -10,11 +10,13 @@ const CENTERS: Record<string, { lat: number; lng: number }> = {
+   sf: { lat: 37.7749, lng: -122.4194 },
+   nyc: { lat: 40.7128, lng: -74.006 },
+   blr: { lat: 12.9716, lng: 77.5946 },
++  tokyo: { lat: 35.6762, lng: 139.6503 },
+ };
+ 
+ /** Places nearest the city centre first: the likeliest pickups end up at the top of the list. */
+ export function nearestFirst(city: string, places: Place[]): Place[] {
+-  const center = CENTERS[city]!;
++  const center = CENTERS[city];
++  if (!center) return places; // a city without a known centre keeps the server's order
+   const dist = (p: Place) => (p.lat - center.lat) ** 2 + (p.lng - center.lng) ** 2;
+   return [...places].sort((a, b) => dist(a) - dist(b));
+ }

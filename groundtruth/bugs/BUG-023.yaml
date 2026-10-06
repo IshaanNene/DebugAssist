@@ -1,0 +1,32 @@
+id: BUG-023
+title: Rider complains the driver took longer than the first ETA (estimate, working as intended)
+language: none
+component: dispatch
+owner_team: dispatch
+category: not_a_bug
+priority: P4
+discovery: [bugdrop]
+injection:
+  base: v1.5.1
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 2
+    city: nyc
+    flow: book
+    always: true
+    wait_s: 10
+    report_text: "The app said pickup in 3 minutes when I booked and the driver took longer than that. Why is the ETA wrong?"
+ground_truth:
+  fix: null
+  hidden_tests: []
+  location: { repo: null, module: dispatch, file: null, function: null }
+  rca_facts:
+    - 'The ETA is an estimate from distance and average city speed, and it counts down and updates during the wait as designed.'
+    - 'The rider''s ride shows a normal lifecycle (driver assigned, arriving) with consistent ETA updates; no errors.'
+    - 'No release or flag change correlates; nothing to fix (product could explain ETAs better).'
+  mitigation: none
+validation:
+  cheapest_tier: cannot_repro
+expected_outcome: rca_only
+route_to: dispatch

@@ -1,0 +1,13 @@
+diff --git a/payments/internal/fares/fares.go b/payments/internal/fares/fares.go
+index 9ae2186..c3af09d 100644
+--- a/payments/internal/fares/fares.go
++++ b/payments/internal/fares/fares.go
+@@ -20,7 +20,7 @@ type Rate struct {
+ var Rates = map[string]Rate{
+ 	"sf":    {Currency: "USD", BaseCents: 250, PerKmCents: 110, PerMinCents: 35, MinimumCents: 800, BookingCents: 245},
+ 	"nyc":   {Currency: "USD", BaseCents: 300, PerKmCents: 125, PerMinCents: 40, MinimumCents: 900, BookingCents: 260},
+-	"blr":   {Currency: "INR", BaseCents: 5500, PerKmCents: 15500, PerMinCents: 175, MinimumCents: 9500, BookingCents: 1000},
++	"blr":   {Currency: "INR", BaseCents: 5500, PerKmCents: 1550, PerMinCents: 175, MinimumCents: 9500, BookingCents: 1000},
+ 	"tokyo": {Currency: "JPY", BaseCents: 500, PerKmCents: 300, PerMinCents: 80, MinimumCents: 900, BookingCents: 100},
+ }
+ 

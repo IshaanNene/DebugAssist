@@ -1,0 +1,15 @@
+diff --git a/src/screens/RequestRide.tsx b/src/screens/RequestRide.tsx
+index ce74d6d..2207942 100644
+--- a/src/screens/RequestRide.tsx
++++ b/src/screens/RequestRide.tsx
+@@ -13,7 +13,9 @@ export function formatMoney(cents: number, currency: string): string {
+     fmt = new Intl.NumberFormat(undefined, { style: "currency", currency });
+     moneyFormats.set(currency, fmt);
+   }
+-  return fmt.format(cents / 100);
++  // Minor units depend on the currency: 100 for USD/INR, 1 for zero-decimal currencies such as JPY.
++  const digits = fmt.resolvedOptions().maximumFractionDigits ?? 2;
++  return fmt.format(cents / 10 ** digits);
+ }
+ 
+ export function RequestRide() {

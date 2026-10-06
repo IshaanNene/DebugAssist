@@ -1,0 +1,37 @@
+id: BUG-015
+title: Riders matched with drivers from another city (ETA of days) when the city is busy
+language: python
+component: dispatch
+owner_team: dispatch
+category: own_code
+priority: P1
+discovery: [bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.7.6
+  repos:
+    miniride-services: [patches/BUG-015/0001-feat-dispatch-match-riders-with-the-closest-driver-a.patch]
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 16
+    city: sf
+    flow: book
+    testid: eta
+    pattern: "^\\d{3,} min$"
+    wait_s: 8
+    concurrency: 4
+    report_text: "Booked in San Francisco and the app says pickup in 10000 minutes?? The driver is apparently in New York."
+ground_truth:
+  fix: fixes/BUG-015.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-015/test_matching_hidden.py, repo: miniride-services, dest: dispatch/tests/test_matching_hidden.py }
+  location: { repo: miniride-services, module: dispatch, file: dispatch/src/dispatch/matching.py, function: nearest_available_driver }
+  rca_facts:
+    - 'Once all of a city''s drivers are busy, new rides are matched with a free driver in another city (thousands of km away) instead of failing with "no drivers available".'
+    - 'nearest_available_driver no longer filters drivers by the ride''s city.'
+    - 'Regression introduced in 1.7.6 by "feat(dispatch): match riders with the closest driver across markets".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

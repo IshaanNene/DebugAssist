@@ -1,0 +1,34 @@
+id: BUG-009
+title: Home screen crashes for riders in Tokyo after the nearest-places change
+language: typescript
+component: miniride-client
+owner_team: rider-app
+category: own_code
+priority: P1
+discovery: [vitals, bugdrop]
+injection:
+  base: v1.5.2
+  release: 1.7.0
+  repos:
+    miniride-client: [patches/BUG-009/0001-feat-search-list-places-nearest-the-city-centre-firs.patch]
+trigger:
+  scenario: normal_traffic
+  params:
+    sessions: 8
+    city: tokyo
+    seed: 21
+    book_share: 0.5
+    report_text: "App crashes as soon as I open it in Tokyo. Worked fine in SF last week."
+ground_truth:
+  fix: fixes/BUG-009.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-009/search.hidden.test.ts, repo: miniride-client, dest: test/search.hidden.test.ts }
+  location: { repo: miniride-client, module: src/screens, file: src/screens/Search.tsx, function: nearestFirst }
+  rca_facts:
+    - 'Only sessions in Tokyo crash, on the home (search) screen, right after the places load.'
+    - 'TypeError reading lat of undefined: the city-centre table has no entry for Tokyo.'
+    - 'Regression introduced in 1.7.0 by "feat(search): list places nearest the city centre first".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

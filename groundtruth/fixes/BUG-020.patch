@@ -1,0 +1,30 @@
+diff --git a/dispatch/src/dispatch/matching.py b/dispatch/src/dispatch/matching.py
+index d88ea0d..a26f9b5 100644
+--- a/dispatch/src/dispatch/matching.py
++++ b/dispatch/src/dispatch/matching.py
+@@ -2,7 +2,7 @@
+ 
+ from __future__ import annotations
+ 
+-from datetime import UTC, datetime
++from datetime import UTC, datetime, timedelta
+ 
+ from sqlalchemy import select
+ from sqlalchemy.orm import Session
+@@ -53,8 +53,15 @@ def eta_seconds(driver: Driver, ride: Ride, now: datetime | None = None) -> int:
+         return 300
+     if status == "completed":
+         return 0
+-    # One formula for every phase: time from the driver's live position, minus time already elapsed.
+     now = now or datetime.now(UTC)
++    if status == "in_trip":
++        # During the trip the target is the drop-off: trip time minus time since the trip started.
++        assigned_at = ride.assigned_at or now
++        assigned_at = assigned_at if assigned_at.tzinfo else assigned_at.replace(tzinfo=UTC)
++        trip_started = assigned_at + timedelta(seconds=IN_TRIP_AFTER_S)
++        dropoff = Point(ride.dropoff_lat, ride.dropoff_lng)
++        trip = travel_seconds(haversine_km(pickup, dropoff))
++        return max(0, trip - int((now - trip_started).total_seconds()))
+     assigned = ride.assigned_at or now
+     assigned = assigned if assigned.tzinfo else assigned.replace(tzinfo=UTC)
+     remaining = travel_seconds(haversine_km(Point(driver.lat, driver.lng), pickup)) - int(
