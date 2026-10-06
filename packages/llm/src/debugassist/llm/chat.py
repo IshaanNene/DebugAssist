@@ -37,7 +37,10 @@ def chat_model(
         kwargs["reasoning_effort"] = cap if cap and order.index(effort) > order.index(cap) else effort
     if s.provider() == "openrouter":
         kwargs["extra_body"] = {"provider": routing(s, name)}
-    if (seed := ablation.llm_seed()) is not None:  # repeat runs per eval configuration
+    # Repeat runs per eval configuration. Not on OpenRouter: with require_parameters a `seed` restricts the
+    # model to the hosts that accept one (for some models a single, often overloaded, host); hosted sampling
+    # is not reproducible anyway, so eval seeds there are independent repeat samples.
+    if (seed := ablation.llm_seed()) is not None and s.provider() != "openrouter":
         kwargs["seed"] = seed
     return ChatOpenAI(
         model=name,
