@@ -148,7 +148,14 @@ async def evaluate(
             for config in configs:
                 for seed in range(1, seeds + 1):
                     t0 = time.time()
-                    run_id = await asyncio.to_thread(run_pipeline, issue, config, seed, until, log)
+                    target, deduped_from = issue, None
+                    run_id = await asyncio.to_thread(run_pipeline, target, config, seed, until, log)
+                    dup = _duplicate_of(run_id)
+                    if dup and dup in refs and dup != target:
+                        # D2 attached this report to the same bug's other discovered issue: investigate that one.
+                        log(f"    {target} is a duplicate of {dup} → running on {dup}")
+                        deduped_from, target = run_id, dup
+                        run_id = await asyncio.to_thread(run_pipeline, target, config, seed, until, log)
                     if run_id is None:
                         _append(
                             out,
@@ -168,7 +175,8 @@ async def evaluate(
                     row = {
                         "config": config,
                         "seed": seed,
-                        "issue": issue,
+                        "issue": target,
+                        "deduped_from": deduped_from,
                         "labelled_decisions": labelled,
                         "wall_s": round(time.time() - t0, 1),
                         **result,
@@ -180,6 +188,19 @@ async def evaluate(
     finally:
         await ledger.close()
     return out
+
+
+def _duplicate_of(run_id: str | None) -> str | None:
+    if run_id is None:
+        return None
+    path = score.RUNS / run_id / "state.json"
+    if not path.is_file():
+        return None
+    state = cast(dict[str, Any], json.loads(path.read_text()))
+    if state.get("status") != "duplicate":
+        return None
+    dup: object = cast(dict[str, Any], state.get("triage") or {}).get("duplicate_of")
+    return str(dup) if dup else None
 
 
 def _append(out: Path, row: dict[str, Any]) -> None:
