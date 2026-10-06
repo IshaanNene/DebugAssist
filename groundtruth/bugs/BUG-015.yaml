@@ -14,13 +14,13 @@ injection:
 trigger:
   scenario: symptom_report
   params:
-    sessions: 16
+    sessions: 15
     city: sf
     flow: book
     testid: eta
     pattern: "^\\d{3,} min$"
-    wait_s: 8
-    concurrency: 4
+    wait_s: 3
+    concurrency: 1  # one rider at a time: the market fills up, then the next rider gets an out-of-town driver
     report_text: "Booked in San Francisco and the app says pickup in 10000 minutes?? The driver is apparently in New York."
 ground_truth:
   fix: fixes/BUG-015.patch

@@ -94,7 +94,10 @@ class Fleet:
 
 
 async def crashed(page: Page) -> bool:
-    return await page.get_by_role("alert").count() > 0
+    """The app's crash screen, or the router's error page (a render error inside a route)."""
+    if await page.get_by_role("alert").count() > 0:
+        return True
+    return await page.get_by_text("Unexpected Application Error").count() > 0
 
 
 async def open_app(page: Page, url: str, path: str = "/") -> bool:
