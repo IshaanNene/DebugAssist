@@ -1,0 +1,35 @@
+From 612d29d184f576f00c23d1ced73d5e97c095c269 Mon Sep 17 00:00:00 2001
+From: Jonas Berg <jonas.berg@miniride.dev>
+Date: Tue, 6 Oct 2026 22:09:35 +0530
+Subject: [PATCH] refactor(dispatch): one ETA formula for every ride phase
+
+Pickup and drop-off ETAs were computed by two branches that had drifted apart. Use the driver's live position and the elapsed time for every phase.
+---
+ dispatch/src/dispatch/matching.py | 8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/dispatch/src/dispatch/matching.py b/dispatch/src/dispatch/matching.py
+index 4470d70..d88ea0d 100644
+--- a/dispatch/src/dispatch/matching.py
++++ b/dispatch/src/dispatch/matching.py
+@@ -48,14 +48,12 @@ def eta_seconds(driver: Driver, ride: Ride, now: datetime | None = None) -> int:
+     """Seconds until pickup (before the trip) or until drop-off (during the trip)."""
+     status = ride_status(ride, now)
+     pickup = Point(ride.pickup_lat, ride.pickup_lng)
+-    dropoff = Point(ride.dropoff_lat, ride.dropoff_lng)
+     if driver.lat is None or driver.lng is None:
+         # Drivers without a GPS fix fall back to their city's average pickup time.
+         return 300
+-    if status in ("in_trip", "completed"):
+-        if status == "completed":
+-            return 0
+-        return travel_seconds(haversine_km(pickup, dropoff))
++    if status == "completed":
++        return 0
++    # One formula for every phase: time from the driver's live position, minus time already elapsed.
+     now = now or datetime.now(UTC)
+     assigned = ride.assigned_at or now
+     assigned = assigned if assigned.tzinfo else assigned.replace(tzinfo=UTC)
+-- 
+2.55.0
+

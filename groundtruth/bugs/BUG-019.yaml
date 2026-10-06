@@ -1,0 +1,35 @@
+id: BUG-019
+title: Bengaluru fares about 10x too high after the tariff update
+language: go
+component: payments
+owner_team: payments
+category: own_code
+priority: P1
+discovery: [bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.7.10
+  repos:
+    miniride-services: [patches/BUG-019/0001-chore-payments-update-the-Bengaluru-tariff.patch]
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 3
+    city: blr
+    flow: quote
+    testid: fare
+    pattern: "₹\\s?\\d{1,3},\\d{3}"
+    report_text: "₹4,300 to the airport?? It's usually around ₹500. Is the price wrong?"
+ground_truth:
+  fix: fixes/BUG-019.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-019/tariff_hidden_test.go, repo: miniride-services, dest: payments/internal/fares/tariff_hidden_test.go }
+  location: { repo: miniride-services, module: payments, file: payments/internal/fares/fares.go, function: Rates }
+  rca_facts:
+    - 'Only Bengaluru (INR) fares are wrong, by roughly a factor of ten; other cities are unchanged.'
+    - 'The Bengaluru per-km rate was entered as 15500 paise (₹155/km) instead of 1550 (₹15.50/km).'
+    - 'Regression introduced in 1.7.10 by "chore(payments): update the Bengaluru tariff".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

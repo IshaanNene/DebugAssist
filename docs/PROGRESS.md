@@ -339,6 +339,25 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## P13 — Evaluation harness + ablations (2026-10-06) — harness and catalog done, live runs pending
+
+**Done**
+- `packages/evals`: `debugassist eval estimate|run|label|replay|report`, `make eval`, `make eval-report`.
+  - `run` triggers each bug once (reset → inject → scenario → discovery) and runs every configuration and seed on the same issue, with GitHub/Jira/chat forced to mock. It refuses when the estimate is above `--max-usd` (default 5).
+  - `score`: RCA verdict (exact / directional / wrong) against the catalog location, expected outcome, hidden tests on a copy of the run's worktree, diff similarity to the reference fix, time and cost.
+  - `labels`: deterministic correctness labels for D01, D05, D11, D12, D14 and D16 from ground truth, written to the ledger.
+  - `metrics`: accuracy, Brier, reliability bins, ECE, latency and $/1k per decision. `replay` (E1) re-decides logged states with each Clef model and a rules baseline.
+  - Ablation switches in `core/ablation.py`: `DA_DECIDER` (routed | clef | clef-flash | llm), `DA_ABLATE` (D3, D8, D9, D12, D14), `DA_LLM_SEED`.
+- **Catalog: 25 bugs.** BUG-009..020 are code regressions in the client (TS), gateway (TS), dispatch (Python) and payments (Go): locale and currency edge cases, schema/field-name drift, a nil map, a tariff typo, dropped filters, CORS parsing and an ETA branch. Each is a natural-looking commit that passes the target repo's lint and tests, with a hidden test and a reference fix. BUG-021..025 are not our bug: carrier congestion with an SRE incident, a WebView-only crash, an ETA complaint about intended behaviour, a flag misconfiguration (rollback is the mitigation) and a bad vendored Vitals SDK sync (route to developer-platform).
+- Simulator: `symptom_report` (riders look for one symptom and the first to notice reports it; optional network profile and always-report) and `device_crashes` (crash reports from a device we cannot emulate); `normal_traffic` takes a city, hold time and report text.
+
+**Verified**
+- `make verify-scenarios`: 25/25 (regression applies, hidden test fails on it, reference fix passes the repo's tests). `make check`: 328 tests.
+
+**Findings**
+- Many first ideas for regressions were caught by the target repos' own lint or tests (deprecated `utcnow`, an analytics test without props, GraphQL coercing numeric strings, an idempotency-key test). Discarded: a catalog bug that CI catches is not realistic.
+- Scoring earlier live runs: BUG-001's RCA is directional and the hidden test fails (the agent's fix still ticks every 5 s), and BUG-003 was classified with the wrong category.
+
 ## P12 — Observability, cost, guardrails, privacy (2026-10-05) — done
 
 **Done**

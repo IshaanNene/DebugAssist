@@ -1,0 +1,27 @@
+From 13cd7ff828f01824ea3b4f42460cdb14a3fa8e9e Mon Sep 17 00:00:00 2001
+From: Sam Okafor <sam.okafor@miniride.dev>
+Date: Tue, 6 Oct 2026 22:06:08 +0530
+Subject: [PATCH] chore(gateway): accept spaces in CORS_ORIGINS
+
+The production deploy config lists origins as "a, b, c", which left a leading space on every origin after the first. Split on comma plus whitespace.
+---
+ gateway/src/app.ts | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/gateway/src/app.ts b/gateway/src/app.ts
+index d36b35a..a95d5dc 100644
+--- a/gateway/src/app.ts
++++ b/gateway/src/app.ts
+@@ -9,7 +9,8 @@ import { operationLogger, schema, type Ctx } from "./schema.js";
+ const meter = metrics.getMeter("gateway");
+ const analyticsEvents = meter.createCounter("gateway_analytics_events", { description: "Client analytics events" });
+ 
+-const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS ?? "http://localhost:5173,http://localhost:8080").split(",");
++// Comma-separated; ops write the list as "a, b, c" in the deploy config, so allow spaces after commas.
++const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS ?? "http://localhost:5173, http://localhost:8080").split(/,\s+/);
+ 
+ export function buildApp(backends: Backends = httpBackends(), notifications = new NotificationStore()) {
+   const yoga = createYoga<object, Ctx>({
+-- 
+2.55.0
+

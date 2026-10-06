@@ -1,0 +1,18 @@
+diff --git a/gateway/src/app.ts b/gateway/src/app.ts
+index a95d5dc..94d3cbf 100644
+--- a/gateway/src/app.ts
++++ b/gateway/src/app.ts
+@@ -10,7 +10,12 @@ const meter = metrics.getMeter("gateway");
+ const analyticsEvents = meter.createCounter("gateway_analytics_events", { description: "Client analytics events" });
+ 
+ // Comma-separated; ops write the list as "a, b, c" in the deploy config, so allow spaces after commas.
+-const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS ?? "http://localhost:5173, http://localhost:8080").split(/,\s+/);
++export const ALLOWED_ORIGINS = parseOrigins(process.env.CORS_ORIGINS ?? "http://localhost:5173,http://localhost:8080");
++
++/** "a,b" and "a, b" both work: split on commas, trim, drop empty entries. */
++export function parseOrigins(raw: string): string[] {
++  return raw.split(",").map((o) => o.trim()).filter(Boolean);
++}
+ 
+ export function buildApp(backends: Backends = httpBackends(), notifications = new NotificationStore()) {
+   const yoga = createYoga<object, Ctx>({

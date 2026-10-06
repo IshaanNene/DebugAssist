@@ -1,0 +1,35 @@
+id: BUG-011
+title: Ride screen crashes for riders in Bengaluru after the pickup-time change
+language: typescript
+component: miniride-client
+owner_team: rider-app
+category: own_code
+priority: P1
+discovery: [vitals, bugdrop]
+injection:
+  base: v1.5.2
+  release: 1.7.2
+  repos:
+    miniride-client: [patches/BUG-011/0001-feat-ride-show-the-pickup-time-in-the-ride-s-city.patch]
+trigger:
+  scenario: normal_traffic
+  params:
+    sessions: 6
+    city: blr
+    seed: 23
+    book_share: 1.0
+    hold_s: 8
+    report_text: "Booked a ride in Bangalore and the app crashed right after, couldn't see my driver."
+ground_truth:
+  fix: fixes/BUG-011.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-011/clock.hidden.test.ts, repo: miniride-client, dest: test/clock.hidden.test.ts }
+  location: { repo: miniride-client, module: src/screens, file: src/screens/RideScreen.tsx, function: pickupClock }
+  rca_facts:
+    - 'Only rides in Bengaluru crash, on the ride screen, once the first ETA arrives.'
+    - 'RangeError: Invalid time zone specified: Asia/Bangalore — not an IANA zone (India is Asia/Kolkata).'
+    - 'Regression introduced in 1.7.2 by "feat(ride): show the pickup time in the ride''s city".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

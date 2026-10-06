@@ -1,0 +1,45 @@
+From b3abc27b7df4c2feacb6677de1ffe298c27595a3 Mon Sep 17 00:00:00 2001
+From: Omar Haddad <omar.haddad@miniride.dev>
+Date: Tue, 6 Oct 2026 22:15:55 +0530
+Subject: [PATCH] chore(vitals): sync vendored SDK heartbeat change
+
+Upstream moved the hang-detection heartbeat from 1 s to 5 s to cut one wakeup source per second.
+---
+ src/vendor/vitals/index.ts | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/src/vendor/vitals/index.ts b/src/vendor/vitals/index.ts
+index 526ef9d..6523758 100644
+--- a/src/vendor/vitals/index.ts
++++ b/src/vendor/vitals/index.ts
+@@ -33,6 +33,9 @@ const HIDDEN_BUSY_THRESHOLD = 0.25;
+ const HIDDEN_WAKEUPS_THRESHOLD = 50; // callbacks per second
+ const HIDDEN_WINDOW_S = 60;
+ const HANG_MS = 3000;
++// Heartbeat period for hang detection. 5 s instead of 1 s: one fewer wakeup source per second keeps
++// the SDK itself out of the background-CPU numbers it reports.
++const HEARTBEAT_MS = 5000;
+ 
+ let cfg: VitalsConfig | null = null;
+ let device: DeviceInfo | null = null;
+@@ -192,7 +195,7 @@ export function init(config: VitalsConfig) {
+       throw err;
+     }
+   };
+-  // Hang detection: a 1 s heartbeat that fires late means the main thread was blocked.
++  // Hang detection: a heartbeat that fires late means the main thread was blocked.
+   let expected = performance.now() + 1000;
+   setInterval(() => {
+     const lag = performance.now() - expected;
+@@ -200,7 +203,7 @@ export function init(config: VitalsConfig) {
+     if (lag > HANG_MS && document.visibilityState === "visible") {
+       capturePerf("hang", "main_thread_blocked", Math.round(lag), "ms", {});
+     }
+-  }, 1000);
++  }, HEARTBEAT_MS);
+   perf.start();
+   perf.subscribe(onPerfSample);
+ }
+-- 
+2.55.0
+

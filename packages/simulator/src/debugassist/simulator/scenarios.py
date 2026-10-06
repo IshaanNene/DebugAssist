@@ -10,7 +10,7 @@ import asyncio
 import random
 from collections import Counter
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -23,6 +23,7 @@ from debugassist.simulator.browser import (
     open_app,
     push_payload,
     report_bug,
+    set_city,
     set_hidden,
 )
 from debugassist.simulator.personas import WEAK, NetworkProfile, Persona, personas
@@ -32,30 +33,167 @@ DISPATCH = "http://localhost:8001"
 
 
 async def normal_traffic(fleet: Fleet, params: dict[str, Any], log: Log) -> dict[str, Any]:
-    """Baseline sessions: browse, quote, sometimes book."""
+    """Baseline sessions: browse, quote, sometimes book. Optional: `city` (all riders there), `hold_s`
+    (time on the ride screen after booking), `report_text` (the first rider whose app crashes reports it)."""
     n = int(params.get("sessions", 20))
     riders = personas(
         n,
         seed=int(params.get("seed", 1)),
         previous_version_share=float(params.get("previous_version_share", 0)),
+        city=str(params["city"]) if params.get("city") else None,
     )
     rng = random.Random(int(params.get("seed", 1)))  # noqa: S311
     outcomes: Counter[str] = Counter()
+    out: dict[str, Any] = {}
+    hold_ms = int(float(params.get("hold_s", 3)) * 1000)
+    report_text = params.get("report_text")
+
+    async def one(p: Persona) -> None:
+        async with fleet.rider(p) as page:
+            if not await open_app(page, fleet.url(p)):
+                outcomes["no_home"] += 1
+            elif rng.random() < float(params.get("book_share", 0.5)):
+                outcomes["booked" if await book(page, city=p.city) else "booking_failed"] += 1
+                await page.wait_for_timeout(hold_ms)
+            else:
+                outcomes["browsed"] += 1
+                await page.wait_for_timeout(1_500)
+            if await crashed(page):
+                outcomes["crashed"] += 1
+                if report_text and "report" not in out:
+                    out["report"] = None  # claim the report slot before awaiting
+                    await page.goto(fleet.url(p), wait_until="domcontentloaded")
+                    out["report"] = await report_bug(page, str(report_text))
+
+    await gather_limited(int(params.get("concurrency", 6)), [one(p) for p in riders])
+    return {"sessions": n, **out, **outcomes}
+
+
+async def symptom_report(fleet: Fleet, params: dict[str, Any], log: Log) -> dict[str, Any]:
+    """Riders in `city` quote (`flow: quote`) or book (`flow: book`) and look at one thing on screen:
+    the element `testid` matching the regex `pattern`, or (`flow: search`) the "See prices" button staying
+    disabled. The first rider who notices files `report_text`. `network` gives every rider one network
+    profile (latency_ms, download_kbps, upload_kbps, loss_pct); `always: true` reports regardless."""
+    import re
+
+    n = int(params.get("sessions", 6))
+    net = cast(dict[str, Any], params["network"]) if isinstance(params.get("network"), dict) else None
+    profile = (
+        NetworkProfile(
+            "reported",
+            latency_ms=int(net["latency_ms"]),
+            download_kbps=int(net.get("download_kbps", 0)),
+            upload_kbps=int(net.get("upload_kbps", 0)),
+            loss_pct=float(net.get("loss_pct", 0)),
+        )
+        if net
+        else None
+    )
+    riders = personas(
+        n,
+        seed=int(params.get("seed", 91)),
+        city=str(params["city"]) if params.get("city") else None,
+        network=profile,
+    )
+    flow = str(params.get("flow", "quote"))
+    always = bool(params.get("always", False))
+    pattern = re.compile(str(params.get("pattern", ".*")))
+    wait_ms = int(float(params.get("wait_s", 4)) * 1000)
+    outcomes: Counter[str] = Counter()
+    out: dict[str, Any] = {}
+
+    async def noticed(page: Any) -> bool:
+        if always:  # the rider complains whatever the screen shows
+            return True
+        if flow == "search":
+            return await page.get_by_role("button", name="See prices").is_disabled()
+        loc = page.get_by_test_id(str(params.get("testid", "fare")))
+        try:
+            await loc.wait_for(timeout=15_000)
+        except Exception:
+            return False
+        return bool(pattern.search(await loc.text_content() or ""))
 
     async def one(p: Persona) -> None:
         async with fleet.rider(p) as page:
             if not await open_app(page, fleet.url(p)):
                 outcomes["no_home"] += 1
                 return
-            if rng.random() < float(params.get("book_share", 0.5)):
+            if flow == "search":
+                await set_city(page, p.city)
+                await page.wait_for_timeout(wait_ms)
+            elif flow == "book":
                 outcomes["booked" if await book(page, city=p.city) else "booking_failed"] += 1
-                await page.wait_for_timeout(3_000)
+                await page.wait_for_timeout(wait_ms)
             else:
-                outcomes["browsed"] += 1
-                await page.wait_for_timeout(1_500)
+                await set_city(page, p.city)
+                await page.get_by_role("button", name="See prices").click()
+                await page.wait_for_timeout(wait_ms)
+            hit = await noticed(page)
+            outcomes["noticed" if hit else "fine"] += 1
+            if hit and "report" not in out:
+                out["report"] = None
+                out["report"] = await report_bug(page, str(params["report_text"]))
 
-    await gather_limited(int(params.get("concurrency", 6)), [one(p) for p in riders])
-    return {"sessions": n, **outcomes}
+    await gather_limited(int(params.get("concurrency", 4)), [one(p) for p in riders])
+    return {"sessions": n, **out, **outcomes}
+
+
+async def device_crashes(fleet: Fleet, params: dict[str, Any], log: Log) -> dict[str, Any]:
+    """Crash reports that only come from one device/OS build, with frames inside the browser engine and none
+    in app code — what Vitals receives from devices we cannot emulate (a WebView bug)."""
+    import time
+    import uuid
+
+    vitals = str(params.get("vitals_url", "http://localhost:8100"))
+    device = {
+        "os": str(params.get("os", "Android 11")),
+        "browser": str(params.get("browser", "Android WebView 83")),
+        "device": str(params.get("device", "SM-A515F")),
+        "city": "sf",
+        "locale": "en-US",
+    }
+    message = str(params.get("message", "Cannot read properties of null (reading 'compositorFrame')"))
+    stack = "\n".join(
+        [
+            f"TypeError: {message}",
+            "    at HTMLCanvasElement.<anonymous> (chrome://resources/js/compositor.js:118:23)",
+            "    at Object.dispatch (webview://internal/gfx/raster.js:42:9)",
+        ]
+    )
+    now = time.time()
+    n = int(params.get("events", 12))
+    events = [
+        {
+            "event_id": str(uuid.uuid4()),
+            "kind": "crash",
+            "app": "miniride-client",
+            "platform": "web",
+            "version": str(params.get("version", "1.5.2")),
+            "ts": now - i * 30,
+            "session_id": str(uuid.uuid4()),
+            "error": {"type": "TypeError", "message": message, "stack": stack},
+            "culprit": "/",
+            "device": device,
+        }
+        for i in range(n)
+    ]
+    async with httpx.AsyncClient(timeout=15) as http:
+        sessions = [
+            {
+                "session_id": e["session_id"],
+                "app": "miniride-client",
+                "platform": "web",
+                "version": e["version"],
+                "device": device,
+            }
+            for e in events
+        ]
+        for s_ in sessions:
+            await http.post(f"{vitals}/v1/sessions", json=s_)
+        r = await http.post(f"{vitals}/v1/events", json={"events": events})
+    others = await normal_traffic(fleet, {"sessions": int(params.get("normal_sessions", 6)), "seed": 93}, log)
+    return {"device_events": n, "status": r.status_code, "normal": others}
 
 
 async def battery_drain(fleet: Fleet, params: dict[str, Any], log: Log) -> dict[str, Any]:
@@ -313,6 +451,8 @@ SCENARIOS: dict[str, Callable[[Fleet, dict[str, Any], Log], Awaitable[dict[str, 
     "degraded_backend": degraded_backend,
     "booking_failures": booking_failures,
     "locale_mix": locale_mix,
+    "symptom_report": symptom_report,
+    "device_crashes": device_crashes,
 }
 
 

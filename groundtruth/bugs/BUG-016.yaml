@@ -1,0 +1,34 @@
+id: BUG-016
+title: New York riders cannot load places (dispatch 500 on /places) after the pickup-ranking change
+language: python
+component: dispatch
+owner_team: dispatch
+category: own_code
+priority: P1
+discovery: [vitals, bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.7.7
+  repos:
+    miniride-services: [patches/BUG-016/0001-feat-dispatch-list-the-most-requested-pickups-first.patch]
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 4
+    city: nyc
+    flow: search
+    wait_s: 4
+    report_text: "In New York the app just says something went wrong and I can't pick a pickup point."
+ground_truth:
+  fix: fixes/BUG-016.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-016/test_places_hidden.py, repo: miniride-services, dest: dispatch/tests/test_places_hidden.py }
+  location: { repo: miniride-services, module: dispatch, file: dispatch/src/dispatch/app.py, function: places }
+  rca_facts:
+    - 'Only New York fails: GET /places?city=nyc raises KeyError ''rank'' in dispatch (500); other cities work.'
+    - 'Places are now sorted by a rank field that was added to every city except New York.'
+    - 'Regression introduced in 1.7.7 by "feat(dispatch): list the most-requested pickups first".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

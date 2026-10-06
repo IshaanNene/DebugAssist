@@ -1,0 +1,68 @@
+From bd72989f71403303d272c5ed943d98820959d348 Mon Sep 17 00:00:00 2001
+From: Maya Chen <maya.chen@miniride.dev>
+Date: Tue, 6 Oct 2026 22:04:06 +0530
+Subject: [PATCH] feat(dispatch): list the most-requested pickups first
+
+Rank each city's places by last month's pickup counts and return them in that order, so the home screen preselects the likeliest pickup.
+---
+ dispatch/src/dispatch/app.py |  3 ++-
+ dispatch/src/dispatch/geo.py | 20 ++++++++++----------
+ 2 files changed, 12 insertions(+), 11 deletions(-)
+
+diff --git a/dispatch/src/dispatch/app.py b/dispatch/src/dispatch/app.py
+index b9791db..2549b8f 100644
+--- a/dispatch/src/dispatch/app.py
++++ b/dispatch/src/dispatch/app.py
+@@ -124,7 +124,8 @@ def healthz() -> dict[str, str]:
+ def places(city: str) -> list[dict[str, Any]]:
+     if city not in PLACES:
+         raise HTTPException(404, f"unknown city {city}")
+-    return PLACES[city]
++    # Most-requested pickups first (rank from last month's ride data).
++    return sorted(PLACES[city], key=lambda p: p["rank"])
+ 
+ 
+ @app.post("/rides", status_code=201)
+diff --git a/dispatch/src/dispatch/geo.py b/dispatch/src/dispatch/geo.py
+index a6f21a6..fd7107d 100644
+--- a/dispatch/src/dispatch/geo.py
++++ b/dispatch/src/dispatch/geo.py
+@@ -31,10 +31,10 @@ def travel_seconds(distance_km: float, speed_kmh: float = AVERAGE_CITY_SPEED_KMH
+ 
+ PLACES: dict[str, list[dict[str, float | str]]] = {
+     "sf": [
+-        {"id": "sf-ferry", "name": "Ferry Building", "lat": 37.7955, "lng": -122.3937},
+-        {"id": "sf-mission", "name": "Mission Dolores Park", "lat": 37.7596, "lng": -122.4269},
+-        {"id": "sf-sfo", "name": "SFO Airport", "lat": 37.6213, "lng": -122.3790},
+-        {"id": "sf-gg", "name": "Golden Gate Park", "lat": 37.7694, "lng": -122.4862},
++        {"id": "sf-ferry", "name": "Ferry Building", "lat": 37.7955, "lng": -122.3937, "rank": 1},
++        {"id": "sf-mission", "name": "Mission Dolores Park", "lat": 37.7596, "lng": -122.4269, "rank": 3},
++        {"id": "sf-sfo", "name": "SFO Airport", "lat": 37.6213, "lng": -122.3790, "rank": 2},
++        {"id": "sf-gg", "name": "Golden Gate Park", "lat": 37.7694, "lng": -122.4862, "rank": 4},
+     ],
+     "nyc": [
+         {"id": "nyc-ts", "name": "Times Square", "lat": 40.7580, "lng": -73.9855},
+@@ -42,14 +42,14 @@ PLACES: dict[str, list[dict[str, float | str]]] = {
+         {"id": "nyc-bk", "name": "Brooklyn Bridge Park", "lat": 40.7003, "lng": -73.9967},
+     ],
+     "blr": [
+-        {"id": "blr-mg", "name": "MG Road", "lat": 12.9756, "lng": 77.6050},
+-        {"id": "blr-kia", "name": "Kempegowda Airport", "lat": 13.1986, "lng": 77.7066},
+-        {"id": "blr-kor", "name": "Koramangala", "lat": 12.9352, "lng": 77.6245},
++        {"id": "blr-mg", "name": "MG Road", "lat": 12.9756, "lng": 77.6050, "rank": 1},
++        {"id": "blr-kia", "name": "Kempegowda Airport", "lat": 13.1986, "lng": 77.7066, "rank": 2},
++        {"id": "blr-kor", "name": "Koramangala", "lat": 12.9352, "lng": 77.6245, "rank": 3},
+     ],
+     "tokyo": [
+-        {"id": "tyo-shibuya", "name": "Shibuya Crossing", "lat": 35.6595, "lng": 139.7005},
+-        {"id": "tyo-hnd", "name": "Haneda Airport", "lat": 35.5494, "lng": 139.7798},
+-        {"id": "tyo-shinjuku", "name": "Shinjuku Station", "lat": 35.6896, "lng": 139.7006},
++        {"id": "tyo-shibuya", "name": "Shibuya Crossing", "lat": 35.6595, "lng": 139.7005, "rank": 1},
++        {"id": "tyo-hnd", "name": "Haneda Airport", "lat": 35.5494, "lng": 139.7798, "rank": 3},
++        {"id": "tyo-shinjuku", "name": "Shinjuku Station", "lat": 35.6896, "lng": 139.7006, "rank": 2},
+     ],
+ }
+ 
+-- 
+2.55.0
+

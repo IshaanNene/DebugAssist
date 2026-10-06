@@ -1,0 +1,13 @@
+diff --git a/payments/main.go b/payments/main.go
+index de1722e..adc886a 100644
+--- a/payments/main.go
++++ b/payments/main.go
+@@ -71,7 +71,7 @@ const quoteTTL = 30 * time.Second
+ // NewServer builds a Server with its metrics.
+ func NewServer() *Server {
+ 	quotes, _ := otel.Meter("payments").Int64Counter("payments_fare_quotes", metric.WithDescription("Fare quotes by city"))
+-	return &Server{authorizations: map[string]authorization{}, quotes: quotes}
++	return &Server{authorizations: map[string]authorization{}, quotes: quotes, recent: map[string]cachedQuote{}}
+ }
+ 
+ func writeJSON(w http.ResponseWriter, status int, v any) {

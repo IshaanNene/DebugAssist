@@ -1,0 +1,34 @@
+id: BUG-025
+title: Every session reports 4-second main-thread hangs after a vendored Vitals SDK sync
+language: typescript
+component: client-telemetry
+owner_team: developer-platform
+category: third_party_lib
+priority: P2
+discovery: [vitals]
+injection:
+  base: v1.5.2
+  release: 1.7.12
+  repos:
+    miniride-client: [patches/BUG-025/0001-chore-vitals-sync-vendored-SDK-heartbeat-change.patch]
+trigger:
+  scenario: normal_traffic
+  params:
+    sessions: 6
+    city: sf
+    seed: 25
+    hold_s: 12
+ground_truth:
+  fix: fixes/BUG-025.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-025/vitals-hang.hidden.test.ts, repo: miniride-client, dest: test/vitals-hang.hidden.test.ts }
+  location: { repo: miniride-client, module: src/vendor/vitals, file: src/vendor/vitals/index.ts, function: init }
+  rca_facts:
+    - 'Every session on 1.7.12 reports main_thread_blocked hangs of almost exactly 4000 ms, every 5 s, on every device and city, with no long tasks or jank.'
+    - 'The vendored Vitals SDK now ticks its hang heartbeat every 5 s (HEARTBEAT_MS) but still expects the next tick 1 s later, so each on-time tick counts as a 4 s hang. The app is not actually hanging.'
+    - 'Regression introduced in 1.7.12 by "chore(vitals): sync vendored SDK heartbeat change"; the upstream SDK in sources still uses a 1 s heartbeat. Owned by developer-platform.'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: route
+route_to: developer-platform

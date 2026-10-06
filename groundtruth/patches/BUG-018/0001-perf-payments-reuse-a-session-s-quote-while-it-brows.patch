@@ -1,0 +1,64 @@
+From 2a3983bf55ec89279d32e647b46fe9f0d85ba1f7 Mon Sep 17 00:00:00 2001
+From: Lucas Meyer <lucas.meyer@miniride.dev>
+Date: Tue, 6 Oct 2026 22:07:57 +0530
+Subject: [PATCH] perf(payments): reuse a session's quote while it browses
+
+Riders re-open the price screen several times for the same trip, and each open recomputed and re-logged the quote. Keep the last quote per session for 30 s and return it when the request is identical.
+---
+ payments/main.go | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/payments/main.go b/payments/main.go
+index 01c19c4..de1722e 100644
+--- a/payments/main.go
++++ b/payments/main.go
+@@ -56,8 +56,18 @@ type Server struct {
+ 	mu             sync.Mutex
+ 	authorizations map[string]authorization
+ 	quotes         metric.Int64Counter
++	// Last quote per browsing session: riders re-open the price screen many times for the same trip.
++	recent map[string]cachedQuote
+ }
+ 
++type cachedQuote struct {
++	req estimateReq
++	q   fares.Quote
++	at  time.Time
++}
++
++const quoteTTL = 30 * time.Second
++
+ // NewServer builds a Server with its metrics.
+ func NewServer() *Server {
+ 	quotes, _ := otel.Meter("payments").Int64Counter("payments_fare_quotes", metric.WithDescription("Fare quotes by city"))
+@@ -76,6 +86,15 @@ func (s *Server) estimate(w http.ResponseWriter, r *http.Request) {
+ 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad json"})
+ 		return
+ 	}
++	if req.SessionID != "" {
++		s.mu.Lock()
++		c, ok := s.recent[req.SessionID]
++		s.mu.Unlock()
++		if ok && c.req == req && time.Since(c.at) < quoteTTL {
++			writeJSON(w, http.StatusOK, c.q)
++			return
++		}
++	}
+ 	surge := 1.0
+ 	if flags.Enabled("surge_pricing", req.SessionID) {
+ 		surge = 1.4
+@@ -85,6 +104,11 @@ func (s *Server) estimate(w http.ResponseWriter, r *http.Request) {
+ 		writeJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+ 		return
+ 	}
++	if req.SessionID != "" {
++		s.mu.Lock()
++		s.recent[req.SessionID] = cachedQuote{req: req, q: q, at: time.Now()}
++		s.mu.Unlock()
++	}
+ 	s.quotes.Add(r.Context(), 1, metric.WithAttributes(attribute.String("city", req.City)))
+ 	slog.InfoContext(r.Context(), "fare quoted", "city", q.City, "amount_cents", q.AmountCents, "surge", q.Surge,
+ 		"session_id", req.SessionID)
+-- 
+2.55.0
+

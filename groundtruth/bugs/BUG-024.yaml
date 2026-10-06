@@ -1,0 +1,33 @@
+id: BUG-024
+title: Surge pricing switched on for every rider (flag misconfiguration, not a code bug)
+language: none
+component: payments
+owner_team: payments
+category: flag_config
+priority: P1
+discovery: [bugdrop]
+injection:
+  base: v1.5.1
+  flags: { surge_pricing: 100 }
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 3
+    city: sf
+    flow: quote
+    testid: fare
+    pattern: "busy"
+    report_text: "Every ride in SF says busy and is 40% more expensive, even at 3am. Yesterday it was normal."
+ground_truth:
+  fix: null
+  hidden_tests: []
+  location: { repo: null, module: payments, file: null, function: null }
+  rca_facts:
+    - 'Every fare quote carries a 1.4x surge, in every city and at any time of day.'
+    - 'The surge_pricing flag went from off to a 100% rollout; payments applies surge to everyone in the flag.'
+    - 'No code change: rolling the flag back restores normal prices.'
+  mitigation: { flag_rollback: surge_pricing }
+validation:
+  cheapest_tier: cannot_repro
+expected_outcome: rca_only
+route_to: payments

@@ -1,0 +1,79 @@
+From 90091035be1a6a4f3c3eb2b57529776713d29837 Mon Sep 17 00:00:00 2001
+From: Maya Chen <maya.chen@miniride.dev>
+Date: Tue, 6 Oct 2026 21:56:56 +0530
+Subject: [PATCH] feat(search): list places nearest the city centre first
+
+Riders almost always pick up near the centre, so order the pickup and destination lists by distance from it and preselect the two nearest places.
+---
+ src/screens/Search.tsx | 25 ++++++++++++++++++++-----
+ 1 file changed, 20 insertions(+), 5 deletions(-)
+
+diff --git a/src/screens/Search.tsx b/src/screens/Search.tsx
+index a661f5e..c3724da 100644
+--- a/src/screens/Search.tsx
++++ b/src/screens/Search.tsx
+@@ -1,4 +1,4 @@
+-import { useEffect, useState } from "react";
++import { useEffect, useMemo, useState } from "react";
+ import { useNavigate } from "react-router";
+ import { api, type Place } from "../api/rides";
+ import { sessionStore, useSession } from "../store/session";
+@@ -6,6 +6,19 @@ import { analytics } from "../telemetry/analytics";
+ 
+ const CITIES: Record<string, string> = { sf: "San Francisco", nyc: "New York", blr: "Bengaluru", tokyo: "Tokyo" };
+ 
++const CENTERS: Record<string, { lat: number; lng: number }> = {
++  sf: { lat: 37.7749, lng: -122.4194 },
++  nyc: { lat: 40.7128, lng: -74.006 },
++  blr: { lat: 12.9716, lng: 77.5946 },
++};
++
++/** Places nearest the city centre first: the likeliest pickups end up at the top of the list. */
++export function nearestFirst(city: string, places: Place[]): Place[] {
++  const center = CENTERS[city]!;
++  const dist = (p: Place) => (p.lat - center.lat) ** 2 + (p.lng - center.lng) ** 2;
++  return [...places].sort((a, b) => dist(a) - dist(b));
++}
++
+ export function Search() {
+   const navigate = useNavigate();
+   const city = useSession((s) => s.session?.city ?? "sf");
+@@ -21,8 +34,9 @@ export function Search() {
+       .then((p) => {
+         if (!alive) return;
+         setPlaces(p);
+-        setPickup(p[0]?.id ?? "");
+-        setDropoff(p[1]?.id ?? "");
++        const ordered = nearestFirst(city, p);
++        setPickup(ordered[0]?.id ?? "");
++        setDropoff(ordered[1]?.id ?? "");
+       })
+       .catch(() => alive && setError("Something went wrong. Please try again."));
+     return () => {
+@@ -30,6 +44,7 @@ export function Search() {
+     };
+   }, [city]);
+ 
++  const sorted = useMemo(() => nearestFirst(city, places), [city, places]);
+   const byId = (id: string) => places.find((p) => p.id === id) ?? null;
+ 
+   return (
+@@ -52,13 +67,13 @@ export function Search() {
+       <label>
+         Pickup
+         <select data-testid="pickup" value={pickup} onChange={(e) => setPickup(e.target.value)}>
+-          {places.map((p) => <option key={p.id} value={p.id ?? ""}>{p.name}</option>)}
++          {sorted.map((p) => <option key={p.id} value={p.id ?? ""}>{p.name}</option>)}
+         </select>
+       </label>
+       <label>
+         Destination
+         <select data-testid="dropoff" value={dropoff} onChange={(e) => setDropoff(e.target.value)}>
+-          {places.map((p) => <option key={p.id} value={p.id ?? ""}>{p.name}</option>)}
++          {sorted.map((p) => <option key={p.id} value={p.id ?? ""}>{p.name}</option>)}
+         </select>
+       </label>
+       {error && <p className="error">{error}</p>}
+-- 
+2.55.0
+

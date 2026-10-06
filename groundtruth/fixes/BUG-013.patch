@@ -1,0 +1,19 @@
+diff --git a/gateway/src/backends.ts b/gateway/src/backends.ts
+index 5180078..9bebf08 100644
+--- a/gateway/src/backends.ts
++++ b/gateway/src/backends.ts
+@@ -102,9 +102,12 @@ export function httpBackends(
+       return r.status === 404 ? null : r.body;
+     },
+     async eta(rideId) {
+-      const r = await call<Eta>(`${dispatchUrl}/rides/${encodeURIComponent(rideId)}/eta`);
++      // Dispatch answers in snake_case; map to the gateway's camelCase here.
++      const r = await call<{ ride_id: string; status: string; eta_seconds: number | null }>(
++        `${dispatchUrl}/rides/${encodeURIComponent(rideId)}/eta`,
++      );
+       if (r.status === 404) throw createGraphQLError("ride not found", { extensions: { code: "NOT_FOUND" } });
+-      return r.body;
++      return { rideId: r.body.ride_id, status: r.body.status, etaSeconds: r.body.eta_seconds };
+     },
+     async fare(body) {
+       const r = await call<FareQuote>(`${paymentsUrl}/fares/estimate`, { method: "POST", body: JSON.stringify(body) });

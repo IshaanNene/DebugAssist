@@ -1,0 +1,40 @@
+id: BUG-021
+title: App very slow at the airport during a mobile-carrier degradation (not a code bug)
+language: none
+component: network
+owner_team: sre-infra
+category: network
+priority: P2
+discovery: [bugdrop]
+injection:
+  base: v1.5.1
+  incidents:
+    - title: "Mobile carrier degradation around SFO: high latency and packet loss"
+      severity: sev3
+      services: [client-network]
+      owner_team: sre-infra
+      commander: ana.silva
+      summary: "A major carrier reports congestion around SFO terminals; riders there see multi-second latency. No action on our side beyond monitoring."
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 3
+    city: sf
+    flow: book
+    always: true
+    wait_s: 4
+    network: { latency_ms: 1800, download_kbps: 300, upload_kbps: 150, loss_pct: 0.3 }
+    report_text: "At SFO and the app takes forever to do anything, booking took over a minute. Is MiniRide down?"
+ground_truth:
+  fix: null
+  hidden_tests: []
+  location: { repo: null, module: network, file: null, function: null }
+  rca_facts:
+    - 'Only riders on a congested mobile network are slow; their reports show ~2 s round trips and low bandwidth.'
+    - 'An active incident (sev3, sre-infra) covers carrier congestion around SFO at the same time.'
+    - 'Server-side latency is normal and no recent release correlates; bookings complete, just slowly.'
+  mitigation: none
+validation:
+  cheapest_tier: cannot_repro
+expected_outcome: rca_only
+route_to: sre-infra

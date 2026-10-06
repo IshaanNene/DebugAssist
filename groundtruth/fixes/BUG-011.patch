@@ -1,0 +1,30 @@
+diff --git a/src/screens/RideScreen.tsx b/src/screens/RideScreen.tsx
+index 35cffe1..4baa196 100644
+--- a/src/screens/RideScreen.tsx
++++ b/src/screens/RideScreen.tsx
+@@ -14,17 +14,19 @@ const STATUS_TEXT: Record<string, string> = {
+ const CITY_TIME_ZONES: Record<string, string> = {
+   sf: "America/Los_Angeles",
+   nyc: "America/New_York",
+-  blr: "Asia/Bangalore",
++  blr: "Asia/Kolkata",
+   tokyo: "Asia/Tokyo",
+ };
+ 
+ /** The pickup time as a clock time in the ride's city, e.g. "4:12 PM". */
+ export function pickupClock(etaSeconds: number, city: string, now: number = Date.now()): string {
+-  return new Date(now + etaSeconds * 1000).toLocaleTimeString(undefined, {
+-    hour: "numeric",
+-    minute: "2-digit",
+-    timeZone: CITY_TIME_ZONES[city],
+-  });
++  const at = new Date(now + etaSeconds * 1000);
++  try {
++    return at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: CITY_TIME_ZONES[city] });
++  } catch {
++    // An unknown zone must never take the ride screen down: fall back to the device's time.
++    return at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
++  }
+ }
+ 
+ export function formatEta(seconds: number | null | undefined): string {

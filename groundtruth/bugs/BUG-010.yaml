@@ -1,0 +1,35 @@
+id: BUG-010
+title: Tokyo fares shown 100x too low after the fare-formatting change
+language: typescript
+component: miniride-client
+owner_team: rider-app
+category: own_code
+priority: P2
+discovery: [bugdrop]
+injection:
+  base: v1.5.2
+  release: 1.7.1
+  repos:
+    miniride-client: [patches/BUG-010/0001-perf-fares-cache-money-formatters.patch]
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 4
+    city: tokyo
+    flow: quote
+    testid: fare
+    pattern: "[¥￥]\\s?\\d{1,2}(?![\\d,.])"
+    report_text: "The fare says ¥24 for a ride across Tokyo. That can't be right — is this a bug or will I be charged more?"
+ground_truth:
+  fix: fixes/BUG-010.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-010/fares.hidden.test.ts, repo: miniride-client, dest: test/fares.hidden.test.ts }
+  location: { repo: miniride-client, module: src/screens, file: src/screens/RequestRide.tsx, function: formatMoney }
+  rca_facts:
+    - 'Only JPY fares (Tokyo) are wrong; USD and INR display correctly.'
+    - 'The client divides every amount by 100, but JPY amounts are already whole yen (no minor unit).'
+    - 'Regression introduced in 1.7.1 by "perf(fares): cache money formatters", which dropped the JPY special case.'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

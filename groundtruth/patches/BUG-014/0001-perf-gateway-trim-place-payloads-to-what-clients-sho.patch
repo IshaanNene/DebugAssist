@@ -1,0 +1,27 @@
+From 1785b1f974f5c394c8b78b01b69019ba802e50bd Mon Sep 17 00:00:00 2001
+From: Priya Nair <priya.nair@miniride.dev>
+Date: Tue, 6 Oct 2026 22:01:32 +0530
+Subject: [PATCH] perf(gateway): trim place payloads to what clients show
+
+Dispatch's place records are growing internal fields (ranking, geofences). Map them down to the display fields before they go to every client on every home-screen load.
+---
+ gateway/src/backends.ts | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/gateway/src/backends.ts b/gateway/src/backends.ts
+index 389f740..229e72d 100644
+--- a/gateway/src/backends.ts
++++ b/gateway/src/backends.ts
+@@ -79,7 +79,8 @@ export function httpBackends(
+     async places(city) {
+       const r = await call<Place[]>(`${dispatchUrl}/places?city=${encodeURIComponent(city)}`);
+       if (r.status === 404) throw createGraphQLError(`unknown city ${city}`, { extensions: { code: "BAD_USER_INPUT" } });
+-      return r.body;
++      // Dispatch's place records carry internal fields (ranking, geofence ids); only pass on what clients show.
++      return r.body.map(({ name, lat, lng }) => ({ name, lat, lng }) as Place);
+     },
+     async requestRide(body) {
+       const r = await call<RideOut & { detail?: string }>(`${dispatchUrl}/rides`, {
+-- 
+2.55.0
+
