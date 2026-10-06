@@ -63,6 +63,9 @@ class Settings(BaseSettings):
     # OpenRouter host pinning (see provider_order): gpt-oss structured output degenerates on some
     # hosts under default routing (2026-10-04). OPENROUTER_PROVIDER_ORDER overrides for every model.
     openrouter_provider_order: list[str] | None = None
+    # false: never request json_schema/response_format (only some hosts of a model support it, and that host
+    # may be overloaded); agents fall back to function calling, which every tool-capable host serves.
+    llm_structured_outputs: bool | None = None
     # Prices default to the provider's published pricing for the model (core.llm_models).
     llm_price_in_per_mtok: float | None = None
     llm_price_out_per_mtok: float | None = None

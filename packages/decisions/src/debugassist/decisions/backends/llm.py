@@ -109,6 +109,7 @@ class LLMDecider:
         reasoning_effort: str | None = "low",
         structured_outputs: bool = True,
         provider_name: LLMProvider = "openrouter",
+        max_tokens: int = 2000,
     ) -> None:
         self.model = model
         self._price_in = price_in_per_mtok
@@ -118,6 +119,7 @@ class LLMDecider:
             base_url=base_url,
             api_key=api_key,
             body=extra_body(provider_name, provider_order, reasoning_effort),
+            max_tokens=max_tokens,
         )
         self._provider = provider
         self._client = AsyncSystemOneAdapterClient(
@@ -148,6 +150,8 @@ class LLMDecider:
             reasoning_effort="low" if "reasoning_effort" in info.supported_parameters else None,
             structured_outputs=info.structured_outputs,
             provider_name=settings.provider(),
+            # Reasoning tokens count toward the cap; a JSON answer without strict decoding needs headroom.
+            max_tokens=min(8000, settings.max_output_tokens()),
         )
 
     async def run(self, request: ClefRequest) -> ClefResponse:
