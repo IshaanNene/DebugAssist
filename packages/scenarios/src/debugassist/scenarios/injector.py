@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +25,7 @@ STATE = ROOT / ".data" / "scenario.json"
 PREV_CLIENT = ROOT / ".data" / "builds" / "client-prev"
 COMPOSE = ["docker", "compose", "-f", str(ROOT / "infra" / "docker-compose.yml")]
 PROFILES = ["core", "obs", "flags", "faults", "target", "sources"]
+FLAG_PROPAGATION_S = 8  # services poll Unleash every 5 s
 
 
 def compose(*args: str, profiles: list[str] = PROFILES) -> None:
@@ -90,6 +92,8 @@ def inject(
     for flag, pct in inj.flags.items():
         env.set_rollout(flag, pct)
         log(f"flag {flag} → {pct}% gradual rollout")
+    if inj.flags:
+        time.sleep(FLAG_PROPAGATION_S)  # services poll Unleash every 5 s; traffic must see the new rollout
     for t in inj.toxics:
         env.add_toxic(t)
         log(f"toxic {t.type} on {t.proxy}: {t.attributes}")

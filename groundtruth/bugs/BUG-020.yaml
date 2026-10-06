@@ -17,18 +17,20 @@ trigger:
     sessions: 2
     city: sf
     flow: book
+    pickup: Ferry Building
+    dropoff: SFO Airport
     testid: eta
-    pattern: "^< 1 min$"
-    wait_s: 140
-    report_text: "We're in the car on the way to the airport and the app has said arriving in less than a minute for 20 minutes."
+    pattern: "^(< 1 min|\\d min)$"
+    wait_s: 150
+    report_text: "We're in the car from the Ferry Building to SFO and the app says we arrive in a couple of minutes. The airport is 40+ minutes away."
 ground_truth:
   fix: fixes/BUG-020.patch
   hidden_tests:
     - { src: hidden_tests/BUG-020/test_trip_eta_hidden.py, repo: miniride-services, dest: dispatch/tests/test_trip_eta_hidden.py }
   location: { repo: miniride-services, module: dispatch, file: dispatch/src/dispatch/matching.py, function: eta_seconds }
   rca_facts:
-    - 'Only rides in the in_trip phase are affected: their ETA is 0 ("< 1 min") for the whole trip; pickup ETAs are fine.'
-    - 'eta_seconds lost its drop-off branch and measures from the driver (already at the pickup) to the pickup.'
+    - 'Only rides in the in_trip phase are affected: their ETA keeps counting down the pickup time (a few minutes, then "< 1 min") instead of showing the time to the drop-off; pickup ETAs are fine.'
+    - 'eta_seconds lost its in_trip branch, so during the trip it still measures driver-to-pickup time minus elapsed time instead of pickup-to-drop-off travel time.'
     - 'Regression introduced in 1.7.11 by "refactor(dispatch): one ETA formula for every ride phase".'
   mitigation: none
 validation:

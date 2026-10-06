@@ -53,7 +53,11 @@ async def normal_traffic(fleet: Fleet, params: dict[str, Any], log: Log) -> dict
             if not await open_app(page, fleet.url(p)):
                 outcomes["no_home"] += 1
             elif rng.random() < float(params.get("book_share", 0.5)):
-                outcomes["booked" if await book(page, city=p.city) else "booking_failed"] += 1
+                try:
+                    ok = await book(page, city=p.city)
+                except Exception:  # the screen died mid-flow (e.g. a crash): that is the rider's outcome
+                    ok = False
+                outcomes["booked" if ok else "booking_failed"] += 1
                 await page.wait_for_timeout(hold_ms)
             else:
                 outcomes["browsed"] += 1
@@ -73,7 +77,8 @@ async def symptom_report(fleet: Fleet, params: dict[str, Any], log: Log) -> dict
     """Riders in `city` quote (`flow: quote`) or book (`flow: book`) and look at one thing on screen:
     the element `testid` matching the regex `pattern`, or (`flow: search`) the "See prices" button staying
     disabled. The first rider who notices files `report_text`. `network` gives every rider one network
-    profile (latency_ms, download_kbps, upload_kbps, loss_pct); `always: true` reports regardless."""
+    profile (latency_ms, download_kbps, upload_kbps, loss_pct); `always: true` reports regardless;
+    `pickup`/`dropoff` pick the booked trip by place name."""
     import re
 
     n = int(params.get("sessions", 6))
@@ -123,7 +128,13 @@ async def symptom_report(fleet: Fleet, params: dict[str, Any], log: Log) -> dict
                 await set_city(page, p.city)
                 await page.wait_for_timeout(wait_ms)
             elif flow == "book":
-                outcomes["booked" if await book(page, city=p.city) else "booking_failed"] += 1
+                ride = await book(
+                    page,
+                    city=p.city,
+                    pickup=str(params["pickup"]) if params.get("pickup") else None,
+                    dropoff=str(params["dropoff"]) if params.get("dropoff") else None,
+                )
+                outcomes["booked" if ride else "booking_failed"] += 1
                 await page.wait_for_timeout(wait_ms)
             else:
                 await set_city(page, p.city)

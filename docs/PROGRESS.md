@@ -353,9 +353,16 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 
 **Verified**
 - `make verify-scenarios`: 25/25 (regression applies, hidden test fails on it, reference fix passes the repo's tests). `make check`: 328 tests.
+- Discovery: every new bug's trigger was run on the live stack (inject → traffic) and produced a Vitals issue or BugDrop report (17/17 after the fixes below).
 
 **Findings**
 - Many first ideas for regressions were caught by the target repos' own lint or tests (deprecated `utcnow`, an analytics test without props, GraphQL coercing numeric strings, an idempotency-key test). Discarded: a catalog bug that CI catches is not realistic.
+- First discovery sweep: 12/17. Fixed:
+  - A render error inside a route is caught by react-router's error page, so it never reaches the app's crash handler or Vitals. Riders now treat that page as a crash and report it; BUG-009 and BUG-011 are discovered through BugDrop.
+  - `normal_traffic` aborted when a crash killed a booking mid-flow; that is now the rider's outcome.
+  - Flag injections now wait for propagation (services poll Unleash every 5 s); BUG-024's riders were quoting before the 100% rollout reached payments.
+  - Concurrent bookings race onto the same free driver, so a market never fills up. BUG-015 books one rider at a time.
+  - BUG-020 books a long trip (Ferry Building → SFO); the regression shows a few-minute countdown during a ~49-minute ride.
 - Scoring earlier live runs: BUG-001's RCA is directional and the hidden test fails (the agent's fix still ticks every 5 s), and BUG-003 was classified with the wrong category.
 
 ## P12 — Observability, cost, guardrails, privacy (2026-10-05) — done
