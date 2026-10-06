@@ -59,6 +59,9 @@ def run_cmd(
         bool, typer.Option(help="wipe Vitals/BugDrop data between bugs (clean discovery)")
     ] = True,
     max_usd: Annotated[float, typer.Option(help="refuse to start if the estimate is above this")] = 5.0,
+    reserve_usd: Annotated[
+        float, typer.Option(help="stop before the next bug when the OpenRouter key has less credit left")
+    ] = 0.0,
 ) -> None:
     """Run catalog bugs end to end per configuration and seed; score and label every run."""
     ids, cfgs = _ids(bugs), configs.split(",")
@@ -68,7 +71,16 @@ def run_cmd(
         typer.echo(f"estimate above --max-usd {max_usd}; raise it explicitly to proceed")
         raise typer.Exit(2)
     out = asyncio.run(
-        eval_run.evaluate(ids, cfgs, seeds, until=until or None, hidden=hidden, wipe=wipe, log=typer.echo)
+        eval_run.evaluate(
+            ids,
+            cfgs,
+            seeds,
+            until=until or None,
+            hidden=hidden,
+            wipe=wipe,
+            reserve_usd=reserve_usd,
+            log=typer.echo,
+        )
     )
     typer.echo(f"results: {out / 'results.jsonl'}")
 

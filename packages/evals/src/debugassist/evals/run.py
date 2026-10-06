@@ -70,6 +70,25 @@ def trigger(bug: Bug, *, wipe: bool = True, log: Callable[[str], None] = print) 
     return [ref for src in bug.discovery for ref in order.get(src, [])]
 
 
+def credit_remaining() -> float | None:
+    """Remaining credit on the OpenRouter key (None when unlimited, unknown or another provider)."""
+    import httpx
+
+    st = get_settings()
+    if st.provider() != "openrouter" or st.open_router_api_key is None:
+        return None
+    try:
+        r = httpx.get(
+            f"{st.openrouter_base_url}/key",
+            headers={"Authorization": f"Bearer {st.open_router_api_key.get_secret_value()}"},
+            timeout=15,
+        )
+        left = r.raise_for_status().json()["data"].get("limit_remaining")
+    except (httpx.HTTPError, KeyError, ValueError):
+        return None
+    return None if left is None else float(left)
+
+
 def run_pipeline(
     issue: str, config: str, seed: int, until: str | None, log: Callable[[str], None] = print
 ) -> str | None:
@@ -95,6 +114,7 @@ async def evaluate(
     until: str | None = "validate",
     hidden: bool = True,
     wipe: bool = True,
+    reserve_usd: float = 0.0,
     log: Callable[[str], None] = print,
 ) -> Path:
     unknown = [c for c in configs if c not in CONFIGS]
@@ -108,6 +128,13 @@ async def evaluate(
     ledger = await Ledger.open(get_settings().database_url)
     try:
         for bug_id in bug_ids:
+            left = credit_remaining() if reserve_usd else None
+            if left is not None and left < reserve_usd:
+                log(
+                    f"stopping before {bug_id}: ${left:.2f} credit left, under the ${reserve_usd:.2f} reserve"
+                )
+                _append(out, {"bug": bug_id, "error": f"skipped: credit ${left:.2f} under reserve"})
+                break
             bug = get_bug(bug_id)
             log(f"{bug.id}: {bug.title}")
             refs = await asyncio.to_thread(trigger, bug, wipe=wipe, log=lambda m: log(f"  {m}"))
