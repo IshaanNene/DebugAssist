@@ -194,6 +194,7 @@ def score_run(run_id: str, bug: Bug, clef_usd: float = 0.0, run_hidden: bool = T
         "bug": bug.id,
         "status": state.get("status"),
         "agent_type": state.get("agent_type"),
+        "model": _obj(rca.get("llm")).get("model"),
         "rca": verdict,
         "rca_location": f"{_obj((out or {}).get('location')).get('file')} → {_obj((out or {}).get('location')).get('function')}"
         if out
