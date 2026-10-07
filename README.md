@@ -253,9 +253,9 @@ Agents and the LLM decider use any OpenAI-compatible API; two providers are inte
 
 ## 📍 Status
 
-Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/)). Phases 0–13 are done: decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA depth, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, and the evaluation harness with its first live run.
+Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Phases 0–13 are done: decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA depth, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, and the evaluation harness with its first live run.
 
-**Next:** give the bug-report agent the services repo · measure context reduction (tool-use examples, programmatic tool calling) behind switches · decision-template work where the rules baseline wins · polish (P14).
+**Next** ([roadmap](docs/ROADMAP.md)): give the bug-report agent the services repo · context engineering measured arm by arm (tool-result offloading and clearing, concise tool responses, tool-use examples, programmatic tool calling, compaction) · Langfuse, LiteLLM and local models · a public site · evaluation at scale. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
 
 <br>
 
