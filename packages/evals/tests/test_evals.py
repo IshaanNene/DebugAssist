@@ -160,3 +160,33 @@ def test_client_path_is_not_credited_to_a_services_module() -> None:
     client = {"location": {"repo": "miniride-client", "file": "src/screens/Search.tsx", "function": "Search"}}
     assert rca_verdict(client, gateway) == "wrong"
     assert rca_verdict(relative, bug) == "exact"
+
+
+def test_context_anatomy_splits_input_into_prefix_tools_and_model(tmp_path: Path) -> None:
+    import json as _json
+
+    from debugassist.evals import context as ctx
+
+    log = tmp_path / "fix.jsonl"
+    ev = [
+        {"kind": "model", "turn": 1, "input_tokens": 1000, "output_tokens": 50, "cached_tokens": 0},
+        {"kind": "tool", "turn": 1, "tool": "read_file"},
+        {"kind": "model", "turn": 2, "input_tokens": 1550, "output_tokens": 20, "cached_tokens": 1000},
+        {"kind": "model", "turn": 3, "input_tokens": 1570, "output_tokens": 10, "cached_tokens": 1550},
+        {"kind": "done", "turn": 3},
+        {
+            "kind": "model",
+            "turn": 1,
+            "input_tokens": 900,
+            "output_tokens": 10,
+            "cached_tokens": 0,
+        },  # 2nd agent run
+    ]
+    log.write_text("\n".join(_json.dumps(e) for e in ev))
+    a = ctx.anatomy("none", log)
+    assert a is not None and a.turns == 4
+    assert a.input_tokens == 1000 + 1550 + 1570 + 900
+    assert a.prefix_total == 1000 * 3 + 900  # each agent run has its own prefix
+    assert a.tools_added == {"read_file": 500}  # turn 1 added 550: 50 own output + 500 tool result
+    assert a.tools_total == {"read_file": 1000}  # re-sent on turns 2 and 3
+    assert a.prefix_total + a.model_total + sum(a.tools_total.values()) == a.input_tokens
