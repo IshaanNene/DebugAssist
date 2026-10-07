@@ -35,6 +35,9 @@ def load_results(dirs: list[Path]) -> list[dict[str, Any]]:
             rows += [
                 json.loads(line) | {"eval": d.name} for line in f.read_text().splitlines() if line.strip()
             ]
+    for r in rows:  # the same configuration on different LLMs are different arms
+        if r.get("model") and "config" in r:
+            r["config"] = f"{r['config']} · {str(r['model']).split('/')[-1]}"
     return rows
 
 

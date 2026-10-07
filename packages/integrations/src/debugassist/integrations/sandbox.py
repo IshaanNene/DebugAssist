@@ -122,7 +122,7 @@ class Sandbox:
             "GOCACHE=/work/.cache/go-build",
             image,
             "sh",
-            "-lc",
+            "-c",  # not a login shell: Alpine's /etc/profile resets PATH (drops /usr/local/go/bin)
             setup + command,
         ]
         with tracing.span("sandbox", kind="tool", **{"tool.name": "sandbox", "input.value": command}) as sp:
