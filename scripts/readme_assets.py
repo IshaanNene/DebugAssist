@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import csv
 import io
 import re
 import shutil
@@ -542,6 +543,112 @@ def miniride() -> str:
 # ---------------------------------------------------------------------------------------- stack
 
 
+# ---------------------------------------------------------------------------------- results
+
+
+def _latest_report() -> Path:
+    reports = sorted((ROOT / "evals" / "reports").glob("*/results.csv"))
+    if not reports:
+        raise SystemExit("no evals/reports/*/results.csv: run `debugassist eval report` first")
+    return reports[-1]
+
+
+def results(model: str = "gpt-6-luna") -> str:
+    """The latest evaluation as one card: headline rates and a per-bug grid. Every number is computed here
+    from evals/reports/<date>/results.csv (written by `debugassist eval report`)."""
+    path = _latest_report()
+    rows = [r for r in csv.DictReader(path.open()) if model in (r.get("model") or "") and r.get("rca")]
+    rows.sort(key=lambda r: r["bug"])
+    n = len(rows)
+    t = lambda v: v == "True"  # noqa: E731
+    exact = sum(r["rca"] == "exact" for r in rows)
+    near = exact + sum(r["rca"] == "directional" for r in rows)
+    cat = sum(t(r["category_ok"]) for r in rows)
+    hid = [r for r in rows if r["hidden_tests"] in ("True", "False")]
+    hid_ok = sum(t(r["hidden_tests"]) for r in hid)
+    costs = sorted(float(r["usd"]) for r in rows)
+    median = costs[len(costs) // 2] if costs else 0.0
+    from debugassist.scenarios.catalog import get_bug  # labels "not our bug" columns from the catalog
+
+    ours = {r["bug"]: get_bug(r["bug"]).expected_outcome == "pr" for r in rows}
+    code = [r for r in rows if ours[r["bug"]]]
+    val = sum(t(r["validated"]) for r in code)
+
+    w, h = 1400, 470
+    body = defs() + canvas(w, h)
+    body += text(56, 62, f"Evaluation: {n} catalog bugs, end to end", 24, INK, 800)
+    body += text(
+        56,
+        90,
+        f"{model} · one seed · {path.parent.relative_to(ROOT)} · drawn by make readme-assets",
+        15,
+        MUTE,
+        500,
+    )
+    stats = [
+        ("root cause right or close", f"{near}/{n}", ACCENT2),
+        ("root cause exact", f"{exact}/{n}", OK),
+        ("category right", f"{cat}/{n}", ACCENT),
+        ("code bugs: fix validated", f"{val}/{len(code)}", OK),
+        ("hidden tests pass", f"{hid_ok}/{len(hid)}", "#F59E0B"),
+        ("median cost per run", f"${median:.3f}", MUTE),
+    ]
+    cw, gap = 200, 16
+    for i, (lab, val_s, col) in enumerate(stats):
+        x = 56 + i * (cw + gap)
+        body += box(x, 118, cw, 96)
+        body += text(x + 18, 166, val_s, 30, col, 800)
+        body += text(x + 18, 194, lab, 13, MUTE, 600)
+    # per-bug grid
+    gx, gy, cell, cg = 220, 270, 40, 6
+    lanes = [("root cause", "rca"), ("fix validated", "validated"), ("hidden test", "hidden_tests")]
+    colors = {
+        "exact": OK,
+        "directional": "#F59E0B",
+        "wrong": "#F43F5E",
+        "True": OK,
+        "False": "#F43F5E",
+    }
+    for li, (lab, _) in enumerate(lanes):
+        body += text(56, gy + li * (cell + cg) + 26, lab, 14, INK, 600)
+    for i, r in enumerate(rows):
+        x = gx + i * (cell + cg)
+        body += text(
+            x + cell / 2, gy - 12, r["bug"][-3:], 11, MUTE if ours[r["bug"]] else ACCENT2, 600, "middle", True
+        )
+        for li, (_, key) in enumerate(lanes):
+            v = r[key]
+            y = gy + li * (cell + cg)
+            if key == "validated" and not ours[r["bug"]]:
+                v = ""  # nothing to fix: the right outcome is routing, not a PR
+            col = colors.get(v)
+            if col:
+                body += f'<rect x="{x}" y="{y}" width="{cell}" height="{cell}" rx="9" fill="{col}" fill-opacity=".85"/>'
+            else:
+                body += f'<rect x="{x}" y="{y}" width="{cell}" height="{cell}" rx="9" fill="none" stroke="{LINE}"/>'
+    ly = gy + 3 * (cell + cg) + 34
+    legend = [
+        (OK, "exact / yes"),
+        ("#F59E0B", "directional (right file or module)"),
+        ("#F43F5E", "wrong / no"),
+        (None, "not applicable"),
+    ]
+    lx = 56
+    for col, lab in legend:
+        if col:
+            body += f'<rect x="{lx}" y="{ly - 13}" width="16" height="16" rx="4" fill="{col}" fill-opacity=".85"/>'
+        else:
+            body += (
+                f'<rect x="{lx}" y="{ly - 13}" width="16" height="16" rx="4" fill="none" stroke="{LINE}"/>'
+            )
+        body += text(lx + 24, ly, lab, 13, MUTE, 500)
+        lx += 40 + len(lab) * 7.2
+    body += text(
+        lx + 20, ly, "cyan ids: not-our-bug cases (right answer is routing, not a fix)", 13, ACCENT2, 500
+    )
+    return svg_doc(w, h, body)
+
+
 def stack() -> str:
     groups = [
         (
@@ -789,6 +896,7 @@ def main(argv: list[str]) -> None:
             ("pipeline", pipeline),
             ("miniride", miniride),
             ("stack", stack),
+            ("results", results),
         ):
             (ASSETS / f"{name}.svg").write_text(fn())
             print(f"docs/assets/{name}.svg")

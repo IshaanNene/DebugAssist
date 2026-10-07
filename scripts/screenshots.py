@@ -368,6 +368,45 @@ def _readme(m: dict[str, Any]) -> None:
     (OUT / "README.md").write_text("\n".join(lines) + "\n")
 
 
+async def dashboard(browser: Browser, run_id: str | None) -> list[tuple[str, str, str]]:
+    """The dashboard (`make dashboard` on :3000) at 1600 px wide; `run_id` picks the run shown as a graph."""
+    page = await browser.new_page(
+        viewport={"width": 1440, "height": 900}, device_scale_factor=1600 / 1440, color_scheme="dark"
+    )
+    s = "5 · The dashboard"
+    pages = [
+        (
+            "19-dashboard-inbox",
+            "/",
+            "Inbox: Vitals crashes and BugDrop reports with their triage and latest run",
+        ),
+        ("20-dashboard-runs", "/runs", "Runs: root-cause category and location, outcome, cost and time"),
+        (
+            "21-dashboard-run-graph",
+            f"/runs/{run_id}" if run_id else "/runs",
+            "A run as a graph: steps, subagents and every agent call",
+        ),
+        (
+            "22-dashboard-metrics",
+            "/metrics",
+            "Metrics: live and scripted runs kept apart; decision quality per template",
+        ),
+        (
+            "23-dashboard-marketplace",
+            "/marketplace",
+            "Marketplace: plugins, skills and proposed skill updates",
+        ),
+    ]
+    taken: list[tuple[str, str, str]] = []
+    for name, path, caption in pages:
+        await page.goto(f"http://localhost:3000{path}", wait_until="networkidle")
+        await page.add_style_tag(content="nextjs-portal{display:none!important}")  # Next.js dev badge
+        await page.wait_for_timeout(2500)
+        await page.screenshot(path=str(OUT / f"{name}.png"))
+        taken.append((f"{name}.png", s, caption))
+    return taken
+
+
 async def main(argv: list[str]) -> None:
     what = argv[0] if argv else "all"
     OUT.mkdir(parents=True, exist_ok=True)
@@ -385,6 +424,8 @@ async def main(argv: list[str]) -> None:
             if run_id:
                 taken += await run(browser, run_id)
                 meta["run_id"] = run_id
+        if what == "dashboard":
+            taken += await dashboard(browser, argv[1] if len(argv) > 1 else None)
         await browser.close()
     _save(taken, **meta)
     print("\n".join(f"docs/screenshots/{n}" for n, _, _ in taken))
