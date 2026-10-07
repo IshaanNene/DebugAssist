@@ -39,6 +39,13 @@ by expected value; each item is a switch in `core/ablation.py` and an eval arm.
 - **Measure per item:** input tokens per run, cache-hit rate, cost, turns, and RCA/hidden-test results vs baseline,
   on the same bugs. Report the table, keep what helps.
 
+**Audit result** (`debugassist eval context`, [evals/reports/2026-10-07/context.md](../evals/reports/2026-10-07/context.md),
+25 runs, 7.5M input tokens): 53% are tool results re-sent on later turns — `read_file` alone 32% (each read re-sent
+~7×) — 35% is the fixed prefix (the RCA task with its evidence bundle is ~7.9K tokens a turn), 12% the model's own
+messages. **82% of input is already served from the prompt cache**, because history is append-only. So:
+*adding less* (targeted reads, a repo map, concise responses — items 2, 4, 8) cuts tokens and cost; *clearing*
+old results (item 3) rewrites the cached prefix and may cost more than it saves — measure it last.
+
 ## P16 · Integrations (free / open source)
 
 | Tool | License* | Why here | Plan |
