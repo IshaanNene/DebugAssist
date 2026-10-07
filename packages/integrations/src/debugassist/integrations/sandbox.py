@@ -136,6 +136,12 @@ class Sandbox:
 
     def install(self, setup: str, workdir: str = ".") -> CommandResult:
         """Install dependencies (the one step allowed network access)."""
+        image = IMAGES[self.language]
+        if subprocess.run(["docker", "image", "inspect", image], capture_output=True).returncode:
+            # Pull first, outside the install's timeout (an image missing after a Docker reset).
+            p = subprocess.run(["docker", "pull", "-q", image], capture_output=True, text=True, timeout=900)
+            if p.returncode:
+                return CommandResult(f"docker pull {image}", p.returncode, (p.stdout + p.stderr)[-4000:])
         return self.run(setup, workdir=workdir, network=True, timeout=900)
 
     def diff(self, base: str = "HEAD") -> str:
