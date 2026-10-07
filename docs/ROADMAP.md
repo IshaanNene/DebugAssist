@@ -1,0 +1,87 @@
+# Roadmap
+
+Where DebugAssist goes after P13. Everything here is measured the same way the first evaluation was: a switch,
+an eval run on the catalog, and a report under `evals/reports/` — no feature ships on a blog post's numbers.
+Problems already solved are in [LESSONS.md](LESSONS.md).
+
+Baseline to beat (`evals/reports/2026-10-07`, gpt-6-luna, 25 bugs, one seed): root cause right or close 16/25,
+exact 12/25, code-bug fixes validated 12/19, hidden tests 7/15, median ~$0.017 per run.
+
+## P14 · Close the biggest gap: backend bugs reported from the app
+
+All six services bugs that reached us only through a rider's report were investigated in the client repo.
+
+- Give `user-bug-report` both repos (client + services) and the gateway/dispatch/payments MCP evidence.
+- A cross-repo hand-off: when the RCA's location is in another repo, re-plan the fix there (new sandbox, that
+  repo's ladder and CI), and link both PRs if both sides change.
+- Contract evidence for the agent: the GraphQL schema and service API shapes, so field-name drift is visible.
+- **Measure:** BUG-013/014/015/017/019/020 root cause and hidden tests; no regressions on the other 19.
+
+## P15 · Context engineering (how Claude Code does it, applied here)
+
+Every turn re-sends the system prompt, tool schemas and the whole history; on BUG-001 a full run read ~300K input
+tokens. Tool schemas are only ~2–2.5K tokens per agent — the weight is tool *results* re-sent every turn. Ordered
+by expected value; each item is a switch in `core/ablation.py` and an eval arm.
+
+| # | Technique | What it means for us | Where it comes from |
+|---|---|---|---|
+| 1 | **Prompt anatomy audit** | Dump exactly what each node sends per turn (system / skills / tools / history / tool results, in tokens), and keep the stable parts first and identical across turns so the cache hits | Claude Code keeps its system prompt stable and appends dynamic context late |
+| 2 | **Tool-result offloading** | Large tool results go to a file in the run dir; the model gets a short summary plus a handle, and reads ranges on demand | Claude Code saves big outputs to disk and passes a path; "just-in-time" retrieval |
+| 3 | **Tool-result clearing** | Once a step is done, older raw tool outputs in history are replaced by a one-line stub (append-only, so the cache prefix survives) | Anthropic context-editing / tool clearing |
+| 4 | **Concise response formats** | Tools take `detail="concise" \| "full"`; default concise (ids, counts, top-k) | Anthropic, *Writing effective tools for agents* (~⅓ the tokens) |
+| 5 | **Tool-use examples** | Two or three worked calls in the descriptions of the tools agents misuse (pick them from bad-argument / unknown-tool errors in the eval logs) | Anthropic advanced tool use (reported 72% → 90% on complex parameters) |
+| 6 | **Programmatic tool calling** | A `run_tool_script` tool: the agent writes a short Python script in the sandbox that calls MCP tools, filters results, and prints a summary — fan-out without each result entering context | Anthropic PTC (−37% tokens on research tasks; but ~+8% cost on sequential single-call work — measure, don't assume) |
+| 7 | **Compaction with notes** | Long agents keep a structured notes file (hypotheses, evidence ids, ruled out) and compact history into it near a budget | Claude Code compaction; structured note-taking |
+| 8 | **Repo map instead of file reads** | A tree-sitter / ast-grep symbol map of the repo for localisation; read files only at the chosen spot | Aider-style repo maps |
+| 9 | **Per-repo memory** | A small `DEBUGASSIST.md` per target repo (conventions, flaky tests, where things live) grown from accepted PR reviews (D18) | `CLAUDE.md` / project memory |
+| 10 | **Tool search** | Only once an agent has >~30 tools: list names, load schemas on demand. On OpenAI-hosted models the tool list is part of the cached prefix, so loading tools mid-run costs cache hits | Claude Code deferred tools; Anthropic Tool Search Tool |
+
+- **Measure per item:** input tokens per run, cache-hit rate, cost, turns, and RCA/hidden-test results vs baseline,
+  on the same bugs. Report the table, keep what helps.
+
+## P16 · Integrations (free / open source)
+
+| Tool | License* | Why here | Plan |
+|---|---|---|---|
+| **Langfuse** | MIT (core) | Open LLM observability + datasets + experiments + scores; self-hosts on Postgres, Redis, MinIO (we already run them) + ClickHouse | Export our OTel/OpenInference spans to its OTLP endpoint (`/api/public/otel/v1/traces`) next to Phoenix; push each eval as a Langfuse dataset run with RCA/hidden-test scores; link runs from the dashboard. `DA_TRACING=phoenix\|langfuse\|both` |
+| **LiteLLM** (proxy) | MIT | One gateway for every provider: fallbacks, budgets, caching, cost logs | Optional `LLM_PROVIDER=litellm`; per-run virtual keys as a second budget guard |
+| **Ollama / vLLM** | MIT / Apache-2.0 | Free local models for development and a no-cost eval arm | `LLM_PROVIDER=ollama`; a "local" arm in the report |
+| **Promptfoo** | MIT | Regression tests for prompts and skills in CI | Golden RCA/fix prompts from the catalog; fail CI on regressions |
+| **Inspect AI** | MIT | A standard eval framework; makes the catalog runnable by others | Export the catalog as an Inspect task |
+| **GlitchTip** (Sentry-compatible) | MIT | Real crash-report format instead of only our Vitals stand-in | A `glitchtip` source + MCP server; the client SDK can report to both |
+| **OpenFeature** (+ flagd) | Apache-2.0 | Vendor-neutral flags | Feature-flags MCP behind the OpenFeature API; Unleash stays the default |
+| **ast-grep / tree-sitter / Semgrep CE** | MIT / MIT / LGPL-2.1 | Structural code search, repo maps, rule checks on fixes | Code-search MCP tools; a pre-PR rule check |
+| **SWE-bench Lite / Verified** | MIT | External validity beyond our own catalog | A subset run through reproduce → fix → validate |
+| **OpenHands / mini-SWE-agent** | MIT | Baselines: what does a general coding agent score on our catalog? | Same bugs, same budget, compared in the report |
+| **Temporal** | MIT | Durable runs that survive restarts and sleep | Optional executor for long runs (LangGraph checkpoints already resume) |
+
+\* Check each license at adoption. Note: Arize Phoenix (our current tracer) is Elastic License 2.0, not OSI open
+source — one more reason to support Langfuse.
+
+## P17 · A public site
+
+A marketing site in `apps/site`, statically built and deployed from GitHub Actions to GitHub Pages (free; Vercel
+works too). Our own name and content; visual language inspired by modern OSS developer sites: off-white grid
+paper, a highlighter accent, monospace labels, isometric line diagrams.
+
+- Hero: what it does in one line, the results card, Quickstart and GitHub buttons.
+- The loop, drawn isometrically: crash → triage → root cause → mitigate → reproduce → fix → validate → PR → watch,
+  with the Clef decision points; hovering a stage shows what runs there.
+- Feature cards: evidence-backed RCA, proof before PR, Clef decisions, sandbox and policy gate, dashboard, harness.
+- Results: built from the latest `evals/reports/*/results.csv` at build time (no hand-entered numbers), with the
+  honest "what doesn't work yet".
+- "Works with your stack": MCP servers, providers, frameworks, telemetry.
+- Lessons learned and roadmap pages generated from these docs.
+
+## P18 · Evaluation at scale
+
+- Three seeds on the main arm; Clef vs Clef-flash vs LLM decider vs rules as full pipeline arms; skills-off.
+- Decision templates where the rules baseline wins (triage, test tier).
+- Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
+- The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
+
+## Later
+
+- **DebugAssist as a tool for coding agents**: an MCP server and a `SKILL.md` so Claude Code, Cursor or Codex can
+  ask it "investigate VIT-1001" and get the RCA and proof back.
+- A GitHub App instead of a token; a Helm chart; multi-tenant runs.
