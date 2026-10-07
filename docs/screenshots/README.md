@@ -76,6 +76,28 @@ Every number below comes from the run's own artifacts: state, the Clef decision 
 
 ![The Jira ticket as Jira holds it, read back by the report](14-run-report-jira.png)
 
+## 5 · The dashboard
+
+**Inbox: Vitals crashes and BugDrop reports with their triage and latest run** · captured 2026-10-07 17:40 UTC
+
+![Inbox: Vitals crashes and BugDrop reports with their triage and latest run](19-dashboard-inbox.png)
+
+**Runs: root-cause category and location, outcome, cost and time** · captured 2026-10-07 17:40 UTC
+
+![Runs: root-cause category and location, outcome, cost and time](20-dashboard-runs.png)
+
+**A run as a graph: steps, subagents and every agent call** · captured 2026-10-07 17:40 UTC
+
+![A run as a graph: steps, subagents and every agent call](21-dashboard-run-graph.png)
+
+**Metrics: live and scripted runs kept apart; decision quality per template** · captured 2026-10-07 17:40 UTC
+
+![Metrics: live and scripted runs kept apart; decision quality per template](22-dashboard-metrics.png)
+
+**Marketplace: plugins, skills and proposed skill updates** · captured 2026-10-07 17:40 UTC
+
+![Marketplace: plugins, skills and proposed skill updates](23-dashboard-marketplace.png)
+
 ## 5 · The pull request it opened
 
 A bot branch on the target repo, opened against the release branch.

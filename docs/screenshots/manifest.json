@@ -89,6 +89,31 @@
       "section": "6 \u00b7 The ticket it filed",
       "caption": "Jira SCRUM-6: filed at triage with the symbolicated stack and triage, PR linked; resolved after review",
       "at": "2026-10-04 16:57 UTC"
+    },
+    "19-dashboard-inbox.png": {
+      "section": "5 \u00b7 The dashboard",
+      "caption": "Inbox: Vitals crashes and BugDrop reports with their triage and latest run",
+      "at": "2026-10-07 17:40 UTC"
+    },
+    "20-dashboard-runs.png": {
+      "section": "5 \u00b7 The dashboard",
+      "caption": "Runs: root-cause category and location, outcome, cost and time",
+      "at": "2026-10-07 17:40 UTC"
+    },
+    "21-dashboard-run-graph.png": {
+      "section": "5 \u00b7 The dashboard",
+      "caption": "A run as a graph: steps, subagents and every agent call",
+      "at": "2026-10-07 17:40 UTC"
+    },
+    "22-dashboard-metrics.png": {
+      "section": "5 \u00b7 The dashboard",
+      "caption": "Metrics: live and scripted runs kept apart; decision quality per template",
+      "at": "2026-10-07 17:40 UTC"
+    },
+    "23-dashboard-marketplace.png": {
+      "section": "5 \u00b7 The dashboard",
+      "caption": "Marketplace: plugins, skills and proposed skill updates",
+      "at": "2026-10-07 17:40 UTC"
     }
   },
   "run_id": "20261004-090058-vit-1001"

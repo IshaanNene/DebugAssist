@@ -90,7 +90,7 @@ report:  ## Render the latest run (or RUN=<id>) as .data/runs/<id>/report.html
 readme-assets:  ## Rebuild README visuals: hero, overview, pipeline, MiniRide, logo wall (SVG) and demo GIF (needs ffmpeg)
 	uv run --no-sync python scripts/readme_assets.py $(or $(WHAT),all)
 
-screenshots:  ## Proof screenshots into docs/screenshots/ (WHAT=stack|run|all; Jira: scripts/screenshots.py jira-login once)
+screenshots:  ## Proof screenshots into docs/screenshots/ (WHAT=stack|run|dashboard|all; Jira: scripts/screenshots.py jira-login once)
 	uv run --no-sync python scripts/screenshots.py $(or $(WHAT),all)
 
 deploy:  ## Ship a ref to the local stack (stands in for merge + deploy): make deploy REF=debugassist/vit-1001 [REPO=miniride-services]
