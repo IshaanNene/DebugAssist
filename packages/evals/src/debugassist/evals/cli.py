@@ -161,6 +161,7 @@ def report(
     runs: Annotated[
         str | None, typer.Option(help="comma list of evals/runs/<stamp> dirs (default: all)")
     ] = None,
+    notes: Annotated[Path | None, typer.Option(help="markdown file placed at the top of the report")] = None,
 ) -> None:
     """Write evals/reports/<date>/report.md + CSV + charts from eval results, E1 replays and the ledger."""
     from debugassist.core.ledger import Ledger
@@ -185,5 +186,5 @@ def report(
             await ledger.close()
 
     taus = {t.id: t.policy.tau_high for t in load_templates().values()}
-    out = rep.write(dirs, e1, asyncio.run(points()), taus)
+    out = rep.write(dirs, e1, asyncio.run(points()), taus, notes.read_text() if notes else "")
     typer.echo(f"report: {out / 'report.md'}")

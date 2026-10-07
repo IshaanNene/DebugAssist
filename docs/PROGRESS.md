@@ -339,7 +339,7 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
-## P13 — Evaluation harness + ablations (2026-10-06) — harness and catalog done, live runs pending
+## P13 — Evaluation harness + ablations (2026-10-07) — done
 
 **Done**
 - `packages/evals`: `debugassist eval estimate|run|label|replay|report`, `make eval`, `make eval-report`.
@@ -354,6 +354,11 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 **Verified**
 - `make verify-scenarios`: 25/25 (regression applies, hidden test fails on it, reference fix passes the repo's tests). `make check`: 328 tests.
 - Discovery: every new bug's trigger was run on the live stack (inject → traffic) and produced a Vitals issue or BugDrop report (17/17 after the fixes below).
+
+**Live evaluation (2026-10-07, `evals/reports/2026-10-07/report.md`)**
+- All 25 bugs end to end on `openai/gpt-6-luna` (PLAN A13), one seed, ~$0.02 per run; a Nemotron arm (mostly RCA-only) from before the switch; an E1 replay of 149 labelled decisions across Clef, Clef-flash, the LLM decider and rules.
+- Fixed on the way (each found by a live run): D2 dedup made the evaluator investigate a duplicate; mitigate acted on LLM free text as a flag name; OpenRouter routing (`require_parameters` + json_schema/seed/parallel_tool_calls) pinned Nemotron to one overloaded host; the LLM decider had no backoff and too few tokens; the Go sandbox's login shell dropped Go from PATH; the scorer credited client paths to services modules. Prompt-cache hits are now measured (79% on gpt-6-luna) and priced.
+- Main finding: services bugs reported only through the app are localised in the client repo — next work item.
 
 **Findings**
 - Many first ideas for regressions were caught by the target repos' own lint or tests (deprecated `utcnow`, an analytics test without props, GraphQL coercing numeric strings, an idempotency-key test). Discarded: a catalog bug that CI catches is not realistic.
