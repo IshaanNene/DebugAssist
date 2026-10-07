@@ -37,6 +37,9 @@ def chat_model(
         kwargs["reasoning_effort"] = cap if cap and order.index(effort) > order.index(cap) else effort
     if s.provider() == "openrouter":
         kwargs["extra_body"] = {"provider": routing(s, name)}
+        # with_structured_output(function_calling) sends parallel_tool_calls=false; with require_parameters
+        # no host of some models accepts it (404 "no endpoints"), so the extraction fallback never ran.
+        kwargs["disabled_params"] = {"parallel_tool_calls": None}
     # Repeat runs per eval configuration. Not on OpenRouter: with require_parameters a `seed` restricts the
     # model to the hosts that accept one (for some models a single, often overloaded, host); hosted sampling
     # is not reproducible anyway, so eval seeds there are independent repeat samples.
