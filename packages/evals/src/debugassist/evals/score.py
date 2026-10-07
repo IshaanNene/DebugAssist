@@ -174,12 +174,14 @@ def score_run(run_id: str, bug: Bug, clef_usd: float = 0.0, run_hidden: bool = T
     verdict = rca_verdict(out, bug)
     category = (out or {}).get("category")
     grounding = [_obj(g).get("grounding") for g in cast(list[Any], rca.get("grounding") or [])]
-    if bug.expected_outcome != "pr":  # not our bug: right if routed with the right category, no fix attempted
-        verdict = (
-            "exact"
-            if category == bug.category and not attempts
-            else ("directional" if category == bug.category else "wrong")
-        )
+    if bug.expected_outcome != "pr":
+        # Not our bug: exact = right category and no fix attempted; directional = right category with a fix
+        # attempt, or "not our code" with no fix but another not-our-code category (e.g. infra for network).
+        not_ours = category not in (None, "own_code")
+        if category == bug.category:
+            verdict = "exact" if not attempts else "directional"
+        else:
+            verdict = "directional" if not_ours and not attempts else "wrong"
     reference = bug.path(bug.ground_truth.fix).read_text() if bug.ground_truth.fix else ""
     hidden = (
         hidden_tests(run_id, bug, state)

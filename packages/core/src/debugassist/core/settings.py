@@ -104,6 +104,9 @@ class Settings(BaseSettings):
             return self.openrouter_provider_order
         if (model or self.model()).startswith("openai/gpt-oss"):
             return ["groq", "cerebras", "crusoe", "deepinfra"]
+        if (model or self.model()).startswith("openai/gpt-"):
+            # Prompt caches live per host: keep a run on OpenAI so cached prefixes hit (Azure as fallback).
+            return ["openai", "azure"]
         return []
 
     def llm_prices(self, model: str | None = None) -> tuple[float, float]:

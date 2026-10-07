@@ -43,6 +43,7 @@ class LLMResult(BaseModel):
     tool_calls: list[ToolCall]
     input_tokens: int = 0
     output_tokens: int = 0
+    cached_tokens: int = 0  # of input_tokens, read from the provider's prompt cache
     cost_usd: float = 0.0
     model: str
     mode: Literal["live", "replay", "mock"]

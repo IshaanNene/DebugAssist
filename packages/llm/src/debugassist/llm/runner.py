@@ -261,6 +261,11 @@ def _preview(content: Any, n: int = 600) -> str:
     return text[:n]
 
 
+def _cached(m: AIMessage) -> int:
+    details = cast(dict[str, Any], (m.usage_metadata or {}).get("input_token_details") or {})
+    return int(details.get("cache_read") or 0)
+
+
 def _observe(watch: Watchdog) -> Any:
     """Report each model attempt (latency, tokens, chosen tool calls) as it happens."""
 
@@ -280,6 +285,7 @@ def _observe(watch: Watchdog) -> Any:
                 usage.get("output_tokens", 0),
                 [tc["name"] for tc in msg.tool_calls],
                 _text(msg.content).strip(),
+                _cached(msg),
             )
         return out
 
@@ -448,6 +454,7 @@ class AgentRunner:
         t_out = sum(
             (m.usage_metadata or {}).get("output_tokens", 0) for m in messages if isinstance(m, AIMessage)
         )
+        t_cached = sum(_cached(m) for m in messages if isinstance(m, AIMessage))
         if watch.stop_reason and status == "ok" and not submitted:
             status = "stalled" if watch.stop_reason.startswith("stalled") else "timeout"
             error = watch.stop_reason
@@ -468,7 +475,7 @@ class AgentRunner:
             elif extracted is not None:
                 submitted.update(extracted)
                 status = "ok" if status == "no_output" else status
-        cost = cost_usd(t_in, t_out, model=spec.model)
+        cost = cost_usd(t_in, t_out, model=spec.model, cached_tokens=t_cached)
         if cost > spec.max_budget_usd and status == "ok":
             status = "max_budget"
         result = LLMResult(
@@ -479,6 +486,7 @@ class AgentRunner:
             tool_calls=calls,
             input_tokens=t_in,
             output_tokens=t_out,
+            cached_tokens=t_cached,
             cost_usd=round(cost, 6),
             model=spec.model,
             mode="live",

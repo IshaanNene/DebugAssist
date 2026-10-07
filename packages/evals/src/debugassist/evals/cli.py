@@ -86,6 +86,29 @@ def run_cmd(
 
 
 @app.command()
+def rescore(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]) -> None:
+    """Recompute each run's score from its saved state with the current scorer (hidden-test results kept)."""
+    import json
+
+    from debugassist.evals import score
+    from debugassist.scenarios.catalog import get_bug
+
+    path = eval_dir / "results.jsonl"
+    rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    keep = ("hidden_tests", "hidden_detail", "config", "seed", "issue", "deduped_from", "labelled_decisions")
+    out: list[dict[str, object]] = []
+    for row in rows:
+        if row.get("run_id") and (score.RUNS / row["run_id"] / "state.json").is_file():
+            fresh = score.score_run(
+                row["run_id"], get_bug(row["bug"]), float(row.get("clef_usd") or 0), False
+            )
+            row = {**row, **fresh, **{k: row[k] for k in keep if k in row}}
+        out.append(row)
+    path.write_text("".join(json.dumps(r, default=str) + "\n" for r in out))
+    typer.echo(f"rescored {sum(1 for r in out if r.get('run_id'))} runs in {path}")
+
+
+@app.command()
 def label(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]) -> None:
     """(Re)label the decisions of every run in an eval directory from the catalog."""
     from debugassist.core.ledger import Ledger

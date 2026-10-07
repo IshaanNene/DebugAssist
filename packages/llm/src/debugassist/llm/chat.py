@@ -68,7 +68,17 @@ def structured_method(model: str | None = None) -> Literal["json_schema", "funct
 
 
 def cost_usd(
-    input_tokens: int, output_tokens: int, settings: Settings | None = None, model: str | None = None
+    input_tokens: int,
+    output_tokens: int,
+    settings: Settings | None = None,
+    model: str | None = None,
+    cached_tokens: int = 0,
 ) -> float:
-    p_in, p_out = (settings or get_settings()).llm_prices(model)
-    return (input_tokens * p_in + output_tokens * p_out) / 1_000_000
+    """`input_tokens` includes `cached_tokens` (prompt-cache reads), which bill at the cache-read price."""
+    s = settings or get_settings()
+    p_in, p_out = s.llm_prices(model)
+    p_cache = model_info(model or s.model(), s.provider()).price_cache_read_per_mtok
+    cached = (
+        min(cached_tokens, input_tokens) if p_cache is not None and s.llm_price_in_per_mtok is None else 0
+    )
+    return ((input_tokens - cached) * p_in + cached * (p_cache or 0) + output_tokens * p_out) / 1_000_000
