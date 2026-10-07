@@ -61,14 +61,18 @@ class Watchdog:
         self.turn += 1
         self._turn_t0 = time.monotonic()
 
-    def model_end(self, input_tokens: int, output_tokens: int, tool_calls: list[str], text: str) -> None:
+    def model_end(
+        self, input_tokens: int, output_tokens: int, tool_calls: list[str], text: str, cached_tokens: int = 0
+    ) -> None:
         ms = int((time.monotonic() - self._turn_t0) * 1000)
         what = ", ".join(tool_calls) if tool_calls else (f"says: {text[:80]!r}" if text else "no tool call")
         self._emit(
             "model",
-            f"t{self.turn} model {ms / 1000:.1f}s (in {input_tokens / 1000:.1f}k, out {output_tokens}) → {what}",
+            f"t{self.turn} model {ms / 1000:.1f}s (in {input_tokens / 1000:.1f}k, cached {cached_tokens / 1000:.1f}k,"
+            f" out {output_tokens}) → {what}",
             ms=ms,
             input_tokens=input_tokens,
+            cached_tokens=cached_tokens,
             output_tokens=output_tokens,
             tool_calls=tool_calls,
         )

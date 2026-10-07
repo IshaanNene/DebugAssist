@@ -24,6 +24,7 @@ class ModelInfo(BaseModel):
     supported_parameters: list[str] = []
     price_in_per_mtok: float = 0.0
     price_out_per_mtok: float = 0.0
+    price_cache_read_per_mtok: float | None = None  # None: cached input is billed like other input
     context_length: int = 0
 
     @property
@@ -60,6 +61,9 @@ def model_info(model: str) -> ModelInfo:
                 supported_parameters=list(m.get("supported_parameters") or []),  # type: ignore[arg-type]
                 price_in_per_mtok=float(pricing.get("prompt", 0) or 0) * 1e6,
                 price_out_per_mtok=float(pricing.get("completion", 0) or 0) * 1e6,
+                price_cache_read_per_mtok=float(pricing["input_cache_read"]) * 1e6
+                if pricing.get("input_cache_read")
+                else None,
                 context_length=int(m.get("context_length") or 0),  # type: ignore[arg-type]
             )
     # Unknown model (offline, renamed): assume the conservative capability set.
