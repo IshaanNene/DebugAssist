@@ -156,4 +156,7 @@ def test_client_path_is_not_credited_to_a_services_module() -> None:
     wrong_repo = {"location": {"file": "src/screens/RequestRide.tsx", "function": "formatMoney"}}
     relative = {"location": {"file": "internal/fares/fares.go", "function": "Rates"}}
     assert rca_verdict(wrong_repo, bug) == "wrong"
+    gateway = get_bug("BUG-014")  # gateway/src/backends.ts: a client src/ path named as the client repo
+    client = {"location": {"repo": "miniride-client", "file": "src/screens/Search.tsx", "function": "Search"}}
+    assert rca_verdict(client, gateway) == "wrong"
     assert rca_verdict(relative, bug) == "exact"

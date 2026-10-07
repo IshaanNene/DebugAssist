@@ -29,21 +29,25 @@ def _obj(v: Any) -> dict[str, Any]:
     return cast(dict[str, Any], v) if isinstance(v, dict) else {}
 
 
-def _norm_path(path: str, bug: Bug) -> str:
+def _norm_path(path: str, bug: Bug, repo: str | None = None) -> str:
     p = path.strip().lstrip("./")
     comp = bug.component if bug.component not in (".", "miniride-client") else ""
     gt = bug.ground_truth.location
+    other_repo = bool(repo and gt.repo and repo.split("/")[-1] != gt.repo)  # the agent named another repo
     if (
         comp
+        and not other_repo
         and not p.startswith(comp + "/")
         and gt.file
         and gt.file.startswith(comp + "/")
-        and gt.repo
-        and (ROOT / "targets" / gt.repo / comp / p).is_file()
     ):
-        # An agent may give the path relative to the component; only when that file really exists there
-        # (a client path like src/screens/X.tsx must not become payments/src/screens/X.tsx).
-        p = f"{comp}/{p}"
+        # An agent may give the path relative to the component (dispatch: src/dispatch/x.py). Only take it as
+        # such when it shares the component-relative path's leading directories, so a client path like
+        # src/screens/X.tsx is never credited to payments/ or gateway/.
+        rel = gt.file[len(comp) + 1 :].split("/")
+        lead = rel[: min(2, len(rel) - 1)] if len(rel) > 1 else rel
+        if p.split("/")[: len(lead)] == lead:
+            p = f"{comp}/{p}"
     return p
 
 
@@ -57,7 +61,7 @@ def rca_verdict(output: dict[str, Any] | None, bug: Bug) -> str:
         return "none"
     gt = bug.ground_truth.location
     loc = _obj(output.get("location"))
-    file = _norm_path(str(loc.get("file", "")), bug)
+    file = _norm_path(str(loc.get("file", "")), bug, str(loc["repo"]) if loc.get("repo") else None)
     if not gt.file:
         return "none"
     if file == gt.file and _fn(str(loc.get("function"))) == _fn(gt.function):
