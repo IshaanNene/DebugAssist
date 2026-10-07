@@ -1,0 +1,3 @@
+config,runs,bugs,seeds,rca_exact,rca_exact_or_directional,category_ok,outcome_ok,validated,hidden_tests_pass,diff_similarity,unsupported_claims,turns,usd,time_to_rca_s,pipeline_s
+routed · gpt-6-luna,25,25,1,0.48,0.68,0.72,3/7,0.52,7/15,0.212 ± 0.16,0.44 ± 0.64,24.2 ± 13,0.0208 ± 0.012,116 ± 2e+02,457 ± 3.9e+02
+routed · nemotron-3-ultra-550b-a55b,15,15,1,0.6,0.733,0.533,0/0,0.067,0/1,0,3.6 ± 1.4,11.3 ± 9.4,0.21 ± 0.12,202 ± 2.4e+02,270 ± 1.3e+02

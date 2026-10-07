@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P12 done; P13 harness and catalog done, live evaluation runs pending (LLM budget). Next: P13 runs.
+Overall: P0–P13 done (first live evaluation: `evals/reports/2026-10-07`). Next: cross-repo bug reports, context-reduction ablations, P14.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -136,10 +136,12 @@ Overall: P0–P12 done; P13 harness and catalog done, live evaluation runs pendi
 
 ## P13 · Evaluation harness + ablations
 - [x] Bug catalog: 25 bugs (TypeScript 13 · Python 4 · Go 3 · no code 5) incl. not-our-bug cases (network, device/OS, not a bug, flag config, vendored SDK); `make verify-scenarios` 25/25
-- [x] `make eval`: reset → inject → traffic → discovery → pipeline → score (RCA exact/directional, fix, hidden tests, time, cost) · [ ] live runs
+- [x] `make eval`: reset → inject → traffic → discovery → pipeline → score (RCA exact/directional, fix, hidden tests, time, cost) · live: all 25 bugs end to end on gpt-6-luna
 - [x] Decision metrics per D# (accuracy, Brier, ECE, latency, $/1k); calibration; JSONL export · E1 replay
-- [x] Ablation switches: no Clef · Clef-flash only · Clef only · routed; D3/D8/D9/D12/D14 off; seeds · [ ] live matrix
-- [ ] `evals/reports/<date>/report.md` + CSV + charts from live runs (ask before any run estimated above $5)
+- [x] Ablation switches: no Clef · Clef-flash only · Clef only · routed; D3/D8/D9/D12/D14 off; seeds · [ ] live ablation matrix (budget) — E1 replay done instead
+- [x] `evals/reports/2026-10-07/report.md` + CSV + charts from live runs
+- [ ] `user-bug-report` agent type sees the services repo (6/6 services bugs reported from the app were localised in the client)
+- [ ] Context reduction behind switches, measured: tool-use examples, programmatic tool calling
 
 ## P14 · Polish
 - [x] Visual README, diagrams, screenshots, demo GIF (no unmeasured numbers)

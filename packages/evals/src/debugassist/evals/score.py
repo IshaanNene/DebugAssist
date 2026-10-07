@@ -32,13 +32,18 @@ def _obj(v: Any) -> dict[str, Any]:
 def _norm_path(path: str, bug: Bug) -> str:
     p = path.strip().lstrip("./")
     comp = bug.component if bug.component not in (".", "miniride-client") else ""
+    gt = bug.ground_truth.location
     if (
         comp
         and not p.startswith(comp + "/")
-        and bug.ground_truth.location.file
-        and bug.ground_truth.location.file.startswith(comp + "/")
+        and gt.file
+        and gt.file.startswith(comp + "/")
+        and gt.repo
+        and (ROOT / "targets" / gt.repo / comp / p).is_file()
     ):
-        p = f"{comp}/{p}"  # an agent may give the path relative to the component
+        # An agent may give the path relative to the component; only when that file really exists there
+        # (a client path like src/screens/X.tsx must not become payments/src/screens/X.tsx).
+        p = f"{comp}/{p}"
     return p
 
 

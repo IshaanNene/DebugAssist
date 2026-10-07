@@ -146,3 +146,14 @@ def test_points_skip_unlabelled_rows() -> None:
         ),
     ]
     assert len(metrics.points(rows)) == 2 and len(metrics.points(rows, source="catalog")) == 1
+
+
+def test_client_path_is_not_credited_to_a_services_module() -> None:
+    from debugassist.evals.score import rca_verdict
+    from debugassist.scenarios.catalog import get_bug
+
+    bug = get_bug("BUG-019")  # payments/internal/fares/fares.go → Rates
+    wrong_repo = {"location": {"file": "src/screens/RequestRide.tsx", "function": "formatMoney"}}
+    relative = {"location": {"file": "internal/fares/fares.go", "function": "Rates"}}
+    assert rca_verdict(wrong_repo, bug) == "wrong"
+    assert rca_verdict(relative, bug) == "exact"

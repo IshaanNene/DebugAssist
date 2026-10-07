@@ -1,0 +1,10 @@
+{
+  "bugs": [
+    "BUG-001"
+  ],
+  "configs": [
+    "routed"
+  ],
+  "seeds": 1,
+  "until": "validate"
+}
