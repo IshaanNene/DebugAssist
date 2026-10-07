@@ -8,7 +8,7 @@
 
 <h3>An autonomous on-call engineer for a ride-hailing app.<br>Crash or bug report in → triage, root cause, mitigation, a failing test, the fix, proof, and a pull request out.</h3>
 
-<b><a href="#-results">Results</a> · <a href="#-see-it-work">Demo</a> · <a href="#-how-it-works">How it works</a> · <a href="#%EF%B8%8F-dashboard">Dashboard</a> · <a href="#-a-real-bug-end-to-end">A real bug</a> · <a href="#-the-bug-catalog">Bug catalog</a> · <a href="#-quickstart">Quickstart</a> · <a href="#%EF%B8%8F-guardrails">Guardrails</a></b>
+<b><a href="#-results">Results</a> · <a href="#-see-it-work">Demo</a> · <a href="#-how-it-works">How it works</a> · <a href="#%EF%B8%8F-dashboard">Dashboard</a> · <a href="#-mcp-servers">MCP servers</a> · <a href="#-a-real-bug-end-to-end">A real bug</a> · <a href="#-the-bug-catalog">Bug catalog</a> · <a href="#-quickstart">Quickstart</a> · <a href="#%EF%B8%8F-guardrails">Guardrails</a></b>
 
 </div>
 
@@ -155,6 +155,26 @@ Each bug has a hidden test and a reference fix; `make verify-scenarios` checks t
 - **Domains** — rider, dispatch, payments and platform knowledge bases with owners, loadable as `kb/<domain>/<doc>`.
 - **Packaging** — each agent type builds into a PEX stored in MinIO and a runtime image; runs can be queued to Arq workers.
 - **Observability** — every run is one Phoenix trace (OpenInference spans for agents, tools and Clef decisions); prompt-cache hits and cost are recorded per agent turn; a global run budget stops runaway spend.
+
+## 🔌 MCP servers
+
+Eleven [Model Context Protocol](https://modelcontextprotocol.io) servers with 55 tools (FastMCP over stdio) are the only way agents see production. Each agent type gets the subset it needs; the deterministic context collector calls the same functions directly. Every result carries a stable **evidence id** that RCA claims must cite, is **PII-redacted** before it leaves the server, and is **paginated and capped** (12K chars by default) so one tool call can't flood the context; logs are collapsed into templates and traces summarised. They also work from any MCP client through the committed [`.mcp.json`](.mcp.json).
+
+| Server | Backed by | Tools | Used by |
+|---|---|---|---|
+| **crash-analytics** | Vitals | `list_issues` `get_issue` `get_crash_group` `get_session` `distribution` `flag_exposure` `crash_rate_timeseries` `releases` | all agent types |
+| **code-search** | the target repos | `list_repos` `search_code` `read_file` `find_symbol` `find_references` `blame` `codeowners_for` | all agent types |
+| **git-history** | git | `list_tags` `previous_release` `commits_between` `commit_details` `diff_stats` `bisect_candidates` | all agent types |
+| **feature-flags** | Unleash | `list_flags` `get_flag` `rollout_history` `flag_crash_correlation` `rollback_flag` | web-crash |
+| **bug-reports** | BugDrop | `list_reports` `get_report` `get_logs` `get_screenshots` `get_screenshot_image` `get_ui_state_timeline` | user-bug-report, perf-regression |
+| **logging** | Loki | `query_logs` `log_stats` `log_patterns` | backend-error, user-bug-report |
+| **tracing** | Jaeger (OTLP) | `find_traces` `get_trace` `service_dependencies` | backend-error, user-bug-report |
+| **metrics-profiles** | Prometheus + client perf samples | `promql` `service_profile` `session_perf` | perf-regression, user-bug-report |
+| **incidents** | incident service | `list_active_incidents` `incident_details` `dependency_status` | backend-error, context collector |
+| **releases** | Vitals sessions + git tags + Unleash | `list_releases` `version_adoption` `release_diff` `rollout_status` `last_good_and_first_bad` | context collector |
+| **jira** | Jira Cloud (or mock) | `get_issue` `find_open_issue` `create_issue` `add_comment` `link_pr` `transition` | pipeline nodes only, never agents |
+
+The one write tool an agent can reach, `rollback_flag`, asks the policy gate first ([`writes.yaml`](configs/policies/writes.yaml) says *approval*), so from an agent it is always a dry run, and it is audited either way. Ticket writes happen only in deterministic pipeline steps. Tool reference: [docs/mcp.md](docs/mcp.md).
 
 ## 🚀 Quickstart
 
