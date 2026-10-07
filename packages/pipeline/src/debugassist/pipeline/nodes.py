@@ -669,10 +669,23 @@ def rca_prompt(issue: Issue, bundle: str, findings: str) -> str:
 # ---- N4 mitigate ----------------------------------------------------------------------------
 
 
+def _flag_names() -> list[str]:
+    from debugassist.mcp_servers import feature_flags as ff
+
+    try:
+        return [str(f["name"]) for f in ff.list_flags()["flags"]]
+    except Exception:  # flag service unreachable (mock runs): fall back to the leading identifier
+        return []
+
+
 def known_flag(raw: str, known: list[str]) -> str | None:
-    """The flag `raw` names: an exact match, else the first known flag named in it as a whole word."""
+    """The flag `raw` names: an exact match, else the first known flag named in it as a whole word. Without a
+    flag list, the leading identifier of `raw` ("notif_router_v2 (…)" → notif_router_v2)."""
     if raw in known:
         return raw
+    if not known:
+        m = re.match(r"\s*([A-Za-z0-9_.-]+)", raw)
+        return m.group(1) if m and m.group(1).lower() not in ("none", "n/a") else None
     hits = [
         (m.start(), name) for name in known if (m := re.search(rf"(?<![\w-]){re.escape(name)}(?![\w-])", raw))
     ]
@@ -687,7 +700,7 @@ async def mitigate(state: RunState, deps: Deps) -> dict[str, Any]:
     corr_items = [e.data for e in state.evidence if e.kind == "flag_correlation"]
     raw = rca.output.implicated_flag or (corr_items[0]["flag"] if corr_items else None)
     # The RCA's flag is free text from the LLM ("notif_router_v2 (flag is off …)"): only a real flag acts.
-    flag = known_flag(raw, [str(f["name"]) for f in ff.list_flags()["flags"]]) if raw else None
+    flag = known_flag(raw, _flag_names()) if raw else None
     if not flag or not issue.fingerprint:
         return {"mitigation": Mitigation(detail="no feature flag implicated; nothing to roll back")}
     corr = ff.flag_crash_correlation(issue.fingerprint, flag)
