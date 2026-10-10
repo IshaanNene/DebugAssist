@@ -231,6 +231,7 @@ class RunState(BaseModel):
     mitigation: Mitigation | None = None
     agent_type: str | None = None  # resolved by the harness at ingest
     agent_type_reason: str | None = None
+    handoff: dict[str, Any] | None = None  # P14: the fix moved to another repo (from, to, reason)
     fix_plan: FixPlan | None = None
     watch: Watch | None = None
     post_pr: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # diff fixer runs

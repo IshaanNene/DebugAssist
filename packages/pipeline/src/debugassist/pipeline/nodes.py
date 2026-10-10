@@ -33,7 +33,7 @@ from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
-from debugassist.pipeline import budget, collector, e2e, fixplan, postmerge, pr_body, skills
+from debugassist.pipeline import budget, collector, crossrepo, e2e, fixplan, postmerge, pr_body, skills
 from debugassist.pipeline import rca as rca_mod
 from debugassist.pipeline.deps import APPS, Deps
 from debugassist.pipeline.state import (
@@ -100,7 +100,7 @@ def _code_repos_env(state: RunState) -> dict[str, str]:
         "VITALS_URL": os.environ.get("VITALS_URL", "http://localhost:8100"),
         "UNLEASH_URL": os.environ.get("UNLEASH_URL", "http://localhost:4242"),
         **{k: os.environ[k] for k in passthrough if k in os.environ},
-        "CODE_REPOS": json.dumps({state.issue.repo: str(sb.worktree)}),
+        "CODE_REPOS": json.dumps(crossrepo.code_repos(state.run_id, state.issue, sb.worktree)),
         "DEBUGASSIST_RUN_ID": state.run_id,
         "DEBUGASSIST_MODE": state.mode,
         "PATH": os.environ.get("PATH", ""),
@@ -504,14 +504,18 @@ async def context_collector(state: RunState, deps: Deps) -> dict[str, Any]:
     assert issue
     # The sandbox worktree at the shipped release: code search and the fix both work on it.
     sb = _sandbox(state)
+    sb.create(f"v{issue.last_version}", _bot_branch(issue, deps))
+    os.environ["CODE_REPOS"] = json.dumps(crossrepo.code_repos(state.run_id, issue, sb.worktree))
+    return await collector.collect(state, deps)
+
+
+def _bot_branch(issue: Issue, deps: Deps) -> str:
     branch = (
         f"debugassist/{issue.id.lower()}-{re.sub(r'[^a-z0-9]+', '-', issue.title.lower())[:40].strip('-')}"
     )
     if deps.settings.mode(Integration.GITHUB) is not Mode.LIVE:
         branch += "-mock"  # never collide with (and clean up) a live run's worktree for the real PR branch
-    sb.create(f"v{issue.last_version}", branch)
-    os.environ["CODE_REPOS"] = json.dumps({issue.repo: str(sb.worktree)})
-    return await collector.collect(state, deps)
+    return branch
 
 
 def _bundle(items: list[EvidenceItem], budget_chars: int = 40_000) -> str:
@@ -637,14 +641,18 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
             st, deps, output, lookup
         )
     decisions += d9
-    return {"rca": rca, "decisions": decisions, "costs": costs, "evidence": st.evidence}
+    update: dict[str, Any] = {"rca": rca, "decisions": decisions, "costs": costs, "evidence": st.evidence}
+    # P14: the root cause is in another target repo → the fix steps run there (deterministic, path-checked).
+    if handoff := crossrepo.retarget(state.model_copy(update={"rca": rca}), deps, _bot_branch(issue, deps)):
+        update |= handoff
+    return update
 
 
 def rca_prompt(issue: Issue, bundle: str, findings: str) -> str:
     """The RCA agent's task. Everything that came from users, logs, code or other agents is fenced as data."""
     return (
-        f"Issue {issue.id} from {'Vitals' if issue.source == 'vitals' else 'BugDrop'} in repo {issue.repo} "
-        f"(component '{issue.component}', {issue.language}).\n"
+        f"Issue {issue.id} from {'Vitals' if issue.source == 'vitals' else 'BugDrop'}, seen in repo "
+        f"{issue.repo} (component '{issue.component}', {issue.language}).\n"
         + untrusted.fence("issue title", issue.title)
         + f"\nEvents: {issue.events}; versions {issue.first_version}→{issue.last_version}.\n"
         + (
@@ -662,7 +670,11 @@ def rca_prompt(issue: Issue, bundle: str, findings: str) -> str:
             if findings
             else ""
         )
-        + "Code paths are repo-relative; the client lives at the repo root. Investigate and submit the RCA."
+        + "Repositories you can search: miniride-client (the React client, at the repo root) and "
+        "miniride-services (gateway/, dispatch/, payments/). Where a bug is seen is not always where it lives: "
+        "when the client handles a response correctly, follow the request into the service that produced it. "
+        "Code paths are repo-relative; set location.repo to the repository that holds the defect. "
+        "Investigate and submit the RCA."
     )
 
 
