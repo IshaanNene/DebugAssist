@@ -1,14 +1,21 @@
 import type { ReactNode } from "react";
 
 // Feature cards: a title, one sentence, and a small line drawing on an isometric plane.
-function Plane({ children }: { children: ReactNode }) {
+function Plane({ children, wide }: { children: ReactNode; wide?: boolean }) {
   return (
-    <div className="drafting relative mt-5 h-[210px] overflow-hidden border-t border-line">
+    <div
+      className={`drafting relative h-[220px] overflow-hidden border-line ${
+        wide ? "border-t md:h-full md:min-h-[250px] md:border-l md:border-t-0" : "mt-5 border-t"
+      }`}
+    >
       <div
         className="absolute left-1/2 top-1/2 w-[236px]"
         style={{ transform: "translate(-50%, -50%) rotate(-30deg) skewX(30deg) scaleY(0.864) scale(0.92)" }}
       >
-        {children}
+        {/* on hover the drawing lifts off the plane */}
+        <div className="transition-transform duration-500 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:-translate-x-2 group-hover:-translate-y-3">
+          {children}
+        </div>
       </div>
     </div>
   );
@@ -111,20 +118,33 @@ const FEATURES: { title: string; body: string; art: ReactNode }[] = [
   },
 ];
 
+// Bento: wide cards put the drawing beside the text.
+const WIDE = new Set([0, 3, 5]);
+
 export function Features() {
   return (
-    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-      {FEATURES.map((f) => (
-        <div key={f.title} className="cbox stripes-hover flex flex-col overflow-hidden transition-[background]">
-          <div className="px-5 pt-5">
-            <h3 className="font-display text-[19px] font-medium tracking-[-0.015em] text-t1">{f.title}</h3>
-            <p className="mt-2 text-[14px] leading-[1.5] text-t3">{f.body}</p>
+    <div className="grid gap-2 md:grid-cols-3">
+      {FEATURES.map((f, i) => {
+        const wide = WIDE.has(i);
+        return (
+          <div
+            key={f.title}
+            className={`group cbox spot fx flex flex-col overflow-hidden ${wide ? "md:col-span-2 md:grid md:grid-cols-2" : ""}`}
+            style={{ ["--i" as string]: i % 2 }}
+          >
+            <div className={`px-6 pt-6 ${wide ? "md:flex md:flex-col md:justify-between md:pb-6" : ""}`}>
+              <div>
+                <div className="font-mono text-[10.5px] uppercase tracking-[0.06em] text-t4">{String(i + 1).padStart(2, "0")}</div>
+                <h3 className="mt-2 font-display text-[21px] font-medium tracking-[-0.02em] text-t1">{f.title}</h3>
+                <p className="mt-2 max-w-[44ch] text-[14.5px] leading-[1.55] text-t3">{f.body}</p>
+              </div>
+            </div>
+            <div className="mt-auto md:h-full">
+              <Plane wide={wide}>{f.art}</Plane>
+            </div>
           </div>
-          <div className="mt-auto">
-            <Plane>{f.art}</Plane>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
