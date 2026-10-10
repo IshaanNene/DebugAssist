@@ -66,6 +66,8 @@ def get_run(run_id: str) -> dict[str, Any]:
         "graph": data.graph(PATHS, s),
         "phoenix_url": trace_url or f"{PHOENIX}/projects",
         "phoenix_trace": bool(trace_url),
+        # the same trace in Langfuse when it was exported there too (DA_TRACING=langfuse|both)
+        "langfuse_url": tracing.langfuse_trace_url(traces[-1]) if traces else None,
         "traces": traces,
     }
 

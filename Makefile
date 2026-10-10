@@ -4,7 +4,7 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 PROFILES ?= core obs flags faults target sources
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
-.PHONY: help eval eval-report deploy api dashboard lint-skills pex runtime-image worker demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
+.PHONY: help langfuse eval eval-report deploy api dashboard lint-skills pex runtime-image worker demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
 
 help:  ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -34,6 +34,12 @@ check: lint typecheck test  ## Everything CI runs
 
 up:  ## Build and start the stack (PROFILES="core obs flags faults target")
 	$(COMPOSE) $(PROFILE_FLAGS) up -d --build --wait
+
+langfuse:  ## Start self-hosted Langfuse on :3200 (database + bucket on an existing stack; then DA_TRACING=both)
+	$(COMPOSE) --profile core up -d --wait postgres redis minio
+	$(COMPOSE) exec -T postgres sh -c "psql -U debugassist -tc \"SELECT 1 FROM pg_database WHERE datname='langfuse'\" | grep -q 1 || psql -U debugassist -c 'CREATE DATABASE langfuse'"
+	uv run --no-sync python -c "from minio import Minio; c = Minio('localhost:9000', 'debugassist', 'debugassist-dev', secure=False); c.bucket_exists('langfuse') or c.make_bucket('langfuse')"
+	$(COMPOSE) --profile core --profile langfuse up -d --wait clickhouse langfuse-worker langfuse
 
 down:  ## Stop infra (keeps volumes)
 	$(COMPOSE) --profile '*' down

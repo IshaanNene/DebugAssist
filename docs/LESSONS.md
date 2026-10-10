@@ -120,6 +120,11 @@ Format: **symptom** → cause → fix · *guard*.
   (`NewSchemaless`).
 - **Log templates didn't collapse.** `13` was masked but not `13ms` (no word boundary). → Fixed with a test.
 
+- **Adding a second trace backend silently removed the first.** With `DA_TRACING=both`, spans reached Langfuse
+  and stopped reaching Phoenix: Phoenix's tracer provider drops its own exporter when another processor is added,
+  unless `replace_default_processor=False`. → Pass it; a test asserts both exporters receive a span. *Lesson: after
+  wiring an exporter, check every destination, not just the new one.*
+
 ## 6. Simulating production
 
 - **Many catalog bugs were caught by the target repos' own CI** (a deprecated `utcnow`, a test without props,

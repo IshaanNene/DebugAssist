@@ -314,10 +314,10 @@ export default function Home() {
             <Pills title={`Evidence · ${f.mcpServers} MCP servers · ${f.mcpTools} tools`} items={["crash analytics", "code search", "git history", "feature flags", "bug reports", "logging", "tracing", "metrics & profiles", "incidents", "releases", "Jira"]} stack="first" />
             <div className="-mt-px grid md:grid-cols-2">
               <Pills title="Models & decisions" items={["Cloudflare Clef", "OpenRouter", "GroqCloud", "OpenAI-compatible", "LangGraph", "LangChain"]} stack="middle" />
-              <Pills title="Telemetry" items={["OpenTelemetry", "Jaeger", "Loki", "Prometheus", "Phoenix"]} stack="middle" className="md:-ml-px" />
+              <Pills title="Telemetry" items={["OpenTelemetry", "Jaeger", "Loki", "Prometheus", "Phoenix", "Langfuse"]} stack="middle" className="md:-ml-px" />
             </div>
             <Pills title="Target languages & tools" items={["TypeScript · React", "Python · FastAPI", "Go", "Playwright", "GitHub", "Unleash", "Docker"]} stack="middle" />
-            <Pills title="On the roadmap" items={["Langfuse", "LiteLLM", "Ollama · vLLM", "Promptfoo", "GlitchTip", "SWE-bench Lite"]} stack="last" muted />
+            <Pills title="On the roadmap" items={["LiteLLM", "Ollama · vLLM", "Promptfoo", "Inspect AI", "GlitchTip", "SWE-bench Lite"]} stack="last" muted />
           </div>
         </section>
 

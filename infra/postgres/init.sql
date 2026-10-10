@@ -4,3 +4,4 @@ CREATE DATABASE bugdrop;
 CREATE DATABASE vitals;
 CREATE DATABASE langgraph;
 CREATE DATABASE miniride;
+CREATE DATABASE langfuse;
