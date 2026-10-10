@@ -576,7 +576,7 @@ def results(model: str = "gpt-6-luna") -> str:
     code = [r for r in rows if ours[r["bug"]]]
     val = sum(t(r["validated"]) for r in code)
 
-    w, h = 1400, 470 + (300 if arm else 0)
+    w, h = 1400, 470 + (360 if arm else 0)
     body = defs() + canvas(w, h)
     body += text(
         56, 62, f"Evaluation: {n} catalog bugs, end to end{' (baseline)' if arm else ''}", 24, INK, 800
@@ -664,42 +664,70 @@ def _arm_panel(
     colors: dict[str, str],
     t: Any,
 ) -> str:
-    """Before → after for the bugs re-run on a later code version (rows labelled with an arm)."""
-    label = arm[0].get("arm", "")
-    commit = arm[0].get("commit", "")
+    """Bugs re-run on later code versions (rows labelled with an arm): baseline → each arm, in run order."""
+    order: list[str] = []
+    for r in sorted(arm, key=lambda r: r.get("eval", "")):
+        if r["arm"] not in order:
+            order.append(r["arm"])
+    by_arm: dict[str, dict[str, dict[str, str]]] = {a: {} for a in order}
+    for r in sorted(arm, key=lambda r: r.get("eval", "")):
+        by_arm[r["arm"]][r["bug"]] = r  # the latest run of a bug in that arm
+    bugs = sorted({r["bug"] for r in arm})
+    cols = ["baseline", *order]
+    commits = {a: next(iter(by_arm[a].values())).get("commit", "") for a in order}
     near = lambda rs: sum(r["rca"] in ("exact", "directional") for r in rs)  # noqa: E731
-    prev = [before[r["bug"]] for r in arm if r["bug"] in before]
-    hid_a = [r for r in arm if r["hidden_tests"] in ("True", "False")]
-    hid_b = [r for r in prev if r["hidden_tests"] in ("True", "False")]
     body = f'<line x1="56" y1="{y0}" x2="{w - 56}" y2="{y0}" stroke="{LINE}"/>'
     body += text(
-        56, y0 + 40, f"Re-run after “{label}” ({commit}): the same bugs, before → after", 18, INK, 800
+        56, y0 + 40, "Re-runs on later code: the same bugs, baseline → " + " → ".join(order), 18, INK, 800
     )
-    summary = (
-        f"root cause right or close {near(prev)}/{len(prev)} → {near(arm)}/{len(arm)}  ·  "
-        f"fix validated {sum(t(r['validated']) for r in prev)} → {sum(t(r['validated']) for r in arm)}  ·  "
-        f"hidden tests pass {sum(t(r['hidden_tests']) for r in hid_b)}/{len(hid_b)} → "
-        f"{sum(t(r['hidden_tests']) for r in hid_a)}/{len(hid_a)}"
-    )
-    body += text(56, y0 + 66, summary, 14, ACCENT2, 600)
-    gx, gy, cell, cg, group = 220, y0 + 120, 34, 5, 34 * 2 + 5 + 46
+    y = y0 + 64
+    for a in order:
+        rs = list(by_arm[a].values())
+        prev = [before[b] for b in by_arm[a] if b in before]
+        hid = [r for r in rs if r["hidden_tests"] in ("True", "False")]
+        line = (
+            f"{a} ({commits[a]}), {len(rs)} bugs: root cause right or close {near(prev)} → {near(rs)}  ·  "
+            f"hidden tests pass {sum(t(r['hidden_tests']) for r in [p for p in prev if p['hidden_tests'] in ('True', 'False')])}"
+            f" → {sum(t(r['hidden_tests']) for r in hid)}"
+        )
+        body += text(56, y, line, 13.5, ACCENT2, 600)
+        y += 22
+    cell, cg = 28, 4
+    group = len(cols) * (cell + cg) + 30
+    gx, gy = 220, y + 46
     for li, (lab, _) in enumerate(lanes):
-        body += text(56, gy + li * (cell + cg) + 23, lab, 14, INK, 600)
-    for i, r in enumerate(arm):
+        body += text(56, gy + li * (cell + cg) + 19, lab, 14, INK, 600)
+    for i, bug in enumerate(bugs):
         x = gx + i * group
-        body += text(x + cell + cg / 2, gy - 30, r["bug"][-3:], 12, MUTE, 700, "middle", True)
-        body += text(x + cell / 2, gy - 10, "before", 10, MUTE, 500, "middle")
-        body += text(x + cell + cg + cell / 2, gy - 10, "after", 10, MUTE, 500, "middle")
-        for j, row in enumerate((before.get(r["bug"]), r)):
+        body += text(x + (len(cols) * (cell + cg)) / 2, gy - 26, bug[-3:], 12, MUTE, 700, "middle", True)
+        for j, c in enumerate(cols):
+            row = before.get(bug) if c == "baseline" else by_arm[c].get(bug)
+            body += text(
+                x + j * (cell + cg) + cell / 2,
+                gy - 8,
+                "B" if c == "baseline" else str(j),
+                10,
+                MUTE,
+                600,
+                "middle",
+            )
             for li, (_, key) in enumerate(lanes):
                 v = row[key] if row else ""
                 xx, yy = x + j * (cell + cg), gy + li * (cell + cg)
                 col = colors.get(v)
                 body += (
-                    f'<rect x="{xx}" y="{yy}" width="{cell}" height="{cell}" rx="8" fill="{col}" fill-opacity=".85"/>'
-                    if col
-                    else f'<rect x="{xx}" y="{yy}" width="{cell}" height="{cell}" rx="8" fill="none" stroke="{LINE}"/>'
+                    f'<rect x="{xx}" y="{yy}" width="{cell}" height="{cell}" rx="7" fill="{col}" fill-opacity=".85"/>'
+                    if col and row
+                    else f'<rect x="{xx}" y="{yy}" width="{cell}" height="{cell}" rx="7" fill="none" stroke="{LINE}"/>'
                 )
+    key = "  ·  ".join(
+        [
+            "B = baseline",
+            *[f"{k + 1} = {a}" for k, a in enumerate(order)],
+            "empty = not run or not applicable",
+        ]
+    )
+    body += text(56, gy + 3 * (cell + cg) + 30, key, 12.5, MUTE, 500)
     return body
 
 
@@ -712,7 +740,7 @@ def stack() -> str:
                 ("lobe-groq", "GroqCloud"),
                 ("openrouter", "OpenRouter"),
                 ("lobe-openai", "gpt-oss-120b"),
-                ("lobe-nvidia", "Nemotron"),
+                ("lobe-openai", "gpt-6-luna"),
             ],
         ),
         (

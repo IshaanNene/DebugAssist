@@ -141,6 +141,7 @@ Overall: P0–P14 done (latest evaluation: `evals/reports/2026-10-10`). Next: fi
 - [x] Ablation switches: no Clef · Clef-flash only · Clef only · routed; D3/D8/D9/D12/D14 off; seeds · [ ] live ablation matrix (budget) — E1 replay done instead
 - [x] `evals/reports/2026-10-07/report.md` + CSV + charts from live runs
 - [x] Cross-repo investigation and hand-off (P14): root cause on the six app-reported services bugs 0/6 → 5/6
+- [x] Fix quality: Python sandbox interpreter, eval retry loop, forgiving edit tool — hidden tests on eight re-run bugs 0 → 5
 - [ ] Context reduction behind switches, measured: tool-use examples, programmatic tool calling
 
 ## P14 · Polish

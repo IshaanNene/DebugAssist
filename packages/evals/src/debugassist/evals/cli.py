@@ -211,13 +211,19 @@ def report(
     )
     e1 = sorted((base / "e1").glob("*.jsonl")) if (base / "e1").is_dir() else []
 
+    # Decisions and replays count only the runs this report covers (not every labelled run in the ledger).
+    run_ids = {r["run_id"] for r in rep.load_results(dirs) if r.get("run_id") and not r.get("excluded")}
+
     async def points() -> list[metrics.Point]:
         ledger = await Ledger.open(get_settings().database_url)
         try:
-            return metrics.points(await ledger.list(), source="catalog")
+            rows = [r for r in await ledger.list() if getattr(r, "run_id", None) in run_ids]
+            return metrics.points(rows, source="catalog")
         finally:
             await ledger.close()
 
     taus = {t.id: t.policy.tau_high for t in load_templates().values()}
-    out = rep.write(dirs, e1, asyncio.run(points()), taus, notes.read_text() if notes else "")
+    out = rep.write(
+        dirs, e1, asyncio.run(points()), taus, notes.read_text() if notes else "", run_ids=run_ids
+    )
     typer.echo(f"report: {out / 'report.md'}")

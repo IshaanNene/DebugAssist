@@ -9,7 +9,7 @@ exact 12/25, code-bug fixes validated 12/19, hidden tests 7/15, median ~$0.017 p
 
 ## P14 · Close the biggest gap: backend bugs reported from the app — done (2026-10-10)
 
-**Result** ([evals/reports/2026-10-10](../evals/reports/2026-10-10/report.md), the six bugs re-run): root cause right or close 0/6 → 5/6, hidden tests passing 0 → 2, fixes now made in the service. Still open: fixes after a hand-off that don't validate (3 of 5), and CORS (BUG-017), which is invisible from the client. Not yet done from the list below: contract evidence (GraphQL schema / API shapes) and linked PRs when both sides change.
+**Result** ([evals/reports/2026-10-10](../evals/reports/2026-10-10/report.md), the six bugs re-run): root cause right or close 0/6 → 5/6, hidden tests passing 0 → 2, fixes now made in the service. Still open: fixes after a hand-off that don't validate (3 of 5), and CORS (BUG-017), which is invisible from the client. **Fix quality** (commit `85cb379`): a Python sandbox interpreter fix, the eval retry loop and a forgiving edit tool took hidden-test passes on eight re-run bugs from 0 to 5. Not yet done from the list below: contract evidence (GraphQL schema / API shapes) and linked PRs when both sides change.
 
 All six services bugs that reached us only through a rider's report were investigated in the client repo.
 
