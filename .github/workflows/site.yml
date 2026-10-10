@@ -1,6 +1,6 @@
 # Builds apps/site (static export; every number read from evals/reports at build time) and deploys it to
-# GitHub Pages. Manual for now: enable Pages (Settings → Pages → Source: GitHub Actions), then run this
-# workflow — or add a `push` trigger to redeploy on every change to main.
+# GitHub Pages (enabled 2026-10-10: https://ishaannene.github.io/DebugAssist/). Manual: run this workflow to
+# redeploy — or add a `push` trigger to redeploy on every change to main.
 name: site
 
 on:
