@@ -67,6 +67,12 @@ out): input per turn matched the baseline (the notes and their model calls cost 
 through three reproduction tiers doubled the total. Inconclusive; kept opt-in. Next: item 4 (concise tool
 responses), then repeated seeds for everything before trusting small differences.
 
+**Concise responses, estimated offline** (`DA_CONTEXT=concise`, item 4: compact JSON instead of two-space-indented,
+lists cut to the top 10 with a count of the rest, long fields clipped, grep output to 30 lines; built, not yet run
+live — the API credit ran out): replaying the fix-quality arm's transcripts through it removes about 5% of the
+re-sent history, roughly 2–3% of the arm's input, because `read_file` (untouched) dominates and MCP results are
+already capped. Deterministic, so the cache prefix is unaffected. A small lever; run it live when there is credit.
+
 ## P16 · Integrations (free / open source)
 
 | Tool | License* | Why here | Plan |
