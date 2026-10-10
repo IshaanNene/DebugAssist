@@ -1,4 +1,4 @@
-from debugassist.llm.outline import outline
+from debugassist.core.outline import outline
 
 TS = """import { x } from "y";
 

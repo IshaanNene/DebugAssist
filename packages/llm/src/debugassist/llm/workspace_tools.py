@@ -13,10 +13,54 @@ from pathlib import Path
 
 from langchain_core.tools import BaseTool, tool
 
+from debugassist.core import ablation
 from debugassist.core.guards import GuardError, confine
+from debugassist.core.outline import outline
 from debugassist.integrations.sandbox import Sandbox
 
 SKIP = {".git", "node_modules", "dist", ".corepack", ".venv", "__pycache__", "vendor"}
+# DA_CONTEXT=lean (ROADMAP P15): a read without a range returns this many lines; command output keeps its
+# failure lines and tail in the history, and the full log stays behind a handle for read_log.
+LEAN_READ = 120
+LEAN_TAIL = 40
+LEAN_ERRORS = 25
+_FAILURE = re.compile(
+    r"\b(FAIL|FAILED|ERROR|Error|error|panic|Traceback|Exception|AssertionError|expected|✗|×)\b|^\s*[✗×]|^E\s"
+)
+
+
+def window_footer(path: str, first: int, last: int, total: int) -> str:
+    if last >= total and first <= 1:
+        return ""
+    return (
+        f"\n… showing lines {first}–{last} of {total}. outline_file('{path}') lists its symbols with line "
+        "numbers; read another range with start_line/end_line."
+    )
+
+
+def summarize_log(output: str, handle: str) -> str:
+    """Failure lines (deduplicated, in order) and the tail of a command's output, with a handle to the rest."""
+    lines = output.splitlines()
+    if len(lines) <= LEAN_TAIL + LEAN_ERRORS:
+        return output
+    tail_from = len(lines) - LEAN_TAIL
+    seen: set[str] = set()
+    errors: list[str] = []
+    for n, line in enumerate(lines[:tail_from], 1):
+        key = line.strip()
+        if key and key not in seen and _FAILURE.search(line):
+            seen.add(key)
+            errors.append(f"{n:>5}  {line[:240]}")
+            if len(errors) >= LEAN_ERRORS:
+                break
+    parts = [f"[{len(lines)} lines of output; full log: read_log('{handle}', start_line, end_line)]"]
+    if errors:
+        parts += ["failure lines before the tail:", *errors]
+    parts += [
+        f"last {LEAN_TAIL} lines:",
+        *(f"{n:>5}  {lines[n - 1]}" for n in range(tail_from + 1, len(lines) + 1)),
+    ]
+    return "\n".join(parts)
 
 
 def _indent(line: str) -> str:
@@ -83,6 +127,8 @@ def build_workspace_tools(
 ) -> list[BaseTool]:
     """`editable(path)` restricts which files may be written (e.g. tests only while reproducing)."""
     root = sb.worktree
+    lean = ablation.lean()
+    logs: dict[str, str] = {}
 
     def can_edit(path: str) -> str | None:
         if editable is not None and not editable(path):
@@ -133,10 +179,23 @@ def build_workspace_tools(
         if not p.is_file():
             return f"{path} not found"
         lines = p.read_text(errors="replace").splitlines()
-        end = min(end_line or len(lines), len(lines), start_line + 399)
-        return (
-            "\n".join(f"{n:>5}  {lines[n - 1]}" for n in range(max(1, start_line), end + 1)) or "(empty file)"
-        )
+        first = max(1, start_line)
+        span = LEAN_READ if lean and not end_line else 400
+        end = min(end_line or len(lines), len(lines), first + span - 1)
+        body = "\n".join(f"{n:>5}  {lines[n - 1]}" for n in range(first, end + 1)) or "(empty file)"
+        return body + (window_footer(path, first, end, len(lines)) if lean else "")
+
+    @tool
+    def outline_file(path: str) -> str:
+        """List a file's functions, classes and types with their line numbers — read only the range you need."""
+        path = resolve(path)
+        try:
+            p = confine(root, path)
+        except GuardError as exc:
+            return str(exc)
+        if not p.is_file():
+            return f"{path} not found"
+        return outline(path, p.read_text(errors="replace"))
 
     @tool
     def grep(pattern: str, path_glob: str = "**/*", max_results: int = 40) -> str:
@@ -212,13 +271,31 @@ def build_workspace_tools(
             res = sb.run(command, workdir=workdir)
         except GuardError as exc:
             return str(exc)
-        return f"exit code {res.exit_code}\n{res.output[-6000:]}"
+        if not lean:
+            return f"exit code {res.exit_code}\n{res.output[-6000:]}"
+        handle = f"cmd-{len(logs) + 1}"
+        logs[handle] = res.output
+        return f"exit code {res.exit_code}\n{summarize_log(res.output, handle)}"
+
+    @tool
+    def read_log(handle: str, start_line: int = 1, end_line: int = 0) -> str:
+        """Read lines of an earlier run_command's full output by its handle (e.g. 'cmd-2')."""
+        if handle not in logs:
+            return f"no log {handle!r}; known: {', '.join(logs) or 'none yet'}"
+        lines = logs[handle].splitlines()
+        first = max(1, start_line)
+        end = min(end_line or len(lines), len(lines), first + 199)
+        return "\n".join(f"{n:>5}  {lines[n - 1]}" for n in range(first, end + 1)) or "(empty)"
 
     tools: list[BaseTool] = [list_dir, read_file, grep]
+    if lean:
+        tools.append(outline_file)
     if allow_edits:
         tools += [edit_file, write_file]
     if allow_commands:
         tools.append(run_command)
+        if lean:
+            tools.append(read_log)
     return tools
 
 

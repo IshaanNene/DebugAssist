@@ -7,6 +7,9 @@ DA_ABLATE    comma list of decisions to switch off: D3 (log relevance), D8 (rabb
 DA_DECIDER   routed (default: each template's own Clef model) | clef | clef-flash (one model for all) |
              llm (no Clef: the LLM decides with self-reported confidence).
 DA_LLM_SEED  integer seed passed to the LLM (repeat runs per configuration).
+DA_CONTEXT   full (default) | lean — how much tool output enters an agent's context (ROADMAP P15 items 2, 4, 8):
+             lean adds outline tools, reads a 120-line window when no range is given, and keeps long command
+             logs out of the history (an error summary and the tail come back; the full log is read on demand).
 """
 
 from __future__ import annotations
@@ -39,7 +42,22 @@ def llm_seed() -> int | None:
     return int(raw) if raw else None
 
 
+def context_mode() -> str:
+    value = os.environ.get("DA_CONTEXT", "full").strip().lower() or "full"
+    if value not in {"full", "lean"}:
+        raise ValueError(f"DA_CONTEXT must be full or lean (got {value!r})")
+    return value
+
+
+def lean() -> bool:
+    return context_mode() == "lean"
+
+
 def label() -> str:
     """A short name for the active configuration (for eval results)."""
     off = sorted({_norm(x) for x in os.environ.get("DA_ABLATE", "").split(",") if x.strip()})
-    return decider() + ("" if not off else "-no-" + "-".join(o.lower() for o in off))
+    return (
+        decider()
+        + ("" if not off else "-no-" + "-".join(o.lower() for o in off))
+        + ("-lean" if lean() else "")
+    )

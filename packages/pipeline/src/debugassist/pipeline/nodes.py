@@ -95,6 +95,7 @@ def _code_repos_env(state: RunState) -> dict[str, str]:
         "BUGDROP_URL",
         "INCIDENTS_URL",
         "DEBUGASSIST_ROOT",
+        "DA_CONTEXT",
     )
     env = {
         "VITALS_URL": os.environ.get("VITALS_URL", "http://localhost:8100"),

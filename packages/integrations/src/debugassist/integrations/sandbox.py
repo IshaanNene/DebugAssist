@@ -131,7 +131,10 @@ class Sandbox:
         ]
         with tracing.span("sandbox", kind="tool", **{"tool.name": "sandbox", "input.value": command}) as sp:
             try:
-                p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+                # test runners print binary noise and ANSI art: never let a decode error lose the result
+                p = subprocess.run(
+                    cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout
+                )
                 result = CommandResult(command, p.returncode, (p.stdout + p.stderr)[-12000:])
             except subprocess.TimeoutExpired:
                 result = CommandResult(command, 124, f"timed out after {timeout}s")
