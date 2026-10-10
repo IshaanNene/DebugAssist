@@ -366,7 +366,15 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - The first lean version applied the window only to range-less reads; agents always name a range, so it did nothing. Caught in the first run's transcript; that row is excluded.
 - BUG-017's run took the e2e tier (D14) and three full-length fix attempts — most of the arm's token total. Read per-bug rows before averages.
 - BUG-013 was wrong this time although the file it needed (110 lines) was read whole: run variance, not the cap.
-- Next (ROADMAP P15): clearing old tool results and compaction with notes; repeated seeds.
+- Next (ROADMAP P15): compaction with notes; repeated seeds.
+
+**Clearing arm** (commits `86d7eb9`, `73ecbce`, `df04c0e`)
+- `DA_CONTEXT=clear` (`llm/clearing.py`): once the tool output not yet cleared (beyond the newest three results) passes 4K tokens, every older result of 400+ characters becomes a one-line stub — tool, arguments, size, evidence id — in one batch; the boundary then stays until the threshold is crossed again, so the request prefix is identical between batches. Only the request changes, never the agent's state. Eval config `context-clear`.
+- The threshold was chosen by replaying the fix-quality arm's saved transcripts (8K fired in 6 of 24 agents, 4K in 10, 2K in 19) after a first 8K sweep never fired; that row is excluded.
+- The report's *Context by arm* table gains input per turn.
+- The scenario wipe re-seeds the driver fleet: `gps_loss` had drained the located San Francisco drivers sweep by sweep until BUG-020 went undiscovered (two attempts excluded; rerun after the fix).
+
+**Verified** (`evals/reports/2026-10-10`, same eight bugs): input per turn and per run down, cache hit rate down, cost about level; root cause right or close as in fix-quality; hidden-test passes lower, within one-seed noise. Kept opt-in.
 
 ## Fix quality (2026-10-10) — done
 

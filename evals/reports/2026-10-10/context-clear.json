@@ -1,0 +1,253 @@
+{
+  "input_tokens": 1251197,
+  "cached_tokens": 861556,
+  "prefix_share": 0.593,
+  "model_share": 0.058,
+  "tools_share": 0.491,
+  "nodes": [
+    {
+      "node": "classify_rca",
+      "agents": 8,
+      "turns_avg": 7.5,
+      "input_tokens": 675046,
+      "share": 0.54,
+      "prefix_avg": 8089,
+      "cache_rate": 0.746
+    },
+    {
+      "node": "fix",
+      "agents": 5,
+      "turns_avg": 7.8,
+      "input_tokens": 188597,
+      "share": 0.151,
+      "prefix_avg": 1902,
+      "cache_rate": 0.782
+    },
+    {
+      "node": "reproduce_integration",
+      "agents": 2,
+      "turns_avg": 10.5,
+      "input_tokens": 122333,
+      "share": 0.098,
+      "prefix_avg": 1335,
+      "cache_rate": 0.588
+    },
+    {
+      "node": "reproduce_unit",
+      "agents": 3,
+      "turns_avg": 7.0,
+      "input_tokens": 92653,
+      "share": 0.074,
+      "prefix_avg": 1370,
+      "cache_rate": 0.711
+    },
+    {
+      "node": "code-localizer",
+      "agents": 4,
+      "turns_avg": 6.5,
+      "input_tokens": 89305,
+      "share": 0.071,
+      "prefix_avg": 2354,
+      "cache_rate": 0.762
+    },
+    {
+      "node": "log-analyst",
+      "agents": 7,
+      "turns_avg": 1.0,
+      "input_tokens": 30417,
+      "share": 0.024,
+      "prefix_avg": 4345,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "breadcrumb-analyst",
+      "agents": 4,
+      "turns_avg": 1.0,
+      "input_tokens": 17134,
+      "share": 0.014,
+      "prefix_avg": 4284,
+      "cache_rate": 0.191
+    },
+    {
+      "node": "client-state-analyst",
+      "agents": 3,
+      "turns_avg": 1.0,
+      "input_tokens": 14797,
+      "share": 0.012,
+      "prefix_avg": 4932,
+      "cache_rate": 0.086
+    },
+    {
+      "node": "screenshot-analyst",
+      "agents": 4,
+      "turns_avg": 1.0,
+      "input_tokens": 11221,
+      "share": 0.009,
+      "prefix_avg": 2805,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "dispatch-data-analyst",
+      "agents": 2,
+      "turns_avg": 1.0,
+      "input_tokens": 6085,
+      "share": 0.005,
+      "prefix_avg": 3042,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "trace-analyst",
+      "agents": 2,
+      "turns_avg": 1.0,
+      "input_tokens": 2710,
+      "share": 0.002,
+      "prefix_avg": 1355,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "incident-checker",
+      "agents": 1,
+      "turns_avg": 1.0,
+      "input_tokens": 899,
+      "share": 0.001,
+      "prefix_avg": 899,
+      "cache_rate": 0.0
+    }
+  ],
+  "tools": [
+    {
+      "tool": "read_file",
+      "resent_tokens": 370054,
+      "share": 0.296,
+      "added_tokens": 85273,
+      "resend_factor": 4.3
+    },
+    {
+      "tool": "search_code",
+      "resent_tokens": 74762,
+      "share": 0.06,
+      "added_tokens": 21037,
+      "resend_factor": 3.6
+    },
+    {
+      "tool": "load_skill",
+      "resent_tokens": 44443,
+      "share": 0.036,
+      "added_tokens": 6718,
+      "resend_factor": 6.6
+    },
+    {
+      "tool": "grep",
+      "resent_tokens": 25800,
+      "share": 0.021,
+      "added_tokens": 4945,
+      "resend_factor": 5.2
+    },
+    {
+      "tool": "list_tags",
+      "resent_tokens": 22188,
+      "share": 0.018,
+      "added_tokens": 6033,
+      "resend_factor": 3.7
+    },
+    {
+      "tool": "run_command",
+      "resent_tokens": 20872,
+      "share": 0.017,
+      "added_tokens": 9434,
+      "resend_factor": 2.2
+    },
+    {
+      "tool": "commit_details",
+      "resent_tokens": 14000,
+      "share": 0.011,
+      "added_tokens": 5461,
+      "resend_factor": 2.6
+    },
+    {
+      "tool": "blame",
+      "resent_tokens": 9639,
+      "share": 0.008,
+      "added_tokens": 4847,
+      "resend_factor": 2.0
+    },
+    {
+      "tool": "get_screenshot_image",
+      "resent_tokens": 8716,
+      "share": 0.007,
+      "added_tokens": 1804,
+      "resend_factor": 4.8
+    },
+    {
+      "tool": "find_traces",
+      "resent_tokens": 5360,
+      "share": 0.004,
+      "added_tokens": 1072,
+      "resend_factor": 5.0
+    },
+    {
+      "tool": "get_session",
+      "resent_tokens": 3933,
+      "share": 0.003,
+      "added_tokens": 818,
+      "resend_factor": 4.8
+    },
+    {
+      "tool": "list_dir",
+      "resent_tokens": 3801,
+      "share": 0.003,
+      "added_tokens": 566,
+      "resend_factor": 6.7
+    },
+    {
+      "tool": "commits_between",
+      "resent_tokens": 2692,
+      "share": 0.002,
+      "added_tokens": 671,
+      "resend_factor": 4.0
+    },
+    {
+      "tool": "list_repos",
+      "resent_tokens": 2530,
+      "share": 0.002,
+      "added_tokens": 492,
+      "resend_factor": 5.1
+    },
+    {
+      "tool": "find_symbol",
+      "resent_tokens": 1854,
+      "share": 0.001,
+      "added_tokens": 392,
+      "resend_factor": 4.7
+    },
+    {
+      "tool": "releases",
+      "resent_tokens": 1480,
+      "share": 0.001,
+      "added_tokens": 242,
+      "resend_factor": 6.1
+    },
+    {
+      "tool": "previous_release",
+      "resent_tokens": 1169,
+      "share": 0.001,
+      "added_tokens": 181,
+      "resend_factor": 6.5
+    },
+    {
+      "tool": "get_screenshots",
+      "resent_tokens": 910,
+      "share": 0.001,
+      "added_tokens": 130,
+      "resend_factor": 7.0
+    },
+    {
+      "tool": "edit_file",
+      "resent_tokens": 57,
+      "share": 0.0,
+      "added_tokens": 19,
+      "resend_factor": 3.0
+    }
+  ],
+  "runs": 8
+}

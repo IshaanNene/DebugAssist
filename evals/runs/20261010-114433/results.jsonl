@@ -1,0 +1,1 @@
+{"bug": "BUG-020", "error": "not discovered (no Vitals issue or BugDrop report)", "excluded": "not discovered: earlier gps_loss scenarios had nulled the SF drivers near the pickup and the wipe never restored them, so riders were matched 5 km away and never saw the in-trip ETA (evaluator fault; wipe now re-seeds the fleet); rerun counted instead"}

@@ -232,6 +232,7 @@ def _context_section(out: Path) -> str:
         "runs",
         "input_tokens",
         "per_run",
+        "per_turn",
         "cache_rate",
         "prefix_share",
         "tools_share",
@@ -241,9 +242,9 @@ def _context_section(out: Path) -> str:
     ]
     return (
         "## Context by arm (`debugassist eval context --name <arm>`)\n\n"
-        "Input tokens of every agent turn in the arm's runs, split by what they carried (shares of input).\n\n"
-        + _md_table(rows, cols)
-        + "\n\n"
+        "Input tokens of every agent turn in the arm's runs, split by what they carried (shares of input). "
+        "The shares assume history only grows; for arms that shrink it (clear) the totals, per-run and "
+        "per-turn figures are exact and the shares approximate.\n\n" + _md_table(rows, cols) + "\n\n"
     )
 
 
@@ -254,12 +255,14 @@ def context_by_arm(out: Path) -> list[dict[str, Any]]:
         s = json.loads(f.read_text())
         n = int(s.get("runs") or 0)
         tools = {t["tool"]: t["share"] for t in s.get("tools", [])}
+        turns = sum(int(nd.get("agents", 0)) * float(nd.get("turns_avg", 0)) for nd in s.get("nodes", []))
         rows.append(
             {
                 "arm": f.stem.removeprefix("context-"),
                 "runs": n,
                 "input_tokens": s["input_tokens"],
                 "per_run": round(s["input_tokens"] / n) if n else "",
+                "per_turn": round(s["input_tokens"] / turns) if turns else "",
                 "cache_rate": round(s["cached_tokens"] / s["input_tokens"], 3) if s["input_tokens"] else "",
                 "prefix_share": s["prefix_share"],
                 "tools_share": s["tools_share"],

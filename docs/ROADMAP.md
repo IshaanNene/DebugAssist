@@ -55,6 +55,12 @@ went up; cost stayed about level on a higher cache rate, and outcomes were withi
 opt-in switch. Next: item 3 (clear old results) and item 7 (compaction with notes), because the history re-sent on
 every turn is what grows — and repeated seeds before trusting any small difference.
 
+**Clearing arm result** (`DA_CONTEXT=clear`, item 3: tool results older than the newest three become one-line
+stubs — tool, arguments, size, evidence id — in batches triggered at 4K tokens, so the prefix only changes once per
+batch; same eight bugs, *Context by arm*): input per turn and per run fell, but the cache hit rate fell with it, so
+cost moved by a few percent. Root cause right or close matched; hidden-test passes were lower, within one-seed
+noise. Kept opt-in. Next: item 7 (compaction with notes), which keeps a digest instead of stubs.
+
 ## P16 · Integrations (free / open source)
 
 | Tool | License* | Why here | Plan |

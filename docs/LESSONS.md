@@ -69,6 +69,12 @@ Format: **symptom** → cause → fix · *guard*.
   `read_file` share rose, and the higher cache rate only kept cost level (report 2026-10-10, *Context by arm*). →
   Lean stays opt-in. What re-sends tokens is the history on every turn, so the next levers are clearing old
   results and fewer turns, not thinner single results. *Guard: each context technique is its own eval arm.*
+- **A threshold picked by feel never fired.** Clearing's first trigger (8K tokens of old tool output) never fired on
+  a typical 7-turn agent. → Replayed the previous arm's saved transcripts through the clearing code at several
+  thresholds (8K fired in 6 of 24 agents, 4K in 10, 2K in 19) and picked one before spending a sweep. *Lesson:
+  tune a context switch offline on recorded transcripts; they cost nothing to replay.*
+- **Fewer tokens is not lower cost when the cache pays most of the bill.** Clearing cut input per turn by about a
+  sixth, but every batch rewrites the cached prefix, the hit rate fell, and cost barely moved.
 
 ## 3. Decisions (Clef)
 
@@ -138,6 +144,11 @@ Format: **symptom** → cause → fix · *guard*.
 
 ## 7. Keeping the evaluation honest
 
+- **The test environment drifted between sweeps.** BUG-004's scenario nulls driver coordinates and the wipe never
+  restored them, so each sweep ran on fewer located drivers; eventually BUG-020's riders were matched 5 km away and
+  the bug went undiscovered. → The wipe re-seeds the fleet (dispatch seeds deterministically at startup).
+  *Lesson: reset every piece of state a scenario can touch, not just the obvious tables; a bug that stops being
+  discovered is an environment bug until shown otherwise.*
 - **The evaluator investigated a duplicate.** D2 correctly attached a rider's report to the same bug's crash
   issue, and the run stopped. → Follow the duplicate to the canonical issue.
 - **A scorer bug inflated the headline from 0.64 to 0.92.** Path normalisation prefixed the component to any path,

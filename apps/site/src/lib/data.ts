@@ -205,6 +205,7 @@ export interface ContextArm {
   arm: string;
   runs: number;
   perRun: number;
+  perTurn: number;
   cacheRate: number;
   readFileShare: number;
   toolsShare: number;
@@ -221,10 +222,12 @@ export function contextArms(): ContextArm[] {
       const s = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
       const runs = Number(s.runs) || 0;
       const read = (s.tools as { tool: string; share: number }[]).find((t) => t.tool === "read_file");
+      const turns = (s.nodes as { agents: number; turns_avg: number }[]).reduce((n, x) => n + x.agents * x.turns_avg, 0);
       return {
         arm: f.replace(/^context-/, "").replace(/\.json$/, ""),
         runs,
         perRun: runs ? s.input_tokens / runs : 0,
+        perTurn: turns ? s.input_tokens / turns : 0,
         cacheRate: s.input_tokens ? s.cached_tokens / s.input_tokens : 0,
         readFileShare: read ? read.share : 0,
         toolsShare: s.tools_share,

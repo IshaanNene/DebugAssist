@@ -21,19 +21,21 @@ export default function Home() {
   const report = doc(`evals/reports/${data.report}/report.md`);
   const v = (i: number) => ({ ["--i" as string]: i });
   const arms = contextArms();
-  const before = arms.find((a) => a.arm === "fix-quality");
-  const lean = arms.find((a) => a.arm === "lean");
+  // the context-engineering arms, in the order they were measured; fix-quality is the code they re-ran
+  const ARM_ORDER = ["fix-quality", "lean", "clear"];
+  const ctxArms = ARM_ORDER.map((n) => arms.find((a) => a.arm === n)).filter((a): a is ContextArm => !!a);
+  const before = ctxArms.find((a) => a.arm === "fix-quality");
 
   return (
     <>
       <Motion />
       <Shortcuts map={{ g: GH, d: doc("README.md"), r: "#results", s: "#start" }} />
 
-      {before && lean ? (
+      {before && ctxArms.length > 1 ? (
         <a href={report} className="group block border-b border-line bg-surface-1 py-2 text-center text-[12.5px] text-t2 hover:text-t1">
           <span className="mr-2 inline-flex h-[18px] items-center bg-t1 px-1.5 font-mono text-[10px] uppercase tracking-[0.05em] text-surface">new</span>
-          <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">context engineering, measured</span> ·
-          lean reads: input per run {kTok(before.perRun)} → {kTok(lean.perRun)} — no saving ·{" "}
+          <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">context engineering, measured</span> · input
+          per turn {ctxArms.map((a) => `${a.arm} ${kTok(a.perTurn)}`).join(" · ")} ·{" "}
           <span className="underline underline-offset-2">read why</span>{" "}
           <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span>
         </a>
@@ -297,7 +299,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            {before && lean && <LeanArm before={before} lean={lean} report={report} />}
+            {before && ctxArms.length > 1 && <ArmCompare arms={ctxArms} report={report} />}
           </section>
         )}
 
@@ -426,49 +428,69 @@ export default function Home() {
   );
 }
 
-const kTok = (n: number) => `${Math.round(n / 1000)}K`;
+const kTok = (n: number) => (n < 20_000 ? `${(n / 1000).toFixed(1)}K` : `${Math.round(n / 1000)}K`);
 
-/** The lean-context arm against the arm it re-ran, from the per-arm context audits. */
-function LeanArm({ before, lean, report }: { before: ContextArm; lean: ContextArm; report: string }) {
-  const metrics: [string, number, number, (x: number) => string, number][] = [
-    ["input tokens per run", before.perRun, lean.perRun, kTok, Math.max(before.perRun, lean.perRun)],
-    ["read_file share of input", before.readFileShare, lean.readFileShare, pct, Math.max(before.readFileShare, lean.readFileShare)],
-    ["served from the prompt cache", before.cacheRate, lean.cacheRate, pct, 1],
+const ARM_STYLE: Record<string, { cls: string; what: string }> = {
+  "fix-quality": { cls: "bg-line-strong", what: "the code both experiments re-ran" },
+  lean: { cls: "bg-mark border border-line-strong", what: "file reads capped at 120 lines, an outline tool, long logs offloaded" },
+  clear: { cls: "bg-[#8b7cf0] border border-line-strong", what: "old tool results replaced by one-line stubs, in batches" },
+};
+
+/** The context-engineering arms side by side, from the per-arm context audits. */
+function ArmCompare({ arms, report }: { arms: ContextArm[]; report: string }) {
+  const metrics: [string, (a: ContextArm) => number, (x: number) => string][] = [
+    ["input tokens per agent turn", (a) => a.perTurn, kTok],
+    ["input tokens per run", (a) => a.perRun, kTok],
+    ["served from the prompt cache", (a) => a.cacheRate, pct],
   ];
+  const n = arms.length - 1;
   return (
     <div className="cbox no-top -mt-px grid md:grid-cols-[1fr_1.6fr]">
       <div className="stripes border-b border-line p-6 md:border-b-0 md:border-r">
-        <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">Measured · lean context arm</div>
-        <div className="mt-2 font-display text-[24px] font-medium leading-tight tracking-[-0.02em]">
-          Smaller reads, <Mark>more of them.</Mark>
+        <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">Measured · {n} context experiments</div>
+        <div className="fx mt-2 font-display text-[24px] font-medium leading-tight tracking-[-0.02em]">
+          Fewer tokens <Mark>isn&apos;t</Mark> cheaper.
         </div>
         <p className="mt-3 text-[13.5px] leading-[1.55] text-t3">
-          Following the audit, we capped every file read at 120 lines, added an outline tool and kept long logs out of
-          the history — then re-ran the same {lean.runs} bugs. Agents read more often, so input per run went up, not
-          down. Lean stays an opt-in switch; the next lever is the history re-sent on every turn.{" "}
+          Following the audit we tried two techniques on the same {arms[0].runs} bugs. Capping reads made agents read
+          more often. Clearing old tool results cut tokens per turn, but each clearing rewrites the cached prefix, so
+          the cache hit rate fell and cost barely moved. Both stay opt-in switches.{" "}
           <a className="text-t1 underline underline-offset-2" href={report}>
             Context by arm
           </a>
         </p>
+        <ul className="mt-4 space-y-1.5 text-[12.5px] text-t3">
+          {arms.map((a) => (
+            <li key={a.arm} className="flex gap-2">
+              <span className={`mt-[5px] inline-block h-2.5 w-2.5 shrink-0 ${ARM_STYLE[a.arm]?.cls ?? "bg-line"}`} />
+              <span>
+                <b className="font-mono font-normal text-t2">{a.arm}</b> — {ARM_STYLE[a.arm]?.what ?? ""}
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
       <div className="grow space-y-5 p-6">
-        {metrics.map(([label, a, b, fmt, max], i) => (
-          <div key={label}>
-            <div className="mb-1.5 text-[12.5px] text-t2">{label}</div>
-            {[
-              ["fix-quality", a, "bg-line-strong"],
-              ["lean", b, "bg-mark border border-line-strong"],
-            ].map(([name, val, cls], j) => (
-              <div key={name as string} className="mt-1 flex items-center gap-3">
-                <span className="w-20 font-mono text-[11px] text-t3">{name as string}</span>
-                <div className="h-3 flex-1 bg-surface-1">
-                  <div className={`bar h-full ${cls as string}`} style={{ width: pct((val as number) / max), ["--i" as string]: i * 2 + j }} />
+        {metrics.map(([label, get, fmt], i) => {
+          const max = label.includes("cache") ? 1 : Math.max(...arms.map(get));
+          return (
+            <div key={label}>
+              <div className="mb-1.5 text-[12.5px] text-t2">{label}</div>
+              {arms.map((a, j) => (
+                <div key={a.arm} className="mt-1 flex items-center gap-3">
+                  <span className="w-20 font-mono text-[11px] text-t3">{a.arm}</span>
+                  <div className="h-3 flex-1 bg-surface-1">
+                    <div
+                      className={`bar h-full ${ARM_STYLE[a.arm]?.cls ?? "bg-line"}`}
+                      style={{ width: pct(get(a) / max), ["--i" as string]: i * 3 + j }}
+                    />
+                  </div>
+                  <span className="w-12 text-right font-mono text-[12px] text-t2">{fmt(get(a))}</span>
                 </div>
-                <span className="w-12 text-right font-mono text-[12px] text-t2">{fmt(val as number)}</span>
-              </div>
-            ))}
-          </div>
-        ))}
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

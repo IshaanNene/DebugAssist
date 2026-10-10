@@ -58,7 +58,7 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 - **Evidence the client never sees** — a CORS bug stays invisible: the browser shows the app only an opaque `Failed to fetch`.
 - **Validated ≠ correct** — some fixes pass the agent's own reproduction but not the hidden test: its test was narrower than the bug.
 - **Vendored code** — a bad SDK sync was localised to the exact function but treated as our code instead of routed to its owner.
-- **Trimming context per turn** — capping file reads and keeping long logs out of the history (`DA_CONTEXT=lean`) did not cut tokens: agents made more, smaller reads and input per run went up. It stays an opt-in switch; the report's *Context by arm* table has the numbers.
+- **Trimming context** — two measured attempts, neither switched on: capping file reads (`DA_CONTEXT=lean`) made agents read more often and *raised* input per run; clearing old tool results in batches (`DA_CONTEXT=clear`) cut input per turn by about a sixth but lowered the cache hit rate, so cost barely moved. The report's *Context by arm* table has the numbers.
 
 </td>
 </tr>
@@ -257,7 +257,7 @@ Agents and the LLM decider use any OpenAI-compatible API; two providers are inte
 
 ## 📍 Status
 
-Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Phases 0–14 are done: decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA depth, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness with its first live run, and the cross-repo hand-off (P14) for bugs that are seen in the app but live in a service. P15 (context engineering) is in progress: the context audit and a measured lean-context arm are done.
+Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Phases 0–14 are done: decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA depth, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness with its first live run, and the cross-repo hand-off (P14) for bugs that are seen in the app but live in a service. P15 (context engineering) is in progress: the context audit and two measured arms (lean reads, tool-result clearing) are done; P16's Langfuse integration is done.
 
 **Next** ([roadmap](docs/ROADMAP.md)): context engineering measured arm by arm (tool-result offloading and clearing, concise tool responses, tool-use examples, programmatic tool calling, compaction) · LiteLLM and local models · a public site · evaluation at scale. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
 
