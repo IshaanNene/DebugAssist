@@ -145,8 +145,6 @@ function Diagram({ active, onSelect }: { active: number; onSelect: (i: number) =
 
   // draw back (large y) to front
   const order = PHASES.map((_, i) => i).sort((a, b) => b - a);
-  // the signal marker sits on the track, at the active phase
-  const [mx, my] = iso(W + 11, ay + D / 2);
   const ease = "transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)";
 
   return (
@@ -217,16 +215,10 @@ function Diagram({ active, onSelect }: { active: number; onSelect: (i: number) =
         );
       })}
 
-      {/* the signal marker */}
-      <g style={{ transform: `translate(${mx.toFixed(1)}px, ${my.toFixed(1)}px)`, transition: ease }}>
-        <circle r={9} fill="none" stroke={INK} strokeWidth={1} className="ping" />
-        <polygon points={P([0, -5], [8, 0], [0, 5], [-8, 0])} fill={INK} />
-      </g>
-
       {/* the active phase's parts: a small tree in front of its box, drawn in on every change */}
       <g key={`parts-${active}`}>
         <g fill="none" stroke={INK} strokeWidth={1.1}>
-          <polyline className="draw" pathLength={1} points={P(iso(W + 11, ay + D / 2), iso(W + 40, ay + D / 2))} />
+          <polyline className="draw" pathLength={1} points={P(iso(W, ay + D / 2), iso(W + 40, ay + D / 2))} />
           <polyline className="draw" pathLength={1} points={P(iso(W + 40, cur[0].y + PD / 2), iso(W + 40, cur[cur.length - 1].y + PD / 2))} />
           {cur.map(({ p, y }) => (
             <polyline key={p} className="draw draw-late" pathLength={1} points={P(iso(W + 40, y + PD / 2), iso(PX, y + PD / 2))} />
