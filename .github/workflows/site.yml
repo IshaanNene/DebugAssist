@@ -1,9 +1,18 @@
 # Builds apps/site (static export; every number read from evals/reports at build time) and deploys it to
-# GitHub Pages (enabled 2026-10-10: https://ishaannene.github.io/DebugAssist/). Manual: run this workflow to
-# redeploy — or add a `push` trigger to redeploy on every change to main.
+# GitHub Pages (https://ishaannene.github.io/DebugAssist/). Redeploys on every push to main that touches the
+# site or the files it reads at build time; can also be run by hand.
 name: site
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - apps/site/**
+      - evals/reports/** # results, context audits
+      - groundtruth/bugs/** # catalog size and expected outcomes
+      - docs/mcp.md # MCP server and tool counts
+      - packages/decisions/templates/** # decision template count
+      - .github/workflows/site.yml
   workflow_dispatch:
 
 permissions:
