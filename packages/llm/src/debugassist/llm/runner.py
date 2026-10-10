@@ -42,6 +42,7 @@ from debugassist.core.redaction import redact_text
 from debugassist.core.settings import get_settings
 from debugassist.llm.chat import chat_model, cost_usd, structured_method
 from debugassist.llm.clearing import Clearing, clearing_middleware
+from debugassist.llm.compaction import Compaction, compaction_middleware
 from debugassist.llm.spec import LLMNodeSpec, LLMResult, ToolCall
 from debugassist.llm.watch import Watchdog
 
@@ -411,6 +412,19 @@ class AgentRunner:
             client = MultiServerMCPClient(mcp_connections(spec.mcp_servers, mcp_env or {}))
             mcp_tools = await client.get_tools()
         llm = chat_model(spec.reasoning_effort, model=spec.model)
+        compaction = Compaction()
+        last = {"in": 0, "out": 0, "cached": 0}
+
+        def on_compact(c: Compaction) -> None:
+            watch.compacted(
+                c.compactions,
+                c.input_tokens - last["in"],
+                c.output_tokens - last["out"],
+                c.cached_tokens - last["cached"],
+                c.notes,
+            )
+            last.update({"in": c.input_tokens, "out": c.output_tokens, "cached": c.cached_tokens})
+
         middleware: list[Any] = [
             ModelCallLimitMiddleware(run_limit=spec.max_turns, exit_behavior="end"),
             ModelRetryMiddleware(
@@ -422,6 +436,12 @@ class AgentRunner:
             *([token_budget_middleware(budget)] if (budget := get_settings().request_token_budget()) else []),
             # DA_CONTEXT=clear (P15): old tool results become stubs, in batches that keep the cache prefix
             *([clearing_middleware(Clearing())] if ablation.context_mode() == "clear" else []),
+            # DA_CONTEXT=compact (P15): older steps fold into working notes (one extra model call each time)
+            *(
+                [compaction_middleware(compaction, on_compact)]
+                if ablation.context_mode() == "compact"
+                else []
+            ),
             ToolCallLimitMiddleware(run_limit=spec.max_tool_calls, exit_behavior="end"),
             stop_when_submitted,
             *([trajectory_monitor] if monitor is not None else []),
@@ -458,6 +478,9 @@ class AgentRunner:
             (m.usage_metadata or {}).get("output_tokens", 0) for m in messages if isinstance(m, AIMessage)
         )
         t_cached = sum(_cached(m) for m in messages if isinstance(m, AIMessage))
+        # compaction's own model calls are part of the agent's cost
+        t_in, t_out = t_in + compaction.input_tokens, t_out + compaction.output_tokens
+        t_cached += compaction.cached_tokens
         if watch.stop_reason and status == "ok" and not submitted:
             status = "stalled" if watch.stop_reason.startswith("stalled") else "timeout"
             error = watch.stop_reason
