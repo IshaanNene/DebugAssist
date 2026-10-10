@@ -1,0 +1,340 @@
+{
+  "input_tokens": 2517408,
+  "cached_tokens": 2098668,
+  "prefix_share": 0.363,
+  "model_share": 0.105,
+  "tools_share": 0.532,
+  "nodes": [
+    {
+      "node": "classify_rca",
+      "agents": 8,
+      "turns_avg": 8.2,
+      "input_tokens": 1004217,
+      "share": 0.399,
+      "prefix_avg": 8220,
+      "cache_rate": 0.837
+    },
+    {
+      "node": "fix",
+      "agents": 5,
+      "turns_avg": 10.0,
+      "input_tokens": 504294,
+      "share": 0.2,
+      "prefix_avg": 1734,
+      "cache_rate": 0.905
+    },
+    {
+      "node": "fix_2",
+      "agents": 1,
+      "turns_avg": 18.0,
+      "input_tokens": 223391,
+      "share": 0.089,
+      "prefix_avg": 1913,
+      "cache_rate": 0.924
+    },
+    {
+      "node": "fix_3",
+      "agents": 1,
+      "turns_avg": 14.0,
+      "input_tokens": 213117,
+      "share": 0.085,
+      "prefix_avg": 1904,
+      "cache_rate": 0.9
+    },
+    {
+      "node": "reproduce_unit",
+      "agents": 4,
+      "turns_avg": 7.5,
+      "input_tokens": 136380,
+      "share": 0.054,
+      "prefix_avg": 1444,
+      "cache_rate": 0.794
+    },
+    {
+      "node": "reproduce_e2e_env_2",
+      "agents": 1,
+      "turns_avg": 12.0,
+      "input_tokens": 120624,
+      "share": 0.048,
+      "prefix_avg": 1880,
+      "cache_rate": 0.89
+    },
+    {
+      "node": "code-localizer",
+      "agents": 4,
+      "turns_avg": 6.5,
+      "input_tokens": 107774,
+      "share": 0.043,
+      "prefix_avg": 2403,
+      "cache_rate": 0.796
+    },
+    {
+      "node": "reproduce_e2e_env",
+      "agents": 1,
+      "turns_avg": 7.0,
+      "input_tokens": 66519,
+      "share": 0.026,
+      "prefix_avg": 1806,
+      "cache_rate": 0.748
+    },
+    {
+      "node": "reproduce_e2e_env_3",
+      "agents": 1,
+      "turns_avg": 7.0,
+      "input_tokens": 64382,
+      "share": 0.026,
+      "prefix_avg": 1880,
+      "cache_rate": 0.773
+    },
+    {
+      "node": "log-analyst",
+      "agents": 6,
+      "turns_avg": 1.0,
+      "input_tokens": 26387,
+      "share": 0.01,
+      "prefix_avg": 4398,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "breadcrumb-analyst",
+      "agents": 4,
+      "turns_avg": 1.0,
+      "input_tokens": 16079,
+      "share": 0.006,
+      "prefix_avg": 4020,
+      "cache_rate": 0.136
+    },
+    {
+      "node": "client-state-analyst",
+      "agents": 3,
+      "turns_avg": 1.0,
+      "input_tokens": 14116,
+      "share": 0.006,
+      "prefix_avg": 4705,
+      "cache_rate": 0.091
+    },
+    {
+      "node": "screenshot-analyst",
+      "agents": 3,
+      "turns_avg": 1.0,
+      "input_tokens": 8815,
+      "share": 0.004,
+      "prefix_avg": 2938,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "dispatch-data-analyst",
+      "agents": 2,
+      "turns_avg": 1.0,
+      "input_tokens": 5853,
+      "share": 0.002,
+      "prefix_avg": 2926,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "trace-analyst",
+      "agents": 2,
+      "turns_avg": 1.0,
+      "input_tokens": 2868,
+      "share": 0.001,
+      "prefix_avg": 1434,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "commit-bisector",
+      "agents": 1,
+      "turns_avg": 1.0,
+      "input_tokens": 1693,
+      "share": 0.001,
+      "prefix_avg": 1693,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "incident-checker",
+      "agents": 1,
+      "turns_avg": 1.0,
+      "input_tokens": 899,
+      "share": 0.0,
+      "prefix_avg": 899,
+      "cache_rate": 0.0
+    }
+  ],
+  "tools": [
+    {
+      "tool": "read_file",
+      "resent_tokens": 794953,
+      "share": 0.316,
+      "added_tokens": 136515,
+      "resend_factor": 5.8
+    },
+    {
+      "tool": "grep",
+      "resent_tokens": 218157,
+      "share": 0.087,
+      "added_tokens": 22798,
+      "resend_factor": 9.6
+    },
+    {
+      "tool": "search_code",
+      "resent_tokens": 101450,
+      "share": 0.04,
+      "added_tokens": 22887,
+      "resend_factor": 4.4
+    },
+    {
+      "tool": "load_skill",
+      "resent_tokens": 87775,
+      "share": 0.035,
+      "added_tokens": 9692,
+      "resend_factor": 9.1
+    },
+    {
+      "tool": "list_tags",
+      "resent_tokens": 30714,
+      "share": 0.012,
+      "added_tokens": 6443,
+      "resend_factor": 4.8
+    },
+    {
+      "tool": "blame",
+      "resent_tokens": 22509,
+      "share": 0.009,
+      "added_tokens": 6028,
+      "resend_factor": 3.7
+    },
+    {
+      "tool": "list_dir",
+      "resent_tokens": 13245,
+      "share": 0.005,
+      "added_tokens": 1174,
+      "resend_factor": 11.3
+    },
+    {
+      "tool": "get_screenshot_image",
+      "resent_tokens": 11955,
+      "share": 0.005,
+      "added_tokens": 2421,
+      "resend_factor": 4.9
+    },
+    {
+      "tool": "get_logs",
+      "resent_tokens": 10803,
+      "share": 0.004,
+      "added_tokens": 1485,
+      "resend_factor": 7.3
+    },
+    {
+      "tool": "find_traces",
+      "resent_tokens": 10331,
+      "share": 0.004,
+      "added_tokens": 2788,
+      "resend_factor": 3.7
+    },
+    {
+      "tool": "commit_details",
+      "resent_tokens": 7988,
+      "share": 0.003,
+      "added_tokens": 4702,
+      "resend_factor": 1.7
+    },
+    {
+      "tool": "run_command",
+      "resent_tokens": 6425,
+      "share": 0.003,
+      "added_tokens": 3269,
+      "resend_factor": 2.0
+    },
+    {
+      "tool": "find_symbol",
+      "resent_tokens": 3501,
+      "share": 0.001,
+      "added_tokens": 904,
+      "resend_factor": 3.9
+    },
+    {
+      "tool": "commits_between",
+      "resent_tokens": 3245,
+      "share": 0.001,
+      "added_tokens": 922,
+      "resend_factor": 3.5
+    },
+    {
+      "tool": "run_e2e",
+      "resent_tokens": 2743,
+      "share": 0.001,
+      "added_tokens": 919,
+      "resend_factor": 3.0
+    },
+    {
+      "tool": "get_screenshots",
+      "resent_tokens": 2703,
+      "share": 0.001,
+      "added_tokens": 370,
+      "resend_factor": 7.3
+    },
+    {
+      "tool": "get_trace",
+      "resent_tokens": 2588,
+      "share": 0.001,
+      "added_tokens": 647,
+      "resend_factor": 4.0
+    },
+    {
+      "tool": "list_repos",
+      "resent_tokens": 2238,
+      "share": 0.001,
+      "added_tokens": 436,
+      "resend_factor": 5.1
+    },
+    {
+      "tool": "previous_release",
+      "resent_tokens": 1706,
+      "share": 0.001,
+      "added_tokens": 512,
+      "resend_factor": 3.3
+    },
+    {
+      "tool": "get_session",
+      "resent_tokens": 1203,
+      "share": 0.0,
+      "added_tokens": 351,
+      "resend_factor": 3.4
+    },
+    {
+      "tool": "query_logs",
+      "resent_tokens": 1169,
+      "share": 0.0,
+      "added_tokens": 951,
+      "resend_factor": 1.2
+    },
+    {
+      "tool": "list_issues",
+      "resent_tokens": 682,
+      "share": 0.0,
+      "added_tokens": 252,
+      "resend_factor": 2.7
+    },
+    {
+      "tool": "find_references",
+      "resent_tokens": 511,
+      "share": 0.0,
+      "added_tokens": 511,
+      "resend_factor": 1.0
+    },
+    {
+      "tool": "diff_stats",
+      "resent_tokens": 286,
+      "share": 0.0,
+      "added_tokens": 143,
+      "resend_factor": 2.0
+    },
+    {
+      "tool": "outline_file",
+      "resent_tokens": 160,
+      "share": 0.0,
+      "added_tokens": 40,
+      "resend_factor": 4.0
+    }
+  ],
+  "runs": 8
+}

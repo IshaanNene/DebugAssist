@@ -61,6 +61,14 @@ Format: **symptom** → cause → fix · *guard*.
   symptom. → Read-only worktrees of every target repo at the deployed release, and a path-checked hand-off that
   moves the fix steps to the repo holding the defect (P14): root cause right or close went from 0/6 to 5/6 on those
   bugs. *Guard: `test_crossrepo.py`; the cross-repo eval arm.*
+- **A context-saving feature that saved nothing.** The first `DA_CONTEXT=lean` gave a 120-line window only to reads
+  *without* a range — and agents always name one (1–180, 1–260). → Checked the first run's transcript before
+  letting the sweep finish; stopped it after one bug and capped every read. *Lesson: check a new switch actually
+  fires in a real transcript before spending a sweep on it.*
+- **Smaller reads meant more reads.** With every read capped, agents read more often: input per run went up, the
+  `read_file` share rose, and the higher cache rate only kept cost level (report 2026-10-10, *Context by arm*). →
+  Lean stays opt-in. What re-sends tokens is the history on every turn, so the next levers are clearing old
+  results and fewer turns, not thinner single results. *Guard: each context technique is its own eval arm.*
 
 ## 3. Decisions (Clef)
 
@@ -139,6 +147,9 @@ Format: **symptom** → cause → fix · *guard*.
   them instead of hiding them.
 - **A shell loop silently did nothing.** zsh doesn't word-split `$VAR`, so `for d in $D` ran once on one bogus
   path and an earlier rescore never applied. *Lesson: print what a batch step did.*
+- **One expensive run can carry an arm's average.** A single bug's three max-length fix attempts (after D14 picked
+  the e2e tier) were most of the lean arm's token total. → Read per-bug numbers before averages; the report keeps
+  per-run rows next to the arm table.
 
 ## 8. Process
 

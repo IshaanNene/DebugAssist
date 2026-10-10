@@ -1,0 +1,311 @@
+{
+  "input_tokens": 1489795,
+  "cached_tokens": 1137795,
+  "prefix_share": 0.49,
+  "model_share": 0.065,
+  "tools_share": 0.446,
+  "nodes": [
+    {
+      "node": "classify_rca",
+      "agents": 8,
+      "turns_avg": 7.5,
+      "input_tokens": 905832,
+      "share": 0.608,
+      "prefix_avg": 7987,
+      "cache_rate": 0.805
+    },
+    {
+      "node": "fix",
+      "agents": 6,
+      "turns_avg": 7.2,
+      "input_tokens": 222970,
+      "share": 0.15,
+      "prefix_avg": 1855,
+      "cache_rate": 0.818
+    },
+    {
+      "node": "reproduce_unit",
+      "agents": 5,
+      "turns_avg": 7.0,
+      "input_tokens": 161885,
+      "share": 0.109,
+      "prefix_avg": 1375,
+      "cache_rate": 0.742
+    },
+    {
+      "node": "code-localizer",
+      "agents": 4,
+      "turns_avg": 5.5,
+      "input_tokens": 79779,
+      "share": 0.054,
+      "prefix_avg": 2354,
+      "cache_rate": 0.723
+    },
+    {
+      "node": "reproduce_integration",
+      "agents": 1,
+      "turns_avg": 8.0,
+      "input_tokens": 54231,
+      "share": 0.036,
+      "prefix_avg": 1427,
+      "cache_rate": 0.814
+    },
+    {
+      "node": "log-analyst",
+      "agents": 7,
+      "turns_avg": 1.0,
+      "input_tokens": 29675,
+      "share": 0.02,
+      "prefix_avg": 4239,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "client-state-analyst",
+      "agents": 3,
+      "turns_avg": 1.0,
+      "input_tokens": 10097,
+      "share": 0.007,
+      "prefix_avg": 3366,
+      "cache_rate": 0.253
+    },
+    {
+      "node": "breadcrumb-analyst",
+      "agents": 3,
+      "turns_avg": 1.0,
+      "input_tokens": 9530,
+      "share": 0.006,
+      "prefix_avg": 3177,
+      "cache_rate": 0.229
+    },
+    {
+      "node": "screenshot-analyst",
+      "agents": 2,
+      "turns_avg": 1.0,
+      "input_tokens": 6193,
+      "share": 0.004,
+      "prefix_avg": 3096,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "flag-correlator",
+      "agents": 1,
+      "turns_avg": 1.0,
+      "input_tokens": 3445,
+      "share": 0.002,
+      "prefix_avg": 3445,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "trace-analyst",
+      "agents": 2,
+      "turns_avg": 1.0,
+      "input_tokens": 2872,
+      "share": 0.002,
+      "prefix_avg": 1436,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "dispatch-data-analyst",
+      "agents": 1,
+      "turns_avg": 1.0,
+      "input_tokens": 2387,
+      "share": 0.002,
+      "prefix_avg": 2387,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "incident-checker",
+      "agents": 1,
+      "turns_avg": 1.0,
+      "input_tokens": 899,
+      "share": 0.001,
+      "prefix_avg": 899,
+      "cache_rate": 0.0
+    }
+  ],
+  "tools": [
+    {
+      "tool": "read_file",
+      "resent_tokens": 378646,
+      "share": 0.254,
+      "added_tokens": 105301,
+      "resend_factor": 3.6
+    },
+    {
+      "tool": "search_code",
+      "resent_tokens": 115939,
+      "share": 0.078,
+      "added_tokens": 27103,
+      "resend_factor": 4.3
+    },
+    {
+      "tool": "load_skill",
+      "resent_tokens": 47461,
+      "share": 0.032,
+      "added_tokens": 7525,
+      "resend_factor": 6.3
+    },
+    {
+      "tool": "list_tags",
+      "resent_tokens": 25388,
+      "share": 0.017,
+      "added_tokens": 6319,
+      "resend_factor": 4.0
+    },
+    {
+      "tool": "run_command",
+      "resent_tokens": 20932,
+      "share": 0.014,
+      "added_tokens": 9704,
+      "resend_factor": 2.2
+    },
+    {
+      "tool": "get_screenshot_image",
+      "resent_tokens": 13229,
+      "share": 0.009,
+      "added_tokens": 2954,
+      "resend_factor": 4.5
+    },
+    {
+      "tool": "commit_details",
+      "resent_tokens": 8968,
+      "share": 0.006,
+      "added_tokens": 7236,
+      "resend_factor": 1.2
+    },
+    {
+      "tool": "get_logs",
+      "resent_tokens": 7329,
+      "share": 0.005,
+      "added_tokens": 2682,
+      "resend_factor": 2.7
+    },
+    {
+      "tool": "grep",
+      "resent_tokens": 6732,
+      "share": 0.005,
+      "added_tokens": 1169,
+      "resend_factor": 5.8
+    },
+    {
+      "tool": "blame",
+      "resent_tokens": 6428,
+      "share": 0.004,
+      "added_tokens": 4560,
+      "resend_factor": 1.4
+    },
+    {
+      "tool": "get_trace",
+      "resent_tokens": 6105,
+      "share": 0.004,
+      "added_tokens": 2351,
+      "resend_factor": 2.6
+    },
+    {
+      "tool": "commits_between",
+      "resent_tokens": 3867,
+      "share": 0.003,
+      "added_tokens": 1691,
+      "resend_factor": 2.3
+    },
+    {
+      "tool": "find_traces",
+      "resent_tokens": 3548,
+      "share": 0.002,
+      "added_tokens": 1416,
+      "resend_factor": 2.5
+    },
+    {
+      "tool": "list_dir",
+      "resent_tokens": 3277,
+      "share": 0.002,
+      "added_tokens": 601,
+      "resend_factor": 5.5
+    },
+    {
+      "tool": "get_session",
+      "resent_tokens": 3163,
+      "share": 0.002,
+      "added_tokens": 658,
+      "resend_factor": 4.8
+    },
+    {
+      "tool": "previous_release",
+      "resent_tokens": 2794,
+      "share": 0.002,
+      "added_tokens": 877,
+      "resend_factor": 3.2
+    },
+    {
+      "tool": "get_screenshots",
+      "resent_tokens": 2758,
+      "share": 0.002,
+      "added_tokens": 487,
+      "resend_factor": 5.7
+    },
+    {
+      "tool": "list_repos",
+      "resent_tokens": 1926,
+      "share": 0.001,
+      "added_tokens": 404,
+      "resend_factor": 4.8
+    },
+    {
+      "tool": "query_logs",
+      "resent_tokens": 1364,
+      "share": 0.001,
+      "added_tokens": 454,
+      "resend_factor": 3.0
+    },
+    {
+      "tool": "diff_stats",
+      "resent_tokens": 1294,
+      "share": 0.001,
+      "added_tokens": 720,
+      "resend_factor": 1.8
+    },
+    {
+      "tool": "releases",
+      "resent_tokens": 1090,
+      "share": 0.001,
+      "added_tokens": 218,
+      "resend_factor": 5.0
+    },
+    {
+      "tool": "find_symbol",
+      "resent_tokens": 1044,
+      "share": 0.001,
+      "added_tokens": 174,
+      "resend_factor": 6.0
+    },
+    {
+      "tool": "submit_result",
+      "resent_tokens": 434,
+      "share": 0.0,
+      "added_tokens": 217,
+      "resend_factor": 2.0
+    },
+    {
+      "tool": "codeowners_for",
+      "resent_tokens": 386,
+      "share": 0.0,
+      "added_tokens": 151,
+      "resend_factor": 2.6
+    },
+    {
+      "tool": "list_issues",
+      "resent_tokens": 59,
+      "share": 0.0,
+      "added_tokens": 59,
+      "resend_factor": 1.0
+    },
+    {
+      "tool": "edit_file",
+      "resent_tokens": 4,
+      "share": 0.0,
+      "added_tokens": 4,
+      "resend_factor": 1.0
+    }
+  ],
+  "runs": 8
+}

@@ -1,0 +1,19 @@
+{
+  "bugs": [
+    "BUG-004",
+    "BUG-013",
+    "BUG-014",
+    "BUG-015",
+    "BUG-016",
+    "BUG-017",
+    "BUG-019",
+    "BUG-020"
+  ],
+  "configs": [
+    "context-lean"
+  ],
+  "seeds": 1,
+  "until": "ship_gate",
+  "arm": "context-lean",
+  "commit": "1ae93f2"
+}
