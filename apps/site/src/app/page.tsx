@@ -1,4 +1,5 @@
 import { LiveRun, Motion, Shortcuts } from "@/components/client";
+import { Architecture } from "@/components/Architecture";
 import { Features } from "@/components/Features";
 import { Loop } from "@/components/Loop";
 import { Results } from "@/components/Results";
@@ -44,6 +45,7 @@ export default function Home() {
           <nav className="hidden gap-6 text-[13px] text-t3 md:flex">
             {[
               ["#how", "How it works"],
+              ["#architecture", "Architecture"],
               ["#features", "Features"],
               ["#results", "Results"],
               ["#tokens", "Tokens"],
@@ -165,6 +167,20 @@ export default function Home() {
           </Lead>
           <div className="mt-10">
             <Loop />
+          </div>
+        </section>
+
+        {/* ── architecture: four plates that pull apart as you scroll ── */}
+        <section id="architecture" className={`${COL} pt-[140px]`}>
+          <H2>
+            One system, <Mark>four layers.</Mark>
+          </H2>
+          <Lead className="mt-5">
+            Problems surface at the bottom and rise; agents only see the world through evidence tools; every action
+            leaves through the top, behind a policy gate.
+          </Lead>
+          <div className="mt-10">
+            <Architecture servers={f.mcpServers} tools={f.mcpTools} />
           </div>
         </section>
 
