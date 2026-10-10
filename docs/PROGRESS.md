@@ -339,6 +339,21 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## P15 — Context engineering: lean arm (2026-10-10) — measured, kept opt-in
+
+**Done** (commits `8f1d596`, `1ae93f2`)
+- `DA_CONTEXT=lean` (`core/ablation.py`), eval config `context-lean`: every file read (workspace and code-search MCP) is capped at 120 lines with a pointer to `outline_file`; `outline_file` lists symbols with line numbers (`core/outline.py`, TS/JS, Python, Go); long `run_command` output keeps failure lines and the last 40 lines, the full log behind `read_log`. Only offered in the lean arm, so the baseline's tool list and cache prefix are unchanged.
+- `debugassist eval context --name <arm>` writes one audit per arm; the report renders them as *Context by arm*.
+- Sandbox output decodes as UTF-8 with replacement (a stray byte no longer loses a command's result).
+
+**Verified** (`evals/reports/2026-10-10`, the fix-quality bugs re-run, one seed): no token saving — input per run rose and `read_file`'s share went up (more, smaller reads); cost about level on a higher cache rate; outcomes within one-seed noise. See the report's arm and context tables.
+
+**Findings**
+- The first lean version applied the window only to range-less reads; agents always name a range, so it did nothing. Caught in the first run's transcript; that row is excluded.
+- BUG-017's run took the e2e tier (D14) and three full-length fix attempts — most of the arm's token total. Read per-bug rows before averages.
+- BUG-013 was wrong this time although the file it needed (110 lines) was read whole: run variance, not the cap.
+- Next (ROADMAP P15): clearing old tool results and compaction with notes; repeated seeds.
+
 ## Fix quality (2026-10-10) — done
 
 **Done** (commit `85cb379`; found by reading the failed runs of the cross-repo arm)

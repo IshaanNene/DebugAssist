@@ -223,6 +223,54 @@ def _chart_e1(e1: list[dict[str, Any]], path: Path) -> None:
     plt.close(fig)
 
 
+def _context_section(out: Path) -> str:
+    rows = context_by_arm(out)
+    if not rows:
+        return ""
+    cols = [
+        "arm",
+        "runs",
+        "input_tokens",
+        "per_run",
+        "cache_rate",
+        "prefix_share",
+        "tools_share",
+        "model_share",
+        "read_file_share",
+        "run_command_share",
+    ]
+    return (
+        "## Context by arm (`debugassist eval context --name <arm>`)\n\n"
+        "Input tokens of every agent turn in the arm's runs, split by what they carried (shares of input).\n\n"
+        + _md_table(rows, cols)
+        + "\n\n"
+    )
+
+
+def context_by_arm(out: Path) -> list[dict[str, Any]]:
+    """One row per `debugassist eval context --name <arm>` audit saved in this report's directory."""
+    rows: list[dict[str, Any]] = []
+    for f in sorted(out.glob("context-*.json")):
+        s = json.loads(f.read_text())
+        n = int(s.get("runs") or 0)
+        tools = {t["tool"]: t["share"] for t in s.get("tools", [])}
+        rows.append(
+            {
+                "arm": f.stem.removeprefix("context-"),
+                "runs": n,
+                "input_tokens": s["input_tokens"],
+                "per_run": round(s["input_tokens"] / n) if n else "",
+                "cache_rate": round(s["cached_tokens"] / s["input_tokens"], 3) if s["input_tokens"] else "",
+                "prefix_share": s["prefix_share"],
+                "tools_share": s["tools_share"],
+                "model_share": s["model_share"],
+                "read_file_share": tools.get("read_file", 0),
+                "run_command_share": tools.get("run_command", 0),
+            }
+        )
+    return rows
+
+
 def write(
     eval_dirs: list[Path],
     e1_files: list[Path],
@@ -299,7 +347,7 @@ catalog's hidden tests pass on the agent's change (run by the evaluator in a cop
 {_md_table(e1, ["decision", "backend", "n", "accuracy", "brier", "ece", "latency_p50_ms", "usd_per_1k"])}
 ![E1](e1_accuracy.svg)
 
-## Runs
+{_context_section(out)}## Runs
 
 {_md_table(per_bug, ["bug", "config", "seed", "rca", "location", "validated", "hidden", "usd"])}
 {"## Failures" + chr(10) + chr(10) + _md_table(failures, ["bug", "config", "seed", "error"]) if failures else ""}

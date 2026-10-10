@@ -96,9 +96,12 @@ def run_cmd(
 def context(
     runs: Annotated[str, typer.Option(help="comma list of evals/runs/<stamp> dirs")],
     model: Annotated[str, typer.Option(help="only runs whose RCA used this model")] = "",
+    name: Annotated[
+        str, typer.Option(help="suffix for the output files, e.g. an arm: context-<name>.md")
+    ] = "",
 ) -> None:
     """Where agents' input tokens go (fixed prefix, re-sent tool results, own messages) — writes
-    evals/reports/<date>/context.md."""
+    evals/reports/<date>/context[-<name>].md and .json."""
     import json
     from datetime import UTC, datetime
 
@@ -113,9 +116,11 @@ def context(
     summary = ctx.summarize(ctx.audit(ids))
     out = ROOT / "evals" / "reports" / datetime.now(UTC).strftime("%Y-%m-%d")
     out.mkdir(parents=True, exist_ok=True)
-    (out / "context.md").write_text(ctx.report(summary, len(ids)))
-    (out / "context.json").write_text(json.dumps(summary, indent=2))
-    typer.echo(f"context audit of {len(ids)} runs: {out / 'context.md'}")
+    stem = f"context-{name}" if name else "context"
+    summary["runs"] = len(ids)
+    (out / f"{stem}.md").write_text(ctx.report(summary, len(ids)))
+    (out / f"{stem}.json").write_text(json.dumps(summary, indent=2))
+    typer.echo(f"context audit of {len(ids)} runs: {out / f'{stem}.md'}")
 
 
 @app.command()

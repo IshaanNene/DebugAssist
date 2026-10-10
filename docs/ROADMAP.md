@@ -48,6 +48,13 @@ messages. **82% of input is already served from the prompt cache**, because hist
 *adding less* (targeted reads, a repo map, concise responses — items 2, 4, 8) cuts tokens and cost; *clearing*
 old results (item 3) rewrites the cached prefix and may cost more than it saves — measure it last.
 
+**Lean arm result** (`DA_CONTEXT=lean`, items 2/4/8 in part: reads capped at 120 lines with an `outline_file` tool,
+long command logs behind `read_log`; eight bugs, one seed, [report 2026-10-10](../evals/reports/2026-10-10/report.md),
+*Context by arm*): **no saving.** Agents made more, smaller reads, so input per run rose and `read_file`'s share
+went up; cost stayed about level on a higher cache rate, and outcomes were within one-seed noise. Kept as an
+opt-in switch. Next: item 3 (clear old results) and item 7 (compaction with notes), because the history re-sent on
+every turn is what grows — and repeated seeds before trusting any small difference.
+
 ## P16 · Integrations (free / open source)
 
 | Tool | License* | Why here | Plan |
