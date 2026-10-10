@@ -36,8 +36,8 @@ export function Box({
 /** A highlighter stroke behind a phrase (multiply blend, like ink on paper). */
 export function Mark({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span className={cx("relative inline-flex items-center", className)}>
-      <span aria-hidden className="absolute inset-x-[-0.06em] top-1/2 h-[0.74em] -translate-y-[50%] bg-mark mix-blend-multiply" />
+    <span className={cx("relative inline-flex items-center whitespace-nowrap", className)}>
+      <span aria-hidden className="mark-ink absolute inset-x-[-0.06em] top-1/2 h-[0.74em] -translate-y-[50%] bg-mark mix-blend-multiply" />
       <span className="relative">{children}</span>
     </span>
   );
@@ -47,7 +47,7 @@ export function H2({ children, className }: { children: ReactNode; className?: s
   return (
     <h2
       className={cx(
-        "font-display font-medium text-t1 tracking-[-0.02em] text-[32px] sm:text-[42px] md:text-[48px] leading-[1.04]",
+        "fx font-display font-medium text-t1 tracking-[-0.03em] text-[36px] sm:text-[48px] md:text-[60px] leading-[1.0]",
         className,
       )}
     >
@@ -57,7 +57,11 @@ export function H2({ children, className }: { children: ReactNode; className?: s
 }
 
 export function Lead({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cx("text-[15px] leading-[1.55] tracking-[-0.005em] text-t3 max-w-[52ch]", className)}>{children}</p>;
+  return (
+    <p className={cx("fx text-[16px] leading-[1.6] tracking-[-0.005em] text-t3 max-w-[56ch]", className)} style={{ ["--i" as string]: 1 }}>
+      {children}
+    </p>
+  );
 }
 
 export function Label({ children, className }: { children: ReactNode; className?: string }) {

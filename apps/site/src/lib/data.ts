@@ -154,3 +154,49 @@ export function facts() {
   const mcp = fs.readFileSync(path.join(ROOT, "docs", "mcp.md"), "utf8").match(/\*\*(\d+) MCP servers\*\* \((\d+) tools\)/);
   return { templates, mcpServers: mcp ? Number(mcp[1]) : 11, mcpTools: mcp ? Number(mcp[2]) : 55 };
 }
+
+export interface FeaturedRun {
+  runId: string;
+  bug: string;
+  issue: string;
+  agentType: string;
+  location: string;
+  claims: number;
+  unsupported: number;
+  tier: string;
+  hiddenTest: string;
+  turns: number;
+  usd: number;
+  wallS: number;
+  decisions: number;
+}
+
+/** One real baseline run, replayed in the hero: exact root cause, validated fix, hidden test passing. */
+export function featuredRun(data: Results): FeaturedRun | null {
+  const good = data.baseline.filter(
+    (r) => r.rca === "exact" && r.validated === "True" && r.hidden_tests === "True" && r.claims_unsupported === "0",
+  );
+  const r = good.find((x) => x.agent_type === "web-crash") ?? good[0];
+  if (!r) return null;
+  let hiddenTest = "";
+  try {
+    hiddenTest = (JSON.parse(r.hidden_detail) as { test: string }[])[0]?.test ?? "";
+  } catch {
+    hiddenTest = "";
+  }
+  return {
+    runId: r.run_id,
+    bug: r.bug,
+    issue: r.issue,
+    agentType: r.agent_type,
+    location: r.rca_location,
+    claims: Number(r.claims),
+    unsupported: Number(r.claims_unsupported),
+    tier: r.tier,
+    hiddenTest,
+    turns: Number(r.turns),
+    usd: Number(r.usd),
+    wallS: Number(r.wall_s),
+    decisions: Number(r.labelled_decisions),
+  };
+}
