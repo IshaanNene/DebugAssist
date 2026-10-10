@@ -28,5 +28,6 @@ def test_lean_read_is_a_window_with_an_outline(repo: Path, monkeypatch: pytest.M
     out = code_search.read_file("svc", "src/eta.py")
     assert out["end_line"] == 120 and out["total_lines"] == 250 and "outline_file" in out["more"]
     assert code_search.read_file("svc", "src/eta.py", 190, 210)["end_line"] == 210
+    assert code_search.read_file("svc", "src/eta.py", 1, 240)["end_line"] == 120
     o = code_search.outline_file("svc", "src/eta.py")
     assert "  200  def f200()" in o["outline"] and o["evidence_id"]

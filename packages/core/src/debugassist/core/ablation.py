@@ -8,7 +8,7 @@ DA_DECIDER   routed (default: each template's own Clef model) | clef | clef-flas
              llm (no Clef: the LLM decides with self-reported confidence).
 DA_LLM_SEED  integer seed passed to the LLM (repeat runs per configuration).
 DA_CONTEXT   full (default) | lean — how much tool output enters an agent's context (ROADMAP P15 items 2, 4, 8):
-             lean adds outline tools, reads a 120-line window when no range is given, and keeps long command
+             lean adds outline tools, caps every file read at 120 lines (with a pointer to the outline), and keeps long command
              logs out of the history (an error summary and the tail come back; the full log is read on demand).
 """
 
