@@ -1,0 +1,49 @@
+# Builds apps/site (static export; every number read from evals/reports at build time) and deploys it to
+# GitHub Pages. Manual for now: enable Pages (Settings → Pages → Source: GitHub Actions), then run this
+# workflow — or add a `push` trigger to redeploy on every change to main.
+name: site
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4 # submodules are not needed: the site reads evals/, groundtruth/ and docs/
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: apps/site/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/site/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/site
+      - run: pnpm build
+        working-directory: apps/site
+        env:
+          SITE_BASE_PATH: /${{ github.event.repository.name }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/site/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
