@@ -43,6 +43,7 @@ from debugassist.core.settings import get_settings
 from debugassist.llm.chat import chat_model, cost_usd, structured_method
 from debugassist.llm.clearing import Clearing, clearing_middleware
 from debugassist.llm.compaction import Compaction, compaction_middleware
+from debugassist.llm.concise import concise
 from debugassist.llm.spec import LLMNodeSpec, LLMResult, ToolCall
 from debugassist.llm.watch import Watchdog
 
@@ -389,9 +390,12 @@ class AgentRunner:
             if (clean := redact_text(text)) != text and isinstance(out, ToolMessage):
                 out = out.model_copy(update={"content": clean})  # PII never reaches the model (SPEC §11)
                 text = clean
+            if ablation.context_mode() == "concise" and isinstance(out, ToolMessage):
+                # P15: the model gets a concise result; `text` (evidence, previews) stays the full one
+                out = out.model_copy(update={"content": concise(name, out.content)})
             ms = int((time.perf_counter() - t0) * 1000)
             if (note := watch.tool(name, args, ok, ms, text)) and isinstance(out, ToolMessage):
-                out = out.model_copy(update={"content": f"{text}{note}"})
+                out = out.model_copy(update={"content": f"{_text(out.content)}{note}"})
             m = re.search(r'"evidence_id":\s*"(ev_[a-z]+_[0-9a-f]{10})"', text)
             ev = m.group(1) if m else None
             calls.append(

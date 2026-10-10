@@ -77,6 +77,10 @@ Format: **symptom** → cause → fix · *guard*.
   after one large tool result it re-fired each turn — an extra model call and a rewritten prefix every time. Seen
   in the first run's events (3 compactions in 6 turns), fixed to count only foldable steps, re-tuned offline.
   *Lesson: a trigger must measure only what the action can remove.*
+- **Measure a context idea on recorded transcripts before paying for a sweep.** Concise tool responses looked
+  promising (MCP JSON is pretty-printed), but replaying saved transcripts through the transform showed ~2–3% of
+  input, because file reads dominate and tool results were already capped. A free replay ranked it below the
+  arms that had cost a sweep each.
 - **Fewer tokens is not lower cost when the cache pays most of the bill.** Clearing cut input per turn by about a
   sixth, but every batch rewrites the cached prefix, the hit rate fell, and cost barely moved.
 

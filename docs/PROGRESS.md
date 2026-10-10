@@ -382,6 +382,10 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 
 **Verified** (partial, BUG-004/013/014 before the OpenRouter key ran out): compaction fired about once per long agent and its notes kept file:line and evidence ids; input per turn matched the baseline; BUG-013 climbed three reproduction tiers and more than doubled the arm's total. Inconclusive; kept opt-in.
 
+**Concise responses** (built; measured offline only — the OpenRouter key is empty)
+- `DA_CONTEXT=concise` (`llm/concise.py`): tool results reach the model as compact JSON (MCP tools pretty-print with two-space indents), lists cut to the top 10 plus a count of the rest, long fields clipped (diffs and bodies to 1,500 chars, strings inside list items to 240), plain text to 30 lines. Evidence ids and top-level keys kept; reads, commands and skills untouched; the evidence store keeps the full result. Eval config `context-concise`.
+- A pure function of tool name and output, so its effect was replayed on the fix-quality transcripts: about 5% less re-sent history, roughly 2–3% of input (clipped transcript entries counted as unchanged, so a lower bound). Next live sweep when there is credit.
+
 ## Fix quality (2026-10-10) — done
 
 **Done** (commit `85cb379`; found by reading the failed runs of the cross-repo arm)
