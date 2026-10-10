@@ -4,7 +4,7 @@ Status against `docs/SPEC.md` (with `docs/PLAN.md` §0 amendments), audited 2026
 time; a phase is done when its tests pass, its `make` target works, `docs/PROGRESS.md` is updated and
 the work is committed. Legend: `[x]` done · `[~]` partly done · `[ ]` not started.
 
-Overall: P0–P13 done (first live evaluation: `evals/reports/2026-10-07`). Next: cross-repo bug reports, context-reduction ablations, P14.
+Overall: P0–P14 done (latest evaluation: `evals/reports/2026-10-10`). Next: fix quality after hand-off, context engineering (P15), integrations, site.
 
 ## P3 · Walking skeleton ✅
 - [x] BUG-002 end to end through every node to a real PR (target CI green) and a Jira ticket
@@ -140,7 +140,7 @@ Overall: P0–P13 done (first live evaluation: `evals/reports/2026-10-07`). Next
 - [x] Decision metrics per D# (accuracy, Brier, ECE, latency, $/1k); calibration; JSONL export · E1 replay
 - [x] Ablation switches: no Clef · Clef-flash only · Clef only · routed; D3/D8/D9/D12/D14 off; seeds · [ ] live ablation matrix (budget) — E1 replay done instead
 - [x] `evals/reports/2026-10-07/report.md` + CSV + charts from live runs
-- [ ] `user-bug-report` agent type sees the services repo (6/6 services bugs reported from the app were localised in the client)
+- [x] Cross-repo investigation and hand-off (P14): root cause on the six app-reported services bugs 0/6 → 5/6
 - [ ] Context reduction behind switches, measured: tool-use examples, programmatic tool calling
 
 ## P14 · Polish

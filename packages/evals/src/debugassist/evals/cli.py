@@ -62,6 +62,7 @@ def run_cmd(
     reserve_usd: Annotated[
         float, typer.Option(help="stop before the next bug when the OpenRouter key has less credit left")
     ] = 0.0,
+    arm: Annotated[str, typer.Option(help="label for this code version in reports, e.g. cross-repo")] = "",
 ) -> None:
     """Run catalog bugs end to end per configuration and seed; score and label every run."""
     ids, cfgs = _ids(bugs), configs.split(",")
@@ -79,6 +80,7 @@ def run_cmd(
             hidden=hidden,
             wipe=wipe,
             reserve_usd=reserve_usd,
+            arm=arm,
             log=typer.echo,
         )
     )

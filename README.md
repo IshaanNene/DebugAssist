@@ -37,7 +37,7 @@ The plan is a fixed <b>LangGraph</b> graph; models never choose the next step. A
 <img src="docs/assets/results.svg" alt="Evaluation of 25 catalog bugs end to end: per-bug root cause, validated fix and hidden-test result" width="100%">
 </div>
 
-Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-07`](evals/reports/2026-10-07/report.md) by `make readme-assets`; nothing in it is typed by hand.
+Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-10`](evals/reports/2026-10-10/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid is the full-catalog baseline; the panel below it re-runs the six bugs the baseline got most wrong, after the change that targeted them.
 
 <table>
 <tr>
@@ -45,6 +45,7 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 
 **What works**
 - **Crash-data bugs in one repo** — locale and currency edge cases, a nil-map panic, a removed `await`, a background poller draining battery: exact root cause, a reproduction that fails on the release, a fix that passes the catalog's hidden test.
+- **Following a rider's report into the backend** — with the cross-repo hand-off, five of the six services bugs that only reached us as an in-app report now get the right root cause (none did before), and the fix moves to the service: a gateway payload bug and a payments tariff typo are fixed end to end, hidden tests included.
 - **Saying "not our bug"** — a carrier outage and an ETA complaint about intended behaviour were routed, not "fixed".
 - **Cost** — about two cents per end-to-end run on `openai/gpt-6-luna`, with the prompt cache doing most of the work.
 
@@ -52,7 +53,7 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 <td width="50%" valign="top">
 
 **What doesn't (yet)**
-- **Backend bugs reported from the app** — when the only signal is a rider's report, the agent stays in the client repo and patches the symptom. Services bugs seen in crash data are mostly found; the bug-report agent needs the services repo. *Next work item.*
+- **Fixing in a second repo** — the hand-off finds the right spot, but three of those five fixes don't validate yet (one failed the gateway's typecheck). And a CORS bug stays invisible: the browser shows the client only an opaque `Failed to fetch`.
 - **Validated ≠ correct** — some fixes pass the agent's own reproduction but not the hidden test: its test was narrower than the bug.
 - **Vendored code** — a bad SDK sync was localised to the exact function but treated as our code instead of routed to its owner.
 
@@ -253,9 +254,9 @@ Agents and the LLM decider use any OpenAI-compatible API; two providers are inte
 
 ## 📍 Status
 
-Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Phases 0–13 are done: decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA depth, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, and the evaluation harness with its first live run.
+Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Phases 0–14 are done: decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA depth, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness with its first live run, and the cross-repo hand-off (P14) for bugs that are seen in the app but live in a service.
 
-**Next** ([roadmap](docs/ROADMAP.md)): give the bug-report agent the services repo · context engineering measured arm by arm (tool-result offloading and clearing, concise tool responses, tool-use examples, programmatic tool calling, compaction) · Langfuse, LiteLLM and local models · a public site · evaluation at scale. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
+**Next** ([roadmap](docs/ROADMAP.md)): fix quality after a cross-repo hand-off · context engineering measured arm by arm (tool-result offloading and clearing, concise tool responses, tool-use examples, programmatic tool calling, compaction) · Langfuse, LiteLLM and local models · a public site · evaluation at scale. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
 
 <br>
 

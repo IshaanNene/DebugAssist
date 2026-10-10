@@ -90,7 +90,9 @@ class CompatProvider(AsyncOpenAIProvider):
 
 
 RATE_LIMIT_BACKOFF_S = (5.0, 15.0, 30.0)
-_RETRYABLE = re.compile(r"\b(429|5\d\d)\b|rate.?limit|timed? ?out|overloaded", re.I)
+_RETRYABLE = re.compile(
+    r"\b(429|5\d\d)\b|rate.?limit|timed? ?out|overloaded|connection (error|reset|refused)", re.I
+)
 
 
 class LLMDecider:

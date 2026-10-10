@@ -56,8 +56,11 @@ Format: **symptom** → cause → fix · *guard*.
   gate requires a verified reproduction plus a source change.
 - **Validated is not the same as correct.** Several fixes passed the agent's own reproduction but not the
   catalog's hidden test — the agent's test was narrower than the bug. *Guard: hidden tests in the evaluator.*
-- **Backend bugs reported from the app were fixed in the wrong repo.** With only a rider's report, the agent stayed
-  in the client and patched the symptom. *Open — the next work item ([ROADMAP](ROADMAP.md)).*
+- **Backend bugs reported from the app were fixed in the wrong repo.** The RCA agent could only see the issue's own
+  repo (`CODE_REPOS` held one worktree), so with only a rider's report it stayed in the client and patched the
+  symptom. → Read-only worktrees of every target repo at the deployed release, and a path-checked hand-off that
+  moves the fix steps to the repo holding the defect (P14): root cause right or close went from 0/6 to 5/6 on those
+  bugs. *Guard: `test_crossrepo.py`; the cross-repo eval arm.*
 
 ## 3. Decisions (Clef)
 
