@@ -60,6 +60,11 @@ export default async function RunPage(props: PageProps<"/runs/[id]">) {
           <a href={run.phoenix_url} className="hover:underline" title={run.phoenix_trace ? "this run's trace in Phoenix" : "this run has no trace (Phoenix was off)"}>
             {run.phoenix_trace ? `Phoenix trace ↗${run.traces.length > 1 ? ` (latest of ${run.traces.length})` : ""}` : "Phoenix ↗"}
           </a>
+          {run.langfuse_url && (
+            <a href={run.langfuse_url} className="hover:underline" title="this run's trace in Langfuse (if it was exported there)">
+              Langfuse trace ↗
+            </a>
+          )}
         </div>
         <h1 className="text-xl font-semibold">{s.issue?.title}</h1>
       </header>

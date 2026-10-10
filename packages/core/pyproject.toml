@@ -13,6 +13,8 @@ dependencies = [
   "arize-phoenix-otel>=0.17",
   "openinference-instrumentation-langchain>=0.1.78",
   "openinference-semantic-conventions>=0.1.41",
+  "opentelemetry-sdk>=1.45",
+  "opentelemetry-exporter-otlp-proto-http>=1.45",  # Langfuse OTLP (and any OTLP/HTTP backend)
 ]
 
 [build-system]

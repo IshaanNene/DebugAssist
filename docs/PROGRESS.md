@@ -339,6 +339,20 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## P16 — Langfuse (2026-10-10) — done
+
+**Done**
+- `make langfuse`: self-hosted Langfuse v4 on :3200 (compose profile `langfuse`: web, worker, ClickHouse; Postgres, Redis and MinIO are the stack's own). A project and its API keys are created on first start (local-only dev credentials).
+- `DA_TRACING=phoenix|langfuse|both|0` (`core/tracing.py`): the same OpenInference spans go to Phoenix, to Langfuse's OTLP endpoint (`/api/public/otel/v1/traces`, Basic auth, `x-langfuse-ingestion-version: 4`), or both. Each backend is used only when it answers; Langfuse also needs `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`.
+- `debugassist eval langfuse --runs …` (`evals/langfuse_export.py`): each sweep becomes a Langfuse experiment (v4 replaced dataset runs), one item per scored run — input (the issue), output (the agent's root cause, outcome, validation), expected output from the catalog — with scores for root cause (1 / 0.5 / 0), category, validated, hidden tests, cost and turns. Ids are deterministic, so a re-export updates in place.
+- The dashboard links a run's Langfuse trace next to Phoenix.
+
+**Verified** (local Langfuse 4.56): the keyless demo run `20261010-104820-vit-1001` arrived as one trace of 57 observations (15 LLM generations, 7 tools, 7 agents) under its run id as session; the fix-quality and context-lean sweeps arrived as two experiments of 8 items, each with input, output, expected output and 5–6 scores, and a second export changed nothing but the names. A probe span with `DA_TRACING=both` reached Phoenix and Langfuse. `make check`: 362 tests.
+
+**Findings**
+- With `both`, the first version lost every Phoenix span: Phoenix's `TracerProvider.add_span_processor` removes its own exporter unless `replace_default_processor=False`. Caught by checking Phoenix after the demo run; regression test added.
+- On v4 the v1 observations API returns 404 (`events_only` mode); read with `/api/public/v2/observations`.
+
 ## P15 — Context engineering: lean arm (2026-10-10) — measured, kept opt-in
 
 **Done** (commits `8f1d596`, `1ae93f2`)

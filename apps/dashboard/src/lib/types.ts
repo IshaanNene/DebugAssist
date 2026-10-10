@@ -63,6 +63,7 @@ export interface RunDetail {
   graph: GraphNode[];
   phoenix_url: string;
   phoenix_trace: boolean;
+  langfuse_url: string | null;
   traces: string[];
 }
 

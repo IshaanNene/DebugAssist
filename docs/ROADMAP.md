@@ -59,7 +59,7 @@ every turn is what grows — and repeated seeds before trusting any small differ
 
 | Tool | License* | Why here | Plan |
 |---|---|---|---|
-| **Langfuse** | MIT (core) | Open LLM observability + datasets + experiments + scores; self-hosts on Postgres, Redis, MinIO (we already run them) + ClickHouse | Export our OTel/OpenInference spans to its OTLP endpoint (`/api/public/otel/v1/traces`) next to Phoenix; push each eval as a Langfuse dataset run with RCA/hidden-test scores; link runs from the dashboard. `DA_TRACING=phoenix\|langfuse\|both` |
+| **Langfuse** ✅ | MIT (core) | Open LLM observability + datasets + experiments + scores; self-hosts on Postgres, Redis, MinIO (we already run them) + ClickHouse | **Done (2026-10-10):** `make langfuse` self-hosts v4 on :3200 (ClickHouse added, the rest shared); `DA_TRACING=phoenix\|langfuse\|both` exports the same OpenInference spans to its OTLP endpoint; `debugassist eval langfuse --runs …` sends each sweep as a Langfuse *experiment* (v4 replaced dataset runs) with one item per bug and scores for root cause, category, validation, hidden tests, cost and turns; the dashboard links a run's Langfuse trace. |
 | **LiteLLM** (proxy) | MIT | One gateway for every provider: fallbacks, budgets, caching, cost logs | Optional `LLM_PROVIDER=litellm`; per-run virtual keys as a second budget guard |
 | **Ollama / vLLM** | MIT / Apache-2.0 | Free local models for development and a no-cost eval arm | `LLM_PROVIDER=ollama`; a "local" arm in the report |
 | **Promptfoo** | MIT | Regression tests for prompts and skills in CI | Golden RCA/fix prompts from the catalog; fail CI on regressions |

@@ -6,6 +6,8 @@
 #   faults – Toxiproxy (network fault injection for the weak-network validation tier)
 #   target – MiniRide: dispatch (Python), payments (Go), gateway (Node GraphQL), client (React PWA)
 #   sources – Vitals (crash/perf analytics), BugDrop (bug reports), incidents (incident + dependency status)
+#   langfuse – Langfuse v4 (agent traces, eval experiments and scores) on :3200; reuses Postgres, Redis and MinIO
+#              and adds ClickHouse. Optional, next to Phoenix: DA_TRACING=phoenix|langfuse|both (ROADMAP P16)
 # App services (DebugAssist API/worker/dashboard) are added in later phases.
 name: debugassist
 
@@ -16,6 +18,34 @@ x-health: &health
   interval: 5s
   timeout: 3s
   retries: 30
+
+# Langfuse: local-only dev credentials, like every other secret in this file (`make langfuse` prepares the
+# database and bucket; the project and its API keys are created on first start).
+x-langfuse-env: &langfuse-env
+  DATABASE_URL: postgresql://debugassist:debugassist@postgres:5432/langfuse
+  SALT: debugassist-local-salt
+  ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+  TELEMETRY_ENABLED: "false"
+  CLICKHOUSE_MIGRATION_URL: clickhouse://clickhouse:9000
+  CLICKHOUSE_URL: http://clickhouse:8123
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: clickhouse
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  REDIS_CONNECTION_STRING: redis://redis:6379
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: debugassist
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: debugassist-dev
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: debugassist
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: debugassist-dev
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
 
 x-miniride-otel: &miniride-otel
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
@@ -107,6 +137,63 @@ services:
     environment:
       PHOENIX_WORKING_DIR: /phoenix
     volumes: [phoenixdata:/phoenix]
+
+  clickhouse:
+    <<: *restart
+    profiles: [langfuse]
+    image: clickhouse/clickhouse-server:25.12
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: clickhouse  # local-only dev credential
+    volumes: [clickhousedata:/var/lib/clickhouse]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      <<: *health
+
+  langfuse-worker:
+    <<: *restart
+    profiles: [langfuse]
+    image: langfuse/langfuse-worker:4
+    depends_on:
+      postgres: {condition: service_healthy}
+      clickhouse: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_started}
+    environment:
+      <<: *langfuse-env
+
+  langfuse:
+    <<: *restart
+    profiles: [langfuse]
+    image: langfuse/langfuse:4
+    depends_on:
+      postgres: {condition: service_healthy}
+      clickhouse: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      minio: {condition: service_started}
+      langfuse-worker: {condition: service_started}
+    ports: ["3200:3000"]  # :3000 is the DebugAssist dashboard
+    environment:
+      <<: *langfuse-env
+      HOSTNAME: 0.0.0.0  # Next.js binds to the container hostname otherwise (the health check uses localhost)
+      NEXTAUTH_URL: http://localhost:3200
+      NEXTAUTH_SECRET: debugassist-local-nextauth
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://minio:9000
+      LANGFUSE_INIT_ORG_ID: debugassist
+      LANGFUSE_INIT_ORG_NAME: DebugAssist
+      LANGFUSE_INIT_PROJECT_ID: debugassist
+      LANGFUSE_INIT_PROJECT_NAME: debugassist
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-debugassist-local  # local-only dev credential
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-debugassist-local  # local-only dev credential
+      LANGFUSE_INIT_USER_EMAIL: dev@debugassist.local
+      LANGFUSE_INIT_USER_NAME: dev
+      LANGFUSE_INIT_USER_PASSWORD: debugassist-dev  # local-only dev credential
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/public/health || exit 1"]
+      <<: *health
 
   unleash:
     <<: *restart
@@ -276,3 +363,4 @@ volumes:
   pgdata:
   miniodata:
   phoenixdata:
+  clickhousedata:

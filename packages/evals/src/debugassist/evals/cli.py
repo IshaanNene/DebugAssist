@@ -93,6 +93,20 @@ def run_cmd(
 
 
 @app.command()
+def langfuse(
+    runs: Annotated[str, typer.Option(help="comma list of evals/runs/<stamp> dirs")],
+) -> None:
+    """Send eval runs to Langfuse as experiments: one item per run with its scores (`make langfuse` first)."""
+    from debugassist.core import tracing
+    from debugassist.evals import langfuse_export
+
+    out = langfuse_export.export([Path(d) for d in runs.split(",")])
+    typer.echo(f"{out['items']} runs → Langfuse ({tracing.langfuse_url()}), experiments:")
+    for name in out["experiments"]:
+        typer.echo(f"  {name}")
+
+
+@app.command()
 def context(
     runs: Annotated[str, typer.Option(help="comma list of evals/runs/<stamp> dirs")],
     model: Annotated[str, typer.Option(help="only runs whose RCA used this model")] = "",
