@@ -229,6 +229,7 @@ def write(
     ledger_points: list[metrics.Point],
     taus: dict[str, float],
     notes: str = "",
+    run_ids: set[str] | None = None,
 ) -> Path:
     stamp = datetime.now(UTC)
     out = REPORTS / stamp.strftime("%Y-%m-%d")
@@ -238,6 +239,8 @@ def write(
     excluded = [r for r in loaded if r.get("excluded")]
     rows = [r for r in loaded if not r.get("excluded")]
     e1_rows = [json.loads(line) for f in e1_files for line in f.read_text().splitlines() if line.strip()]
+    if run_ids is not None:  # replay only decisions logged by runs in this report
+        e1_rows = [r for r in e1_rows if r.get("run_id") in run_ids]
     cfg = by_config(rows)
     e1 = e1_summary(e1_rows)
     dec = [{"decision": d, **s} for d, s in metrics.by_decision(ledger_points, taus).items()]

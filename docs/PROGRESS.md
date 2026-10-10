@@ -339,6 +339,21 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Fix quality (2026-10-10) — done
+
+**Done** (commit `85cb379`; found by reading the failed runs of the cross-repo arm)
+- **Python sandbox:** dispatch pins `python-preference = "only-managed"`, so uv downloaded its interpreter into the container's `$HOME` at install time and every later (offline) container had none — no dispatch test ever ran. `UV_PYTHON_INSTALL_DIR` now lives in the worktree.
+- **Eval retry loop:** `--until validate` ended each run after its first validation, so no evaluated run ever got a second fix attempt. Eval runs stop after the ship gate (retries and the ship decision included; `outcome_ok` is now measured).
+- **Edit tool:** a unique block that matches apart from indentation is applied and re-indented; a miss shows the closest lines; paths resolve repository- or component-relative (escapes still blocked, tested). A gateway fix had spent 14 of 20 turns on exact-match failures; across the 25-bug runs `edit_file` failed 51% of the time.
+- **Report hygiene:** reports count only `openai/gpt-6-luna` runs; decision metrics and the replay use only decisions logged by the runs in the report.
+
+**Verified** (`evals/reports/2026-10-10`, fix-quality arm, eight bugs): hidden tests passing 0 → 5 of those bugs (BUG-004, 013, 015, 016, 019); validated 75%; category right 8/8; turns per run 26.2 → 18.8 on the same bugs; ~$0.015 per run. `make check`: 339 tests.
+
+**Findings**
+- One seed is noisy: BUG-014 was solved end to end in the cross-repo arm and missed here (the RCA agent escalated without a location).
+- BUG-020: fix planning's strategy decision (D13) chose "needs a human" (p = 0.9) for a contained one-function bug — a decision template to revisit.
+- BUG-017 (CORS) still needs gateway-side evidence.
+
 ## P14 — Cross-repo investigation and hand-off (2026-10-10) — done
 
 **Done**

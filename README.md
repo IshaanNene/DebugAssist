@@ -37,7 +37,7 @@ The plan is a fixed <b>LangGraph</b> graph; models never choose the next step. A
 <img src="docs/assets/results.svg" alt="Evaluation of 25 catalog bugs end to end: per-bug root cause, validated fix and hidden-test result" width="100%">
 </div>
 
-Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-10`](evals/reports/2026-10-10/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid is the full-catalog baseline; the panel below it re-runs the six bugs the baseline got most wrong, after the change that targeted them.
+Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-10`](evals/reports/2026-10-10/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid is the full-catalog baseline; the panel below re-runs the bugs that later changes targeted, arm by arm, so each change is measured on the same bugs before and after.
 
 <table>
 <tr>
@@ -46,6 +46,7 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 **What works**
 - **Crash-data bugs in one repo** — locale and currency edge cases, a nil-map panic, a removed `await`, a background poller draining battery: exact root cause, a reproduction that fails on the release, a fix that passes the catalog's hidden test.
 - **Following a rider's report into the backend** — with the cross-repo hand-off, five of the six services bugs that only reached us as an in-app report now get the right root cause (none did before), and the fix moves to the service: a gateway payload bug and a payments tariff typo are fixed end to end, hidden tests included.
+- **Fix quality after reading failed runs** — three harness fixes (a Python sandbox that lost its interpreter, an evaluator that never allowed a retry, an edit tool that rejected near-misses) took hidden-test passes on the eight re-run bugs from 0 to 5, with fewer turns per run.
 - **Saying "not our bug"** — a carrier outage and an ETA complaint about intended behaviour were routed, not "fixed".
 - **Cost** — about two cents per end-to-end run on `openai/gpt-6-luna`, with the prompt cache doing most of the work.
 
@@ -53,7 +54,8 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 <td width="50%" valign="top">
 
 **What doesn't (yet)**
-- **Fixing in a second repo** — the hand-off finds the right spot, but three of those five fixes don't validate yet (one failed the gateway's typecheck). And a CORS bug stays invisible: the browser shows the client only an opaque `Failed to fetch`.
+- **One seed is noisy** — the same bug was solved end to end in one arm and missed in the next. The numbers show strengths and gaps, not precise rates; repeated seeds are on the roadmap.
+- **Evidence the client never sees** — a CORS bug stays invisible: the browser shows the app only an opaque `Failed to fetch`.
 - **Validated ≠ correct** — some fixes pass the agent's own reproduction but not the hidden test: its test was narrower than the bug.
 - **Vendored code** — a bad SDK sync was localised to the exact function but treated as our code instead of routed to its owner.
 
@@ -61,7 +63,7 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 </tr>
 </table>
 
-<sub>25 synthetic bugs, one seed each — read it as strengths and gaps, not precise rates. The report also has a decision-level evaluation (accuracy, Brier, calibration per decision), a replay of 149 logged decisions across Clef, Clef-flash, an LLM decider and a rules baseline, an earlier model arm, and every caveat. Reproduce: <code>debugassist eval run --bugs all</code> · <code>debugassist eval replay</code> · <code>debugassist eval report</code>.</sub>
+<sub>25 synthetic bugs, one seed each — read it as strengths and gaps, not precise rates. The report also has a decision-level evaluation (accuracy, Brier, calibration per decision), a replay of the logged decisions across Clef, Clef-flash, an LLM decider and a rules baseline, and every caveat. All runs use `openai/gpt-6-luna`. Reproduce: <code>debugassist eval run --bugs all</code> · <code>debugassist eval replay</code> · <code>debugassist eval report</code>.</sub>
 
 ## 🎬 See it work
 
@@ -256,7 +258,7 @@ Agents and the LLM decider use any OpenAI-compatible API; two providers are inte
 
 Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Phases 0–14 are done: decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA depth, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness with its first live run, and the cross-repo hand-off (P14) for bugs that are seen in the app but live in a service.
 
-**Next** ([roadmap](docs/ROADMAP.md)): fix quality after a cross-repo hand-off · context engineering measured arm by arm (tool-result offloading and clearing, concise tool responses, tool-use examples, programmatic tool calling, compaction) · Langfuse, LiteLLM and local models · a public site · evaluation at scale. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
+**Next** ([roadmap](docs/ROADMAP.md)): context engineering measured arm by arm (tool-result offloading and clearing, concise tool responses, tool-use examples, programmatic tool calling, compaction) · Langfuse, LiteLLM and local models · a public site · evaluation at scale. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
 
 <br>
 

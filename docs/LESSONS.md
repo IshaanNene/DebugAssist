@@ -91,6 +91,15 @@ Format: **symptom** → cause → fix · *guard*.
 - **A case-insensitive collision.** A new `.debugassist/` scratch dir collided with the tracked `.DebugAssist/`. →
   `.da-e2e/`.
 - **No host networking on Docker Desktop.** → Runtime containers join the compose network and use service names.
+- **No Python test ever ran in the sandbox.** The dispatch project pins `python-preference = "only-managed"`;
+  uv downloaded the interpreter into the container's `$HOME` during install, and each later (offline) container
+  started without it — "No interpreter found". Every dispatch bug got an RCA and no fix. → `UV_PYTHON_INSTALL_DIR`
+  inside the worktree, like the package cache. *Guard: a live sandbox check; the fix-quality eval arm.*
+- **The edit tool ate the agents' turns.** `edit_file` required an exact match; agents guessed indentation wrong,
+  and 51% of edits failed — one gateway fix spent 14 of 20 turns retrying. Commands ran in the component
+  directory while edits wanted repository-relative paths. → Indentation-tolerant unique matches (re-indented),
+  the closest lines on a miss, and component-relative paths. *Guard: tests, including that `../` and absolute
+  paths stay blocked — the first version of the path fix stripped them and a test caught it.*
 - **Long runs died when the laptop slept.** → Detached processes, the app's keep-awake hold, and evaluations that
   resume from the next bug.
 
@@ -121,6 +130,8 @@ Format: **symptom** → cause → fix · *guard*.
 - **A scorer bug inflated the headline from 0.64 to 0.92.** Path normalisation prefixed the component to any path,
   crediting client answers to services modules. A first fix depended on a checkout CI doesn't have. → Honour the
   repo the agent names. *Guard: tests; caught by reading the report before publishing it.*
+- **The evaluation never allowed a second fix attempt.** Eval runs used `--until validate`, which ends a run
+  after its *first* validation, so the retry loop was never measured. → Eval runs stop after the ship gate.
 - **"Outcome" counted runs that never reached the ship gate as failures.** → Counted only where an outcome exists.
 - **Post-hoc scoring rules.** One grading rule (not-our-code with the wrong subtype = directional) was added after
   seeing runs. → Stated in the report; `eval rescore` re-applies the current scorer to every saved run.
