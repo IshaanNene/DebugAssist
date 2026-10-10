@@ -36,11 +36,12 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from pydantic import BaseModel
 
-from debugassist.core import untrusted
+from debugassist.core import ablation, untrusted
 from debugassist.core.policy import ROOT
 from debugassist.core.redaction import redact_text
 from debugassist.core.settings import get_settings
 from debugassist.llm.chat import chat_model, cost_usd, structured_method
+from debugassist.llm.clearing import Clearing, clearing_middleware
 from debugassist.llm.spec import LLMNodeSpec, LLMResult, ToolCall
 from debugassist.llm.watch import Watchdog
 
@@ -419,6 +420,8 @@ class AgentRunner:
             bounded_model_call,  # inside the retry, so a timed-out call is retried
             recover_unknown_tool,
             *([token_budget_middleware(budget)] if (budget := get_settings().request_token_budget()) else []),
+            # DA_CONTEXT=clear (P15): old tool results become stubs, in batches that keep the cache prefix
+            *([clearing_middleware(Clearing())] if ablation.context_mode() == "clear" else []),
             ToolCallLimitMiddleware(run_limit=spec.max_tool_calls, exit_behavior="end"),
             stop_when_submitted,
             *([trajectory_monitor] if monitor is not None else []),

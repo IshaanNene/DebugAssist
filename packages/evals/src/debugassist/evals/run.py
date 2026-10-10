@@ -40,6 +40,7 @@ CONFIGS: dict[str, dict[str, str]] = {
     "no-d12": {"DA_ABLATE": "D12"},
     "no-d14": {"DA_ABLATE": "D14"},
     "context-lean": {"DA_CONTEXT": "lean"},  # P15: targeted reads, outlines, command logs kept out of history
+    "context-clear": {"DA_CONTEXT": "clear"},  # P15: old tool results stubbed in batches (cache-friendly)
 }
 MOCK_WRITES = {"DA_MODE_GITHUB": "mock", "DA_MODE_JIRA": "mock", "DA_MODE_CHAT": "mock"}
 
