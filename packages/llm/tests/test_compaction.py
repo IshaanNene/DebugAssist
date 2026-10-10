@@ -82,3 +82,15 @@ def test_a_second_compaction_folds_the_previous_notes() -> None:
 def test_render_keeps_identifiers() -> None:
     text = render(_step(3, size=10))
     assert "src/f3.py" in text and "RESULT read_file" in text
+
+
+def test_a_large_recent_step_does_not_retrigger_every_turn() -> None:
+    """Regression: the newest steps (kept whole) counted toward the trigger, so a compaction fired each turn."""
+    c, m = Compaction(trigger=3_000, keep=2), FakeModel()
+    hist = _history(6)
+    _run(c, hist, m)
+    assert c.compactions == 1
+    for i in range(6, 8):  # each new step is big, but only one step at a time becomes foldable
+        hist = hist + _step(i, size=6_000)
+        _run(c, hist, m)
+    assert c.compactions == 1
