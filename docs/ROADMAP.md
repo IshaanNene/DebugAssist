@@ -73,6 +73,12 @@ live — the API credit ran out): replaying the fix-quality arm's transcripts th
 re-sent history, roughly 2–3% of the arm's input, because `read_file` (untouched) dominates and MCP results are
 already capped. Deterministic, so the cache prefix is unaffected. A small lever; run it live when there is credit.
 
+**Repeated seeds — ready, waiting for API credit.** `make eval-full` re-runs every catalog bug on the current code,
+three seeds each (≈ $1.8 at gpt-6-luna prices), as an arm named after the commit. The report already keeps every
+seed; the README card and the site take the latest whole-catalog arm as their headline and show each bug as a pass
+rate across its seeds instead of one run's pass or miss. It also replaces the 7 October baseline, which predates the
+cross-repo and fix-quality changes.
+
 ## P16 · Integrations (free / open source)
 
 | Tool | License* | Why here | Plan |

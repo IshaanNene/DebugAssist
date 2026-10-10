@@ -37,7 +37,7 @@ The plan is a fixed <b>LangGraph</b> graph; models never choose the next step. A
 <img src="docs/assets/results.svg" alt="Evaluation of 25 catalog bugs end to end: per-bug root cause, validated fix and hidden-test result" width="100%">
 </div>
 
-Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-10`](evals/reports/2026-10-10/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid is the full-catalog baseline; the panel below re-runs the bugs that later changes targeted, arm by arm, so each change is measured on the same bugs before and after.
+Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-10`](evals/reports/2026-10-10/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid is the first full-catalog run, on the code of 2026-10-07 — before the cross-repo hand-off and the fix-quality changes, which targeted most of its misses; the panel below re-runs those bugs on the later code, so each change is measured on the same bugs before and after. A full re-run of every bug on the current code, three seeds each (`make eval-full`, ≈ $1.8), replaces this grid as soon as it runs.
 
 <table>
 <tr>

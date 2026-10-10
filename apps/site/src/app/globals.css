@@ -401,3 +401,10 @@ html[data-scrolled] .site-header {
     transform: none;
   }
 }
+
+/* A miss in the results grid: visible and labelled, not alarm-red — a soft rose with a fine hatch. */
+.miss {
+  background-color: #f3e3df;
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, rgba(176, 96, 84, 0.28) 3px 4px);
+  box-shadow: inset 0 0 0 1px rgba(176, 96, 84, 0.35);
+}

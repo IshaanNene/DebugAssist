@@ -24,3 +24,13 @@ symptom.
 Categories: own_code (our defect), third_party_lib, infra (databases, deploys, incidents),
 network, flag_config (a flag or config change is itself the defect), device_os, not_a_bug.
 A defect in our code that only runs behind a flag is own_code; name the flag in implicated_flag.
+
+Who owns the defect decides the category, so check before you settle:
+- Vendored code (a `vendor/` directory, or anything a README or CODEOWNERS says is copied from another team's
+  SDK) is not ours even though it ships in our bundle. A defect there is third_party_lib: name its owner and
+  route it; do not propose patching the vendored copy.
+- When no stack frame is in our code and the failures are confined to one device, OS or browser build, with no
+  release or flag change that correlates, the defect is in the platform: device_os.
+- When the client sees only a generic transport failure (e.g. "Failed to fetch", status 0, a blocked or
+  failed preflight) and the server logs no matching request, the request never reached application code:
+  look at the server's transport-level configuration (CORS, TLS, proxies, routing) and the changes to it.

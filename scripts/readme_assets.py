@@ -20,6 +20,7 @@ import re
 import shutil
 import sys
 import tempfile
+from collections import Counter
 from contextlib import redirect_stdout
 from html import escape
 from pathlib import Path
@@ -554,47 +555,112 @@ def _latest_report() -> Path:
     return reports[-1]
 
 
+# A miss: visible and labelled, but a muted rose rather than alarm red.
+MISS = "#7A4352"
+
+
+def _per_bug(runs: list[dict[str, str]]) -> list[dict[str, str]]:
+    """One row per bug. With several seeds a lane is the shared value, or "some" when the seeds disagree on
+    passing (root cause: right or close vs wrong)."""
+    by: dict[str, list[dict[str, str]]] = {}
+    for r in runs:
+        by.setdefault(r["bug"], []).append(r)
+    out: list[dict[str, str]] = []
+    for bug in sorted(by):
+        rs = by[bug]
+        row = dict(rs[0])
+        if len(rs) > 1:
+            near = [r["rca"] in ("exact", "directional") for r in rs]
+            row["rca"] = (
+                ("exact" if all(r["rca"] == "exact" for r in rs) else "directional")
+                if all(near)
+                else "wrong"
+                if not any(near)
+                else "some"
+            )
+            for key in ("validated", "hidden_tests"):
+                vals = {r[key] for r in rs if r[key] in ("True", "False")}
+                row[key] = vals.pop() if len(vals) == 1 else ("some" if vals else "")
+        out.append(row)
+    return out
+
+
+def _eval_date(rows: list[dict[str, str]]) -> str:
+    stamps = sorted(r.get("eval", "") for r in rows if r.get("eval"))
+    e = stamps[-1] if stamps else ""
+    return f"{e[:4]}-{e[4:6]}-{e[6:8]}" if e else "?"
+
+
 def results(model: str = "gpt-6-luna") -> str:
     """The latest evaluation as one card: headline rates and a per-bug grid. Every number is computed here
     from evals/reports/<date>/results.csv (written by `debugassist eval report`)."""
     path = _latest_report()
     every = [r for r in csv.DictReader(path.open()) if model in (r.get("model") or "") and r.get("rca")]
-    rows = sorted((r for r in every if not r.get("arm")), key=lambda r: r["bug"])  # the full-catalog baseline
-    arm = sorted((r for r in every if r.get("arm")), key=lambda r: r["bug"])  # a later code version, re-run
-    n = len(rows)
-    t = lambda v: v == "True"  # noqa: E731
-    exact = sum(r["rca"] == "exact" for r in rows)
-    near = exact + sum(r["rca"] == "directional" for r in rows)
-    cat = sum(t(r["category_ok"]) for r in rows)
-    hid = [r for r in rows if r["hidden_tests"] in ("True", "False")]
-    hid_ok = sum(t(r["hidden_tests"]) for r in hid)
-    costs = sorted(float(r["usd"]) for r in rows)
-    median = costs[len(costs) // 2] if costs else 0.0
-    from debugassist.scenarios.catalog import get_bug  # labels "not our bug" columns from the catalog
+    from debugassist.scenarios.catalog import get_bug, load_catalog  # "not our bug" columns, catalog size
 
-    ours = {r["bug"]: get_bug(r["bug"]).expected_outcome == "pr" for r in rows}
-    code = [r for r in rows if ours[r["bug"]]]
+    baseline = sorted((r for r in every if not r.get("arm")), key=lambda r: r["bug"])  # the first full run
+    # The headline is the latest arm that re-ran the whole catalog (`make eval-full`), else the baseline.
+    total = len(load_catalog())
+    full_arms = sorted(
+        {
+            r["arm"]
+            for r in every
+            if r.get("arm") and len({x["bug"] for x in every if x.get("arm") == r["arm"]}) >= total
+        },
+        key=lambda a: max(x.get("eval", "") for x in every if x.get("arm") == a),
+    )
+    head = full_arms[-1] if full_arms else None
+    runs = [r for r in every if r.get("arm") == head] if head else baseline
+    seeds = max(Counter(r["bug"] for r in runs).values(), default=1)
+    rows = _per_bug(runs)  # one row per bug; a lane is "some" when only some of its seeds passed
+    # later code versions re-run on some bugs (context-engineering arms measure tokens: they are in the report)
+    arm = sorted(
+        (r for r in every if r.get("arm") and r["arm"] != head and not r["arm"].startswith("context-")),
+        key=lambda r: r["bug"],
+    )
+    n = len(runs)
+    t = lambda v: v == "True"  # noqa: E731
+    exact = sum(r["rca"] == "exact" for r in runs)
+    near = exact + sum(r["rca"] == "directional" for r in runs)
+    cat = sum(t(r["category_ok"]) for r in runs)
+    hid = [r for r in runs if r["hidden_tests"] in ("True", "False")]
+    hid_ok = sum(t(r["hidden_tests"]) for r in hid)
+    costs = sorted(float(r["usd"]) for r in runs)
+    median = costs[len(costs) // 2] if costs else 0.0
+
+    ours = {r["bug"]: get_bug(r["bug"]).expected_outcome == "pr" for r in runs}
+    code = [r for r in runs if ours[r["bug"]]]
     val = sum(t(r["validated"]) for r in code)
+
+    def frac(a: int, b: int) -> str:
+        return f"{round(100 * a / b)}%" if seeds > 1 and b else f"{a}/{b}"
 
     w, h = 1400, 470 + (360 if arm else 0)
     body = defs() + canvas(w, h)
     body += text(
-        56, 62, f"Evaluation: {n} catalog bugs, end to end{' (baseline)' if arm else ''}", 24, INK, 800
+        56,
+        62,
+        f"Evaluation: {len(rows)} catalog bugs, end to end"
+        + (f" · {head}" if head else " (baseline)" if arm else ""),
+        24,
+        INK,
+        800,
     )
     body += text(
         56,
         90,
-        f"{model} · one seed · {path.parent.relative_to(ROOT)} · drawn by make readme-assets",
+        f"{model} · {f'{seeds} seeds each' if seeds > 1 else 'one seed'} · code of {_eval_date(runs)}"
+        f" · {path.parent.relative_to(ROOT)} · drawn by make readme-assets",
         15,
         MUTE,
         500,
     )
     stats = [
-        ("root cause right or close", f"{near}/{n}", ACCENT2),
-        ("root cause exact", f"{exact}/{n}", OK),
-        ("category right", f"{cat}/{n}", ACCENT),
-        ("code bugs: fix validated", f"{val}/{len(code)}", OK),
-        ("hidden tests pass", f"{hid_ok}/{len(hid)}", "#F59E0B"),
+        ("root cause right or close", frac(near, n), ACCENT2),
+        ("root cause exact", frac(exact, n), OK),
+        ("category right", frac(cat, n), ACCENT),
+        ("code bugs: fix validated", frac(val, len(code)), OK),
+        ("hidden tests pass", frac(hid_ok, len(hid)), "#F59E0B"),
         ("median cost per run", f"${median:.3f}", MUTE),
     ]
     cw, gap = 200, 16
@@ -609,9 +675,10 @@ def results(model: str = "gpt-6-luna") -> str:
     colors = {
         "exact": OK,
         "directional": "#F59E0B",
-        "wrong": "#F43F5E",
+        "wrong": MISS,
         "True": OK,
-        "False": "#F43F5E",
+        "False": MISS,
+        "some": "#F59E0B",  # some seeds passed
     }
     for li, (lab, _) in enumerate(lanes):
         body += text(56, gy + li * (cell + cg) + 26, lab, 14, INK, 600)
@@ -634,7 +701,7 @@ def results(model: str = "gpt-6-luna") -> str:
     legend = [
         (OK, "exact / yes"),
         ("#F59E0B", "directional (right file or module)"),
-        ("#F43F5E", "wrong / no"),
+        (MISS, "wrong / no"),
         (None, "not applicable"),
     ]
     lx = 56
@@ -651,7 +718,7 @@ def results(model: str = "gpt-6-luna") -> str:
         lx + 20, ly, "cyan ids: not-our-bug cases (right answer is routing, not a fix)", 13, ACCENT2, 500
     )
     if arm:
-        body += _arm_panel(arm, {r["bug"]: r for r in rows}, ly + 44, w, lanes, colors, t)
+        body += _arm_panel(arm, {r["bug"]: r for r in baseline}, ly + 44, w, lanes, colors, t)
     return svg_doc(w, h, body)
 
 

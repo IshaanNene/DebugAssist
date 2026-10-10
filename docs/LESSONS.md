@@ -152,6 +152,11 @@ Format: **symptom** → cause → fix · *guard*.
 
 ## 7. Keeping the evaluation honest
 
+- **The headline showed old code.** The README and site grid was the first full run (7 Oct); later fixes were
+  measured only on the bugs they targeted, so most of the grid's misses had already been fixed and still looked
+  like current failures. → The grid now says which code it ran on, the re-run panels show before → after, and the
+  latest arm that covers the whole catalog becomes the headline automatically (`make eval-full`, several seeds).
+  *Lesson: re-run the whole catalog after a round of fixes, not just the bugs they targeted.*
 - **The test environment drifted between sweeps.** BUG-004's scenario nulls driver coordinates and the wipe never
   restored them, so each sweep ran on fewer located drivers; eventually BUG-020's riders were matched 5 km away and
   the bug went undiscovered. → The wipe re-seeds the fleet (dispatch seeds deterministically at startup).

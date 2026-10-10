@@ -339,6 +339,30 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Results review (2026-10-10)
+
+**What was wrong with the results.** The headline grid (README card, site) was the first full run, on the code of
+7 October. Of its misses, the services bugs reported from the app (BUG-013/014/015/019/020) were fixed by the
+cross-repo hand-off and the Python sandbox failures (BUG-004/016) by the fix-quality round, but those were re-run
+only on their own bugs, so the grid kept showing them as failures. Still open: CORS invisible from the client
+(BUG-017), vendored-SDK defects treated as our code (BUG-022/025), and reproduction tests narrower than the bug
+(BUG-003/009), plus one-seed noise.
+
+**Done**
+- Agent prompts (generic, no catalog hints): RCA checks ownership before settling a category — vendored code is
+  third_party_lib and is routed, not patched; crashes with no app frame confined to one device/OS build are
+  device_os; a generic transport failure with no server-side request points at the server's transport config
+  (CORS, TLS, proxies). Reproduction tests cover every case of the mechanism and assert what the user needs, so a
+  "fix" that returns nothing still fails.
+- Seed-aware results: the site and README card take the latest whole-catalog arm as the headline and show each bug
+  as a pass rate across seeds; until it exists, the grid states that it is the 7 October code. Misses are a muted
+  hatched rose instead of alarm red (still labelled "no"). Context-engineering arms leave the results panels (they
+  are compared in the Tokens section and the report).
+- `make eval-full`: every bug, three seeds, on the current code, as `full-<commit>` (≈ $1.8). Cost estimates now
+  use the configured model's past eval runs (they averaged in Nemotron runs and overstated a sweep ~4x).
+
+**Not done:** the full re-run itself — the OpenRouter key is empty.
+
 ## P16 — Langfuse (2026-10-10) — done
 
 **Done**
