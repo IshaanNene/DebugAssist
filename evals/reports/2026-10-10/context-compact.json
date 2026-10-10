@@ -1,0 +1,204 @@
+{
+  "input_tokens": 1061513,
+  "cached_tokens": 623459,
+  "prefix_share": 0.363,
+  "model_share": 0.08,
+  "tools_share": 0.805,
+  "nodes": [
+    {
+      "node": "classify_rca",
+      "agents": 3,
+      "turns_avg": 8.3,
+      "input_tokens": 338771,
+      "share": 0.319,
+      "prefix_avg": 7763,
+      "cache_rate": 0.682
+    },
+    {
+      "node": "reproduce_integration",
+      "agents": 2,
+      "turns_avg": 14.0,
+      "input_tokens": 205983,
+      "share": 0.194,
+      "prefix_avg": 1309,
+      "cache_rate": 0.515
+    },
+    {
+      "node": "reproduce_e2e_env",
+      "agents": 1,
+      "turns_avg": 22.0,
+      "input_tokens": 195378,
+      "share": 0.184,
+      "prefix_avg": 1754,
+      "cache_rate": 0.486
+    },
+    {
+      "node": "reproduce_unit",
+      "agents": 2,
+      "turns_avg": 13.0,
+      "input_tokens": 172231,
+      "share": 0.162,
+      "prefix_avg": 1365,
+      "cache_rate": 0.531
+    },
+    {
+      "node": "fix",
+      "agents": 2,
+      "turns_avg": 8.5,
+      "input_tokens": 87809,
+      "share": 0.083,
+      "prefix_avg": 1999,
+      "cache_rate": 0.827
+    },
+    {
+      "node": "code-localizer",
+      "agents": 1,
+      "turns_avg": 6.0,
+      "input_tokens": 29085,
+      "share": 0.027,
+      "prefix_avg": 3809,
+      "cache_rate": 0.775
+    },
+    {
+      "node": "log-analyst",
+      "agents": 3,
+      "turns_avg": 1.0,
+      "input_tokens": 10928,
+      "share": 0.01,
+      "prefix_avg": 3643,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "client-state-analyst",
+      "agents": 2,
+      "turns_avg": 1.0,
+      "input_tokens": 7320,
+      "share": 0.007,
+      "prefix_avg": 3660,
+      "cache_rate": 0.349
+    },
+    {
+      "node": "breadcrumb-analyst",
+      "agents": 2,
+      "turns_avg": 1.0,
+      "input_tokens": 6942,
+      "share": 0.007,
+      "prefix_avg": 3471,
+      "cache_rate": 0.314
+    },
+    {
+      "node": "dispatch-data-analyst",
+      "agents": 1,
+      "turns_avg": 1.0,
+      "input_tokens": 3033,
+      "share": 0.003,
+      "prefix_avg": 3033,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "screenshot-analyst",
+      "agents": 1,
+      "turns_avg": 1.0,
+      "input_tokens": 2485,
+      "share": 0.002,
+      "prefix_avg": 2485,
+      "cache_rate": 0.0
+    },
+    {
+      "node": "trace-analyst",
+      "agents": 1,
+      "turns_avg": 1.0,
+      "input_tokens": 1548,
+      "share": 0.001,
+      "prefix_avg": 1548,
+      "cache_rate": 0.0
+    }
+  ],
+  "tools": [
+    {
+      "tool": "read_file",
+      "resent_tokens": 673503,
+      "share": 0.634,
+      "added_tokens": 126360,
+      "resend_factor": 5.3
+    },
+    {
+      "tool": "search_code",
+      "resent_tokens": 38541,
+      "share": 0.036,
+      "added_tokens": 6670,
+      "resend_factor": 5.8
+    },
+    {
+      "tool": "load_skill",
+      "resent_tokens": 38010,
+      "share": 0.036,
+      "added_tokens": 4628,
+      "resend_factor": 8.2
+    },
+    {
+      "tool": "list_dir",
+      "resent_tokens": 35081,
+      "share": 0.033,
+      "added_tokens": 6787,
+      "resend_factor": 5.2
+    },
+    {
+      "tool": "grep",
+      "resent_tokens": 34234,
+      "share": 0.032,
+      "added_tokens": 4945,
+      "resend_factor": 6.9
+    },
+    {
+      "tool": "list_tags",
+      "resent_tokens": 20410,
+      "share": 0.019,
+      "added_tokens": 4592,
+      "resend_factor": 4.4
+    },
+    {
+      "tool": "run_command",
+      "resent_tokens": 6720,
+      "share": 0.006,
+      "added_tokens": 2777,
+      "resend_factor": 2.4
+    },
+    {
+      "tool": "commit_details",
+      "resent_tokens": 4091,
+      "share": 0.004,
+      "added_tokens": 2657,
+      "resend_factor": 1.5
+    },
+    {
+      "tool": "commits_between",
+      "resent_tokens": 1780,
+      "share": 0.002,
+      "added_tokens": 426,
+      "resend_factor": 4.2
+    },
+    {
+      "tool": "diff_stats",
+      "resent_tokens": 886,
+      "share": 0.001,
+      "added_tokens": 443,
+      "resend_factor": 2.0
+    },
+    {
+      "tool": "list_repos",
+      "resent_tokens": 643,
+      "share": 0.001,
+      "added_tokens": 113,
+      "resend_factor": 5.7
+    },
+    {
+      "tool": "previous_release",
+      "resent_tokens": 623,
+      "share": 0.001,
+      "added_tokens": 89,
+      "resend_factor": 7.0
+    }
+  ],
+  "runs": 3
+}

@@ -22,7 +22,7 @@ export default function Home() {
   const v = (i: number) => ({ ["--i" as string]: i });
   const arms = contextArms();
   // the context-engineering arms, in the order they were measured; fix-quality is the code they re-ran
-  const ARM_ORDER = ["fix-quality", "lean", "clear"];
+  const ARM_ORDER = ["fix-quality", "lean", "clear", "compact"];
   const ctxArms = ARM_ORDER.map((n) => arms.find((a) => a.arm === n)).filter((a): a is ContextArm => !!a);
   const before = ctxArms.find((a) => a.arm === "fix-quality");
 
@@ -431,9 +431,10 @@ export default function Home() {
 const kTok = (n: number) => (n < 20_000 ? `${(n / 1000).toFixed(1)}K` : `${Math.round(n / 1000)}K`);
 
 const ARM_STYLE: Record<string, { cls: string; what: string }> = {
-  "fix-quality": { cls: "bg-line-strong", what: "the code both experiments re-ran" },
+  "fix-quality": { cls: "bg-line-strong", what: "the code every experiment re-ran" },
   lean: { cls: "bg-mark border border-line-strong", what: "file reads capped at 120 lines, an outline tool, long logs offloaded" },
   clear: { cls: "bg-[#8b7cf0] border border-line-strong", what: "old tool results replaced by one-line stubs, in batches" },
+  compact: { cls: "bg-[#e0901b] border border-line-strong", what: "old steps folded into working notes by the model" },
 };
 
 /** The context-engineering arms side by side, from the per-arm context audits. */
@@ -452,9 +453,9 @@ function ArmCompare({ arms, report }: { arms: ContextArm[]; report: string }) {
           Fewer tokens <Mark>isn&apos;t</Mark> cheaper.
         </div>
         <p className="mt-3 text-[13.5px] leading-[1.55] text-t3">
-          Following the audit we tried two techniques on the same {arms[0].runs} bugs. Capping reads made agents read
-          more often. Clearing old tool results cut tokens per turn, but each clearing rewrites the cached prefix, so
-          the cache hit rate fell and cost barely moved. Both stay opt-in switches.{" "}
+          Following the audit we tried {n} techniques on the same bugs. Capping reads made agents read more often.
+          Clearing old tool results cut tokens per turn, but each clearing rewrites the cached prefix, so the cache hit
+          rate fell and cost barely moved. Compacting into notes saved nothing per turn. All stay opt-in switches.{" "}
           <a className="text-t1 underline underline-offset-2" href={report}>
             Context by arm
           </a>
@@ -465,6 +466,12 @@ function ArmCompare({ arms, report }: { arms: ContextArm[]; report: string }) {
               <span className={`mt-[5px] inline-block h-2.5 w-2.5 shrink-0 ${ARM_STYLE[a.arm]?.cls ?? "bg-line"}`} />
               <span>
                 <b className="font-mono font-normal text-t2">{a.arm}</b> — {ARM_STYLE[a.arm]?.what ?? ""}
+                {a.runs < arms[0].runs && (
+                  <span className="text-t4">
+                    {" "}
+                    (partial: {a.runs} of {arms[0].runs} bugs)
+                  </span>
+                )}
               </span>
             </li>
           ))}

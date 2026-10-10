@@ -73,6 +73,10 @@ Format: **symptom** → cause → fix · *guard*.
   a typical 7-turn agent. → Replayed the previous arm's saved transcripts through the clearing code at several
   thresholds (8K fired in 6 of 24 agents, 4K in 10, 2K in 19) and picked one before spending a sweep. *Lesson:
   tune a context switch offline on recorded transcripts; they cost nothing to replay.*
+- **Compaction compacted every turn.** Its first trigger counted the newest steps, which compaction never folds, so
+  after one large tool result it re-fired each turn — an extra model call and a rewritten prefix every time. Seen
+  in the first run's events (3 compactions in 6 turns), fixed to count only foldable steps, re-tuned offline.
+  *Lesson: a trigger must measure only what the action can remove.*
 - **Fewer tokens is not lower cost when the cache pays most of the bill.** Clearing cut input per turn by about a
   sixth, but every batch rewrites the cached prefix, the hit rate fell, and cost barely moved.
 

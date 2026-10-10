@@ -376,6 +376,12 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 
 **Verified** (`evals/reports/2026-10-10`, same eight bugs): input per turn and per run down, cache hit rate down, cost about level; root cause right or close as in fix-quality; hidden-test passes lower, within one-seed noise. Kept opt-in.
 
+**Compaction arm** (commits `8b22c87`, `d87ed09`; partial)
+- `DA_CONTEXT=compact` (`llm/compaction.py`): once the steps older than the newest two pass 4K tokens, the same model folds them (and any earlier notes) into structured working notes; the model is sent task + notes + newest steps; sticky between compactions. The notes' model calls are added to the agent's cost and logged as `compact` events, which the context audit counts. Tool output stays fenced as untrusted for the summariser. Eval config `context-compact`.
+- The first trigger counted the newest steps too and re-fired every turn (caught in the first run's events; that row excluded); fixed and re-tuned on the fix-quality transcripts (4K: 12 of 24 agents, 16 calls).
+
+**Verified** (partial, BUG-004/013/014 before the OpenRouter key ran out): compaction fired about once per long agent and its notes kept file:line and evidence ids; input per turn matched the baseline; BUG-013 climbed three reproduction tiers and more than doubled the arm's total. Inconclusive; kept opt-in.
+
 ## Fix quality (2026-10-10) — done
 
 **Done** (commit `85cb379`; found by reading the failed runs of the cross-repo arm)

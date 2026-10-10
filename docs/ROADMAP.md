@@ -61,6 +61,12 @@ batch; same eight bugs, *Context by arm*): input per turn and per run fell, but 
 cost moved by a few percent. Root cause right or close matched; hidden-test passes were lower, within one-seed
 noise. Kept opt-in. Next: item 7 (compaction with notes), which keeps a digest instead of stubs.
 
+**Compaction arm result** (`DA_CONTEXT=compact`, item 7: steps older than the newest two fold into structured notes
+written by the same model once they pass 4K tokens; **partial — three of the eight bugs** before the API credit ran
+out): input per turn matched the baseline (the notes and their model calls cost what they removed); one run's climb
+through three reproduction tiers doubled the total. Inconclusive; kept opt-in. Next: item 4 (concise tool
+responses), then repeated seeds for everything before trusting small differences.
+
 ## P16 · Integrations (free / open source)
 
 | Tool | License* | Why here | Plan |
