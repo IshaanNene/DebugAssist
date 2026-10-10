@@ -200,3 +200,34 @@ export function featuredRun(data: Results): FeaturedRun | null {
     decisions: Number(r.labelled_decisions),
   };
 }
+
+export interface ContextArm {
+  arm: string;
+  runs: number;
+  perRun: number;
+  cacheRate: number;
+  readFileShare: number;
+  toolsShare: number;
+}
+
+/** Per-arm context audits (`debugassist eval context --name <arm>`) saved next to the latest report. */
+export function contextArms(): ContextArm[] {
+  const dir = path.join(REPORTS, latestReport());
+  return fs
+    .readdirSync(dir)
+    .filter((f) => /^context-.+\.json$/.test(f))
+    .sort()
+    .map((f) => {
+      const s = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
+      const runs = Number(s.runs) || 0;
+      const read = (s.tools as { tool: string; share: number }[]).find((t) => t.tool === "read_file");
+      return {
+        arm: f.replace(/^context-/, "").replace(/\.json$/, ""),
+        runs,
+        perRun: runs ? s.input_tokens / runs : 0,
+        cacheRate: s.input_tokens ? s.cached_tokens / s.input_tokens : 0,
+        readFileShare: read ? read.share : 0,
+        toolsShare: s.tools_share,
+      };
+    });
+}

@@ -4,7 +4,7 @@ import { Features } from "@/components/Features";
 import { Loop } from "@/components/Loop";
 import { Results } from "@/components/Results";
 import { Box, Button, Dot, GH, H2, Lead, Mark, doc } from "@/components/ui";
-import { contextAudit, facts, featuredRun, results, type Row } from "@/lib/data";
+import { contextArms, contextAudit, facts, featuredRun, results, type ContextArm, type Row } from "@/lib/data";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const COL = "mx-auto w-full max-w-[1200px] px-4 sm:px-8";
@@ -20,20 +20,31 @@ export default function Home() {
   const latestPrev = latest ? latest.rows.map((r) => base[r.bug]).filter(Boolean) : [];
   const report = doc(`evals/reports/${data.report}/report.md`);
   const v = (i: number) => ({ ["--i" as string]: i });
+  const arms = contextArms();
+  const before = arms.find((a) => a.arm === "fix-quality");
+  const lean = arms.find((a) => a.arm === "lean");
 
   return (
     <>
       <Motion />
       <Shortcuts map={{ g: GH, d: doc("README.md"), r: "#results", s: "#start" }} />
 
-      {latest && (
+      {before && lean ? (
         <a href={report} className="group block border-b border-line bg-surface-1 py-2 text-center text-[12.5px] text-t2 hover:text-t1">
           <span className="mr-2 inline-flex h-[18px] items-center bg-t1 px-1.5 font-mono text-[10px] uppercase tracking-[0.05em] text-surface">new</span>
-          <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">re-run · {latest.name}</span> · hidden
-          tests passing {passed(latestPrev)} → {passed(latest.rows)} on {latest.rows.length} bugs ·{" "}
-          <span className="underline underline-offset-2">read the report</span>{" "}
+          <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">context engineering, measured</span> ·
+          lean reads: input per run {kTok(before.perRun)} → {kTok(lean.perRun)} — no saving ·{" "}
+          <span className="underline underline-offset-2">read why</span>{" "}
           <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span>
         </a>
+      ) : (
+        latest && (
+          <a href={report} className="group block border-b border-line bg-surface-1 py-2 text-center text-[12.5px] text-t2 hover:text-t1">
+            <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">re-run · {latest.name}</span> · hidden
+            tests passing {passed(latestPrev)} → {passed(latest.rows)} on {latest.rows.length} bugs ·{" "}
+            <span className="underline underline-offset-2">read the report</span>
+          </a>
+        )
       )}
 
       <header className="site-header sticky top-0 z-30 border-b border-line bg-surface/80 backdrop-blur-md">
@@ -286,6 +297,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            {before && lean && <LeanArm before={before} lean={lean} report={report} />}
           </section>
         )}
 
@@ -411,6 +423,54 @@ export default function Home() {
         </div>
       </footer>
     </>
+  );
+}
+
+const kTok = (n: number) => `${Math.round(n / 1000)}K`;
+
+/** The lean-context arm against the arm it re-ran, from the per-arm context audits. */
+function LeanArm({ before, lean, report }: { before: ContextArm; lean: ContextArm; report: string }) {
+  const metrics: [string, number, number, (x: number) => string, number][] = [
+    ["input tokens per run", before.perRun, lean.perRun, kTok, Math.max(before.perRun, lean.perRun)],
+    ["read_file share of input", before.readFileShare, lean.readFileShare, pct, Math.max(before.readFileShare, lean.readFileShare)],
+    ["served from the prompt cache", before.cacheRate, lean.cacheRate, pct, 1],
+  ];
+  return (
+    <div className="cbox no-top -mt-px grid md:grid-cols-[1fr_1.6fr]">
+      <div className="stripes border-b border-line p-6 md:border-b-0 md:border-r">
+        <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">Measured · lean context arm</div>
+        <div className="mt-2 font-display text-[24px] font-medium leading-tight tracking-[-0.02em]">
+          Smaller reads, <Mark>more of them.</Mark>
+        </div>
+        <p className="mt-3 text-[13.5px] leading-[1.55] text-t3">
+          Following the audit, we capped every file read at 120 lines, added an outline tool and kept long logs out of
+          the history — then re-ran the same {lean.runs} bugs. Agents read more often, so input per run went up, not
+          down. Lean stays an opt-in switch; the next lever is the history re-sent on every turn.{" "}
+          <a className="text-t1 underline underline-offset-2" href={report}>
+            Context by arm
+          </a>
+        </p>
+      </div>
+      <div className="grow space-y-5 p-6">
+        {metrics.map(([label, a, b, fmt, max], i) => (
+          <div key={label}>
+            <div className="mb-1.5 text-[12.5px] text-t2">{label}</div>
+            {[
+              ["fix-quality", a, "bg-line-strong"],
+              ["lean", b, "bg-mark border border-line-strong"],
+            ].map(([name, val, cls], j) => (
+              <div key={name as string} className="mt-1 flex items-center gap-3">
+                <span className="w-20 font-mono text-[11px] text-t3">{name as string}</span>
+                <div className="h-3 flex-1 bg-surface-1">
+                  <div className={`bar h-full ${cls as string}`} style={{ width: pct((val as number) / max), ["--i" as string]: i * 2 + j }} />
+                </div>
+                <span className="w-12 text-right font-mono text-[12px] text-t2">{fmt(val as number)}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
