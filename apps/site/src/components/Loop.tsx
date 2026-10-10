@@ -12,60 +12,72 @@ interface Stage {
   parts: string[];
 }
 
-// The fixed plan (ADR 0001): always these steps, in this order. Kinds: deterministic code, LLM agents, Clef.
+// The fixed plan (ADR 0001): always these steps, in this order.
 const STAGES: Stage[] = [
-  { name: "Ingest", kind: ["code"], decisions: "", what: "Pull the crash from Vitals or the rider's report from BugDrop; pick the agent type.", parts: ["Vitals", "BugDrop", "agent type"] },
-  { name: "Triage", kind: ["code", "clef"], decisions: "D01 · D02", what: "Owner from CODEOWNERS, priority, dedup against open issues, a ticket and a page.", parts: ["CODEOWNERS", "dedup", "Jira"] },
-  { name: "Context", kind: ["code", "clef"], decisions: "D03 · D04", what: "A deterministic evidence bundle from the MCP servers, scored and fitted to a budget.", parts: ["logs", "traces", "flags", "commits"] },
-  { name: "Root cause", kind: ["llm", "clef"], decisions: "D05 – D10", what: "An agent and subagents explain the defect; every claim cites an evidence id and is checked.", parts: ["subagents", "evidence ids", "grounding"] },
-  { name: "Mitigate", kind: ["code", "clef"], decisions: "D11", what: "Flag ↔ crash z-test; a rollback is proposed behind the policy gate.", parts: ["z-test", "rollback", "policy"] },
-  { name: "Reproduce", kind: ["llm", "clef"], decisions: "D12 – D14", what: "Plan where, how and at which tier; the test must fail on the shipped release.", parts: ["unit", "integration", "e2e"] },
-  { name: "Fix", kind: ["llm"], decisions: "", what: "The smallest source change that makes the frozen reproduction and the suite pass.", parts: ["sandbox", "worktree", "lint"] },
-  { name: "Validate", kind: ["code", "clef"], decisions: "D15", what: "Fails before, passes after, suite and CI green — or retry, up to three attempts.", parts: ["before", "after", "CI"] },
-  { name: "Ship", kind: ["code", "clef"], decisions: "D16 · D17", what: "PR or draft by the evidence; after the deploy, watch the crash rate and resolve.", parts: ["PR", "ticket", "watch"] },
+  { name: "Ingest", kind: ["code"], decisions: "", what: "Pull the crash from Vitals or the rider's report from BugDrop, and pick the agent type for it.", parts: ["Vitals", "BugDrop"] },
+  { name: "Triage", kind: ["code", "clef"], decisions: "D01 · D02", what: "Owner from CODEOWNERS, priority and severity, dedup against open issues, a ticket and a page.", parts: ["Owner", "Dedup", "Ticket"] },
+  { name: "Context", kind: ["code", "clef"], decisions: "D03 · D04", what: "A deterministic evidence bundle from the MCP servers, scored for relevance and fitted to a budget.", parts: ["Logs", "Traces", "Commits"] },
+  { name: "Root cause", kind: ["llm", "clef"], decisions: "D05 – D10", what: "An agent and its subagents explain the defect. Every claim cites an evidence id and is checked against it.", parts: ["Subagents", "Evidence", "Grounding"] },
+  { name: "Mitigate", kind: ["code", "clef"], decisions: "D11", what: "A flag ↔ crash z-test; a rollback is proposed behind the policy gate, dry-run by default.", parts: ["z-test", "Rollback"] },
+  { name: "Reproduce", kind: ["llm", "clef"], decisions: "D12 – D14", what: "Plan where, how and at which tier — then write a test that must fail on the shipped release.", parts: ["Unit", "Integration", "E2E"] },
+  { name: "Fix", kind: ["llm"], decisions: "", what: "The smallest source change that makes the frozen reproduction, the suite and the repo's own CI pass.", parts: ["Sandbox", "Worktree"] },
+  { name: "Validate", kind: ["code", "clef"], decisions: "D15", what: "Fails before, passes after, suite and CI green — or another attempt, up to three.", parts: ["Before", "After", "CI"] },
+  { name: "Ship", kind: ["code", "clef"], decisions: "D16 · D17", what: "A pull request or a draft, by the evidence. After the deploy, watch the crash rate and resolve.", parts: ["PR", "Watch"] },
 ];
 
+const KIND: Record<Kind, { label: string; color: string }> = {
+  code: { label: "deterministic", color: "#cfcfc9" },
+  llm: { label: "LLM agent", color: "#8b7cf0" },
+  clef: { label: "Clef decision", color: "#e0901b" },
+};
+
+// Isometric projection: x runs down-right, y runs up-right, z is height.
 const C = Math.cos(Math.PI / 6);
 const S = Math.sin(Math.PI / 6);
-const iso = (x: number, y: number, z = 0): [number, number] => [(x - y) * C, (x + y) * S - z];
-const pts = (...p: [number, number][]) => p.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(" ");
+const iso = (x: number, y: number, z = 0): [number, number] => [(x + y) * C, (x - y) * S - z];
+const P = (...p: [number, number][]) => p.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(" ");
 
-const KIND_LABEL: Record<Kind, string> = { code: "deterministic", llm: "LLM agent", clef: "Clef decision" };
+const W = 104; // slab width (x)
+const D = 84; // slab depth (y)
+const GAP = 20;
+const STEP = D + GAP;
+const INK = "#2f2e2a";
+const FONT = "var(--font-geist-mono), ui-monospace, monospace";
 
-const W = 112; // box size along x
-const D = 96; // depth along y
-const STEP_X = 62;
-const STEP_Y = -150; // boxes climb up and to the right
-const origin = (i: number): [number, number] => [i * STEP_X, i * STEP_Y];
+/** Text lying flat on the top face, reading along the y axis (up-right). */
+const flat = (x: number, y: number, z: number) => {
+  const [tx, ty] = iso(x, y, z);
+  return `matrix(${C} ${-S} ${C} ${S} ${tx} ${ty})`;
+};
 
-function Box({ i, active, onPick }: { i: number; active: boolean; onPick: () => void }) {
-  const [x0, y0] = origin(i);
-  const h = active ? 58 : 34;
-  const z = active ? 26 : 0;
-  const top = [iso(x0, y0, z + h), iso(x0 + W, y0, z + h), iso(x0 + W, y0 + D, z + h), iso(x0, y0 + D, z + h)];
-  const left = [iso(x0, y0 + D, z + h), iso(x0 + W, y0 + D, z + h), iso(x0 + W, y0 + D, z), iso(x0, y0 + D, z)];
-  const right = [iso(x0 + W, y0, z + h), iso(x0 + W, y0 + D, z + h), iso(x0 + W, y0 + D, z), iso(x0 + W, y0, z)];
-  const [tx, ty] = iso(x0 + 22, y0 + D - 20, z + h);  // along the edge that climbs, like the track
-  const st = STAGES[i];
+function Slab({
+  x,
+  y,
+  w,
+  d,
+  h,
+  z = 0,
+  dim,
+  top = "#fdfdfb",
+}: {
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  h: number;
+  z?: number;
+  dim?: boolean;
+  top?: string;
+}) {
+  const t = [iso(x, y, z + h), iso(x, y + d, z + h), iso(x + w, y + d, z + h), iso(x + w, y, z + h)];
+  const ink = dim ? "#a8a69e" : INK;
+  const front = [iso(x + w, y, z + h), iso(x + w, y + d, z + h), iso(x + w, y + d, z), iso(x + w, y, z)];
+  const left = [iso(x, y, z + h), iso(x + w, y, z + h), iso(x + w, y, z), iso(x, y, z)];
   return (
-    <g onMouseEnter={onPick} onClick={onPick} style={{ cursor: "pointer", transition: "transform .35s" }}>
-      <polygon points={pts(...left)} fill="#ebe9e2" stroke="#2c2b27" strokeWidth={1.1} />
-      <polygon points={pts(...right)} fill="#e2dfd6" stroke="#2c2b27" strokeWidth={1.1} />
-      <polygon points={pts(...top)} fill={active ? "#fdfdf6" : "#f9f8f3"} stroke="#2c2b27" strokeWidth={1.3} />
-      <text
-        transform={`matrix(${C} ${-S} ${C} ${S} ${tx} ${ty})`}
-        fontFamily="var(--font-mono-face)"
-        fontSize={active ? 17 : 15}
-        fill="#1d1d1a"
-      >
-        {st.name}
-      </text>
-      {st.kind.includes("clef") && (
-        <circle cx={iso(x0 + W - 14, y0 + D - 14, z + h)[0]} cy={iso(x0 + W - 14, y0 + D - 14, z + h)[1]} r={5.5} fill="#f59e0b" stroke="#2c2b27" strokeWidth={0.8} />
-      )}
-      {st.kind.includes("llm") && (
-        <circle cx={iso(x0 + W - 26, y0 + D - 14, z + h)[0]} cy={iso(x0 + W - 26, y0 + D - 14, z + h)[1]} r={5.5} fill="#a78bfa" stroke="#2c2b27" strokeWidth={0.8} />
-      )}
+    <g>
+      <polygon points={P(...left)} fill={dim ? "#f0f0ec" : "#ebebe6"} stroke={ink} strokeWidth={1} strokeLinejoin="round" />
+      <polygon points={P(...front)} fill={dim ? "#e9e9e4" : "#dfdfd9"} stroke={ink} strokeWidth={1} strokeLinejoin="round" />
+      <polygon points={P(...t)} fill={dim ? "#f8f8f5" : top} stroke={ink} strokeWidth={1.15} strokeLinejoin="round" />
     </g>
   );
 }
@@ -75,68 +87,161 @@ export function Loop() {
   const [paused, setPaused] = useState(false);
   useEffect(() => {
     if (paused) return;
-    const t = setInterval(() => setActive((a) => (a + 1) % STAGES.length), 2600);
+    const t = setInterval(() => setActive((a) => (a + 1) % STAGES.length), 3200);
     return () => clearInterval(t);
   }, [paused]);
+
   const n = STAGES.length;
-  // the track: a band under every box, from the signal in to the proof out
-  const [lx, ly] = origin(n - 1);
-  const a = iso(-24, D + 26, 0);
-  const b = iso(lx + W + 24, ly + D + 26, 0);
-  const c = iso(lx + W + 24, ly - 26, 0);
-  const d = iso(-24, -26, 0);
-  const all = [a, b, c, d, ...STAGES.map((_, i) => iso(origin(i)[0], origin(i)[1], 90))];
-  const minX = Math.min(...all.map((p) => p[0])) - 20;
-  const maxX = Math.max(...all.map((p) => p[0])) + 20;
-  const minY = Math.min(...all.map((p) => p[1])) - 20;
-  const maxY = Math.max(...all.map((p) => p[1])) + 20;
+  const len = n * STEP - GAP;
+  // the track under the slabs, extruded a little
+  const tx0 = -18;
+  const tx1 = W + 18;
+  const ty0 = -18;
+  const ty1 = len + 18;
+  const th = 9;
+  const trackTop = [iso(tx0, ty0, 0), iso(tx0, ty1, 0), iso(tx1, ty1, 0), iso(tx1, ty0, 0)];
+  const trackFront = [iso(tx1, ty0, 0), iso(tx1, ty1, 0), iso(tx1, ty1, -th), iso(tx1, ty0, -th)];
+  const trackLeft = [iso(tx0, ty0, 0), iso(tx1, ty0, 0), iso(tx1, ty0, -th), iso(tx0, ty0, -th)];
+
+  // a faint drafting lattice on the ground plane
+  const cells: [number, number][] = [];
+  for (let gx = -320; gx <= 520; gx += 120) for (let gy = -260; gy <= len + 240; gy += 96) cells.push([gx, gy]);
+
   const st = STAGES[active];
+  const ay = active * STEP;
+  const parts = st.parts.map((p, k) => ({ p, x: W + 74 + (k % 2) * 8, y: ay - 40 + k * 70 }));
+
+  // view box from the extremes of everything drawn
+  // a fixed frame around every slab, the track and the farthest parts (so the view does not jump per step)
+  const pts = [
+    ...trackTop,
+    iso(tx0, ty0, -th),
+    iso(0, len, 90),
+    iso(W + 74 + 8 + 60, -60, 0),
+    iso(W + 74 + 8 + 60, len + 130, 0),
+  ];
+  const pad = 36;
+  const minX = Math.min(...pts.map((p) => p[0])) - pad;
+  const maxX = Math.max(...pts.map((p) => p[0])) + pad;
+  const minY = Math.min(...pts.map((p) => p[1])) - pad;
+  const maxY = Math.max(...pts.map((p) => p[1])) + pad;
+  const vb = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+
   return (
-    <div className="space-y-8" onMouseLeave={() => setPaused(false)}>
-      <svg
-        viewBox={`${minX.toFixed(0)} ${minY.toFixed(0)} ${(maxX - minX).toFixed(0)} ${(maxY - minY).toFixed(0)}`}
-        className="w-full h-auto select-none"
-        role="img"
-        aria-label="The DebugAssist pipeline as nine stages from ingest to ship"
-        onMouseEnter={() => setPaused(true)}
-      >
-        <polygon points={pts(a, b, c, d)} fill="var(--mark)" fillOpacity={0.55} stroke="#2c2b27" strokeWidth={1} />
-        <text transform={`matrix(${C} ${-S} ${C} ${S} ${a[0] + 10} ${a[1] + 18})`} fontFamily="var(--font-mono-face)" fontSize={15} fill="#3b3a35">
-          signal in
-        </text>
-        <text transform={`matrix(${C} ${-S} ${C} ${S} ${b[0] - 120} ${b[1] + 18})`} fontFamily="var(--font-mono-face)" fontSize={15} fill="#3b3a35">
-          proof out
-        </text>
-        {STAGES.map((_, i) => (
-          <Box key={i} i={i} active={i === active} onPick={() => setActive(i)} />
+    <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+      <div className="cbox drafting overflow-hidden">
+        <svg
+          viewBox={`${vb.x.toFixed(0)} ${vb.y.toFixed(0)} ${vb.w.toFixed(0)} ${vb.h.toFixed(0)}`}
+          className="block h-auto w-full select-none"
+          role="img"
+          aria-label={`The DebugAssist pipeline: ${STAGES.map((s) => s.name).join(", ")}. Showing ${st.name}.`}
+        >
+          <defs>
+            <radialGradient id="fade" cx="50%" cy="55%" r="62%">
+              <stop offset="55%" stopColor="#fff" />
+              <stop offset="100%" stopColor="#000" />
+            </radialGradient>
+            <mask id="lattice-mask">
+              <rect x={vb.x} y={vb.y} width={vb.w} height={vb.h} fill="url(#fade)" />
+            </mask>
+          </defs>
+          <g mask="url(#lattice-mask)" stroke="#bfbdb4" strokeWidth={0.9} fill="none" opacity={0.75}>
+            {cells.map(([gx, gy]) => (
+              <polygon key={`${gx},${gy}`} points={P(iso(gx, gy), iso(gx, gy + 76), iso(gx + 96, gy + 76), iso(gx + 96, gy))} />
+            ))}
+          </g>
+
+          {/* track */}
+          <polygon points={P(...trackLeft)} fill="#dfe263" stroke={INK} strokeWidth={1} />
+          <polygon points={P(...trackFront)} fill="#e8eb6a" stroke={INK} strokeWidth={1} />
+          <polygon points={P(...trackTop)} fill="#f6f87e" stroke={INK} strokeWidth={1.1} />
+          <text transform={flat(tx1 + 8, ty0 + 2, 0)} fontFamily={FONT} fontSize={13} fill="#4a4943" dy={14}>
+            signal in
+          </text>
+          <text transform={flat(tx1 + 8, ty1 - 92, 0)} fontFamily={FONT} fontSize={13} fill="#4a4943" dy={14}>
+            proof out
+          </text>
+
+          {/* connectors to the active stage's parts */}
+          <g stroke={INK} strokeWidth={1.1} fill="none">
+            {parts.map(({ p, x, y }) => {
+              const a = iso(W, ay + D / 2, 0);
+              const m = iso(W + 40, ay + D / 2, 0);
+              const b = iso(W + 40, y + 28, 0);
+              const c = iso(x, y + 28, 0);
+              return <polyline key={p} points={P(a, m, b, c)} />;
+            })}
+          </g>
+
+          {STAGES.map((s, i) => {
+            const on = i === active;
+            const y = i * STEP;
+            const h = on ? 66 : 44;
+            const z = on ? 14 : 0;
+            return (
+              <g key={s.name} onClick={() => setActive(i)} className="cursor-pointer">
+                <Slab x={0} y={y} w={W} d={D} h={h} z={z} dim={!on} />
+                <g>
+                  <text transform={flat(16, y + 10, z + h)} fontFamily={FONT} fontSize={on ? 19 : 16} fill={on ? INK : "#8e8c85"} dy={18}>
+                    {s.name}
+                  </text>
+                  {s.kind.map((k, j) => {
+                    const [cx, cy] = iso(W - 18 - j * 14, y + D - 16, z + h);
+                    return k === "code" ? null : (
+                      <circle key={k} cx={cx} cy={cy} r={5} fill={KIND[k].color} stroke={on ? INK : "#a8a69e"} strokeWidth={0.9} opacity={on ? 1 : 0.55} />
+                    );
+                  })}
+                </g>
+              </g>
+            );
+          })}
+
+          {parts.map(({ p, x, y }) => (
+            <g key={`${active}-${p}`} style={{ animation: "none" }}>
+              <Slab x={x} y={y} w={60} d={132} h={12} />
+              <text transform={flat(x + 18, y + 16, 12)} fontFamily={FONT} fontSize={15} fill={INK} dy={16}>
+                {p}
+              </text>
+            </g>
+          ))}
+        </svg>
+      </div>
+
+      <div className="cbox no-top -mt-px grid gap-0 md:grid-cols-[1fr_1.35fr]">
+        <div className="border-b border-line p-5 md:border-b-0 md:border-r">
+          <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">
+            Step {active + 1} of {n}
+            {st.decisions && <> · {st.decisions}</>}
+          </div>
+          <div className="mt-1.5 font-display text-[26px] font-medium tracking-[-0.02em]">{st.name}</div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {st.kind.map((k) => (
+              <span key={k} className="inline-flex items-center gap-1.5 font-mono text-[11px] text-t3">
+                <span className="inline-block h-2 w-2 rounded-full border border-t2" style={{ background: KIND[k].color }} />
+                {KIND[k].label}
+              </span>
+            ))}
+          </div>
+        </div>
+        <p className="p-5 text-[15px] leading-[1.55] text-t2" aria-live="polite">
+          {st.what}
+        </p>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="Pipeline steps">
+        {STAGES.map((s, i) => (
+          <button
+            key={s.name}
+            role="tab"
+            aria-selected={i === active}
+            onClick={() => setActive(i)}
+            className={`h-7 border px-2.5 font-mono text-[11px] transition-colors ${
+              i === active ? "border-t1 bg-t1 text-surface" : "border-line bg-surface text-t3 hover:border-line-strong hover:text-t2"
+            }`}
+          >
+            {s.name}
+          </button>
         ))}
-      </svg>
-      <div className="frame p-5 max-w-2xl" aria-live="polite">
-        <span className="frame-corners" />
-        <div className="font-mono text-xs uppercase tracking-wider text-muted">
-          step {active + 1} of {n}
-          {st.decisions && <> · {st.decisions}</>}
-        </div>
-        <h3 className="mt-1 text-2xl font-semibold">{st.name}</h3>
-        <p className="mt-2 text-ink-2 leading-relaxed">{st.what}</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {st.parts.map((p) => (
-            <span key={p} className="font-mono text-xs border border-line bg-panel px-2 py-1">
-              {p}
-            </span>
-          ))}
-        </div>
-        <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted font-mono">
-          {st.kind.map((k) => (
-            <span key={k} className="inline-flex items-center gap-1.5">
-              <span
-                className="inline-block w-2.5 h-2.5 rounded-full border border-ink-2"
-                style={{ background: k === "clef" ? "#f59e0b" : k === "llm" ? "#a78bfa" : "#d8d5cb" }}
-              />
-              {KIND_LABEL[k]}
-            </span>
-          ))}
-        </div>
       </div>
     </div>
   );

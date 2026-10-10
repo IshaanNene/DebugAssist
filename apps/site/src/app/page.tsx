@@ -1,317 +1,380 @@
+import { Reveal, Shortcuts } from "@/components/client";
 import { Features } from "@/components/Features";
 import { Loop } from "@/components/Loop";
 import { Results } from "@/components/Results";
-import { contextAudit, facts, results } from "@/lib/data";
+import { Box, Button, Dot, GH, H2, Lead, Mark, doc } from "@/components/ui";
+import { contextAudit, facts, results, type Row } from "@/lib/data";
 
-const GH = "https://github.com/IshaanNene/DebugAssist";
 const pct = (x: number) => `${Math.round(x * 100)}%`;
+const COL = "mx-auto w-full max-w-[880px] px-4 sm:px-6";
 
 export default function Home() {
   const data = results();
   const ctx = contextAudit();
   const f = facts();
-  const doc = (p: string) => `${GH}/blob/main/${p}`;
+  const latest = data.arms[data.arms.length - 1];
+  const passed = (rows: Row[]) => rows.filter((r) => r.hidden_tests === "True").length;
+  const base = Object.fromEntries(data.baseline.map((r) => [r.bug, r]));
+  const latestPrev = latest ? latest.rows.map((r) => base[r.bug]).filter(Boolean) : [];
+  const report = doc(`evals/reports/${data.report}/report.md`);
+
   return (
     <>
-      <Nav />
-      <main className="mx-auto max-w-6xl px-4 sm:px-6">
-        {/* ---------- hero ---------- */}
-        <section className="frame mt-6">
-          <span className="frame-corners" />
-          <div className="border-b border-line px-4 py-3 flex flex-wrap justify-center gap-x-8 gap-y-1 text-sm text-muted">
-            <span>
-              <b className="text-ink">{data.catalog.total}</b>-bug evaluation catalog
-            </span>
-            <span>
-              <b className="text-ink">{f.templates}</b> Clef decision templates
-            </span>
-            <span>
-              <b className="text-ink">{f.mcpServers}</b> MCP servers · <b className="text-ink">{f.mcpTools}</b> tools
-            </span>
-            <span>MIT licensed</span>
-          </div>
-          <div className="px-6 py-16 sm:py-24 text-center">
-            <h1 className="text-5xl sm:text-7xl font-semibold tracking-tight leading-[1.05]">
-              <span className="mark">An autonomous</span>
-              <br />
-              <span className="mark">on-call engineer</span>
+      <Shortcuts map={{ g: GH, d: doc("README.md"), r: "#results", s: "#start" }} />
+
+      {latest && (
+        <a href={report} className="block border-b border-line bg-surface-1 py-2 text-center text-[12.5px] text-t2 hover:text-t1">
+          <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">latest re-run · {latest.name}</span>{" "}
+          · hidden tests passing {passed(latestPrev)} → {passed(latest.rows)} on {latest.rows.length} bugs ·{" "}
+          <span className="underline underline-offset-2">read the report</span>
+        </a>
+      )}
+
+      <header className="sticky top-0 z-30 border-b border-line bg-surface/85 backdrop-blur">
+        <div className={`${COL} flex h-12 items-center justify-between`}>
+          <a href="#" className="flex items-center gap-2 font-display text-[15px] font-semibold tracking-[-0.02em]">
+            <span className="grid h-5 w-5 place-items-center border border-t1 bg-mark font-mono text-[10px]">D</span>
+            DebugAssist
+          </a>
+          <nav className="hidden gap-5 text-[12.5px] text-t3 md:flex">
+            <a className="hover:text-t1" href="#how">How it works</a>
+            <a className="hover:text-t1" href="#results">Results</a>
+            <a className="hover:text-t1" href="#tokens">Tokens</a>
+            <a className="hover:text-t1" href="#stack">Stack</a>
+            <a className="hover:text-t1" href="#faq">FAQ</a>
+          </nav>
+          <Button href={GH} hint="G">GitHub</Button>
+        </div>
+      </header>
+
+      <main className="hero-bg">
+        {/* ── hero ── */}
+        <section className={`${COL} pt-8 md:pt-14`}>
+          <Box stack="first">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 px-4 py-2.5 text-[13px] text-t3">
+              <span>
+                <b className="font-medium text-t1">{data.catalog.total}</b>-bug evaluation catalog
+              </span>
+              <Dot />
+              <span>
+                <b className="font-medium text-t1">{f.templates}</b> Clef decision templates
+              </span>
+              <Dot />
+              <span>
+                <b className="font-medium text-t1">{f.mcpServers}</b> MCP servers · <b className="font-medium text-t1">{f.mcpTools}</b> tools
+              </span>
+            </div>
+          </Box>
+          <Box stack="middle" className="px-5 py-14 text-center sm:py-20">
+            <h1 className="flex flex-col items-center gap-1 font-display text-[40px] font-medium leading-[1.04] tracking-[-0.03em] text-t1 sm:text-[56px] md:text-[68px]">
+              <Mark>An autonomous</Mark>
+              <Mark>on-call engineer</Mark>
             </h1>
-            <p className="mx-auto mt-8 max-w-2xl text-lg sm:text-xl text-ink-2 leading-relaxed">
+            <p className="mx-auto mt-8 max-w-[54ch] text-[15px] leading-[1.55] text-t3">
               A crash or a rider&apos;s bug report goes in. Triage, an evidence-backed root cause, a mitigation, a test
-              that fails on the shipped release, the fix, the proof — and a pull request — come out. Measured on a bug
+              that fails on the shipped release, the fix and its proof come out — as a pull request. Measured on a bug
               catalog, with every number generated.
             </p>
-            <div className="mt-10 flex flex-wrap justify-center gap-3">
-              <a href={GH} className="bg-ink text-paper px-5 py-3 font-medium inline-flex items-center gap-3">
-                View on GitHub
-              </a>
-              <a href="#results" className="border border-ink-2 bg-panel px-5 py-3 font-medium inline-flex items-center gap-3">
+            <div className="mt-8 flex flex-wrap justify-center gap-2">
+              <Button href="#start" variant="primary" hint="S">
+                Get started
+              </Button>
+              <Button href={doc("README.md")} hint="D">
+                Documentation
+              </Button>
+              <Button href="#results" hint="R">
                 See the results
-              </a>
-              <a href={`${GH}#-quickstart`} className="border border-line bg-panel px-5 py-3 inline-flex items-center gap-3">
-                Run the keyless demo
-              </a>
+              </Button>
             </div>
-          </div>
+          </Box>
+          <Box stack="last">
+            <div className="grid grid-cols-3 gap-px bg-line sm:grid-cols-6">
+              {[
+                ["Vitals", "crash analytics"],
+                ["BugDrop", "bug reports"],
+                ["Clef", "decisions"],
+                ["LangGraph", "fixed plan"],
+                ["MCP", "evidence"],
+                ["OpenTelemetry", "telemetry"],
+                ["Jaeger", "traces"],
+                ["Loki", "logs"],
+                ["Unleash", "flags"],
+                ["GitHub", "pull requests"],
+                ["Jira", "tickets"],
+                ["Docker", "sandbox"],
+              ].map(([name, role]) => (
+                <div key={name} className="flex flex-col items-center justify-center bg-surface px-2 py-4">
+                  <span className="font-display text-[15px] font-medium tracking-[-0.01em] text-t2">{name}</span>
+                  <span className="mt-0.5 font-mono text-[9.5px] uppercase tracking-[0.05em] text-t4">{role}</span>
+                </div>
+              ))}
+            </div>
+          </Box>
         </section>
 
-        {/* ---------- loop ---------- */}
-        <section id="how" className="mt-28">
-          <h2 className="text-4xl sm:text-5xl font-semibold tracking-tight">
-            <span className="mark">Signal in, proof out</span> — a fixed plan.
-          </h2>
-          <p className="mt-4 max-w-3xl text-lg text-ink-2 leading-relaxed">
-            The plan is code, not a prompt: models never choose the next step. Clef makes every judgement call with a
-            calibrated probability, LLM agents reason and write code, and deterministic code acts — behind a policy gate.
-          </p>
-          <div className="mt-8">
+        {/* ── the loop ── */}
+        <Reveal id="how" className={`${COL} pt-[120px]`}>
+          <H2>
+            Investigate, fix, prove — <Mark>repeat.</Mark>
+          </H2>
+          <Lead className="mt-4">
+            The plan is code, not a prompt: models never choose the next step. Clef makes each judgement call with a
+            calibrated probability, LLM agents reason and write code, and deterministic code performs every write —
+            behind a policy gate.
+          </Lead>
+          <div className="mt-10">
             <Loop />
           </div>
-        </section>
+        </Reveal>
 
-        {/* ---------- features ---------- */}
-        <section id="features" className="mt-28">
-          <h2 className="text-4xl sm:text-5xl font-semibold tracking-tight">
-            Everything an on-call engineer does, <span className="mark">with receipts.</span>
-          </h2>
+        {/* ── features ── */}
+        <Reveal id="features" className={`${COL} pt-[120px]`}>
+          <H2 className="max-w-[20ch]">
+            Everything an on-call engineer does, <Mark>with receipts.</Mark>
+          </H2>
+          <Lead className="mt-4">One pipeline from the first crash report to a merged fix, with evidence at every step.</Lead>
           <div className="mt-10">
             <Features />
           </div>
-        </section>
+        </Reveal>
 
-        {/* ---------- results ---------- */}
-        <section id="results" className="mt-28">
-          <h2 className="text-4xl sm:text-5xl font-semibold tracking-tight">
-            <span className="mark">Measured</span>, not claimed.
-          </h2>
-          <p className="mt-4 max-w-3xl text-lg text-ink-2 leading-relaxed">
+        {/* ── results ── */}
+        <Reveal id="results" className={`${COL} pt-[120px]`}>
+          <H2>
+            <Mark>Measured</Mark>, not claimed.
+          </H2>
+          <Lead className="mt-4">
             {data.catalog.total} bugs injected into a small ride-hailing app as natural-looking release commits —{" "}
             {data.catalog.code} that need a code fix, {data.catalog.notOurs} where the right answer is to route it. The
             agent never sees the answer key; an evaluator scores its root cause and runs hidden tests on its fix. Built
             from{" "}
-            <a className="underline" href={doc(`evals/reports/${data.report}/report.md`)}>
+            <a className="text-t1 underline underline-offset-2" href={report}>
               evals/reports/{data.report}
             </a>
             .
-          </p>
-          <div className="mt-8">
+          </Lead>
+          <div className="mt-10">
             <Results data={data} />
           </div>
-          <div className="mt-8 grid md:grid-cols-2 gap-4">
-            <div className="frame p-5">
-              <span className="frame-corners" />
-              <h3 className="font-semibold text-lg">What works</h3>
-              <ul className="mt-3 space-y-2 text-ink-2 list-disc pl-5">
-                <li>Crash-data bugs: locale and currency edge cases, a nil-map panic, a removed await, a battery-draining poller — root cause, reproduction and a fix that passes the hidden test.</li>
+          <div className="mt-2 grid gap-2 md:grid-cols-2">
+            <Box className="p-5">
+              <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">What works</div>
+              <ul className="mt-3 space-y-2.5 text-[14px] leading-[1.5] text-t2">
+                <li>Crash-data bugs — locale and currency edge cases, a nil-map panic, a removed await, a battery-draining poller — fixed with a passing hidden test.</li>
                 <li>Following a rider&apos;s report into the backend, and moving the fix to the service that holds the defect.</li>
-                <li>Saying &ldquo;not our bug&rdquo; for a carrier outage or intended behaviour — routed, not &ldquo;fixed&rdquo;.</li>
+                <li>Saying &ldquo;not our bug&rdquo; for a carrier outage or intended behaviour.</li>
               </ul>
-            </div>
-            <div className="frame p-5 hatch">
-              <span className="frame-corners" />
-              <h3 className="font-semibold text-lg">What doesn&apos;t, yet</h3>
-              <ul className="mt-3 space-y-2 text-ink-2 list-disc pl-5">
+            </Box>
+            <Box stripes className="p-5">
+              <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">What doesn&apos;t, yet</div>
+              <ul className="mt-3 space-y-2.5 text-[14px] leading-[1.5] text-t2">
                 <li>Validated is not always correct: some fixes pass the agent&apos;s own test but not the hidden one.</li>
                 <li>Evidence the client never sees: a CORS failure is only &ldquo;Failed to fetch&rdquo; from the app.</li>
-                <li>Small numbers: one seed per bug — read it as strengths and gaps, not precise rates.</li>
+                <li>One seed per bug: the same bug can pass in one run and miss in the next.</li>
               </ul>
-            </div>
+            </Box>
           </div>
-        </section>
+        </Reveal>
 
-        {/* ---------- context ---------- */}
+        {/* ── tokens ── */}
         {ctx && (
-          <section id="context" className="mt-28">
-            <h2 className="text-4xl sm:text-5xl font-semibold tracking-tight">
-              Where the <span className="mark">tokens</span> go.
-            </h2>
-            <p className="mt-4 max-w-3xl text-lg text-ink-2 leading-relaxed">
-              Every agent turn re-sends the prompt, the tools and the history. The context audit splits{" "}
-              {(ctx.inputTokens / 1e6).toFixed(1)}M input tokens from real runs by what they carried — and tells us which
-              context-engineering technique is worth building.
-            </p>
-            <div className="mt-8 grid md:grid-cols-4 gap-3">
-              <Stat value={pct(ctx.toolsShare)} label="tool results, re-sent on later turns" />
-              <Stat value={pct(ctx.prefixShare)} label="the fixed prefix (prompt, tools, task)" />
-              <Stat value={pct(ctx.modelShare)} label="the model's own messages" />
-              <Stat value={pct(ctx.cacheShare)} label="served from the prompt cache" />
-            </div>
-            <div className="mt-4 frame p-5">
-              <span className="frame-corners" />
-              <div className="font-mono text-xs uppercase tracking-wider text-muted">heaviest tools (share of all input)</div>
-              <div className="mt-3 space-y-2">
-                {ctx.topTools.map((t) => (
-                  <div key={t.tool} className="flex items-center gap-3">
-                    <span className="w-36 font-mono text-sm">{t.tool}</span>
-                    <div className="flex-1 h-3 border border-line bg-panel">
-                      <div className="h-full bg-mark" style={{ width: pct(t.share / ctx.topTools[0].share) }} />
-                    </div>
-                    <span className="w-12 text-right font-mono text-sm text-muted">{pct(t.share)}</span>
+          <Reveal id="tokens" className={`${COL} pt-[120px]`}>
+            <H2>
+              Where the <Mark>tokens</Mark> go.
+            </H2>
+            <Lead className="mt-4">
+              Every agent turn re-sends the prompt, the tools and the history. A context audit split{" "}
+              {(ctx.inputTokens / 1e6).toFixed(1)}M input tokens from real runs by what they carried — so we build the
+              context-engineering technique the data points to, not the one that sounds best.
+            </Lead>
+            <div className="mt-10 cbox">
+              <div className="grid grid-cols-2 gap-px bg-line md:grid-cols-4">
+                {[
+                  [ctx.toolsShare, "tool results, re-sent on later turns"],
+                  [ctx.prefixShare, "the fixed prefix: prompt, tools, task"],
+                  [ctx.modelShare, "the model's own messages"],
+                  [ctx.cacheShare, "served from the prompt cache"],
+                ].map(([v, l]) => (
+                  <div key={l as string} className="bg-surface p-4">
+                    <div className="font-display text-[28px] font-medium tracking-[-0.02em]">{pct(v as number)}</div>
+                    <div className="mt-0.5 text-[12.5px] text-t3">{l}</div>
                   </div>
                 ))}
               </div>
             </div>
-          </section>
+            <div className="cbox no-top -mt-px p-5">
+              <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">Heaviest tools · share of all input</div>
+              <div className="mt-4 space-y-2.5">
+                {ctx.topTools.map((t) => (
+                  <div key={t.tool} className="flex items-center gap-3">
+                    <span className="w-28 font-mono text-[12px] text-t2">{t.tool}</span>
+                    <div className="h-2.5 flex-1 border border-line bg-surface">
+                      <div className="h-full bg-mark" style={{ width: pct(t.share / ctx.topTools[0].share) }} />
+                    </div>
+                    <span className="w-10 text-right font-mono text-[12px] text-t3">{pct(t.share)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
         )}
 
-        {/* ---------- stack ---------- */}
-        <section id="stack" className="mt-28">
-          <h2 className="text-4xl sm:text-5xl font-semibold tracking-tight">
-            Works with <span className="mark">your stack.</span>
-          </h2>
-          <p className="mt-4 max-w-3xl text-lg text-ink-2 leading-relaxed">
+        {/* ── stack ── */}
+        <Reveal id="stack" className={`${COL} pt-[120px]`}>
+          <H2>
+            Works with <Mark>your stack.</Mark>
+          </H2>
+          <Lead className="mt-4">
             Any OpenAI-compatible model, OpenTelemetry for telemetry, MCP for evidence. Every integration has a mock, so
             the whole pipeline runs without a single key.
-          </p>
-          <div className="mt-8 grid md:grid-cols-2 gap-4">
-            <Pills title="Evidence (MCP servers)" items={["crash analytics", "code search", "git history", "feature flags", "bug reports", "logging", "tracing", "metrics & profiles", "incidents", "releases", "Jira"]} />
-            <Pills title="Models & decisions" items={["Cloudflare Clef", "OpenRouter", "GroqCloud", "any OpenAI-compatible API", "LangGraph", "LangChain"]} />
-            <Pills title="Telemetry" items={["OpenTelemetry", "Jaeger", "Loki", "Prometheus", "Phoenix traces"]} />
-            <Pills title="Target languages & tools" items={["TypeScript / React", "Python / FastAPI", "Go", "Playwright", "GitHub", "Unleash", "Docker"]} />
+          </Lead>
+          <div className="mt-10">
+            <Pills title="Evidence · MCP servers" items={["crash analytics", "code search", "git history", "feature flags", "bug reports", "logging", "tracing", "metrics & profiles", "incidents", "releases", "Jira"]} stack="first" />
+            <div className="-mt-px grid md:grid-cols-2">
+              <Pills title="Models & decisions" items={["Cloudflare Clef", "OpenRouter", "GroqCloud", "OpenAI-compatible", "LangGraph", "LangChain"]} stack="middle" />
+              <Pills title="Telemetry" items={["OpenTelemetry", "Jaeger", "Loki", "Prometheus", "Phoenix"]} stack="middle" className="md:-ml-px" />
+            </div>
+            <Pills title="Target languages & tools" items={["TypeScript · React", "Python · FastAPI", "Go", "Playwright", "GitHub", "Unleash", "Docker"]} stack="middle" />
+            <Pills title="On the roadmap" items={["Langfuse", "LiteLLM", "Ollama · vLLM", "Promptfoo", "GlitchTip", "SWE-bench Lite"]} stack="last" muted />
           </div>
-          <Pills className="mt-4" title="On the roadmap" items={["Langfuse", "LiteLLM", "Ollama / vLLM", "Promptfoo", "GlitchTip", "SWE-bench Lite"]} muted />
-        </section>
+        </Reveal>
 
-        {/* ---------- open source ---------- */}
-        <section id="open" className="mt-28 grid md:grid-cols-3 gap-4">
-          <div className="md:col-span-3">
-            <h2 className="text-4xl sm:text-5xl font-semibold tracking-tight">
-              Open platform. <span className="mark">Open process.</span>
-            </h2>
+        {/* ── open ── */}
+        <Reveal id="open" className={`${COL} pt-[120px]`}>
+          <H2>
+            Open platform. <Mark>Open process.</Mark>
+          </H2>
+          <div className="mt-10 cbox">
+            <div className="grid gap-px bg-line md:grid-cols-3">
+              <Col title="Self-host it" items={[["make up — app, telemetry, sources", null], ["MIT licensed", null], ["mock mode, no keys needed", null]]} />
+              <Col title="Read the process" items={[["Lessons learned", doc("docs/LESSONS.md")], ["Architecture", doc("docs/ARCHITECTURE.md")], ["Decision records", `${GH}/tree/main/docs/adr`]]} />
+              <Col title="Check the numbers" items={[["Latest report", report], ["Roadmap", doc("docs/ROADMAP.md")], ["Progress log", doc("docs/PROGRESS.md")]]} />
+            </div>
           </div>
-          <Card title="Self-host the whole system">
-            One <code className="font-mono text-sm">make up</code> brings up the app under test, its telemetry, the crash
-            and bug-report sources, and DebugAssist. MIT licensed.
-          </Card>
-          <Card title="Every problem, written down">
-            Each bug we hit while building it — symptom, cause, fix, and the test that guards it — in{" "}
-            <a className="underline" href={doc("docs/LESSONS.md")}>
-              lessons learned
-            </a>
-            .
-          </Card>
-          <Card title="A roadmap you can check">
-            Context engineering, integrations and scale — each item measured by an eval arm, in the{" "}
-            <a className="underline" href={doc("docs/ROADMAP.md")}>
-              roadmap
-            </a>
-            .
-          </Card>
-        </section>
+        </Reveal>
 
-        {/* ---------- FAQ ---------- */}
-        <section id="faq" className="mt-28">
-          <h2 className="text-4xl font-semibold tracking-tight">Questions &amp; answers</h2>
-          <div className="mt-6 divide-y divide-line border-y border-line">
+        {/* ── get started ── */}
+        <Reveal id="start" className={`${COL} pt-[120px]`}>
+          <Box className="px-5 py-14 text-center">
+            <H2>
+              <Mark>Try it</Mark> in a few minutes.
+            </H2>
+            <p className="mx-auto mt-4 max-w-[48ch] text-[15px] text-t3">
+              The keyless demo runs the whole pipeline with a scripted model and mocked integrations.
+            </p>
+            <pre className="mx-auto mt-8 max-w-[620px] overflow-x-auto border border-[#333] bg-code p-5 text-left font-mono text-[12px] leading-[1.7] text-[#f3f1ea]">
+{`git clone --recurse-submodules ${GH}
+make bootstrap && make up && make flags
+make demo-push-crash     `}<span className="text-[#9a988f]"># keyless: scripted LLM, mocks</span>{`
+make dashboard           `}<span className="text-[#9a988f]"># http://localhost:3000</span>
+            </pre>
+            <div className="mt-8 flex justify-center gap-2">
+              <Button href={GH} variant="primary" hint="G">
+                Star on GitHub
+              </Button>
+              <Button href={`${GH}#-quickstart`}>Quickstart</Button>
+            </div>
+          </Box>
+        </Reveal>
+
+        {/* ── FAQ ── */}
+        <Reveal id="faq" className={`${COL} pt-[120px]`}>
+          <H2>Questions &amp; answers</H2>
+          <div className="mt-8 border-t border-dashed border-line-dash">
             {FAQ.map(([q, a]) => (
-              <details key={q} className="group py-4">
-                <summary className="cursor-pointer list-none flex justify-between items-center text-lg font-medium">
+              <details key={q} className="group border-b border-dashed border-line-dash py-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-medium text-t1">
                   {q}
-                  <span className="font-mono text-muted group-open:rotate-45 transition-transform">+</span>
+                  <span className="font-mono text-t3 transition-transform group-open:rotate-45">+</span>
                 </summary>
-                <p className="mt-3 text-ink-2 leading-relaxed max-w-3xl">{a}</p>
+                <p className="mt-3 max-w-[64ch] text-[14px] leading-[1.6] text-t3">{a}</p>
               </details>
             ))}
           </div>
-        </section>
-
-        {/* ---------- CTA ---------- */}
-        <section className="frame mt-28 px-6 py-16 text-center">
-          <span className="frame-corners" />
-          <h2 className="text-4xl sm:text-5xl font-semibold tracking-tight">
-            <span className="mark">Try it</span> in a few minutes.
-          </h2>
-          <pre className="mx-auto mt-8 max-w-xl text-left font-mono text-sm bg-ink text-paper p-5 overflow-x-auto">
-{`git clone --recurse-submodules ${GH}
-make bootstrap && make up && make flags
-make demo-push-crash   # keyless: scripted LLM, mocks
-make dashboard         # http://localhost:3000`}
-          </pre>
-          <div className="mt-8 flex justify-center gap-3">
-            <a href={GH} className="bg-ink text-paper px-5 py-3 font-medium">Star on GitHub</a>
-            <a href={`${GH}#-quickstart`} className="border border-ink-2 bg-panel px-5 py-3 font-medium">Quickstart</a>
-          </div>
-        </section>
+        </Reveal>
       </main>
-      <Footer />
+
+      <footer className="mt-[120px] border-t border-line">
+        <div className={`${COL} grid gap-8 py-10 text-[12.5px] sm:grid-cols-4`}>
+          <div className="sm:col-span-1">
+            <div className="flex items-center gap-2 font-display text-[14px] font-semibold">
+              <span className="grid h-4 w-4 place-items-center border border-t1 bg-mark font-mono text-[9px]">D</span>
+              DebugAssist
+            </div>
+            <p className="mt-2 text-t3">MIT licensed, independent open-source project.</p>
+          </div>
+          <FooterCol title="Project" links={[["GitHub", GH], ["README", doc("README.md")], ["Latest report", report]]} />
+          <FooterCol title="Docs" links={[["Lessons learned", doc("docs/LESSONS.md")], ["Roadmap", doc("docs/ROADMAP.md")], ["MCP servers", doc("docs/mcp.md")]]} />
+          <FooterCol title="Process" links={[["Architecture", doc("docs/ARCHITECTURE.md")], ["Decisions", `${GH}/tree/main/docs/adr`], ["Progress", doc("docs/PROGRESS.md")]]} />
+        </div>
+        <div className={`${COL} border-t border-line py-4 text-[11.5px] text-t4`}>
+          Not affiliated with Uber, Cloudflare, OpenAI, OpenRouter, Groq or any company named here; names indicate
+          integrations only.
+        </div>
+      </footer>
     </>
   );
 }
 
 const FAQ: [string, string][] = [
-  ["What is DebugAssist?", "An open-source pipeline that does what an on-call engineer does when something breaks: it notices the crash or the rider's report, triages it, finds the root cause with evidence, proposes a mitigation, writes a test that fails on the shipped release, fixes the code, proves the fix, and opens a pull request — or says it isn't our bug and routes it."],
-  ["Does an LLM decide what happens next?", "No. The plan is a fixed graph in code. LLM agents reason and write code inside steps; every judgement call is a Clef decision with a calibrated probability mapped to act, escalate or a safe default by policy; deterministic code performs every write."],
-  ["Can it change production on its own?", "Writes go through a policy gate and an audit log. Pushes only to bot branches of the demo repositories, flag rollbacks need approval, and every integration is dry-run unless configured otherwise."],
-  ["How are the results measured?", "Each catalog bug is injected as a natural-looking commit, triggered by simulated riders, and discovered by the crash and bug-report sources. The agent's root cause is scored against an answer key it never sees, and hidden tests run on its fix. Every number on this page is read from the generated reports at build time."],
-  ["Which models does it use?", "Any OpenAI-compatible API; the evaluation ran on openai/gpt-6-luna through OpenRouter. Decisions run on Cloudflare Clef."],
+  ["What is DebugAssist?", "An open-source pipeline that does what an on-call engineer does when something breaks: it notices the crash or the rider's report, triages it, finds the root cause with evidence, proposes a mitigation, writes a test that fails on the shipped release, fixes the code, proves the fix and opens a pull request — or says it isn't our bug and routes it."],
+  ["Does an LLM decide what happens next?", "No. The plan is a fixed graph in code. LLM agents reason and write code inside steps; every judgement call is a Clef decision with a calibrated probability, mapped to act, escalate or a safe default by policy; deterministic code performs every write."],
+  ["Can it change production on its own?", "Writes go through a policy gate and an audit log. It pushes only to bot branches of the demo repositories, flag rollbacks need approval, and every integration is dry-run unless configured otherwise."],
+  ["How are the results measured?", "Each catalog bug is injected as a natural-looking commit, triggered by simulated riders, and discovered by the crash and bug-report sources. The agent's root cause is scored against an answer key it never sees, and hidden tests run on its fix. Every number on this page is read from the generated reports when the site is built."],
+  ["Which models does it use?", "Any OpenAI-compatible API. The evaluation on this page ran on openai/gpt-6-luna through OpenRouter; decisions run on Cloudflare Clef."],
   ["Is it affiliated with Uber, Cloudflare or anyone named here?", "No. It is an independent project inspired by a public talk on MCP-powered crash investigation. Vitals and BugDrop are its own stand-ins for crash analytics and in-app bug reports."],
 ];
 
-function Nav() {
+function Pills({ title, items, muted, stack, className = "" }: { title: string; items: string[]; muted?: boolean; stack?: "first" | "middle" | "last"; className?: string }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-paper/85 backdrop-blur">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 h-14 flex items-center justify-between">
-        <a href="#" className="font-semibold tracking-tight text-lg">
-          Debug<span className="bg-mark px-0.5">Assist</span>
-        </a>
-        <nav className="hidden sm:flex gap-6 text-sm text-ink-2">
-          <a href="#how">How it works</a>
-          <a href="#results">Results</a>
-          <a href="#context">Context</a>
-          <a href="#stack">Stack</a>
-          <a href="#faq">FAQ</a>
-        </nav>
-        <a href={GH} className="text-sm border border-ink-2 px-3 py-1.5 bg-panel">GitHub</a>
-      </div>
-    </header>
-  );
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="frame p-5">
-      <span className="frame-corners" />
-      <div className="text-4xl font-semibold tracking-tight">{value}</div>
-      <div className="mt-1 text-sm text-muted">{label}</div>
-    </div>
-  );
-}
-
-function Pills({ title, items, muted, className = "" }: { title: string; items: string[]; muted?: boolean; className?: string }) {
-  return (
-    <div className={`frame p-5 ${muted ? "hatch" : ""} ${className}`}>
-      <span className="frame-corners" />
-      <h3 className="text-lg font-medium">{title}</h3>
-      <div className="mt-4 flex flex-wrap gap-2">
+    <Box stack={stack} stripes={muted} className={`p-5 ${className}`}>
+      <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">{title}</div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
         {items.map((i) => (
-          <span key={i} className={`border px-3 py-1.5 text-sm bg-panel ${muted ? "border-dashed border-line text-muted" : "border-line"}`}>
+          <span key={i} className={`inline-flex h-7 items-center border px-2.5 text-[12.5px] ${muted ? "border-dashed border-line-dash bg-surface text-t3" : "border-line bg-surface text-t2"}`}>
             {i}
           </span>
         ))}
       </div>
+    </Box>
+  );
+}
+
+function Col({ title, items }: { title: string; items: [string, string | null][] }) {
+  return (
+    <div className="bg-surface p-5">
+      <div className="font-display text-[17px] font-medium tracking-[-0.01em]">{title}</div>
+      <ul className="mt-3 space-y-2 text-[13.5px] text-t3">
+        {items.map(([t, href]) => (
+          <li key={t} className="flex items-center gap-2">
+            <span className="inline-block h-[3px] w-[3px] bg-t3" />
+            {href ? (
+              <a className="underline decoration-line-dash underline-offset-2 hover:text-t1" href={href}>
+                {t}
+              </a>
+            ) : (
+              t
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function FooterCol({ title, links }: { title: string; links: [string, string][] }) {
   return (
-    <div className="frame p-5">
-      <span className="frame-corners" />
-      <h3 className="text-lg font-medium">{title}</h3>
-      <p className="mt-2 text-ink-2 leading-relaxed">{children}</p>
+    <div>
+      <div className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t4">{title}</div>
+      <ul className="mt-2 space-y-1.5">
+        {links.map(([t, h]) => (
+          <li key={t}>
+            <a className="text-t3 hover:text-t1" href={h}>
+              {t}
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="mt-28 border-t border-line">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-10 text-sm text-muted flex flex-col sm:flex-row justify-between gap-4">
-        <span>DebugAssist · MIT licensed · independent open-source project</span>
-        <span>
-          Not affiliated with Uber, Cloudflare, OpenAI, OpenRouter or Groq; names indicate integrations only.
-        </span>
-      </div>
-    </footer>
   );
 }

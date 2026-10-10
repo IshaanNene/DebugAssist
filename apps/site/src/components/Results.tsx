@@ -1,26 +1,23 @@
 import type { Results as R, Row } from "@/lib/data";
 
-const TONE: Record<string, string> = {
-  cyan: "text-[var(--cyan)]",
-  green: "text-good",
-  violet: "text-[var(--violet)]",
-  amber: "text-warn",
-  muted: "text-muted",
-};
-
-const LANES: [string, keyof Row & string][] = [
+const LANES: [string, string][] = [
   ["root cause", "rca"],
   ["fix validated", "validated"],
   ["hidden test", "hidden_tests"],
 ];
 
-function cell(row: Row | undefined, key: string, ours: boolean): { cls: string; label: string } {
+function tone(row: Row | undefined, key: string, ours: boolean): { cls: string; label: string } {
   const v = row?.[key] ?? "";
-  if (!row || (key === "validated" && !ours)) return { cls: "border border-line bg-transparent", label: "n/a" };
-  if (v === "exact" || v === "True") return { cls: "bg-good", label: v === "True" ? "yes" : v };
-  if (v === "directional") return { cls: "bg-warn", label: v };
-  if (v === "wrong" || v === "False") return { cls: "bg-bad", label: v === "False" ? "no" : v };
-  return { cls: "border border-line bg-transparent", label: "n/a" };
+  if (!row || (key === "validated" && !ours)) return { cls: "border border-dashed border-line-dash", label: "n/a" };
+  if (v === "exact" || v === "True") return { cls: "bg-good", label: v === "True" ? "yes" : "exact" };
+  if (v === "directional") return { cls: "bg-warn", label: "directional" };
+  if (v === "wrong" || v === "False") return { cls: "bg-bad", label: v === "False" ? "no" : "wrong" };
+  return { cls: "border border-dashed border-line-dash", label: "n/a" };
+}
+
+function Cell({ row, k, ours, size = "md", title }: { row?: Row; k: string; ours: boolean; size?: "md" | "sm"; title: string }) {
+  const t = tone(row, k, ours);
+  return <div className={`${size === "md" ? "h-[22px] w-[22px]" : "h-[18px] w-[18px]"} ${t.cls}`} title={`${title}: ${t.label}`} />;
 }
 
 export function Results({ data }: { data: R }) {
@@ -28,30 +25,35 @@ export function Results({ data }: { data: R }) {
   const near = (rs: Row[]) => rs.filter((r) => r.rca === "exact" || r.rca === "directional").length;
   const passed = (rs: Row[]) => rs.filter((r) => r.hidden_tests === "True").length;
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {data.stats.map((s) => (
-          <div key={s.label} className="frame p-4">
-            <span className="frame-corners" />
-            <div className={`text-3xl font-semibold tracking-tight ${TONE[s.tone]}`}>{s.value}</div>
-            <div className="mt-1 text-sm text-muted">{s.label}</div>
-          </div>
-        ))}
+    <div>
+      {/* headline numbers */}
+      <div className="cbox">
+        <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 lg:grid-cols-6">
+          {data.stats.map((s) => (
+            <div key={s.label} className="bg-surface p-4">
+              <div className="font-display text-[28px] font-medium tracking-[-0.02em] text-t1">{s.value}</div>
+              <div className="mt-0.5 text-[12.5px] leading-snug text-t3">{s.label}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="frame p-5 overflow-x-auto">
-        <span className="frame-corners" />
-        <div className="font-mono text-xs uppercase tracking-wider text-muted mb-4">
-          baseline · {data.baseline.length} bugs · {data.model} · one seed
+      {/* per-bug grid */}
+      <div className="cbox no-top -mt-px overflow-x-auto p-5">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">
+            Baseline · {data.baseline.length} bugs · {data.model} · one seed
+          </span>
+          <span className="font-mono text-[11px] text-t3">hover a cell for its value</span>
         </div>
-        <table className="border-separate border-spacing-1.5">
+        <table className="border-separate border-spacing-[3px]">
           <thead>
             <tr>
               <th />
               {data.baseline.map((r) => (
                 <th
                   key={r.bug}
-                  className={`font-mono text-[11px] font-medium ${data.ours[r.bug] ? "text-muted" : "text-[var(--cyan)]"}`}
+                  className={`pb-1 font-mono text-[10px] font-normal ${data.ours[r.bug] ? "text-t3" : "text-[#1f8fa8]"}`}
                   title={data.ours[r.bug] ? "needs a code fix" : "not our bug: the right answer is routing"}
                 >
                   {r.bug.slice(-3)}
@@ -60,66 +62,62 @@ export function Results({ data }: { data: R }) {
             </tr>
           </thead>
           <tbody>
-            {LANES.map(([lab, key]) => (
-              <tr key={key}>
-                <td className="pr-3 text-sm whitespace-nowrap">{lab}</td>
-                {data.baseline.map((r) => {
-                  const c = cell(r, key, data.ours[r.bug]);
-                  return (
-                    <td key={r.bug}>
-                      <div className={`w-7 h-7 rounded-md ${c.cls}`} title={`${r.bug} ${lab}: ${c.label}`} />
-                    </td>
-                  );
-                })}
+            {LANES.map(([lab, k]) => (
+              <tr key={k}>
+                <td className="whitespace-nowrap pr-3 text-[12.5px] text-t2">{lab}</td>
+                {data.baseline.map((r) => (
+                  <td key={r.bug}>
+                    <Cell row={r} k={k} ours={data.ours[r.bug]} title={`${r.bug} ${lab}`} />
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
         </table>
-        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted">
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-t3">
           <Legend cls="bg-good" label="exact / yes" />
-          <Legend cls="bg-warn" label="directional (right file or module)" />
+          <Legend cls="bg-warn" label="directional — right file or module" />
           <Legend cls="bg-bad" label="wrong / no" />
-          <Legend cls="border border-line" label="not applicable" />
-          <span className="text-[var(--cyan)]">cyan ids: not our bug — the right answer is routing, not a fix</span>
+          <Legend cls="border border-dashed border-line-dash" label="not applicable" />
+          <span className="text-[#1f8fa8]">blue ids: not our bug — the right answer is routing</span>
         </div>
       </div>
 
-      {data.arms.map((arm) => {
+      {/* re-runs on later code */}
+      {data.arms.map((arm, ai) => {
         const prev = arm.rows.map((r) => before[r.bug]).filter(Boolean);
         return (
-          <div key={arm.name} className="frame p-5 overflow-x-auto hatch">
-            <span className="frame-corners" />
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-lg font-semibold">
-                Re-run on later code: <span className="mark">{arm.name}</span>
-              </h3>
-              <span className="font-mono text-xs text-muted">commit {arm.commit}</span>
+          <div key={arm.name} className={`cbox -mt-px no-top ${ai < data.arms.length - 1 ? "no-bottom" : ""} grid md:grid-cols-[240px_1fr]`}>
+            <div className="stripes border-b border-line p-5 md:border-b-0 md:border-r">
+              <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">re-run · {arm.commit}</div>
+              <div className="mt-1 font-display text-[20px] font-medium tracking-[-0.015em]">{arm.name}</div>
+              <dl className="mt-3 space-y-1 text-[12.5px] text-t3">
+                <div>
+                  root cause right or close{" "}
+                  <b className="font-medium text-t1">
+                    {near(prev)} → {near(arm.rows)}
+                  </b>{" "}
+                  of {arm.rows.length}
+                </div>
+                <div>
+                  hidden tests passing{" "}
+                  <b className="font-medium text-t1">
+                    {passed(prev)} → {passed(arm.rows)}
+                  </b>
+                </div>
+              </dl>
+              <div className="mt-3 font-mono text-[10px] text-t4">per bug: left = baseline · right = this re-run</div>
             </div>
-            <p className="mt-1 text-sm text-ink-2">
-              Root cause right or close {near(prev)}/{prev.length} → {near(arm.rows)}/{arm.rows.length} · hidden tests
-              passing {passed(prev)} → {passed(arm.rows)}
-            </p>
-            <div className="mt-4 flex flex-wrap gap-6">
+            <div className="flex flex-wrap gap-x-6 gap-y-4 p-5">
               {arm.rows.map((r) => (
                 <div key={r.bug}>
-                  <div className="font-mono text-xs text-muted text-center mb-1">{r.bug.slice(-3)}</div>
-                  <div className="grid grid-cols-2 gap-1">
-                    {LANES.map(([lab, key]) =>
-                      [before[r.bug], r].map((row, j) => {
-                        const c = cell(row, key, data.ours[r.bug]);
-                        return (
-                          <div
-                            key={`${key}-${j}`}
-                            className={`w-6 h-6 rounded ${c.cls}`}
-                            title={`${r.bug} ${lab} ${j ? "after" : "before"}: ${c.label}`}
-                          />
-                        );
-                      }),
+                  <div className="mb-1 text-center font-mono text-[10px] text-t3">{r.bug.slice(-3)}</div>
+                  <div className="grid grid-cols-2 gap-[3px]">
+                    {LANES.map(([lab, k]) =>
+                      [before[r.bug], r].map((row, j) => (
+                        <Cell key={`${k}${j}`} row={row} k={k} ours={data.ours[r.bug]} size="sm" title={`${r.bug} ${lab} ${j ? "after" : "before"}`} />
+                      )),
                     )}
-                  </div>
-                  <div className="font-mono text-[10px] text-muted flex justify-between mt-1">
-                    <span>before</span>
-                    <span>after</span>
                   </div>
                 </div>
               ))}
@@ -134,7 +132,7 @@ export function Results({ data }: { data: R }) {
 function Legend({ cls, label }: { cls: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={`inline-block w-3 h-3 rounded-sm ${cls}`} />
+      <span className={`inline-block h-2.5 w-2.5 ${cls}`} />
       {label}
     </span>
   );
