@@ -26,9 +26,10 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from debugassist.core import untrusted
 from debugassist.llm.clearing import _text, tokens  # pyright: ignore[reportPrivateUsage]
 
-# History after the task/notes that triggers a compaction. Chosen by replaying the fix-quality arm's 24
-# multi-turn agents: 5K fires in 10 (as often as clearing's 4K, for a fair comparison), 4K in 16, 6K in 6.
-TRIGGER_TOKENS = 5_000
+# Foldable history (older than the newest KEEP steps) that triggers a compaction. Chosen by replaying the
+# fix-quality arm's 24 multi-turn agents: 4K fires in 12 with 16 calls (about one per agent; clearing's 4K fired
+# in 10), 3K in 14 with 23, 5K in 7.
+TRIGGER_TOKENS = 4_000
 KEEP_STEPS = 2  # the newest steps (an AI message and its tool results) always stay whole
 TOOL_CHARS = 3_000  # per tool result, in what the summariser reads
 
@@ -76,15 +77,21 @@ class Compaction:
         self.input_tokens = self.output_tokens = self.cached_tokens = 0
 
     def boundary(self, messages: list[BaseMessage]) -> int | None:
-        """Where to cut (an AI message index) if the uncompacted history is over the threshold, else None."""
+        """Where to cut (an AI message index) when the steps that would be folded pass the threshold.
+
+        Only the foldable steps count — not the newest `keep` steps, which stay whole anyway. Counting them
+        made one large recent tool result re-trigger a compaction every turn (an extra model call and a
+        rewritten prefix each time), which the first live run showed.
+        """
         start = self.upto or 1
         rest = messages[start:]
-        if sum(tokens(_text(m.content)) for m in rest) < self.trigger:
-            return None
         ai = [start + i for i, m in enumerate(rest) if isinstance(m, AIMessage)]
         if len(ai) <= self.keep:
             return None
-        return ai[-self.keep]
+        cut = ai[-self.keep]
+        if sum(tokens(_text(m.content)) for m in messages[start:cut]) < self.trigger:
+            return None
+        return cut
 
     def view(self, messages: list[BaseMessage]) -> list[BaseMessage]:
         if not self.upto:
