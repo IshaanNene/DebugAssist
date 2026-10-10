@@ -53,7 +53,12 @@ def run_cmd(
     bugs: Annotated[str | None, typer.Option(help="comma list of catalog ids, or 'all'")] = None,
     configs: Annotated[str, typer.Option(help=f"comma list of: {', '.join(eval_run.CONFIGS)}")] = "routed",
     seeds: Annotated[int, typer.Option(help="runs per configuration")] = 3,
-    until: Annotated[str, typer.Option(help="last node to run ('' = whole pipeline)")] = "validate",
+    until: Annotated[
+        str,
+        typer.Option(
+            help="last node to run ('' = whole pipeline); ship_gate keeps the fix ↔ validate retry loop"
+        ),
+    ] = "ship_gate",
     hidden: Annotated[bool, typer.Option(help="run the catalog's hidden tests on each fix")] = True,
     wipe: Annotated[
         bool, typer.Option(help="wipe Vitals/BugDrop data between bugs (clean discovery)")

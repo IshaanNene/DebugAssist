@@ -71,3 +71,38 @@ def test_changed_files_and_test_paths() -> None:
     assert changed_files(diff) == ["src/a.ts", "test/a.test.ts"]
     assert is_test_path("test/router.test.ts") and is_test_path("dispatch/tests/test_x.py")
     assert not is_test_path("src/notifications/router.ts")
+
+
+def test_edit_tolerates_wrong_indentation_and_reindents(tmp_path: Path) -> None:
+    from debugassist.llm.workspace_tools import replace_ignoring_indent
+
+    src = "export function f() {\n    if (x) {\n      return a;\n    }\n}\n"
+    old = "      if (x) {\n        return a;\n      }"  # the agent guessed two more spaces
+    new = "      if (x) {\n        return b;\n      }"
+    assert (
+        replace_ignoring_indent(src, old, new)
+        == "export function f() {\n    if (x) {\n      return b;\n    }\n}\n"
+    )
+    assert replace_ignoring_indent(src + src, old, new) is None  # ambiguous: two matches
+
+
+def test_failed_edit_shows_the_closest_lines(tmp_path: Path) -> None:
+    tools, _ = _tools(tmp_path, allow_edits=True, allow_commands=False)
+    out = tools["edit_file"].invoke({"path": "src/a.ts", "old_text": "export const y = 3;", "new_text": "z"})
+    assert "matched 0 times" in out and "2  export const y = 2;" in out
+
+
+def test_component_relative_paths_resolve_but_escapes_stay_blocked(tmp_path: Path) -> None:
+    (tmp_path / "gateway" / "src").mkdir(parents=True)
+    (tmp_path / "gateway" / "src" / "b.ts").write_text("const v = 1;\n")
+    sb = FakeSandbox(tmp_path)
+    built = build_workspace_tools(sb, allow_edits=True, allow_commands=False, workdir="gateway")  # pyright: ignore[reportArgumentType]
+    tools = {t.name: t for t in built}
+    assert "1  const v = 1;" in tools["read_file"].invoke({"path": "src/b.ts"})
+    assert (
+        tools["edit_file"]
+        .invoke({"path": "./src/b.ts", "old_text": "v = 1", "new_text": "v = 2"})
+        .startswith("edited gateway/src/b.ts")
+    )
+    assert "blocked" in tools["read_file"].invoke({"path": "../../etc/passwd"}).lower()
+    assert "blocked" in tools["write_file"].invoke({"path": "/tmp/x.ts", "content": "x"}).lower()

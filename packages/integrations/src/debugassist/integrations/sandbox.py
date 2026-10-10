@@ -117,6 +117,10 @@ class Sandbox:
             "-e",
             "UV_CACHE_DIR=/work/.cache/uv",
             "-e",
+            # Projects that pin `python-preference = "only-managed"` download their interpreter at install time;
+            # keep it in the worktree so later (offline) containers still find it, like the package cache.
+            "UV_PYTHON_INSTALL_DIR=/work/.cache/uv-python",
+            "-e",
             "GOMODCACHE=/work/.cache/gomod",
             "-e",
             "GOCACHE=/work/.cache/go-build",

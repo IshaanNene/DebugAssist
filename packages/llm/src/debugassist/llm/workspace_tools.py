@@ -19,6 +19,60 @@ from debugassist.integrations.sandbox import Sandbox
 SKIP = {".git", "node_modules", "dist", ".corepack", ".venv", "__pycache__", "vendor"}
 
 
+def _indent(line: str) -> str:
+    return line[: len(line) - len(line.lstrip())]
+
+
+def replace_ignoring_indent(text: str, old: str, new: str) -> str | None:
+    """`old` → `new` where `old` matches exactly one block of `text` once leading whitespace is ignored;
+    `new` is re-indented by the same offset. None when there is no unique match. Agents often guess the
+    indentation wrong; this keeps an exact-text edit tool from burning turns on it."""
+    lines = text.splitlines(keepends=True)
+    want = [ln.strip() for ln in old.strip("\n").splitlines()]
+    if not want or not any(want):
+        return None
+    hits = [
+        i
+        for i in range(len(lines) - len(want) + 1)
+        if all(lines[i + j].strip() == w for j, w in enumerate(want))
+    ]
+    if len(hits) != 1:
+        return None
+    i = hits[0]
+    first = next(j for j, w in enumerate(want) if w)
+    file_ind = _indent(lines[i + first])
+    old_ind = _indent(old.strip("\n").splitlines()[first])
+    out: list[str] = []
+    for ln in new.strip("\n").splitlines():
+        if not ln.strip():
+            out.append("")
+        elif ln.startswith(old_ind):
+            out.append(file_ind + ln[len(old_ind) :])
+        else:
+            out.append(file_ind + ln.lstrip())
+    end = "\n" if lines[i + len(want) - 1].endswith("\n") else ""
+    return "".join(lines[:i]) + "\n".join(out) + end + "".join(lines[i + len(want) :])
+
+
+def closest_lines(text: str, old: str, context: int = 3) -> str:
+    """Where `old` most likely was meant to match, with line numbers (for a failed edit)."""
+    import difflib
+
+    first = next((ln.strip() for ln in old.splitlines() if ln.strip()), "")
+    lines = text.splitlines()
+    if not first or not lines:
+        return ""
+    scored = sorted(
+        ((difflib.SequenceMatcher(None, first, ln.strip()).ratio(), n) for n, ln in enumerate(lines)),
+        reverse=True,
+    )
+    ratio, best = scored[0]
+    if ratio < 0.6:
+        return ""
+    lo, hi = max(0, best - context), min(len(lines), best + context + len(old.splitlines()))
+    return "\n".join(f"{n + 1:>5}  {lines[n]}" for n in range(lo, hi))
+
+
 def build_workspace_tools(
     sb: Sandbox,
     *,
@@ -35,6 +89,27 @@ def build_workspace_tools(
             return f"blocked: {path} cannot be modified in this step"
         return None
 
+    def resolve(path: str, *, new: bool = False) -> str:
+        """Repository-relative first; otherwise relative to the component directory commands run in."""
+        clean = path.strip()
+        while clean.startswith(
+            "./"
+        ):  # only a literal "./" — never strip "../" or "/" (confine must see them)
+            clean = clean[2:]
+        clean = clean or "."
+        if (
+            workdir in (".", "")
+            or clean in (".",)
+            or clean.startswith(("/", "..", workdir.rstrip("/") + "/"))
+        ):
+            return clean
+        here, there = root / clean, root / workdir / clean
+        if new:
+            top = clean.split("/", 1)[0]
+            use_comp = not (root / top).exists() and (root / workdir / top).exists()
+            return f"{workdir.rstrip('/')}/{clean}" if use_comp else clean
+        return f"{workdir.rstrip('/')}/{clean}" if not here.exists() and there.exists() else clean
+
     @tool
     def list_dir(path: str = ".") -> str:
         """List files and folders under a directory of the repository."""
@@ -50,6 +125,7 @@ def build_workspace_tools(
     @tool
     def read_file(path: str, start_line: int = 1, end_line: int = 0) -> str:
         """Read a repository file with line numbers (optionally a line range)."""
+        path = resolve(path)
         try:
             p = confine(root, path)
         except GuardError as exc:
@@ -90,7 +166,9 @@ def build_workspace_tools(
 
     @tool
     def edit_file(path: str, old_text: str, new_text: str) -> str:
-        """Replace one exact occurrence of old_text with new_text in a file. old_text must match exactly once."""
+        """Replace one occurrence of old_text with new_text in a file. old_text must match exactly once
+        (leading indentation may differ: a unique block matching apart from indentation is re-indented)."""
+        path = resolve(path)
         if (why := can_edit(path)) is not None:
             return why
         try:
@@ -101,14 +179,22 @@ def build_workspace_tools(
             return f"{path} not found"
         text = p.read_text()
         n = text.count(old_text)
-        if n != 1:
-            return f"old_text matched {n} times; it must match exactly once (include more surrounding lines)"
-        p.write_text(text.replace(old_text, new_text))
-        return f"edited {path}"
+        if n == 1:
+            p.write_text(text.replace(old_text, new_text))
+            return f"edited {path}"
+        if n == 0 and (fixed := replace_ignoring_indent(text, old_text, new_text)) is not None:
+            p.write_text(fixed)
+            return (
+                f"edited {path} (old_text matched apart from indentation; new_text re-indented to the file)"
+            )
+        hint = closest_lines(text, old_text) if n == 0 else ""
+        msg = f"old_text matched {n} times; it must match exactly once (include more surrounding lines)"
+        return msg + (f". Closest lines in {path} (copy them exactly):\n{hint}" if hint else "")
 
     @tool
     def write_file(path: str, content: str) -> str:
         """Create or overwrite a file (use for new test files)."""
+        path = resolve(path, new=True)
         if (why := can_edit(path)) is not None:
             return why
         try:

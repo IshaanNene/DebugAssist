@@ -111,7 +111,7 @@ async def evaluate(
     configs: list[str],
     seeds: int,
     *,
-    until: str | None = "validate",
+    until: str | None = "ship_gate",  # not "validate": --until ends a run after its first validation
     hidden: bool = True,
     wipe: bool = True,
     reserve_usd: float = 0.0,
