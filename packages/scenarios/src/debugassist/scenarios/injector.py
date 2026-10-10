@@ -30,10 +30,19 @@ PROFILES = ["core", "obs", "flags", "faults", "target", "sources"]
 FLAG_PROPAGATION_S = 8  # services poll Unleash every 5 s
 
 
-def compose(*args: str, profiles: list[str] = PROFILES) -> None:
+# Docker races that a second try gets past (a dependency recreated while another service still points at it).
+TRANSIENT = ("No such container", "dependency failed to start", "is already in progress")
+
+
+def compose(*args: str, profiles: list[str] = PROFILES, attempts: int = 3) -> None:
     cmd = [*COMPOSE, *[f for p in profiles for f in ("--profile", p)], *args]
-    out = subprocess.run(cmd, capture_output=True, text=True)
-    if out.returncode != 0:
+    for attempt in range(attempts):
+        out = subprocess.run(cmd, capture_output=True, text=True)
+        if out.returncode == 0:
+            return
+        if attempt + 1 < attempts and any(t in out.stderr for t in TRANSIENT):
+            time.sleep(5)
+            continue
         raise RuntimeError(f"{' '.join(cmd)}\n{out.stderr[-3000:]}")
 
 
@@ -175,8 +184,14 @@ def wipe_sources() -> None:
 
 def reseed_drivers(timeout_s: float = 90) -> None:
     """Restart dispatch so it re-seeds its fleet, and wait until it answers again."""
-    if subprocess.run(["docker", "restart", "debugassist-dispatch-1"], capture_output=True).returncode:
+    running = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", "debugassist-dispatch-1"],
+        capture_output=True,
+        text=True,
+    )
+    if running.stdout.strip() != "true":
         return  # dispatch is not running (no target profile): nothing to restore
+    compose("restart", "dispatch")  # through compose, so its view of the container stays consistent
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         try:
