@@ -4,218 +4,243 @@ import { useEffect, useState } from "react";
 
 type Kind = "code" | "llm" | "clef";
 
-interface Stage {
+interface Phase {
   name: string;
-  kind: Kind[];
+  steps: string;
   decisions: string;
+  kind: Kind[];
   what: string;
   parts: string[];
 }
 
-// The fixed plan (ADR 0001): always these steps, in this order.
-const STAGES: Stage[] = [
-  { name: "Ingest", kind: ["code"], decisions: "", what: "Pull the crash from Vitals or the rider's report from BugDrop, and pick the agent type for it.", parts: ["Vitals", "BugDrop"] },
-  { name: "Triage", kind: ["code", "clef"], decisions: "D01 · D02", what: "Owner from CODEOWNERS, priority and severity, dedup against open issues, a ticket and a page.", parts: ["Owner", "Dedup", "Ticket"] },
-  { name: "Context", kind: ["code", "clef"], decisions: "D03 · D04", what: "A deterministic evidence bundle from the MCP servers, scored for relevance and fitted to a budget.", parts: ["Logs", "Traces", "Commits"] },
-  { name: "Root cause", kind: ["llm", "clef"], decisions: "D05 – D10", what: "An agent and its subagents explain the defect. Every claim cites an evidence id and is checked against it.", parts: ["Subagents", "Evidence", "Grounding"] },
-  { name: "Mitigate", kind: ["code", "clef"], decisions: "D11", what: "A flag ↔ crash z-test; a rollback is proposed behind the policy gate, dry-run by default.", parts: ["z-test", "Rollback"] },
-  { name: "Reproduce", kind: ["llm", "clef"], decisions: "D12 – D14", what: "Plan where, how and at which tier — then write a test that must fail on the shipped release.", parts: ["Unit", "Integration", "E2E"] },
-  { name: "Fix", kind: ["llm"], decisions: "", what: "The smallest source change that makes the frozen reproduction, the suite and the repo's own CI pass.", parts: ["Sandbox", "Worktree"] },
-  { name: "Validate", kind: ["code", "clef"], decisions: "D15", what: "Fails before, passes after, suite and CI green — or another attempt, up to three.", parts: ["Before", "After", "CI"] },
-  { name: "Ship", kind: ["code", "clef"], decisions: "D16 · D17", what: "A pull request or a draft, by the evidence. After the deploy, watch the crash rate and resolve.", parts: ["PR", "Watch"] },
+// The fixed plan (ADR 0001) in four phases; the sub-phases are the pipeline's actual steps, always in this order.
+const PHASES: Phase[] = [
+  {
+    name: "Detect",
+    steps: "ingest · triage · dedup",
+    decisions: "D01 · D02",
+    kind: ["code", "clef"],
+    what: "A crash from Vitals or a rider's report from BugDrop comes in. Owner from CODEOWNERS, priority and severity, dedup against open issues, a ticket and a page.",
+    parts: ["Ingest", "Triage", "Dedup"],
+  },
+  {
+    name: "Investigate",
+    steps: "context · root cause · mitigate",
+    decisions: "D03 – D11",
+    kind: ["code", "llm", "clef"],
+    what: "A deterministic evidence bundle from eleven MCP servers; an agent and its subagents explain the defect, every claim checked against its evidence; a flag rollback is proposed when the numbers say so.",
+    parts: ["Context", "Root cause", "Mitigate"],
+  },
+  {
+    name: "Fix",
+    steps: "reproduce · fix · validate",
+    decisions: "D12 – D15",
+    kind: ["llm", "clef"],
+    what: "A test that fails on the shipped release, the smallest fix that makes it pass, then proof: fails before, passes after, suite and CI green — or another attempt.",
+    parts: ["Reproduce", "Fix", "Validate"],
+  },
+  {
+    name: "Ship",
+    steps: "ship gate · pull request · watch",
+    decisions: "D16 · D17",
+    kind: ["code", "clef"],
+    what: "A pull request or a draft, decided by the evidence, linked from the ticket. After the deploy, watch the crash rate and resolve or reopen.",
+    parts: ["Ship gate", "Pull request", "Watch"],
+  },
 ];
 
 const KIND: Record<Kind, { label: string; color: string }> = {
-  code: { label: "deterministic", color: "#cfcfc9" },
-  llm: { label: "LLM agent", color: "#8b7cf0" },
-  clef: { label: "Clef decision", color: "#e0901b" },
+  code: { label: "deterministic code", color: "#cfcfc9" },
+  llm: { label: "LLM agents", color: "#8b7cf0" },
+  clef: { label: "Clef decisions", color: "#e0901b" },
 };
 
-// Isometric projection: x runs down-right, y runs up-right, z is height.
+// Isometric projection: x runs down-right (towards the viewer), y runs up-right, z is height.
 const C = Math.cos(Math.PI / 6);
 const S = Math.sin(Math.PI / 6);
 const iso = (x: number, y: number, z = 0): [number, number] => [(x + y) * C, (x - y) * S - z];
 const P = (...p: [number, number][]) => p.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(" ");
-
-const W = 104; // slab width (x)
-const D = 84; // slab depth (y)
-const GAP = 20;
-const STEP = D + GAP;
-const INK = "#2f2e2a";
-const FONT = "var(--font-geist-mono), ui-monospace, monospace";
-
-/** Text lying flat on the top face, reading along the y axis (up-right). */
+/** Text lying on a horizontal face at height z, reading along +y. */
 const flat = (x: number, y: number, z: number) => {
   const [tx, ty] = iso(x, y, z);
-  return `matrix(${C} ${-S} ${C} ${S} ${tx} ${ty})`;
+  return `matrix(${C} ${-S} ${C} ${S} ${tx.toFixed(1)} ${ty.toFixed(1)})`;
 };
 
-function Slab({
-  x,
-  y,
-  w,
-  d,
-  h,
-  z = 0,
-  dim,
-  top = "#fdfdfb",
-}: {
-  x: number;
-  y: number;
-  w: number;
-  d: number;
-  h: number;
-  z?: number;
-  dim?: boolean;
-  top?: string;
-}) {
-  const t = [iso(x, y, z + h), iso(x, y + d, z + h), iso(x + w, y + d, z + h), iso(x + w, y, z + h)];
-  const ink = dim ? "#a8a69e" : INK;
-  const front = [iso(x + w, y, z + h), iso(x + w, y + d, z + h), iso(x + w, y + d, z), iso(x + w, y, z)];
-  const left = [iso(x, y, z + h), iso(x + w, y, z + h), iso(x + w, y, z), iso(x, y, z)];
+const INK = "#2f2e2a";
+const FAINT = "#b9b7ae";
+const FONT = "var(--font-geist-mono), ui-monospace, monospace";
+
+// box geometry
+const W = 118; // along x
+const D = 128; // along y
+const H = 66;
+const GAP = 34;
+const STEP = D + GAP;
+// part slabs
+const PW = 64;
+const PD = 132;
+const PH = 12;
+const PGAP = 18;
+const PX = W + 92; // parts sit in front of the boxes
+
+function Block({ x, y, w, d, h, active }: { x: number; y: number; w: number; d: number; h: number; active: boolean }) {
+  const ink = active ? INK : FAINT;
+  const top = [iso(x, y, h), iso(x, y + d, h), iso(x + w, y + d, h), iso(x + w, y, h)];
+  const front = [iso(x + w, y, h), iso(x + w, y + d, h), iso(x + w, y + d, 0), iso(x + w, y, 0)];
+  const side = [iso(x, y, h), iso(x + w, y, h), iso(x + w, y, 0), iso(x, y, 0)];
   return (
     <g>
-      <polygon points={P(...left)} fill={dim ? "#f0f0ec" : "#ebebe6"} stroke={ink} strokeWidth={1} strokeLinejoin="round" />
-      <polygon points={P(...front)} fill={dim ? "#e9e9e4" : "#dfdfd9"} stroke={ink} strokeWidth={1} strokeLinejoin="round" />
-      <polygon points={P(...t)} fill={dim ? "#f8f8f5" : top} stroke={ink} strokeWidth={1.15} strokeLinejoin="round" />
+      <polygon points={P(...side)} fill={active ? "#e9e9e3" : "#f1f1ed"} stroke={ink} strokeWidth={1} strokeLinejoin="round" />
+      <polygon points={P(...front)} fill={active ? "#dededa" : "#ebebe6"} stroke={ink} strokeWidth={1} strokeLinejoin="round" />
+      <polygon points={P(...top)} fill={active ? "#ffffff" : "#f9f9f6"} stroke={ink} strokeWidth={1.2} strokeLinejoin="round" />
     </g>
   );
 }
 
 export function Loop() {
-  const [active, setActive] = useState(3);
+  const [active, setActive] = useState(1);  // start on Investigate
   const [paused, setPaused] = useState(false);
   useEffect(() => {
     if (paused) return;
-    const t = setInterval(() => setActive((a) => (a + 1) % STAGES.length), 3200);
+    const t = setInterval(() => setActive((a) => (a + 1) % PHASES.length), 3600);
     return () => clearInterval(t);
   }, [paused]);
 
-  const n = STAGES.length;
+  const n = PHASES.length;
   const len = n * STEP - GAP;
-  // the track under the slabs, extruded a little
-  const tx0 = -18;
-  const tx1 = W + 18;
-  const ty0 = -18;
-  const ty1 = len + 18;
-  const th = 9;
-  const trackTop = [iso(tx0, ty0, 0), iso(tx0, ty1, 0), iso(tx1, ty1, 0), iso(tx1, ty0, 0)];
-  const trackFront = [iso(tx1, ty0, 0), iso(tx1, ty1, 0), iso(tx1, ty1, -th), iso(tx1, ty0, -th)];
-  const trackLeft = [iso(tx0, ty0, 0), iso(tx1, ty0, 0), iso(tx1, ty0, -th), iso(tx0, ty0, -th)];
+  const ph = PHASES[active];
 
-  // a faint drafting lattice on the ground plane
-  const cells: [number, number][] = [];
-  for (let gx = -320; gx <= 520; gx += 120) for (let gy = -260; gy <= len + 240; gy += 96) cells.push([gx, gy]);
+  // track under the boxes
+  const t0x = -22;
+  const t1x = W + 22;
+  const t0y = -40;
+  const t1y = len + 40;
+  const TH = 10;
+  const trackTop = [iso(t0x, t0y), iso(t0x, t1y), iso(t1x, t1y), iso(t1x, t0y)];
+  const trackFront = [iso(t1x, t0y), iso(t1x, t1y), iso(t1x, t1y, -TH), iso(t1x, t0y, -TH)];
+  const trackEnd = [iso(t0x, t0y), iso(t1x, t0y), iso(t1x, t0y, -TH), iso(t0x, t0y, -TH)];
 
-  const st = STAGES[active];
+  // parts of the active phase: side by side along y, centred on its box, in front of the track
+  const parts = (i: number) => {
+    const k = PHASES[i].parts.length;
+    const span = k * PD + (k - 1) * PGAP;
+    const start = i * STEP + D / 2 - span / 2;
+    return PHASES[i].parts.map((p, j) => ({ p, y: start + j * (PD + PGAP) }));
+  };
+  const cur = parts(active);
   const ay = active * STEP;
-  const parts = st.parts.map((p, k) => ({ p, x: W + 74 + (k % 2) * 8, y: ay - 40 + k * 70 }));
 
-  // view box from the extremes of everything drawn
-  // a fixed frame around every slab, the track and the farthest parts (so the view does not jump per step)
-  const pts = [
+  // a fixed frame that fits every phase's parts, so the view never jumps
+  const allParts = PHASES.flatMap((_, i) => parts(i));
+  const ext = [
     ...trackTop,
-    iso(tx0, ty0, -th),
-    iso(0, len, 90),
-    iso(W + 74 + 8 + 60, -60, 0),
-    iso(W + 74 + 8 + 60, len + 130, 0),
+    iso(t0x, t0y, -TH),
+    iso(t1x, t0y, -TH),
+    iso(0, len, H),
+    iso(0, 0, H),
+    iso(PX + PW, Math.min(...allParts.map((q) => q.y))),
+    iso(PX + PW, Math.max(...allParts.map((q) => q.y)) + PD),
+    iso(PX, Math.max(...allParts.map((q) => q.y)) + PD, PH),
   ];
-  const pad = 36;
-  const minX = Math.min(...pts.map((p) => p[0])) - pad;
-  const maxX = Math.max(...pts.map((p) => p[0])) + pad;
-  const minY = Math.min(...pts.map((p) => p[1])) - pad;
-  const maxY = Math.max(...pts.map((p) => p[1])) + pad;
-  const vb = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  const pad = 30;
+  const minX = Math.min(...ext.map((p) => p[0])) - pad;
+  const maxX = Math.max(...ext.map((p) => p[0])) + pad;
+  const minY = Math.min(...ext.map((p) => p[1])) - pad;
+  const maxY = Math.max(...ext.map((p) => p[1])) + pad;
+
+  // faint ground lattice
+  const cells: [number, number][] = [];
+  for (let gx = -460; gx <= PX + 360; gx += 150) for (let gy = -420; gy <= len + 420; gy += 170) cells.push([gx, gy]);
+
+  // draw back (large y) to front
+  const order = PHASES.map((_, i) => i).sort((a, b) => b - a);
 
   return (
     <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
-      <div className="cbox drafting overflow-hidden">
+      <div className="cbox overflow-hidden bg-surface">
         <svg
-          viewBox={`${vb.x.toFixed(0)} ${vb.y.toFixed(0)} ${vb.w.toFixed(0)} ${vb.h.toFixed(0)}`}
+          viewBox={`${minX.toFixed(0)} ${minY.toFixed(0)} ${(maxX - minX).toFixed(0)} ${(maxY - minY).toFixed(0)}`}
           className="block h-auto w-full select-none"
           role="img"
-          aria-label={`The DebugAssist pipeline: ${STAGES.map((s) => s.name).join(", ")}. Showing ${st.name}.`}
+          aria-label={`The DebugAssist pipeline in four phases: ${PHASES.map((p) => p.name).join(", ")}. Showing ${ph.name}.`}
         >
           <defs>
-            <radialGradient id="fade" cx="50%" cy="55%" r="62%">
-              <stop offset="55%" stopColor="#fff" />
+            <radialGradient id="lat-fade" cx="50%" cy="50%" r="60%">
+              <stop offset="40%" stopColor="#fff" />
               <stop offset="100%" stopColor="#000" />
             </radialGradient>
-            <mask id="lattice-mask">
-              <rect x={vb.x} y={vb.y} width={vb.w} height={vb.h} fill="url(#fade)" />
+            <mask id="lat-mask">
+              <rect x={minX} y={minY} width={maxX - minX} height={maxY - minY} fill="url(#lat-fade)" />
             </mask>
           </defs>
-          <g mask="url(#lattice-mask)" stroke="#bfbdb4" strokeWidth={0.9} fill="none" opacity={0.75}>
+
+          <g mask="url(#lat-mask)" fill="none" stroke="#dcdad2" strokeWidth={0.9}>
             {cells.map(([gx, gy]) => (
-              <polygon key={`${gx},${gy}`} points={P(iso(gx, gy), iso(gx, gy + 76), iso(gx + 96, gy + 76), iso(gx + 96, gy))} />
+              <polygon key={`${gx},${gy}`} points={P(iso(gx, gy), iso(gx, gy + 130), iso(gx + 104, gy + 130), iso(gx + 104, gy))} />
             ))}
           </g>
 
           {/* track */}
-          <polygon points={P(...trackLeft)} fill="#dfe263" stroke={INK} strokeWidth={1} />
-          <polygon points={P(...trackFront)} fill="#e8eb6a" stroke={INK} strokeWidth={1} />
-          <polygon points={P(...trackTop)} fill="#f6f87e" stroke={INK} strokeWidth={1.1} />
-          <text transform={flat(tx1 + 8, ty0 + 2, 0)} fontFamily={FONT} fontSize={13} fill="#4a4943" dy={14}>
+          <polygon points={P(...trackEnd)} fill="#dde05f" stroke={INK} strokeWidth={1} />
+          <polygon points={P(...trackFront)} fill="#e9ec6c" stroke={INK} strokeWidth={1} />
+          <polygon points={P(...trackTop)} fill="#f7f985" stroke={INK} strokeWidth={1.1} />
+          <text transform={flat(t0x - 22, t0y + 4, 0)} fontFamily={FONT} fontSize={12} fill="#55544e">
             signal in
           </text>
-          <text transform={flat(tx1 + 8, ty1 - 92, 0)} fontFamily={FONT} fontSize={13} fill="#4a4943" dy={14}>
+          <text transform={flat(t1x - 40, t1y + 22, 0)} fontFamily={FONT} fontSize={12} fill="#55544e" dy={12}>
             proof out
           </text>
 
-          {/* connectors to the active stage's parts */}
-          <g stroke={INK} strokeWidth={1.1} fill="none">
-            {parts.map(({ p, x, y }) => {
-              const a = iso(W, ay + D / 2, 0);
-              const m = iso(W + 40, ay + D / 2, 0);
-              const b = iso(W + 40, y + 28, 0);
-              const c = iso(x, y + 28, 0);
-              return <polyline key={p} points={P(a, m, b, c)} />;
-            })}
-          </g>
-
-          {STAGES.map((s, i) => {
+          {/* phase boxes, back to front */}
+          {order.map((i) => {
             const on = i === active;
             const y = i * STEP;
-            const h = on ? 66 : 44;
-            const z = on ? 14 : 0;
             return (
-              <g key={s.name} onClick={() => setActive(i)} className="cursor-pointer">
-                <Slab x={0} y={y} w={W} d={D} h={h} z={z} dim={!on} />
-                <g>
-                  <text transform={flat(16, y + 10, z + h)} fontFamily={FONT} fontSize={on ? 19 : 16} fill={on ? INK : "#8e8c85"} dy={18}>
-                    {s.name}
-                  </text>
-                  {s.kind.map((k, j) => {
-                    const [cx, cy] = iso(W - 18 - j * 14, y + D - 16, z + h);
-                    return k === "code" ? null : (
-                      <circle key={k} cx={cx} cy={cy} r={5} fill={KIND[k].color} stroke={on ? INK : "#a8a69e"} strokeWidth={0.9} opacity={on ? 1 : 0.55} />
-                    );
-                  })}
+              <g key={PHASES[i].name} onClick={() => setActive(i)} className="cursor-pointer">
+                <Block x={0} y={y} w={W} d={D} h={H} active={on} />
+                {/* drafting ticks on the top face */}
+                <g stroke={on ? INK : FAINT} strokeWidth={1}>
+                  {[0, 1, 2].map((t) => (
+                    <line key={t} x1={iso(12, y + 12 + t * 5, H)[0]} y1={iso(12, y + 12 + t * 5, H)[1]} x2={iso(26, y + 12 + t * 5, H)[0]} y2={iso(26, y + 12 + t * 5, H)[1]} />
+                  ))}
                 </g>
+                <text transform={flat(44, y + 14, H)} fontFamily={FONT} fontSize={16} fill={on ? INK : "#9a988f"} dy={6}>
+                  {PHASES[i].name}
+                </text>
               </g>
             );
           })}
 
-          {parts.map(({ p, x, y }) => (
-            <g key={`${active}-${p}`} style={{ animation: "none" }}>
-              <Slab x={x} y={y} w={60} d={132} h={12} />
-              <text transform={flat(x + 18, y + 16, 12)} fontFamily={FONT} fontSize={15} fill={INK} dy={16}>
-                {p}
-              </text>
+          {/* the active phase's parts: a small tree in front of its box */}
+          <g key={`parts-${active}`}>
+            <g fill="none" stroke={INK} strokeWidth={1.1}>
+              <polyline points={P(iso(W, ay + D / 2), iso(W + 40, ay + D / 2))} />
+              <polyline points={P(iso(W + 40, cur[0].y + PD / 2), iso(W + 40, cur[cur.length - 1].y + PD / 2))} />
+              {cur.map(({ p, y }) => (
+                <polyline key={p} points={P(iso(W + 40, y + PD / 2), iso(PX, y + PD / 2))} />
+              ))}
             </g>
-          ))}
+            {[...cur].reverse().map(({ p, y }) => (
+              <g key={p}>
+                <Block x={PX} y={y} w={PW} d={PD} h={PH} active />
+                <text transform={flat(PX + 22, y + 14, PH)} fontFamily={FONT} fontSize={13.5} fill={INK} dy={10}>
+                  {p}
+                </text>
+              </g>
+            ))}
+          </g>
         </svg>
       </div>
 
-      <div className="cbox no-top -mt-px grid gap-0 md:grid-cols-[1fr_1.35fr]">
+      <div className="cbox no-top -mt-px grid md:grid-cols-[1fr_1.4fr]">
         <div className="border-b border-line p-5 md:border-b-0 md:border-r">
           <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">
-            Step {active + 1} of {n}
-            {st.decisions && <> · {st.decisions}</>}
+            Phase {active + 1} of {n} · {ph.decisions}
           </div>
-          <div className="mt-1.5 font-display text-[26px] font-medium tracking-[-0.02em]">{st.name}</div>
+          <div className="mt-1.5 font-display text-[26px] font-medium tracking-[-0.02em]">{ph.name}</div>
+          <div className="mt-0.5 font-mono text-[12px] text-t3">{ph.steps}</div>
           <div className="mt-3 flex flex-wrap gap-3">
-            {st.kind.map((k) => (
+            {ph.kind.map((k) => (
               <span key={k} className="inline-flex items-center gap-1.5 font-mono text-[11px] text-t3">
                 <span className="inline-block h-2 w-2 rounded-full border border-t2" style={{ background: KIND[k].color }} />
                 {KIND[k].label}
@@ -224,14 +249,14 @@ export function Loop() {
           </div>
         </div>
         <p className="p-5 text-[15px] leading-[1.55] text-t2" aria-live="polite">
-          {st.what}
+          {ph.what}
         </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="Pipeline steps">
-        {STAGES.map((s, i) => (
+      <div className="mt-3 flex flex-wrap gap-1.5" role="tablist" aria-label="Pipeline phases">
+        {PHASES.map((p, i) => (
           <button
-            key={s.name}
+            key={p.name}
             role="tab"
             aria-selected={i === active}
             onClick={() => setActive(i)}
@@ -239,7 +264,7 @@ export function Loop() {
               i === active ? "border-t1 bg-t1 text-surface" : "border-line bg-surface text-t3 hover:border-line-strong hover:text-t2"
             }`}
           >
-            {s.name}
+            {i + 1} · {p.name}
           </button>
         ))}
       </div>
