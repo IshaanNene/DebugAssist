@@ -71,6 +71,7 @@ known-first-party = ["debugassist"]
 # Nodes run one at a time, so their short git calls cannot starve the event loop.
 "packages/pipeline/src/debugassist/pipeline/nodes.py" = ["S603", "S607", "ASYNC221"]
 "packages/pipeline/src/debugassist/pipeline/fixplan.py" = ["S603", "S607"]
+"packages/pipeline/src/debugassist/pipeline/crossrepo.py" = ["S603", "S607"]
 "packages/harness/src/debugassist/harness/marketplace.py" = ["S603", "S607"]
 "packages/harness/src/debugassist/harness/launcher.py" = ["S603", "S607"]
 "packages/evals/src/debugassist/evals/**" = ["S603", "S607"]
