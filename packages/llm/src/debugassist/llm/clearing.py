@@ -21,7 +21,10 @@ from typing import Any
 from langchain.agents.middleware import wrap_model_call
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
-TRIGGER_TOKENS = 8_000  # uncleared tool output (beyond the newest KEEP results) that triggers a batch
+# Uncleared tool output (beyond the newest KEEP results) that triggers a batch. Chosen by replaying the
+# fix-quality arm's 24 multi-turn agents: 8K fired in 6 (24% of history tokens saved), 4K in 10 (37%),
+# 2K in 19 (50%, but a batch — one cache rewrite — every few turns).
+TRIGGER_TOKENS = 4_000
 KEEP = 3  # the newest tool results always stay whole
 MIN_CLEAR_CHARS = 400  # short results are cheaper to keep than to replace with a stub
 _EVIDENCE = re.compile(r'"evidence_id":\s*"(ev_[a-z]+_[0-9a-f]{10})"')
