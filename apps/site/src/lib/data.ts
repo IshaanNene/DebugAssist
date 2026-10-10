@@ -60,62 +60,136 @@ function expectedOutcomes(): Record<string, string> {
   return out;
 }
 
+export type Lane = "rca" | "validated" | "hidden_tests";
+
+/** One bug's results across the seeds of a sweep: how many runs passed each lane, out of how many applied. */
+export interface BugAgg {
+  bug: string;
+  ours: boolean;
+  runs: number;
+  lanes: Record<Lane, { pass: number; n: number; exact?: number }>;
+}
+
+export interface Headline {
+  label: string; // which sweep the grid shows
+  eval: string; // its eval stamp (YYYYMMDD-HHMMSS)
+  commit: string;
+  seeds: number;
+  current: boolean; // false: the original baseline, run before the later fixes
+  bugs: BugAgg[];
+}
+
 export interface Results {
   report: string;
   model: string;
-  baseline: Row[];
+  baseline: Row[]; // the original full-catalog run (no arm): the "before" of every re-run panel
+  headline: Headline;
   arms: { name: string; commit: string; rows: Row[] }[];
   ours: Record<string, boolean>;
   stats: { label: string; value: string; tone: "cyan" | "green" | "violet" | "amber" | "muted" }[];
   catalog: { total: number; code: number; notOurs: number };
 }
 
+const yes = (v: string) => v === "True";
+
+function aggregate(rows: Row[], ours: Record<string, boolean>): BugAgg[] {
+  const byBug: Record<string, Row[]> = {};
+  for (const r of rows) (byBug[r.bug] ??= []).push(r);
+  return Object.keys(byBug)
+    .sort()
+    .map((bug) => {
+      const rs = byBug[bug];
+      const ownCode = !!ours[bug];
+      const hid = rs.filter((r) => r.hidden_tests === "True" || r.hidden_tests === "False");
+      return {
+        bug,
+        ours: ownCode,
+        runs: rs.length,
+        lanes: {
+          rca: {
+            pass: rs.filter((r) => r.rca === "exact" || r.rca === "directional").length,
+            exact: rs.filter((r) => r.rca === "exact").length,
+            n: rs.length,
+          },
+          validated: ownCode ? { pass: rs.filter((r) => yes(r.validated)).length, n: rs.length } : { pass: 0, n: 0 },
+          hidden_tests: { pass: hid.filter((r) => yes(r.hidden_tests)).length, n: hid.length },
+        },
+      };
+    });
+}
+
+const stamp = (e: string) => (e ? `${e.slice(0, 4)}-${e.slice(4, 6)}-${e.slice(6, 8)}` : "");
+
 export function results(model = "gpt-6-luna"): Results {
   const report = latestReport();
   const all = parseCsv(fs.readFileSync(path.join(REPORTS, report, "results.csv"), "utf8")).filter(
     (r) => (r.model || "").includes(model) && r.rca,
   );
-  const baseline = all.filter((r) => !r.arm).sort((a, b) => a.bug.localeCompare(b.bug));
-  const order: string[] = [];
-  const byArm: Record<string, Record<string, Row>> = {};
-  for (const r of all.filter((r) => r.arm).sort((a, b) => (a.eval || "").localeCompare(b.eval || ""))) {
-    if (!order.includes(r.arm)) order.push(r.arm);
-    (byArm[r.arm] ??= {})[r.bug] = r; // the latest run of a bug in that arm
-  }
   const outcomes = expectedOutcomes();
   const ours = Object.fromEntries(Object.entries(outcomes).map(([b, o]) => [b, o === "pr"]));
-  const n = baseline.length;
-  const yes = (v: string) => v === "True";
-  const exact = baseline.filter((r) => r.rca === "exact").length;
-  const near = exact + baseline.filter((r) => r.rca === "directional").length;
-  const code = baseline.filter((r) => ours[r.bug]);
-  const hidden = baseline.filter((r) => r.hidden_tests === "True" || r.hidden_tests === "False");
-  const costs = baseline.map((r) => Number(r.usd)).sort((a, b) => a - b);
+  const total = Object.keys(outcomes).length;
+  const baseline = all.filter((r) => !r.arm).sort((a, b) => a.bug.localeCompare(b.bug));
+
+  // Arms in run order; an arm that covers the whole catalog is a full re-run and becomes the headline.
+  const order: string[] = [];
+  const armRows: Record<string, Row[]> = {};
+  for (const r of all.filter((r) => r.arm).sort((a, b) => (a.eval || "").localeCompare(b.eval || ""))) {
+    if (!order.includes(r.arm)) order.push(r.arm);
+    (armRows[r.arm] ??= []).push(r);
+  }
+  const full = order.filter((a) => new Set(armRows[a].map((r) => r.bug)).size >= total);
+  const headArm = full[full.length - 1];
+  const headRows = headArm ? armRows[headArm] : baseline;
+  const headEval = headRows.map((r) => r.eval || "").sort().pop() ?? "";
+  const headline: Headline = {
+    label: headArm ?? "baseline",
+    eval: headEval,
+    commit: headRows[0]?.commit ?? "",
+    seeds: Math.max(1, ...Object.values(aggregate(headRows, ours)).map((b) => b.runs)),
+    current: !!headArm,
+    bugs: aggregate(headRows, ours),
+  };
+
+  const runs = headRows;
+  const n = runs.length;
+  const exact = runs.filter((r) => r.rca === "exact").length;
+  const near = exact + runs.filter((r) => r.rca === "directional").length;
+  const code = runs.filter((r) => ours[r.bug]);
+  const hidden = runs.filter((r) => r.hidden_tests === "True" || r.hidden_tests === "False");
+  const costs = runs.map((r) => Number(r.usd)).sort((a, b) => a - b);
   const median = costs.length ? costs[Math.floor(costs.length / 2)] : 0;
+  const frac = (a: number, b: number) => (headline.seeds > 1 ? `${Math.round((100 * a) / (b || 1))}%` : `${a}/${b}`);
   return {
     report,
     model,
     baseline,
-    arms: order.map((name) => {
-      const rows = Object.values(byArm[name]).sort((a, b) => a.bug.localeCompare(b.bug));
-      return { name, commit: rows[0]?.commit ?? "", rows };
-    }),
+    headline,
+    arms: order
+      .filter((a) => a !== headArm)
+      .map((name) => {
+        const latest: Record<string, Row> = {};
+        for (const r of armRows[name]) latest[r.bug] = r; // the latest run of a bug in that arm
+        const rows = Object.values(latest).sort((a, b) => a.bug.localeCompare(b.bug));
+        return { name, commit: rows[0]?.commit ?? "", rows };
+      }),
     ours,
     stats: [
-      { label: "root cause right or close", value: `${near}/${n}`, tone: "cyan" },
-      { label: "root cause exact", value: `${exact}/${n}`, tone: "green" },
-      { label: "category right", value: `${baseline.filter((r) => yes(r.category_ok)).length}/${n}`, tone: "violet" },
-      { label: "code bugs: fix validated", value: `${code.filter((r) => yes(r.validated)).length}/${code.length}`, tone: "green" },
-      { label: "hidden tests pass", value: `${hidden.filter((r) => yes(r.hidden_tests)).length}/${hidden.length}`, tone: "amber" },
+      { label: "root cause right or close", value: frac(near, n), tone: "cyan" },
+      { label: "root cause exact", value: frac(exact, n), tone: "green" },
+      { label: "category right", value: frac(runs.filter((r) => yes(r.category_ok)).length, n), tone: "violet" },
+      { label: "code bugs: fix validated", value: frac(code.filter((r) => yes(r.validated)).length, code.length), tone: "green" },
+      { label: "hidden tests pass", value: frac(hidden.filter((r) => yes(r.hidden_tests)).length, hidden.length), tone: "amber" },
       { label: "median cost per run", value: `$${median.toFixed(3)}`, tone: "muted" },
     ],
     catalog: {
-      total: Object.keys(outcomes).length,
+      total,
       code: Object.values(outcomes).filter((o) => o === "pr").length,
       notOurs: Object.values(outcomes).filter((o) => o !== "pr").length,
     },
   };
 }
+
+export { stamp as evalDate };
 
 export interface ContextAudit {
   report: string;

@@ -4,7 +4,7 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 PROFILES ?= core obs flags faults target sources
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
-.PHONY: help langfuse eval eval-report deploy api dashboard lint-skills pex runtime-image worker demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
+.PHONY: help langfuse eval-full eval eval-report deploy api dashboard lint-skills pex runtime-image worker demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check up down ps logs clean clef-smoke
 
 help:  ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -34,6 +34,10 @@ check: lint typecheck test  ## Everything CI runs
 
 up:  ## Build and start the stack (PROFILES="core obs flags faults target")
 	$(COMPOSE) $(PROFILE_FLAGS) up -d --build --wait
+
+eval-full:  ## Every catalog bug, 3 seeds, on the current code (≈ $1.8): becomes the headline grid in README + site
+	uv run --no-sync debugassist eval estimate --bugs all --configs routed --seeds $(or $(SEEDS),3)
+	uv run --no-sync debugassist eval run --bugs all --configs routed --seeds $(or $(SEEDS),3) --arm full-$$(git rev-parse --short HEAD) --reserve-usd 0.1
 
 langfuse:  ## Start self-hosted Langfuse on :3200 (database + bucket on an existing stack; then DA_TRACING=both)
 	$(COMPOSE) --profile core up -d --wait postgres redis minio

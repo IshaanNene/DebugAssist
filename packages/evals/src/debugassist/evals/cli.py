@@ -11,6 +11,7 @@ from typing import Annotated, Any, cast
 import typer
 
 from debugassist.core.policy import ROOT
+from debugassist.core.settings import get_settings
 from debugassist.evals import run as eval_run
 
 app = typer.Typer(
@@ -27,7 +28,20 @@ def _ids(bugs: str | None) -> list[str]:
 
 
 def _per_run_usd() -> float:
-    """Mean LLM + Clef cost of past live runs that produced an RCA (the basis for estimates)."""
+    """Mean cost (LLM + Clef) of past eval runs on the configured model — the basis for estimates.
+
+    Falls back to every past live run with an RCA when this model has no eval runs yet. (Averaging every live
+    run regardless of model made a gpt-6-luna sweep look ~4x dearer than it is: early runs were on Nemotron.)
+    """
+    model = get_settings().model()
+    evals: list[float] = []
+    for f in (ROOT / "evals" / "runs").glob("*/results.jsonl"):
+        for line in f.read_text().splitlines():
+            row = json.loads(line)
+            if row.get("usd") and not row.get("excluded") and model in str(row.get("model") or ""):
+                evals.append(float(row["usd"]))
+    if evals:
+        return mean(evals) * 1.2  # headroom: a run can climb test tiers or retry
     costs: list[float] = []
     for f in (ROOT / ".data" / "runs").glob("*/state.json"):
         s = json.loads(f.read_text())

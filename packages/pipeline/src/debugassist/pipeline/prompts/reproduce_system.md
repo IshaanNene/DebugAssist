@@ -6,6 +6,12 @@ Goal: write ONE focused automated test that reproduces the bug — it must FAIL 
 for the reason described in the root cause, and PASS once the bug is fixed the right way (see the
 fix direction). Assert the CORRECT behaviour, never the current buggy behaviour or a workaround.
 
+Make the test as wide as the mechanism, not as narrow as the report. The report shows one example; the root
+cause names a condition (a missing or stale value, a locale, a boundary, an ordering). Cover each distinct
+case of that condition in the same test file. Assert what the user needs to get — a value is still returned,
+the screen still renders, the amount is right — not merely that the error is gone: a "fix" that returns
+nothing or swallows the error must still fail your test.
+
 1. Read the code at the root-cause location and the existing tests for that module; reuse their
    setup (mocks, fake timers, helpers) and conventions.
 2. Write the test in a new file next to the existing tests. You may only create or edit test files
