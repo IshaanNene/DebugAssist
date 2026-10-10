@@ -115,6 +115,7 @@ async def evaluate(
     hidden: bool = True,
     wipe: bool = True,
     reserve_usd: float = 0.0,
+    arm: str = "",
     log: Callable[[str], None] = print,
 ) -> Path:
     unknown = [c for c in configs if c not in CONFIGS]
@@ -122,8 +123,19 @@ async def evaluate(
         raise ValueError(f"unknown configs {unknown}; known: {sorted(CONFIGS)}")
     out = RUNS_OUT / datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     out.mkdir(parents=True, exist_ok=True)
+    commit = await asyncio.to_thread(_commit)
     (out / "plan.json").write_text(
-        json.dumps({"bugs": bug_ids, "configs": configs, "seeds": seeds, "until": until}, indent=2)
+        json.dumps(
+            {
+                "bugs": bug_ids,
+                "configs": configs,
+                "seeds": seeds,
+                "until": until,
+                "arm": arm,
+                "commit": commit,
+            },
+            indent=2,
+        )
     )
     ledger = await Ledger.open(get_settings().database_url)
     try:
@@ -173,6 +185,8 @@ async def evaluate(
                         score.score_run, run_id, bug, await _clef_usd(ledger, run_id), hidden
                     )
                     row = {
+                        "arm": arm,
+                        "commit": commit,
                         "config": config,
                         "seed": seed,
                         "issue": target,
@@ -188,6 +202,13 @@ async def evaluate(
     finally:
         await ledger.close()
     return out
+
+
+def _commit() -> str:
+    """The code version that ran (dirty trees are marked), recorded on every result row."""
+    sha = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True)
+    dirty = subprocess.run(["git", "diff", "--quiet", "--", "packages"], cwd=ROOT).returncode
+    return sha.stdout.strip() + ("-dirty" if dirty else "")
 
 
 def _duplicate_of(run_id: str | None) -> str | None:

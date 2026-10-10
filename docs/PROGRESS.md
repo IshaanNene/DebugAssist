@@ -339,6 +339,22 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## P14 — Cross-repo investigation and hand-off (2026-10-10) — done
+
+**Done**
+- `pipeline/crossrepo.py`: investigation agents get read-only worktrees of every other target repo at its deployed release (`CODE_REPOS`). After RCA, if the location names another known target repo and the file exists there, the fix steps move: a new sandbox in that repo at its deployed release, the matching component and toolchain from its `.DebugAssist/pipeline.yaml`, and its default agent type; recorded as `run.handoff`.
+- The RCA prompt says which repos exist and that where a bug is seen is not always where it lives (generic, no catalog hints).
+- `debugassist eval context` (P15 audit): splits agents' input tokens into fixed prefix, re-sent tool results (per tool) and own messages. First audit: 53% re-sent tool results (`read_file` 32%), 35% prefix, 82% cache hits.
+- Eval rows record `arm` and `commit`; reports group by arm. The README card shows a before → after panel for re-run arms.
+- The LLM decider also retries connection errors.
+
+**Verified** (`evals/reports/2026-10-10`, the six services bugs reported from the app): root cause right or close 0/6 → 5/6; BUG-014 (gateway payload) and BUG-019 (payments tariff) fixed end to end with hidden tests passing. `make check`: 336 tests.
+
+**Findings**
+- Three of the five correctly localised bugs got a fix that did not validate after the hand-off (one failed the gateway's typecheck) — fix quality in a second repo is the next item.
+- BUG-017 (CORS) is invisible from the client: browsers report only `Failed to fetch`, so the agent never inspected the gateway's CORS settings. Needs gateway-side evidence (preflight logs) in the bundle.
+- One run failed on a transient LLM-decider connection error; it is now retried, and the run was excluded and rerun.
+
 ## P13 — Evaluation harness + ablations (2026-10-07) — done
 
 **Done**

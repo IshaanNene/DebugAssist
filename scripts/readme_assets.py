@@ -23,6 +23,7 @@ import tempfile
 from contextlib import redirect_stdout
 from html import escape
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "docs" / "assets"
@@ -557,8 +558,9 @@ def results(model: str = "gpt-6-luna") -> str:
     """The latest evaluation as one card: headline rates and a per-bug grid. Every number is computed here
     from evals/reports/<date>/results.csv (written by `debugassist eval report`)."""
     path = _latest_report()
-    rows = [r for r in csv.DictReader(path.open()) if model in (r.get("model") or "") and r.get("rca")]
-    rows.sort(key=lambda r: r["bug"])
+    every = [r for r in csv.DictReader(path.open()) if model in (r.get("model") or "") and r.get("rca")]
+    rows = sorted((r for r in every if not r.get("arm")), key=lambda r: r["bug"])  # the full-catalog baseline
+    arm = sorted((r for r in every if r.get("arm")), key=lambda r: r["bug"])  # a later code version, re-run
     n = len(rows)
     t = lambda v: v == "True"  # noqa: E731
     exact = sum(r["rca"] == "exact" for r in rows)
@@ -574,9 +576,11 @@ def results(model: str = "gpt-6-luna") -> str:
     code = [r for r in rows if ours[r["bug"]]]
     val = sum(t(r["validated"]) for r in code)
 
-    w, h = 1400, 470
+    w, h = 1400, 470 + (300 if arm else 0)
     body = defs() + canvas(w, h)
-    body += text(56, 62, f"Evaluation: {n} catalog bugs, end to end", 24, INK, 800)
+    body += text(
+        56, 62, f"Evaluation: {n} catalog bugs, end to end{' (baseline)' if arm else ''}", 24, INK, 800
+    )
     body += text(
         56,
         90,
@@ -646,7 +650,57 @@ def results(model: str = "gpt-6-luna") -> str:
     body += text(
         lx + 20, ly, "cyan ids: not-our-bug cases (right answer is routing, not a fix)", 13, ACCENT2, 500
     )
+    if arm:
+        body += _arm_panel(arm, {r["bug"]: r for r in rows}, ly + 44, w, lanes, colors, t)
     return svg_doc(w, h, body)
+
+
+def _arm_panel(
+    arm: list[dict[str, str]],
+    before: dict[str, dict[str, str]],
+    y0: float,
+    w: int,
+    lanes: list[tuple[str, str]],
+    colors: dict[str, str],
+    t: Any,
+) -> str:
+    """Before → after for the bugs re-run on a later code version (rows labelled with an arm)."""
+    label = arm[0].get("arm", "")
+    commit = arm[0].get("commit", "")
+    near = lambda rs: sum(r["rca"] in ("exact", "directional") for r in rs)  # noqa: E731
+    prev = [before[r["bug"]] for r in arm if r["bug"] in before]
+    hid_a = [r for r in arm if r["hidden_tests"] in ("True", "False")]
+    hid_b = [r for r in prev if r["hidden_tests"] in ("True", "False")]
+    body = f'<line x1="56" y1="{y0}" x2="{w - 56}" y2="{y0}" stroke="{LINE}"/>'
+    body += text(
+        56, y0 + 40, f"Re-run after “{label}” ({commit}): the same bugs, before → after", 18, INK, 800
+    )
+    summary = (
+        f"root cause right or close {near(prev)}/{len(prev)} → {near(arm)}/{len(arm)}  ·  "
+        f"fix validated {sum(t(r['validated']) for r in prev)} → {sum(t(r['validated']) for r in arm)}  ·  "
+        f"hidden tests pass {sum(t(r['hidden_tests']) for r in hid_b)}/{len(hid_b)} → "
+        f"{sum(t(r['hidden_tests']) for r in hid_a)}/{len(hid_a)}"
+    )
+    body += text(56, y0 + 66, summary, 14, ACCENT2, 600)
+    gx, gy, cell, cg, group = 220, y0 + 120, 34, 5, 34 * 2 + 5 + 46
+    for li, (lab, _) in enumerate(lanes):
+        body += text(56, gy + li * (cell + cg) + 23, lab, 14, INK, 600)
+    for i, r in enumerate(arm):
+        x = gx + i * group
+        body += text(x + cell + cg / 2, gy - 30, r["bug"][-3:], 12, MUTE, 700, "middle", True)
+        body += text(x + cell / 2, gy - 10, "before", 10, MUTE, 500, "middle")
+        body += text(x + cell + cg + cell / 2, gy - 10, "after", 10, MUTE, 500, "middle")
+        for j, row in enumerate((before.get(r["bug"]), r)):
+            for li, (_, key) in enumerate(lanes):
+                v = row[key] if row else ""
+                xx, yy = x + j * (cell + cg), gy + li * (cell + cg)
+                col = colors.get(v)
+                body += (
+                    f'<rect x="{xx}" y="{yy}" width="{cell}" height="{cell}" rx="8" fill="{col}" fill-opacity=".85"/>'
+                    if col
+                    else f'<rect x="{xx}" y="{yy}" width="{cell}" height="{cell}" rx="8" fill="none" stroke="{LINE}"/>'
+                )
+    return body
 
 
 def stack() -> str:
