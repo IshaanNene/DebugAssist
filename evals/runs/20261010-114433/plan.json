@@ -1,0 +1,12 @@
+{
+  "bugs": [
+    "BUG-020"
+  ],
+  "configs": [
+    "context-clear"
+  ],
+  "seeds": 1,
+  "until": "ship_gate",
+  "arm": "context-clear",
+  "commit": "73ecbce"
+}

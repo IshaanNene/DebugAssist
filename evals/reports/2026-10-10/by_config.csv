@@ -1,4 +1,5 @@
 config,runs,bugs,seeds,rca_exact,rca_exact_or_directional,category_ok,outcome_ok,validated,hidden_tests_pass,diff_similarity,unsupported_claims,turns,usd,time_to_rca_s,pipeline_s
+context-clear · gpt-6-luna · context-clear,8,8,1,0.75,0.75,0.5,5/8,0.625,3/5,0.363 ± 0.26,0.125 ± 0.33,18.4 ± 9.3,0.0142 ± 0.0033,121 ± 22,195 ± 67
 context-lean · gpt-6-luna · context-lean,8,8,1,0.625,0.75,0.875,4/8,0.5,4/5,0.452 ± 0.4,0.125 ± 0.33,26.5 ± 24,0.0221 ± 0.022,144 ± 28,238 ± 1.1e+02
 routed · gpt-6-luna,25,25,1,0.48,0.64,0.72,3/7,0.52,7/15,0.212 ± 0.16,0.44 ± 0.64,24.2 ± 13,0.0208 ± 0.012,116 ± 2e+02,457 ± 3.9e+02
 routed · gpt-6-luna · cross-repo,6,6,1,0.667,0.833,0.667,0/0,0.5,2/6,0.381 ± 0.3,0.5 ± 0.76,34.7 ± 5.5,0.0231 ± 0.0063,130 ± 15,659 ± 5.1e+02
