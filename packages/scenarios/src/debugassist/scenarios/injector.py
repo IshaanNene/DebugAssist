@@ -17,6 +17,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 from debugassist.scenarios.catalog import ROOT, Bug
 from debugassist.scenarios.environment import Environment
 from debugassist.scenarios.targets import COMPOSE_SERVICES, TargetRepo
@@ -149,10 +151,18 @@ def reset(env: Environment, *, wipe: bool = False, log: Any = print) -> None:
 
 
 def wipe_sources() -> None:
+    """Empty the discovery sources and ride data, and put the driver fleet back where it was seeded.
+
+    Scenarios move drivers (gps_loss nulls their coordinates through an endpoint only BUG-004's release has),
+    and nothing else restores them: after a few sweeps no San Francisco driver near the Ferry Building had a
+    position left, so BUG-020's riders were matched 5 km away and never saw the in-trip ETA. Dispatch seeds a
+    deterministic fleet at startup when the table is empty, so deleting the drivers and restarting it restores
+    exactly the original positions.
+    """
     sql = {
         "vitals": "TRUNCATE events, groups, issues, sessions",
         "bugdrop": "TRUNCATE reports",
-        "miniride": "TRUNCATE rides; UPDATE drivers SET busy_ride_id = NULL",
+        "miniride": "TRUNCATE rides; DELETE FROM drivers",
     }
     for db, stmt in sql.items():
         subprocess.run(
@@ -160,6 +170,21 @@ def wipe_sources() -> None:
             check=False,
             capture_output=True,
         )
+    reseed_drivers()
+
+
+def reseed_drivers(timeout_s: float = 90) -> None:
+    """Restart dispatch so it re-seeds its fleet, and wait until it answers again."""
+    if subprocess.run(["docker", "restart", "debugassist-dispatch-1"], capture_output=True).returncode:
+        return  # dispatch is not running (no target profile): nothing to restore
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            if httpx.get("http://localhost:8001/healthz", timeout=2).status_code == 200:
+                return
+        except httpx.HTTPError:
+            pass
+        time.sleep(1)
 
 
 def hidden_test_paths(bug: Bug) -> list[tuple[Path, str, str]]:
