@@ -1,0 +1,1 @@
+{"bug": "BUG-001", "error": "not discovered (no Vitals issue or BugDrop report)", "excluded": "harness fault: a docker compose race (dependency container recreated mid-rebuild) aborted the sweep before any run; compose now retries such races (see commit after c444a0f)"}
