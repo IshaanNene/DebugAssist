@@ -19,7 +19,8 @@ from debugassist.core.outline import outline
 from debugassist.integrations.sandbox import Sandbox
 
 SKIP = {".git", "node_modules", "dist", ".corepack", ".venv", "__pycache__", "vendor"}
-# DA_CONTEXT=lean (ROADMAP P15): a read without a range returns this many lines; command output keeps its
+# DA_CONTEXT=lean (ROADMAP P15): a read returns at most this many lines (agents name wide ranges, so a default
+# window alone changed nothing in the first lean run); command output keeps its
 # failure lines and tail in the history, and the full log stays behind a handle for read_log.
 LEAN_READ = 120
 LEAN_TAIL = 40
@@ -180,7 +181,7 @@ def build_workspace_tools(
             return f"{path} not found"
         lines = p.read_text(errors="replace").splitlines()
         first = max(1, start_line)
-        span = LEAN_READ if lean and not end_line else 400
+        span = LEAN_READ if lean else 400  # lean: agents ask for 180–260-line ranges; cap those too
         end = min(end_line or len(lines), len(lines), first + span - 1)
         body = "\n".join(f"{n:>5}  {lines[n - 1]}" for n in range(first, end + 1)) or "(empty file)"
         return body + (window_footer(path, first, end, len(lines)) if lean else "")

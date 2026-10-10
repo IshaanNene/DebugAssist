@@ -110,8 +110,8 @@ def read_file(repo: str, path: str, start_line: int = 1, end_line: int | None = 
     if not p.is_file():
         return {"error": f"{path} not found in {repo}"}
     lines = p.read_text(errors="replace").splitlines()
-    # DA_CONTEXT=lean: a read without a range is a 120-line window; outline_file finds the right one.
-    span = LEAN_READ if ablation.lean() and not end_line else 400
+    # DA_CONTEXT=lean: a read returns at most 120 lines (explicit ranges too); outline_file finds the right one.
+    span = LEAN_READ if ablation.lean() else 400
     end = min(end_line or len(lines), len(lines), max(1, start_line) + span - 1)
     body = "\n".join(f"{n:>5}  {lines[n - 1]}" for n in range(max(1, start_line), end + 1))
     out: dict[str, Any] = {

@@ -146,8 +146,10 @@ def test_lean_reads_a_window_and_points_to_the_outline(tmp_path: Path, monkeypat
     out = tools["read_file"].invoke({"path": "src/big.ts"})
     assert "  120  " in out and "  121  " not in out
     assert "showing lines 1–120 of 300" in out and "outline_file('src/big.ts')" in out
-    # an explicit range is honoured as before
+    # a narrow range is honoured; a wide one is capped at the window, with the same pointer
     assert "  250  " in tools["read_file"].invoke({"path": "src/big.ts", "start_line": 240, "end_line": 260})
+    wide = tools["read_file"].invoke({"path": "src/big.ts", "start_line": 1, "end_line": 260})
+    assert "  120  " in wide and "  121  " not in wide and "showing lines 1–120 of 300" in wide
     outline = tools["outline_file"].invoke({"path": "src/big.ts"})
     assert "src/big.ts: 300 lines, 6 symbols" in outline and "  150  export function f150()" in outline
 
