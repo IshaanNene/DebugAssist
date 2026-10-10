@@ -132,6 +132,19 @@ class Watchdog:
             self.stop(f"timeout: {self.elapsed:.0f}s > {self.max_wall_s:.0f}s wall clock")
         return self.stop_reason
 
+    def compacted(
+        self, n: int, input_tokens: int, output_tokens: int, cached_tokens: int, notes: str
+    ) -> None:
+        """A compaction (DA_CONTEXT=compact): older steps folded into notes by one extra model call."""
+        self._emit(
+            "compact",
+            f"compacted history into notes (#{n}, in {input_tokens / 1000:.1f}k, out {output_tokens})",
+            input_tokens=input_tokens,
+            cached_tokens=cached_tokens,
+            output_tokens=output_tokens,
+            notes=notes[:2000],
+        )
+
     def finish(self, status: str, turns: int, cost: float) -> None:
         self._emit(
             "done",

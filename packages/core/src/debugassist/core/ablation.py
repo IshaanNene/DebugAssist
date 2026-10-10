@@ -11,6 +11,7 @@ DA_CONTEXT   full (default) | lean — how much tool output enters an agent's co
              lean adds outline tools, caps every file read at 120 lines (with a pointer to the outline), and keeps long command
              logs out of the history (an error summary and the tail come back; the full log is read on demand).
              clear replaces old tool results in the history with one-line stubs, in batches (llm/clearing.py).
+             compact folds older steps into structured working notes, in batches (llm/compaction.py).
 """
 
 from __future__ import annotations
@@ -45,8 +46,8 @@ def llm_seed() -> int | None:
 
 def context_mode() -> str:
     value = os.environ.get("DA_CONTEXT", "full").strip().lower() or "full"
-    if value not in {"full", "lean", "clear"}:
-        raise ValueError(f"DA_CONTEXT must be full, lean or clear (got {value!r})")
+    if value not in {"full", "lean", "clear", "compact"}:
+        raise ValueError(f"DA_CONTEXT must be full, lean, clear or compact (got {value!r})")
     return value
 
 

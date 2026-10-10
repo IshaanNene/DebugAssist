@@ -81,8 +81,9 @@ def anatomy(run_id: str, node_log: Path) -> Anatomy | None:
                 tools_by_turn[int(e.get("turn", 0))].append(str(e.get("tool")))
         shares = shares_last if si == len(segs) - 1 else []
         a.turns += len(models)
-        a.input_tokens += sum(int(e.get("input_tokens", 0)) for e in models)
-        a.cached_tokens += sum(int(e.get("cached_tokens", 0)) for e in models)
+        compacts = [e for e in seg if e.get("kind") == "compact"]  # DA_CONTEXT=compact's own model calls
+        a.input_tokens += sum(int(e.get("input_tokens", 0)) for e in models + compacts)
+        a.cached_tokens += sum(int(e.get("cached_tokens", 0)) for e in models + compacts)
         first = int(models[0].get("input_tokens", 0))
         a.prefix = max(a.prefix, first)
         a.prefix_total += first * len(models)
