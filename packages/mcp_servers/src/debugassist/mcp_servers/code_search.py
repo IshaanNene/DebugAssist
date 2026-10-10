@@ -10,11 +10,14 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from debugassist.core import ablation
 from debugassist.core.guards import GuardError, confine
+from debugassist.core.outline import outline
 from debugassist.mcp_servers.common import cap, with_evidence
 from debugassist.mcp_servers.repos import repo_roots, resolve
 
 mcp = FastMCP("code-search", log_level="WARNING")
+LEAN_READ = 120
 SKIP_DIRS = {".git", "node_modules", "dist", ".venv", "__pycache__", ".corepack", "test-results", "vendor"}
 TEXT_EXT = {
     ".ts",
@@ -107,20 +110,44 @@ def read_file(repo: str, path: str, start_line: int = 1, end_line: int | None = 
     if not p.is_file():
         return {"error": f"{path} not found in {repo}"}
     lines = p.read_text(errors="replace").splitlines()
-    end = min(end_line or len(lines), len(lines), start_line + 399)
+    # DA_CONTEXT=lean: a read without a range is a 120-line window; outline_file finds the right one.
+    span = LEAN_READ if ablation.lean() and not end_line else 400
+    end = min(end_line or len(lines), len(lines), max(1, start_line) + span - 1)
     body = "\n".join(f"{n:>5}  {lines[n - 1]}" for n in range(max(1, start_line), end + 1))
+    out: dict[str, Any] = {
+        "repo": repo,
+        "path": path,
+        "start_line": start_line,
+        "end_line": end,
+        "total_lines": len(lines),
+        "content": body,
+    }
+    if ablation.lean() and end < len(lines):
+        out["more"] = (
+            "outline_file lists this file's symbols with line numbers; read another range with start_line/end_line"
+        )
+    return with_evidence("code", "file_excerpt", out)
+
+
+def outline_file(repo: str, path: str) -> dict[str, Any]:
+    """List a file's functions, classes and types with line numbers, so you read only the range you need."""
+    try:
+        p = confine(resolve(repo), path)
+    except GuardError as exc:
+        return {"error": str(exc)}
+    if not p.is_file():
+        return {"error": f"{path} not found in {repo}"}
     return with_evidence(
         "code",
-        "file_excerpt",
-        {
-            "repo": repo,
-            "path": path,
-            "start_line": start_line,
-            "end_line": end,
-            "total_lines": len(lines),
-            "content": body,
-        },
+        "outline",
+        {"repo": repo, "path": path, "outline": outline(path, p.read_text(errors="replace"))},
     )
+
+
+if (
+    ablation.lean()
+):  # only offered in the lean context arm, so the baseline's tool list (and cache prefix) is unchanged
+    mcp.tool()(outline_file)
 
 
 @mcp.tool()

@@ -106,3 +106,72 @@ def test_component_relative_paths_resolve_but_escapes_stay_blocked(tmp_path: Pat
     )
     assert "blocked" in tools["read_file"].invoke({"path": "../../etc/passwd"}).lower()
     assert "blocked" in tools["write_file"].invoke({"path": "/tmp/x.ts", "content": "x"}).lower()
+
+
+# DA_CONTEXT=lean (ROADMAP P15)
+
+
+def _lean_tools(sb: FakeSandbox, **kw: Any) -> dict[str, Any]:
+    return {t.name: t for t in build_workspace_tools(sb, **kw)}  # pyright: ignore[reportArgumentType]
+
+
+@dataclass
+class LoudSandbox(FakeSandbox):
+    output: str = ""
+
+    def run(self, command: str, *, workdir: str = ".", **_: Any) -> CommandResult:
+        return CommandResult(command=command, exit_code=1, output=self.output)
+
+
+def _long_file(tmp_path: Path) -> None:
+    (tmp_path / "src").mkdir(exist_ok=True)
+    body = [f"export function f{i}() {{" if i % 50 == 0 else f"  const v{i} = {i};" for i in range(1, 301)]
+    (tmp_path / "src" / "big.ts").write_text("\n".join(body) + "\n")
+
+
+def test_full_mode_is_unchanged(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.delenv("DA_CONTEXT", raising=False)
+    _long_file(tmp_path)
+    tools = _lean_tools(FakeSandbox(tmp_path), allow_edits=False, allow_commands=True)
+    assert set(tools) == {"list_dir", "read_file", "grep", "run_command"}
+    out = tools["read_file"].invoke({"path": "src/big.ts"})
+    assert "  300  " in out and "showing lines" not in out
+
+
+def test_lean_reads_a_window_and_points_to_the_outline(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setenv("DA_CONTEXT", "lean")
+    _long_file(tmp_path)
+    tools = _lean_tools(FakeSandbox(tmp_path), allow_edits=False, allow_commands=False)
+    assert "outline_file" in tools and "read_log" not in tools
+    out = tools["read_file"].invoke({"path": "src/big.ts"})
+    assert "  120  " in out and "  121  " not in out
+    assert "showing lines 1–120 of 300" in out and "outline_file('src/big.ts')" in out
+    # an explicit range is honoured as before
+    assert "  250  " in tools["read_file"].invoke({"path": "src/big.ts", "start_line": 240, "end_line": 260})
+    outline = tools["outline_file"].invoke({"path": "src/big.ts"})
+    assert "src/big.ts: 300 lines, 6 symbols" in outline and "  150  export function f150()" in outline
+
+
+def test_lean_keeps_long_command_logs_behind_a_handle(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setenv("DA_CONTEXT", "lean")
+    lines = [f"progress {i}" for i in range(1, 401)]
+    lines[99] = "FAIL test/router.test.ts > routes a tap"
+    lines[100] = "AssertionError: expected 'home' to be 'ride'"
+    sb = LoudSandbox(tmp_path, output="\n".join(lines))
+    tools = _lean_tools(sb, allow_edits=False, allow_commands=True)
+    out = tools["run_command"].invoke({"command": "npx vitest run"})
+    assert out.startswith("exit code 1") and "read_log('cmd-1'" in out
+    assert "  100  FAIL test/router.test.ts" in out and "  101  AssertionError" in out
+    assert "progress 400" in out and "progress 50\n" not in out
+    assert len(out) < len(sb.output) / 2
+    assert "   50  progress 50" in tools["read_log"].invoke(
+        {"handle": "cmd-1", "start_line": 50, "end_line": 50}
+    )
+    assert "no log" in tools["read_log"].invoke({"handle": "cmd-9"})
+
+
+def test_lean_leaves_short_command_output_whole(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setenv("DA_CONTEXT", "lean")
+    sb = LoudSandbox(tmp_path, output="1 passed\nok")
+    tools = _lean_tools(sb, allow_edits=False, allow_commands=True)
+    assert tools["run_command"].invoke({"command": "go test ./..."}) == "exit code 1\n1 passed\nok"
