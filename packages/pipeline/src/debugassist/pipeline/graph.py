@@ -1,8 +1,13 @@
 """The fixed plan (ADR 0001): the LLM never chooses the next step.
 
-ingest → auto_triage → context_collector → classify_rca ─(not actionable)→ ship_gate
-                                                     └→ mitigate → fix → validate ─(retry ≤ cap, D15)→ fix
-                                                                              └→ ship_gate → pr_and_notify → post_merge_watch
+ingest → auto_triage → context_collector → classify_rca ─(not actionable, or not our code)→ ship_gate
+                                                     └→ mitigate ─(the flag itself is the defect, rollback proposed)→ ship_gate
+                                                            └→ fix → validate ─(retry ≤ cap, D15)→ fix
+                                                                         └→ ship_gate → pr_and_notify → post_merge_watch
+
+Routing reads both Clef's category decision taken before the RCA (D05, `rca.actionable`) and the category the
+RCA itself arrived at with the full evidence: a root cause that is not a code change in our repos is reported
+and routed, never patched.
 """
 
 from __future__ import annotations
@@ -21,6 +26,31 @@ from debugassist.pipeline.deps import Deps
 from debugassist.pipeline.state import NODE_KIND, RunState
 
 Node = Callable[[RunState, Deps], Awaitable[dict[str, Any]]]
+
+# RCA categories whose fix is never a code change in our repos: report and route them. `network` and
+# `flag_config` are not here — a too-short timeout or a config value in our code is fixed by a pull request.
+ROUTED = {"infra", "device_os", "not_a_bug", "third_party_lib"}
+
+
+def rca_category(s: RunState) -> str | None:
+    return s.rca.output.category if s.rca and s.rca.output else None
+
+
+def after_rca(s: RunState) -> str:
+    if s.status in ("failed", "stopped"):
+        return END
+    if not (s.rca and s.rca.actionable) or rca_category(s) in ROUTED:
+        return "ship_gate"
+    return "mitigate"
+
+
+def after_mitigate(s: RunState) -> str:
+    if s.status in ("failed", "duplicate", "stopped"):
+        return END
+    # The flag's configuration is the defect and a rollback was decided (D11): there is no code to change.
+    if rca_category(s) == "flag_config" and s.mitigation and s.mitigation.action != "none":
+        return "ship_gate"
+    return "fix"
 
 
 def _persist(deps: Deps, state: RunState, node: str, update: dict[str, Any], ms: int) -> None:
@@ -105,11 +135,6 @@ def build_graph(deps: Deps, log: Callable[[str], None] = print) -> StateGraph[Ru
     def ok(next_node: str) -> Callable[[RunState], str]:
         return lambda s: END if s.status in ("failed", "duplicate", "stopped") else next_node
 
-    def after_rca(s: RunState) -> str:
-        if s.status in ("failed", "stopped"):
-            return END
-        return "mitigate" if s.rca and s.rca.actionable else "ship_gate"
-
     g.add_edge(START, "ingest")
     g.add_conditional_edges("ingest", ok("auto_triage"))
     g.add_conditional_edges("auto_triage", ok("context_collector"))
@@ -118,7 +143,8 @@ def build_graph(deps: Deps, log: Callable[[str], None] = print) -> StateGraph[Ru
         "classify_rca",
         after_rca,
     )
-    g.add_conditional_edges("mitigate", ok("fix"))
+
+    g.add_conditional_edges("mitigate", after_mitigate)
 
     def after_fix(s: RunState) -> str:
         if s.status in ("failed", "stopped"):

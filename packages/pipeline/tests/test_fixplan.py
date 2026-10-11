@@ -336,3 +336,87 @@ async def test_llm_nodes_do_not_start_once_the_run_budget_is_spent(tmp_path: Pat
     assert calls == ["ran"] and out["status"] == "failed" and "run budget exhausted" in out["errors"][-2]
     out = await wrap("validate", step, deps, lambda _m: None)(st)  # deterministic nodes still run
     assert calls == ["ran", "ran"]
+
+
+@pytest.mark.parametrize(
+    ("category", "actionable", "route"),
+    [
+        ("own_code", True, "mitigate"),
+        ("network", True, "mitigate"),  # a too-short timeout in our code is fixed by a PR
+        ("flag_config", True, "mitigate"),  # a config value in our code too; the rollback step decides
+        ("infra", True, "ship_gate"),
+        ("device_os", True, "ship_gate"),
+        ("not_a_bug", True, "ship_gate"),
+        ("third_party_lib", True, "ship_gate"),
+        ("own_code", False, "ship_gate"),  # D05 said route before the RCA
+    ],
+)
+def test_routing_reads_the_rca_category_not_only_the_pre_rca_decision(
+    category: str, actionable: bool, route: str
+) -> None:
+    from debugassist.pipeline.graph import after_rca
+
+    st = rca_state()
+    assert st.rca and st.rca.output
+    st.rca.output.category = category  # pyright: ignore[reportAttributeAccessIssue]
+    st.rca.actionable = actionable
+    assert after_rca(st) == route
+
+
+@pytest.mark.parametrize(
+    ("category", "action", "route"),
+    [
+        ("flag_config", "dry_run", "ship_gate"),  # rollback proposed: no code to change
+        ("flag_config", "rolled_back", "ship_gate"),
+        ("flag_config", "none", "fix"),  # no flag to roll back: the config lives in our code
+        ("own_code", "dry_run", "fix"),  # a defect behind a flag still gets its fix (D13 decides flag-only)
+    ],
+)
+def test_a_flag_misconfiguration_with_a_rollback_skips_the_code_fix(
+    category: str, action: str, route: str
+) -> None:
+    from debugassist.pipeline.graph import after_mitigate
+
+    st = rca_state()
+    assert st.rca and st.rca.output
+    st.rca.output.category = category  # pyright: ignore[reportAttributeAccessIssue]
+    st.mitigation = Mitigation(flag="surge_pricing", action=action)  # pyright: ignore[reportArgumentType]
+    assert after_mitigate(st) == route
+
+
+@pytest.mark.parametrize(
+    ("category", "events", "action", "detail"),
+    [
+        (
+            "flag_config",
+            [{"at": "t", "type": "feature-strategy-updated", "rollout": "100"}],
+            "dry_run",
+            "→ 0%",
+        ),
+        ("flag_config", [], "none", "no rollback"),  # nothing changed recently: no evidence for a rollback
+        ("own_code", [{"at": "t"}], "none", "rollback not considered"),  # no crash group and not the flag
+    ],
+)
+async def test_a_report_without_a_crash_group_can_still_roll_back_a_misconfigured_flag(
+    monkeypatch: pytest.MonkeyPatch, category: str, events: list[dict[str, Any]], action: str, detail: str
+) -> None:
+    from debugassist.core.policy import Verdict
+    from debugassist.mcp_servers import feature_flags as ff
+
+    monkeypatch.setattr(ff, "get_flag", lambda flag: {"rollout_pct": 100})  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr(ff, "rollout_history", lambda flag, limit: {"events": events})  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr(
+        ff,
+        "rollback_flag",
+        lambda flag, pct, reason, dry_run: {"applied": not dry_run, "from_percent": 100},  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    )
+    st = rca_state()  # a rider report: no crash fingerprint
+    assert st.rca and st.rca.output and not (st.issue and st.issue.fingerprint)
+    st.rca.output.category = category  # pyright: ignore[reportAttributeAccessIssue]
+    st.rca.output.implicated_flag = "notif_router_v2"
+    deps: Any = SimpleNamespace(
+        engine=Engine({"D11": decision("rollback_flag")}),
+        gate=SimpleNamespace(verdict=lambda _a: Verdict.DRY_RUN),  # pyright: ignore[reportUnknownLambdaType]
+    )
+    m = (await nodes.mitigate(st, deps))["mitigation"]
+    assert m.action == action and detail in m.detail

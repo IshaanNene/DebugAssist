@@ -714,38 +714,47 @@ async def mitigate(state: RunState, deps: Deps) -> dict[str, Any]:
     raw = rca.output.implicated_flag or (corr_items[0]["flag"] if corr_items else None)
     # The RCA's flag is free text from the LLM ("notif_router_v2 (flag is off …)"): only a real flag acts.
     flag = known_flag(raw, _flag_names()) if raw else None
-    if not flag or not issue.fingerprint:
+    if not flag:
         return {"mitigation": Mitigation(detail="no feature flag implicated; nothing to roll back")}
-    corr = ff.flag_crash_correlation(issue.fingerprint, flag)
     current = ff.get_flag(flag)
-    cs = (
-        CompactState()
-        .add("flag", {"name": flag, "rollout_pct": current["rollout_pct"]}, priority=0)
-        .add(
-            "crash_rates",
-            {
-                "exposed": corr["exposed"],
-                "unexposed": corr["unexposed"],
-                "z": corr["z"],
-                "p_value": corr["p_value"],
-                "share_of_affected_exposed": corr["share_of_affected_exposed"],
-            },
-            priority=0,
-        )
-        .add("rca", {"summary": rca.output.summary, "root_cause": rca.output.root_cause}, priority=1)
+    cs = CompactState().add("flag", {"name": flag, "rollout_pct": current["rollout_pct"]}, priority=0)
+    if issue.fingerprint:
+        # A crash group: compare the crash rate of sessions exposed to the flag with the rest.
+        corr = ff.flag_crash_correlation(issue.fingerprint, flag)
+        signal = {
+            k: corr[k]
+            for k in ("exposed", "unexposed", "z", "p_value", "significant", "share_of_affected_exposed")
+        }
+        supported = bool(corr["significant"])
+        cs.add("crash_rates", {k: v for k, v in signal.items() if k != "significant"}, priority=0)
+    elif rca.output.category == "flag_config":
+        # A rider report has no crash group to split by exposure, but the RCA found the flag's configuration to
+        # be the defect itself. D11 weighs that against the flag's rollout and its recent changes.
+        events = ff.rollout_history(flag, limit=5)["events"]
+        signal = {"source": "rca: flag configuration is the defect", "recent_changes": events}
+        supported = bool(events) and bool(current["rollout_pct"])
+        cs.add("recent_changes", events, priority=0)
+    else:
+        return {
+            "mitigation": Mitigation(
+                flag=flag,
+                detail=f"{flag}: no crash group to compare exposure against; rollback not considered",
+            )
+        }
+    cs.add(
+        "rca",
+        {"category": rca.output.category, "summary": rca.output.summary, "root_cause": rca.output.root_cause},
+        priority=1,
     )
     d11 = await deps.engine.decide("D11", cs, ctx=RunContext(run_id=state.run_id, issue_id=issue.id))
     m = Mitigation(
         flag=flag,
-        correlation={
-            k: corr[k]
-            for k in ("exposed", "unexposed", "z", "p_value", "significant", "share_of_affected_exposed")
-        },
+        correlation=signal,
         decision={"p": d11.p, "band": d11.band, "action": d11.action},
     )
-    if d11.action == "rollback_flag" and corr["significant"] and not current["rollout_pct"]:
+    if d11.action == "rollback_flag" and supported and not current["rollout_pct"]:
         m.detail = f"{flag}: rollback warranted, but the flag is already at 0% — nothing to roll back"
-    elif d11.action == "rollback_flag" and corr["significant"]:
+    elif d11.action == "rollback_flag" and supported:
         verdict = deps.gate.verdict("flags.rollback")
         if verdict is Verdict.APPROVAL:
             from langgraph.types import interrupt
@@ -765,7 +774,7 @@ async def mitigate(state: RunState, deps: Deps) -> dict[str, Any]:
         m.rolled_back_from = int(res["from_percent"])
         m.detail = f"{flag}: {res['from_percent']}% → 0% ({'applied' if res['applied'] else 'dry run — policy requires approval'})"
     else:
-        m.detail = f"{flag}: no rollback (Clef band {d11.band}, significant={corr['significant']})"
+        m.detail = f"{flag}: no rollback (Clef band {d11.band}, evidence supports it: {supported})"
     return {"mitigation": m, "decisions": [*state.decisions, d11.ledger_id or ""]}
 
 
@@ -1217,7 +1226,15 @@ async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
         outcome: ShipOutcome = "escalate" if state.fix_plan.skip.startswith("needs a human") else "rca_only"
         return {"ship": Ship(outcome=outcome, decision={"reason": state.fix_plan.skip})}
     if rca is None or not rca.actionable or not state.fix_attempts:
-        return {"ship": Ship(outcome="rca_only", decision={"reason": "not actionable or no fix"})}
+        cat = rca.output.category if rca and rca.output else None
+        m = state.mitigation
+        if cat == "flag_config" and m and m.action != "none":
+            reason = f"the flag's configuration is the defect: {m.detail}"
+        elif cat in ("infra", "device_os", "not_a_bug", "third_party_lib"):
+            reason = f"not a code change in our repos ({cat}): reported and routed"
+        else:
+            reason = "not actionable or no fix"
+        return {"ship": Ship(outcome="rca_only", decision={"reason": reason})}
     fa = state.fix_attempts[-1]
     cs = (
         CompactState()
