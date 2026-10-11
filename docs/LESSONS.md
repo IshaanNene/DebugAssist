@@ -84,6 +84,16 @@ Format: **symptom** → cause → fix · *guard*.
 - **Fewer tokens is not lower cost when the cache pays most of the bill.** Clearing cut input per turn by about a
   sixth, but every batch rewrites the cached prefix, the hit rate fell, and cost barely moved.
 
+- **Prompt rules ran out of steam.** Eight generic RCA rules, each from a pattern in the three-seed misses, fixed
+  some bugs outright (a WebView crash wrong ×3 → exact ×3; hidden tests 0/3 → 2/3 on another) and moved others
+  backwards (one gateway bug went from close to wrong ×3; a new "active incident means infra" rule pulled a carrier
+  outage from `network` to `infra`). → Tuning stopped once rules started trading bugs. *Lesson: when each rule moves
+  bugs in both directions, the remaining misses are the model's judgement, not missing instructions.*
+- **Evidence in the bundle is not evidence used.** For a database-incident bug, the incident was in the RCA's
+  bundle and the incident-checker subagent called it the better explanation; every seed still blamed client code.
+  *Lesson: a fact the model must weigh against a tempting code theory is better used by a deterministic or Clef
+  decision before the RCA (here, D05 seeing active incidents) than by one more prompt sentence.*
+
 ## 3. Decisions (Clef)
 
 - **Clef rejected a decision.** Two-stage D12 sent `path::function` as question ids; Clef accepts only
@@ -185,6 +195,18 @@ Format: **symptom** → cause → fix · *guard*.
 - **Harness faults look like agent faults.** A network outage turned three runs into $0 failures and a worktree git
   could not delete stopped one run before it began. → Retries with back-off, direct cleanup, exclusions with a
   reason. *Lesson: a $0 run is a harness failure until shown otherwise.*
+- **Each eval run reloads the code from disk.** `eval run` starts every run as a `debugassist run` subprocess, so
+  editing `packages/` mid-arm silently changes the remaining runs. Harness fixes made during the three-seed sweep
+  show up as `d7cf020-dirty` on its second half. → Code changes wait until an arm finishes; the run records the
+  commit with `-dirty`, and the notes say what changed. *Lesson: know which process loads your code, and when.*
+- **Rates over mismatched runs.** A re-run panel compared three seeds with one-seed spot checks, and the site's
+  hidden-test rate divided by every run, including not-our-code bugs that have no hidden test (9% → 17% on the site
+  against 25% → 57% in the README for the same runs). → Rates only over comparable runs; one-seed checks never
+  replace three-seed results; the site and the README chart apply the same rule. *Guard: compare the two before
+  publishing.*
+- **The right outcome by an unintended route.** After the routing fix, a flag misconfiguration scored exact — but
+  D11 had abstained on the rollback and the code fix was skipped because D14 found no tier to reproduce it. →
+  Reported as such. *Lesson: read why a run scored, not only its score.*
 - **One expensive run can carry an arm's average.** A single bug's three max-length fix attempts (after D14 picked
   the e2e tier) were most of the lean arm's token total. → Read per-bug numbers before averages; the report keeps
   per-run rows next to the arm table.
@@ -197,6 +219,13 @@ Format: **symptom** → cause → fix · *guard*.
   was stopped before anything was lost (`git fsck` clean). *Lesson: simulate missing inputs in code, not by moving
   directories.*
 
+- **The scroll-reveal class vanished on hover.** The site's observer added an `in` class to revealed elements;
+  hover changed a card's `className` in React, which rewrote the attribute and dropped `in`, hiding the
+  architecture legend. → Reveals set a `data-in` attribute, which React never touches, and a `MutationObserver`
+  watches elements mounted later. *Lesson: don't mix imperative class changes with React-controlled `className`.*
+- **Misses in alarm red read as "broken", not "measured".** → Misses are neutral grey on the site and slate in the
+  README charts, still shown and labelled. Colour sets the tone; it must never hide a result.
+
 ## Patterns worth keeping
 
 1. **Run it live early.** Mocks agreed with our assumptions; live runs found the routing funnel, the PATH bug, the
@@ -205,3 +234,5 @@ Format: **symptom** → cause → fix · *guard*.
    number that looked too good.
 3. **Make every guard a test or a check**, so the same bug can't come back silently.
 4. **Count tokens and dollars per turn**, not per run; it is where the waste shows.
+5. **Read the misses run by run, then stop when fixes start trading bugs.** The routing gap that cost seven runs
+   their verdict was only visible in the runs; the last prompt rules were only visible as a wash in the arm.
