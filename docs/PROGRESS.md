@@ -339,6 +339,21 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Three-seed full run (2026-10-11) — done
+
+`make eval-full` on commit `d7cf020`: every catalog bug, three seeds, 74 counted runs, [report 2026-10-11](../evals/reports/2026-10-11/report.md).
+Root cause right or close 80% (first one-seed run 64%), exact 61% (48%), category 72% (72%), code-bug fixes validated
+86% (63%), hidden tests 74% (47%), median $0.016 per run. It is now the headline of the README card and the site.
+
+- Harness: `docker compose` retries on DNS/registry errors with back-off (a network outage stopped the first
+  half), and a stale worktree that git cannot delete is removed directly. Four rows excluded with reasons (BUG-015
+  ×3 during the outage, rerun; BUG-013 seed 1, the worktree).
+- Every remaining miss read run by run; the patterns and their generic fixes are in the report notes and
+  ROADMAP "Next: what the full run found" — eight RCA-prompt rules and a routing fix, to be measured as their own arm.
+- Site: hover on the architecture diagram explains each layer; scroll reveals use a `data-in` attribute (React
+  rewrote `className` on hover and hid the legend); the pipeline diagram opens the current phase into its steps,
+  coloured by what does the work (`fc004af`).
+
 ## Results review (2026-10-10)
 
 **What was wrong with the results.** The headline grid (README card, site) was the first full run, on the code of
@@ -361,7 +376,7 @@ only on their own bugs, so the grid kept showing them as failures. Still open: C
 - `make eval-full`: every bug, three seeds, on the current code, as `full-<commit>` (≈ $1.8). Cost estimates now
   use the configured model's past eval runs (they averaged in Nemotron runs and overstated a sweep ~4x).
 
-**Not done:** the full re-run itself — the OpenRouter key is empty.
+**Not done:** the full re-run itself — the OpenRouter key is empty. *(Done 2026-10-11, below.)*
 
 ## P16 — Langfuse (2026-10-10) — done
 

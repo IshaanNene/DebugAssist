@@ -32,9 +32,11 @@ FLAG_PROPAGATION_S = 8  # services poll Unleash every 5 s
 
 # Docker races that a second try gets past (a dependency recreated while another service still points at it).
 TRANSIENT = ("No such container", "dependency failed to start", "is already in progress")
+# A dropped connection while BuildKit checks a base image's registry: wait it out rather than fail the sweep.
+NETWORK = ("no such host", "failed to resolve source metadata", "i/o timeout", "TLS handshake timeout")
 
 
-def compose(*args: str, profiles: list[str] = PROFILES, attempts: int = 3) -> None:
+def compose(*args: str, profiles: list[str] = PROFILES, attempts: int = 5) -> None:
     cmd = [*COMPOSE, *[f for p in profiles for f in ("--profile", p)], *args]
     for attempt in range(attempts):
         out = subprocess.run(cmd, capture_output=True, text=True)
@@ -42,6 +44,9 @@ def compose(*args: str, profiles: list[str] = PROFILES, attempts: int = 3) -> No
             return
         if attempt + 1 < attempts and any(t in out.stderr for t in TRANSIENT):
             time.sleep(5)
+            continue
+        if attempt + 1 < attempts and any(t in out.stderr for t in NETWORK):
+            time.sleep(30 * (attempt + 1))
             continue
         raise RuntimeError(f"{' '.join(cmd)}\n{out.stderr[-3000:]}")
 

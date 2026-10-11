@@ -8,6 +8,7 @@ per run with network, before the agent starts.
 from __future__ import annotations
 
 import shlex
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,7 +58,12 @@ class Sandbox:
         for block in listing.split("\n\n"):
             if f"branch refs/heads/{branch}" in block:
                 path = block.splitlines()[0].removeprefix("worktree ")
-                self._git("worktree", "remove", "--force", path, cwd=self.repo_path)
+                try:
+                    self._git("worktree", "remove", "--force", path, cwd=self.repo_path)
+                except RuntimeError:
+                    # Files a container was still writing can make git's own delete fail ("Directory not
+                    # empty"); delete the directory ourselves and let `prune` drop the registration.
+                    shutil.rmtree(path, ignore_errors=True)
         self._git("worktree", "prune", cwd=self.repo_path)
         self._git("worktree", "add", "-q", "-B", branch, str(self.worktree), ref, cwd=self.repo_path)
         exclude = Path(self._git("rev-parse", "--git-path", "info/exclude"))

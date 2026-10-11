@@ -4,8 +4,9 @@ Where DebugAssist goes after P13. Everything here is measured the same way the f
 an eval run on the catalog, and a report under `evals/reports/` — no feature ships on a blog post's numbers.
 Problems already solved are in [LESSONS.md](LESSONS.md).
 
-Baseline to beat (`evals/reports/2026-10-07`, gpt-6-luna, 25 bugs, one seed): root cause right or close 16/25,
-exact 12/25, code-bug fixes validated 12/19, hidden tests 7/15, median ~$0.017 per run.
+Baseline to beat (`evals/reports/2026-10-11`, arm `full-d7cf020`, gpt-6-luna, 25 bugs, three seeds, 74 runs): root
+cause right or close 80%, exact 61%, category right 72%, code-bug fixes validated 86%, hidden tests 74%, median
+$0.016 per run. (The first one-seed run, `evals/reports/2026-10-07`, scored 64% / 48% / 72% / 63% / 47%.)
 
 ## P14 · Close the biggest gap: backend bugs reported from the app — done (2026-10-10)
 
@@ -73,49 +74,29 @@ live — the API credit ran out): replaying the fix-quality arm's transcripts th
 re-sent history, roughly 2–3% of the arm's input, because `read_file` (untouched) dominates and MCP results are
 already capped. Deterministic, so the cache prefix is unaffected. A small lever; run it live when there is credit.
 
-**Repeated seeds — ready, waiting for API credit.** `make eval-full` re-runs every catalog bug on the current code,
-three seeds each (≈ $1.8 at gpt-6-luna prices), as an arm named after the commit. The report already keeps every
-seed; the README card and the site take the latest whole-catalog arm as their headline and show each bug as a pass
-rate across its seeds instead of one run's pass or miss. It also replaces the 7 October baseline, which predates the
-cross-repo and fix-quality changes.
+**Repeated seeds — done (2026-10-11).** `make eval-full` ran every catalog bug three times on commit `d7cf020`
+(arm `full-d7cf020`, 74 counted runs, under $2); it is now the headline of the README card, the site and the report.
+Seeds disagree on at least one lane for 8 of 25 bugs. What it found is listed under "Next: what the full run found".
 
-## P16 · Integrations (free / open source)
+## Next: what the full run found (2026-10-11)
 
-| Tool | License* | Why here | Plan |
-|---|---|---|---|
-| **Langfuse** ✅ | MIT (core) | Open LLM observability + datasets + experiments + scores; self-hosts on Postgres, Redis, MinIO (we already run them) + ClickHouse | **Done (2026-10-10):** `make langfuse` self-hosts v4 on :3200 (ClickHouse added, the rest shared); `DA_TRACING=phoenix\|langfuse\|both` exports the same OpenInference spans to its OTLP endpoint; `debugassist eval langfuse --runs …` sends each sweep as a Langfuse *experiment* (v4 replaced dataset runs) with one item per bug and scores for root cause, category, validation, hidden tests, cost and turns; the dashboard links a run's Langfuse trace. |
-| **LiteLLM** (proxy) | MIT | One gateway for every provider: fallbacks, budgets, caching, cost logs | Optional `LLM_PROVIDER=litellm`; per-run virtual keys as a second budget guard |
-| **Ollama / vLLM** | MIT / Apache-2.0 | Free local models for development and a no-cost eval arm | `LLM_PROVIDER=ollama`; a "local" arm in the report |
-| **Promptfoo** | MIT | Regression tests for prompts and skills in CI | Golden RCA/fix prompts from the catalog; fail CI on regressions |
-| **Inspect AI** | MIT | A standard eval framework; makes the catalog runnable by others | Export the catalog as an Inspect task |
-| **GlitchTip** (Sentry-compatible) | MIT | Real crash-report format instead of only our Vitals stand-in | A `glitchtip` source + MCP server; the client SDK can report to both |
-| **OpenFeature** (+ flagd) | Apache-2.0 | Vendor-neutral flags | Feature-flags MCP behind the OpenFeature API; Unleash stays the default |
-| **ast-grep / tree-sitter / Semgrep CE** | MIT / MIT / LGPL-2.1 | Structural code search, repo maps, rule checks on fixes | Code-search MCP tools; a pre-PR rule check |
-| **SWE-bench Lite / Verified** | MIT | External validity beyond our own catalog | A subset run through reproduce → fix → validate |
-| **OpenHands / mini-SWE-agent** | MIT | Baselines: what does a general coding agent score on our catalog? | Same bugs, same budget, compared in the report |
-| **Temporal** | MIT | Durable runs that survive restarts and sleep | Optional executor for long runs (LangGraph checkpoints already resume) |
+Every remaining miss was read run by run; each is a pattern with a generic fix (no catalog hints), measured as its
+own arm on the affected bugs plus a few that pass today:
+- RCA prompt: cover every behaviour the regression commit changed (BUG-003); fix the condition, not the reported
+  input (BUG-009); our services are own code (BUG-013 seed 2, a regression from the vendored-code rule); an active
+  incident with no correlating change is infra (BUG-006); check that an endpoint served other requests before
+  blaming its address (BUG-017); follow a failed outbound call to the service it called (BUG-018); read the code
+  before submitting a mechanism, or D13 escalates (BUG-020); a release correlates only if failures follow it across
+  devices (BUG-022).
+- Routing: route on the RCA's own category, not only Clef's pre-RCA D05 decision — seven runs named the right
+  not-our-code category and still attempted code fixes (BUG-021/024/025); let the flag-rollback step act on rider
+  reports, which have no crash fingerprint (BUG-024).
 
-\* Check each license at adoption. Note: Arize Phoenix (our current tracer) is Elastic License 2.0, not OSI open
-source — one more reason to support Langfuse.
-
-## P17 · A public site
-
-A marketing site in `apps/site`, statically built and deployed from GitHub Actions to GitHub Pages (free; Vercel
-works too). Our own name and content; visual language inspired by modern OSS developer sites: off-white grid
-paper, a highlighter accent, monospace labels, isometric line diagrams.
-
-- Hero: what it does in one line, the results card, Quickstart and GitHub buttons.
-- The loop, drawn isometrically: crash → triage → root cause → mitigate → reproduce → fix → validate → PR → watch,
-  with the Clef decision points; hovering a stage shows what runs there.
-- Feature cards: evidence-backed RCA, proof before PR, Clef decisions, sandbox and policy gate, dashboard, harness.
-- Results: built from the latest `evals/reports/*/results.csv` at build time (no hand-entered numbers), with the
-  honest "what doesn't work yet".
-- "Works with your stack": MCP servers, providers, frameworks, telemetry.
 - Lessons learned and roadmap pages generated from these docs.
 
 ## P18 · Evaluation at scale
 
-- Three seeds on the main arm; Clef vs Clef-flash vs LLM decider vs rules as full pipeline arms; skills-off.
+- Three seeds on every arm (the main arm has them since 2026-10-11); Clef vs Clef-flash vs LLM decider vs rules as full pipeline arms; skills-off.
 - Decision templates where the rules baseline wins (triage, test tier).
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
