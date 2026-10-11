@@ -16,7 +16,7 @@ const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matc
 
 /**
  * One observer for the whole page, so components stay server-rendered:
- *  - `.fx` / `.wave` elements get `.in` the first time they enter the viewport (CSS does the motion);
+ *  - `.fx` / `.wave` elements get `data-in` the first time they enter the viewport (CSS does the motion);
  *  - `[data-count]` numbers count up from zero when they enter;
  *  - `[data-scrub="a,b"]` elements get `--p` (0→1) as they travel from a·vh (top) to b·vh (bottom);
  *  - the document gets `--page` (scroll progress) and `data-scrolled`.
@@ -33,14 +33,30 @@ export function Motion() {
         for (const e of entries) {
           if (!e.isIntersecting) continue;
           const el = e.target as HTMLElement;
-          el.classList.add("in");
+          el.dataset.in = ""; // an attribute, not a class: React rewrites className on re-render
           if (el.dataset.count !== undefined && !still) countUp(el);
           io.unobserve(el);
         }
       },
       { rootMargin: "0px 0px -12% 0px", threshold: 0.05 },
     );
-    document.querySelectorAll<HTMLElement>(".fx, .wave, .grow, .typed, [data-count]").forEach((el) => io.observe(el));
+    const REVEAL = ".fx, .wave, .grow, .typed, [data-count]";
+    const watch = (root: ParentNode) =>
+      root.querySelectorAll<HTMLElement>(REVEAL).forEach((el) => {
+        if (el.dataset.in === undefined) io.observe(el);
+      });
+    watch(document);
+    // Elements mounted or re-rendered after this ran (a client component remounting, a hydration fix-up, a
+    // dev refresh) would otherwise stay hidden for good: watch whatever is added later too.
+    const mo = new MutationObserver((records) => {
+      for (const r of records)
+        for (const node of r.addedNodes) {
+          if (!(node instanceof HTMLElement)) continue;
+          if (node.matches(REVEAL) && node.dataset.in === undefined) io.observe(node);
+          watch(node);
+        }
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
 
     const scrubs = [...document.querySelectorAll<HTMLElement>("[data-scrub]")];
     let raf = 0;
@@ -75,6 +91,7 @@ export function Motion() {
     return () => {
       document.removeEventListener("pointermove", onPointer);
       io.disconnect();
+      mo.disconnect();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
       cancelAnimationFrame(raf);

@@ -4,16 +4,23 @@ import { useEffect, useRef, useState } from "react";
 
 type Kind = "code" | "llm" | "clef";
 
+interface Step {
+  name: string;
+  kind: Kind[]; // what does the work: the first is the main actor
+  d?: string; // the Clef decisions taken in this step
+}
+
 interface Phase {
   name: string;
   steps: string;
   decisions: string;
   kind: Kind[];
   what: string;
-  parts: string[];
+  parts: Step[];
 }
 
 // The fixed plan (ADR 0001) in four phases; the sub-phases are the pipeline's actual steps, always in this order.
+// Each step's kinds and decisions follow the decision templates' `stage` (packages/decisions/templates).
 const PHASES: Phase[] = [
   {
     name: "Detect",
@@ -21,7 +28,11 @@ const PHASES: Phase[] = [
     decisions: "D01 · D02",
     kind: ["code", "clef"],
     what: "A crash from Vitals or a rider's report from BugDrop comes in. Owner from CODEOWNERS, priority and severity, dedup against open issues, a ticket and a page.",
-    parts: ["Ingest", "Triage", "Dedup"],
+    parts: [
+      { name: "Ingest", kind: ["code"] },
+      { name: "Triage", kind: ["clef"], d: "D01" },
+      { name: "Dedup", kind: ["clef"], d: "D02" },
+    ],
   },
   {
     name: "Investigate",
@@ -29,7 +40,11 @@ const PHASES: Phase[] = [
     decisions: "D03 – D11",
     kind: ["code", "llm", "clef"],
     what: "A deterministic evidence bundle from eleven MCP servers; an agent and its subagents explain the defect, every claim checked against its evidence; a flag rollback is proposed when the numbers say so.",
-    parts: ["Context", "Root cause", "Mitigate"],
+    parts: [
+      { name: "Context", kind: ["code", "clef"], d: "D03 D04" },
+      { name: "Root cause", kind: ["llm", "clef"], d: "D05–D10" },
+      { name: "Mitigate", kind: ["clef"], d: "D11" },
+    ],
   },
   {
     name: "Fix",
@@ -37,7 +52,11 @@ const PHASES: Phase[] = [
     decisions: "D12 – D15",
     kind: ["llm", "clef"],
     what: "A test that fails on the shipped release, the smallest fix that makes it pass, then proof: fails before, passes after, suite and CI green — or another attempt.",
-    parts: ["Reproduce", "Fix", "Validate"],
+    parts: [
+      { name: "Reproduce", kind: ["llm"] },
+      { name: "Fix", kind: ["llm", "clef"], d: "D12 D13" },
+      { name: "Validate", kind: ["code", "clef"], d: "D14 D15" },
+    ],
   },
   {
     name: "Ship",
@@ -45,7 +64,11 @@ const PHASES: Phase[] = [
     decisions: "D16 · D17",
     kind: ["code", "clef"],
     what: "A pull request or a draft, decided by the evidence, linked from the ticket. After the deploy, watch the crash rate and resolve or reopen.",
-    parts: ["Ship gate", "Pull request", "Watch"],
+    parts: [
+      { name: "Ship gate", kind: ["clef"], d: "D16" },
+      { name: "Pull request", kind: ["code"] },
+      { name: "Watch", kind: ["code", "clef"], d: "D17" },
+    ],
   },
 ];
 
@@ -65,174 +88,167 @@ const flat = (x: number, y: number, z: number) => {
   const [tx, ty] = iso(x, y, z);
   return `matrix(${C} ${-S} ${C} ${S} ${tx.toFixed(1)} ${ty.toFixed(1)})`;
 };
+/** Text lying on a horizontal face at height z, reading along +x (towards the viewer). */
+const flatX = (x: number, y: number, z: number) => {
+  const [tx, ty] = iso(x, y, z);
+  return `matrix(${C} ${S} ${-C} ${S} ${tx.toFixed(1)} ${ty.toFixed(1)})`;
+};
 
 const INK = "#2f2e2a";
-const FAINT = "#b9b7ae";
 const FONT = "var(--font-geist-mono), ui-monospace, monospace";
 
-// box geometry
-const W = 118; // along x
-const D = 128; // along y
-const H = 66;
-const GAP = 34;
+// four phase blocks on one track; the current phase opens into its three steps
+const W = 128; // along x
+const SD = 44; // one step's slice along y
+const SG = 7; // gap between slices
+const D = 3 * SD + 2 * SG; // a phase along y
+const GAP = 30;
 const STEP = D + GAP;
-// part slabs
-const PW = 64;
-const PD = 132;
-const PH = 12;
-const PGAP = 18;
-const PX = W + 92; // parts sit in front of the boxes
+const H_ON = 58;
+const H_OFF = 38;
+const LANE = 40; // track strip in front of the blocks
+const TH = 10;
 
-function Block({ x, y, w, d, h, active }: { x: number; y: number; w: number; d: number; h: number; active: boolean }) {
-  const ink = active ? INK : FAINT;
+type Tone = "on" | "done" | "next";
+const TONE: Record<Tone, { ink: string; top: string; side: string; front: string; text: string }> = {
+  on: { ink: INK, top: "#ffffff", side: "#e9e9e3", front: "#dcdcd6", text: INK },
+  done: { ink: "#6f6d66", top: "#fcfcf9", side: "#ecece6", front: "#e2e2dc", text: "#55544e" },
+  next: { ink: "#a9a79e", top: "#fbfbf9", side: "#f0f0ec", front: "#e8e8e3", text: "#97958c" },
+};
+
+function Block({ x, y, w, d, h, tone }: { x: number; y: number; w: number; d: number; h: number; tone: Tone }) {
+  const t = TONE[tone];
   const top = [iso(x, y, h), iso(x, y + d, h), iso(x + w, y + d, h), iso(x + w, y, h)];
   const front = [iso(x + w, y, h), iso(x + w, y + d, h), iso(x + w, y + d, 0), iso(x + w, y, 0)];
   const side = [iso(x, y, h), iso(x + w, y, h), iso(x + w, y, 0), iso(x, y, 0)];
   return (
-    <g>
-      <polygon points={P(...side)} fill={active ? "#e9e9e3" : "#f1f1ed"} stroke={ink} strokeWidth={1} strokeLinejoin="round" />
-      <polygon points={P(...front)} fill={active ? "#dededa" : "#ebebe6"} stroke={ink} strokeWidth={1} strokeLinejoin="round" />
-      <polygon points={P(...top)} fill={active ? "#ffffff" : "#f9f9f6"} stroke={ink} strokeWidth={1.2} strokeLinejoin="round" />
+    <g strokeLinejoin="round" stroke={t.ink}>
+      <polygon points={P(...side)} fill={t.side} strokeWidth={1} />
+      <polygon points={P(...front)} fill={t.front} strokeWidth={1} />
+      <polygon points={P(...top)} fill={t.top} strokeWidth={1.15} />
     </g>
+  );
+}
+
+/** A small square lying on a top face: the colour of what does the work. */
+function Tile({ x, y, z, kind, faded }: { x: number; y: number; z: number; kind: Kind; faded?: boolean }) {
+  const s = 10;
+  return (
+    <polygon
+      points={P(iso(x, y, z), iso(x, y + s, z), iso(x + s, y + s, z), iso(x + s, y, z))}
+      fill={KIND[kind].color}
+      fillOpacity={faded ? 0.7 : 1}
+      stroke={INK}
+      strokeOpacity={faded ? 0.5 : 0.85}
+      strokeWidth={0.9}
+    />
   );
 }
 
 function Diagram({ active, onSelect }: { active: number; onSelect: (i: number) => void }) {
   const n = PHASES.length;
   const len = n * STEP - GAP;
-
-  // track under the boxes
-  const t0x = -22;
-  const t1x = W + 22;
+  const t0x = -20;
+  const t1x = W + LANE;
   const t0y = -40;
   const t1y = len + 40;
-  const TH = 10;
   const trackTop = [iso(t0x, t0y), iso(t0x, t1y), iso(t1x, t1y), iso(t1x, t0y)];
   const trackFront = [iso(t1x, t0y), iso(t1x, t1y), iso(t1x, t1y, -TH), iso(t1x, t0y, -TH)];
   const trackEnd = [iso(t0x, t0y), iso(t1x, t0y), iso(t1x, t0y, -TH), iso(t0x, t0y, -TH)];
 
-  // parts of the active phase: side by side along y, centred on its box, in front of the track
-  const parts = (i: number) => {
-    const k = PHASES[i].parts.length;
-    const span = k * PD + (k - 1) * PGAP;
-    const start = i * STEP + D / 2 - span / 2;
-    return PHASES[i].parts.map((p, j) => ({ p, j, y: start + j * (PD + PGAP) }));
-  };
-  const cur = parts(active);
-  const ay = active * STEP;
-
-  // a fixed frame that fits every phase's parts, so the view never jumps
-  const allParts = PHASES.flatMap((_, i) => parts(i));
-  const ext = [
-    ...trackTop,
-    iso(t0x, t0y, -TH),
-    iso(t1x, t0y, -TH),
-    iso(0, len, H + 10),
-    iso(0, 0, H + 10),
-    iso(PX + PW, Math.min(...allParts.map((q) => q.y))),
-    iso(PX + PW, Math.max(...allParts.map((q) => q.y)) + PD),
-    iso(PX, Math.max(...allParts.map((q) => q.y)) + PD, PH),
-  ];
-  const pad = 30;
+  // a fixed frame for every phase, so the view never jumps
+  const ext = [...trackTop, iso(t1x, t0y, -TH), iso(t1x, t1y, -TH), iso(0, 0, H_ON + 14), iso(0, len, H_ON + 14), iso(t1x + 40, t0y - 80), iso(t1x + 40, t1y + 86)];
+  const pad = 22;
   const minX = Math.min(...ext.map((p) => p[0])) - pad;
   const maxX = Math.max(...ext.map((p) => p[0])) + pad;
   const minY = Math.min(...ext.map((p) => p[1])) - pad;
   const maxY = Math.max(...ext.map((p) => p[1])) + pad;
 
-  // faint ground lattice
-  const cells: [number, number][] = [];
-  for (let gx = -460; gx <= PX + 360; gx += 150) for (let gy = -420; gy <= len + 420; gy += 170) cells.push([gx, gy]);
-
-  // draw back (large y) to front
-  const order = PHASES.map((_, i) => i).sort((a, b) => b - a);
-  const ease = "transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)";
+  const order = PHASES.map((_, i) => i).sort((a, b) => b - a); // larger y is further back
+  const tone = (i: number): Tone => (i === active ? "on" : i < active ? "done" : "next");
 
   return (
     <svg
       viewBox={`${minX.toFixed(0)} ${minY.toFixed(0)} ${(maxX - minX).toFixed(0)} ${(maxY - minY).toFixed(0)}`}
       className="block h-auto max-h-[64vh] w-full select-none"
       role="img"
-      aria-label={`The DebugAssist pipeline in four phases: ${PHASES.map((p) => p.name).join(", ")}. Showing ${PHASES[active].name}.`}
+      aria-label={`The DebugAssist pipeline in four phases: ${PHASES.map((p) => p.name).join(", ")}. Showing ${PHASES[active].name}: ${PHASES[active].parts.map((s) => s.name).join(", ")}.`}
     >
-      <defs>
-        <radialGradient id="lat-fade" cx="50%" cy="50%" r="60%">
-          <stop offset="40%" stopColor="#fff" />
-          <stop offset="100%" stopColor="#000" />
-        </radialGradient>
-        <mask id="lat-mask">
-          <rect x={minX} y={minY} width={maxX - minX} height={maxY - minY} fill="url(#lat-fade)" />
-        </mask>
-      </defs>
-
-      <g mask="url(#lat-mask)" fill="none" stroke="#dcdad2" strokeWidth={0.9}>
-        {cells.map(([gx, gy]) => (
-          <polygon key={`${gx},${gy}`} points={P(iso(gx, gy), iso(gx, gy + 130), iso(gx + 104, gy + 130), iso(gx + 104, gy))} />
-        ))}
-      </g>
-
       {/* track */}
       <polygon points={P(...trackEnd)} fill="#dde05f" stroke={INK} strokeWidth={1} />
       <polygon points={P(...trackFront)} fill="#e9ec6c" stroke={INK} strokeWidth={1} />
       <polygon points={P(...trackTop)} fill="#f7f985" stroke={INK} strokeWidth={1.1} />
-      {/* moving dashes along the track: the signal flowing through */}
       <polyline
         className="flow"
-        points={P(iso(W + 11, t0y + 10), iso(W + 11, t1y - 10))}
+        points={P(iso(W + 10, t0y + 10), iso(W + 10, t1y - 10))}
         fill="none"
         stroke={INK}
         strokeOpacity={0.35}
         strokeWidth={1}
         strokeDasharray="4 10"
       />
-      <text transform={flat(t0x - 22, t0y + 4, 0)} fontFamily={FONT} fontSize={12} fill="#55544e">
-        signal in
+      <text transform={flat(t1x + 24, t0y - 74, 0)} fontFamily={FONT} fontSize={12} fill="#55544e">
+        signal in →
       </text>
-      <text transform={flat(t1x - 40, t1y + 22, 0)} fontFamily={FONT} fontSize={12} fill="#55544e" dy={12}>
-        proof out
+      <text transform={flat(t1x + 24, t1y - 2, 0)} fontFamily={FONT} fontSize={12} fill="#55544e">
+        → proof out
       </text>
 
-      {/* phase boxes, back to front; the active one lifts */}
       {order.map((i) => {
+        const ph = PHASES[i];
         const on = i === active;
-        const y = i * STEP;
+        const t = tone(i);
+        const y0 = i * STEP;
         return (
-          <g
-            key={PHASES[i].name}
-            onClick={() => onSelect(i)}
-            className="cursor-pointer"
-            style={{ transform: on ? "translateY(-9px)" : "none", transition: ease }}
-          >
-            <Block x={0} y={y} w={W} d={D} h={H} active={on} />
-            <g stroke={on ? INK : FAINT} strokeWidth={1}>
-              {[0, 1, 2].map((t) => (
-                <line key={t} x1={iso(12, y + 12 + t * 5, H)[0]} y1={iso(12, y + 12 + t * 5, H)[1]} x2={iso(26, y + 12 + t * 5, H)[0]} y2={iso(26, y + 12 + t * 5, H)[1]} />
-              ))}
-            </g>
-            <text transform={flat(44, y + 14, H)} fontFamily={FONT} fontSize={16} fill={on ? INK : "#9a988f"} dy={6}>
-              {PHASES[i].name}
-            </text>
+          <g key={ph.name} onClick={() => onSelect(i)} className="cursor-pointer">
+            {/* the open phase's top holds its steps, so its name goes on the lane in front */}
+            {on && (
+              <text transform={flat(W + 26, y0 + 4, 0)} fontFamily={FONT} fontSize={13.5} fontWeight={600} fill={INK}>
+                {String(i + 1).padStart(2, "0")} {ph.name}
+                <tspan fontWeight={400} fontSize={10.5} fill="#6f6d66" dx={8}>
+                  {ph.decisions}
+                </tspan>
+              </text>
+            )}
+
+            {on ? (
+              // the current phase, opened into its steps: back to front, each rising in after the last
+              <g key={`open-${active}`}>
+                {[2, 1, 0].map((j) => {
+                  const st = ph.parts[j];
+                  const y = y0 + j * (SD + SG);
+                  return (
+                    <g key={st.name} className="drop" style={{ animationDelay: `${(2 - j) * 80}ms` }}>
+                      <Block x={0} y={y} w={W} d={SD} h={H_ON} tone="on" />
+                      {st.kind.map((k, q) => (
+                        <Tile key={k} x={12 + q * 13} y={y + 17} z={H_ON} kind={k} />
+                      ))}
+                      <text transform={flatX(st.kind.length > 1 ? 42 : 29, y + 20, H_ON)} fontFamily={FONT} fontSize={12.5} fill={INK}>
+                        {st.name}
+                      </text>
+                      {st.d && (
+                        <text transform={flatX(st.kind.length > 1 ? 42 : 29, y + 8, H_ON)} fontFamily={FONT} fontSize={9.5} fill="#8a887f">
+                          {st.d}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            ) : (
+              <g>
+                <Block x={0} y={y0} w={W} d={D} h={H_OFF} tone={t} />
+                {ph.kind.map((k, q) => (
+                  <Tile key={k} x={14} y={y0 + 14 + q * 14} z={H_OFF} kind={k} faded={t === "next"} />
+                ))}
+                <text transform={flat(44, y0 + 14, H_OFF)} fontFamily={FONT} fontSize={15} fill={TONE[t].text} dy={6}>
+                  {ph.name}
+                </text>
+              </g>
+            )}
           </g>
         );
       })}
-
-      {/* the active phase's parts: a small tree in front of its box, drawn in on every change */}
-      <g key={`parts-${active}`}>
-        <g fill="none" stroke={INK} strokeWidth={1.1}>
-          <polyline className="draw" pathLength={1} points={P(iso(W, ay + D / 2), iso(W + 40, ay + D / 2))} />
-          <polyline className="draw" pathLength={1} points={P(iso(W + 40, cur[0].y + PD / 2), iso(W + 40, cur[cur.length - 1].y + PD / 2))} />
-          {cur.map(({ p, y }) => (
-            <polyline key={p} className="draw draw-late" pathLength={1} points={P(iso(W + 40, y + PD / 2), iso(PX, y + PD / 2))} />
-          ))}
-        </g>
-        {[...cur].reverse().map(({ p, j, y }) => (
-          <g key={p} className="drop" style={{ animationDelay: `${120 + j * 110}ms` }}>
-            <Block x={PX} y={y} w={PW} d={PD} h={PH} active />
-            <text transform={flat(PX + 22, y + 14, PH)} fontFamily={FONT} fontSize={13.5} fill={INK} dy={10}>
-              {p}
-            </text>
-          </g>
-        ))}
-      </g>
     </svg>
   );
 }

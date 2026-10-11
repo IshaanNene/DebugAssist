@@ -193,9 +193,23 @@ export function Architecture({ servers, tools }: { servers: number; tools: numbe
             );
           })}
         </svg>
-        <div className="flex items-center justify-between border-t border-line px-4 py-2 font-mono text-[11px] text-t3">
-          <span>signals rise from the app · actions leave through the policy gate</span>
-          <span className="hidden sm:inline">hover a layer</span>
+        {/* the hovered layer is explained right under the drawing; otherwise the one-line reading */}
+        <div className="flex min-h-[58px] items-center gap-3 border-t border-line px-4 py-2.5" aria-live="polite">
+          {hover === null ? (
+            <div className="flex w-full items-center justify-between font-mono text-[11px] text-t3">
+              <span>signals rise from the app · actions leave through the policy gate</span>
+              <span className="hidden sm:inline">hover a layer</span>
+            </div>
+          ) : (
+            <>
+              <span className="grid h-[24px] w-[24px] shrink-0 place-items-center border border-t1 bg-mark font-mono text-[11px] text-t1">
+                {hover + 1}
+              </span>
+              <p className="text-[13px] leading-[1.5] text-t2">
+                <b className="font-medium text-t1">{L[hover].name}.</b> {L[hover].blurb}
+              </p>
+            </>
+          )}
         </div>
       </div>
 
