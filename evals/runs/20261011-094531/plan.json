@@ -1,0 +1,22 @@
+{
+  "bugs": [
+    "BUG-024",
+    "BUG-025",
+    "BUG-006",
+    "BUG-022",
+    "BUG-021",
+    "BUG-003",
+    "BUG-009",
+    "BUG-013",
+    "BUG-017",
+    "BUG-018",
+    "BUG-020"
+  ],
+  "configs": [
+    "routed"
+  ],
+  "seeds": 3,
+  "until": "ship_gate",
+  "arm": "fixes-becdbde",
+  "commit": "becdbde"
+}

@@ -34,7 +34,7 @@ const FEATURES: { title: string; body: string; art: ReactNode }[] = [
         <div className="ml-8 space-y-1.5 font-mono text-[10px]">
           <div className="text-[#3f8f4f]">✓ ev_code · grounded</div>
           <div className="text-[#3f8f4f]">✓ ev_flags · grounded</div>
-          <div className="text-[#c9443a]">✗ ev_logs · dropped</div>
+          <div className="text-bad">✗ ev_logs · dropped</div>
         </div>
       </div>
     ),
@@ -46,7 +46,7 @@ const FEATURES: { title: string; body: string; art: ReactNode }[] = [
       <div className="space-y-2.5">
         <div className={`${slab} flex justify-between`}>
           <span>fails on release</span>
-          <span className="text-[#c9443a]">✗</span>
+          <span className="text-bad">✗</span>
         </div>
         <div className={`${slab} ml-5 flex justify-between`}>
           <span>passes with fix</span>

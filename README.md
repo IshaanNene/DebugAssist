@@ -37,7 +37,7 @@ The plan is a fixed <b>LangGraph</b> graph; models never choose the next step. A
 <img src="docs/assets/results.svg" alt="Evaluation of 25 catalog bugs end to end: per-bug root cause, validated fix and hidden-test result" width="100%">
 </div>
 
-Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-11`](evals/reports/2026-10-11/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid is every catalog bug run **three times** on commit `d7cf020` (`make eval-full`, 74 counted runs); amber in a cell means the seeds disagreed or the root cause was only close. Against the first one-seed run on the code of 2026-10-07, root cause right or close went from 64% to **80%**, validated fixes on code bugs from 63% to **86%**, and hidden tests passing from 47% to **74%**. The panel below shows the targeted re-runs that got it there, on the same bugs before and after.
+Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-11`](evals/reports/2026-10-11/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid shows every catalog bug's latest **three-seed** run: all 25 on commit `d7cf020` (`make eval-full`), with the 8 bugs re-run after the last round of fixes (marked •) on `becdbde`; amber means the seeds disagreed or the root cause was only close, grey means a miss. Against the first one-seed run on the code of 2026-10-07, root cause right or close went from 64% to **80%**, exact from 48% to **65%**, and hidden tests passing from 47% to **80%**, at a median of **$0.014** a run. The panel below compares the re-run bugs before and after those fixes.
 
 <table>
 <tr>
@@ -48,7 +48,8 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 - **Following a rider's report into the backend** — with the cross-repo hand-off, a rider's in-app report leads the investigation into the service that holds the defect, and the fix moves there: the cross-city matching bug now passes every lane in all three seeds and a payments tariff typo is fixed in all three (hidden test in two); none of the six report-only services bugs had the right root cause before.
 - **Fix quality after reading failed runs** — three harness fixes (a Python sandbox that lost its interpreter, an evaluator that never allowed a retry, an edit tool that rejected near-misses) took hidden-test passes on the eight re-run bugs from 0 to 5; across the catalog, 74% of hidden tests now pass.
 - **Saying "not our bug"** — a carrier outage and an ETA complaint about intended behaviour were routed, not "fixed".
-- **Cost** — a median of $0.016 per end-to-end run on `openai/gpt-6-luna`; the whole three-seed sweep cost under $2.
+- **Routing what isn't ours** — after routing on the root cause's own category, a single-device WebView crash, a vendored-SDK hang and a flag misconfiguration went from misses (or code fixes that shouldn't exist) to exact in most seeds, at about a cent a run instead of five to ten.
+- **Cost** — a median of $0.014 per end-to-end run on `openai/gpt-6-luna`; the whole three-seed sweep cost under $2.
 
 </td>
 <td width="50%" valign="top">
@@ -56,9 +57,9 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 **What doesn't (yet)**
 - **Stopping where the symptom surfaced** — a CORS change and a payments panic were blamed on the client's gateway address and on the gateway's timeout, in every seed: the investigation doesn't yet follow a failed call to the service it called.
 - **Fixes narrower than the regression** — some fixes pass the agent's own test but not the hidden one: a fix restored the retry key but kept the shortened timeout from the same commit; another added the one missing city instead of handling a missing city.
-- **Right answer, wrong route** — seven runs named the correct not-our-code category (a flag misconfiguration, a vendored SDK) and still tried code fixes: the graph routes on the decision taken before the root cause, not on the root cause. An active database incident and a single-device WebView crash were blamed on a code change in every seed.
-- **Seeds still disagree** on eight bugs; one root cause was exact in every seed yet escalated to a human each time, because the agent left the mechanism "unconfirmed" without reading the code.
-- **Each miss has a generic fix queued** (eight RCA-prompt rules and a routing change), to be measured as its own arm on the same bugs.
+- **An active incident still loses to suspicious code** — the database incident was in the evidence and a subagent named it, yet every seed blamed client code; and one gateway bug got worse after the last prompt round.
+- **Seeds still disagree** on ten bugs, so one run of a bug proves little; one root cause was exact in every seed yet escalated to a human each time, because the agent left the mechanism "unconfirmed" without reading the code.
+- **Diminishing returns** — the last round of prompt rules helped some bugs and cost others (a carrier outage moved from `network` to `infra`), so tuning stopped there; the report lists each before → after.
 - **Trimming context** — three measured attempts, none switched on: capping file reads (`DA_CONTEXT=lean`) made agents read more often and *raised* input per run; clearing old tool results in batches (`clear`) cut input per turn by about a sixth but lowered the cache hit rate, so cost barely moved; compacting old steps into notes (`compact`, three bugs before the API credit ran out) saved nothing per turn. The report's *Context by arm* table has the numbers.
 
 </td>
