@@ -1,0 +1,22 @@
+{
+  "bugs": [
+    "BUG-015",
+    "BUG-016",
+    "BUG-017",
+    "BUG-018",
+    "BUG-019",
+    "BUG-020",
+    "BUG-021",
+    "BUG-022",
+    "BUG-023",
+    "BUG-024",
+    "BUG-025"
+  ],
+  "configs": [
+    "routed"
+  ],
+  "seeds": 3,
+  "until": "ship_gate",
+  "arm": "full-d7cf020",
+  "commit": "d7cf020-dirty"
+}

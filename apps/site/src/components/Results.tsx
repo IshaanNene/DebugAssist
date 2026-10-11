@@ -88,7 +88,7 @@ export function Results({ data }: { data: R }) {
           <p className="mb-4 max-w-[80ch] text-[13px] leading-[1.55] text-t3">
             This is the first full run, on the code of {evalDate(h.eval)} — before the cross-repo hand-off and the
             fix-quality changes. Most of its misses were in the bugs those changes targeted; the re-runs below show the
-            same bugs on later code. A full re-run of every bug, several seeds each, is next.
+            same bugs on later code.
           </p>
         )}
         <table className="border-separate border-spacing-[3px]">

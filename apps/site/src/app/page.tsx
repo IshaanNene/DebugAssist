@@ -230,17 +230,17 @@ export default function Home() {
             <Box className="fx p-6">
               <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-good">✓ What works</div>
               <ul className="mt-4 space-y-3 text-[14.5px] leading-[1.55] text-t2">
-                <li>Crash-data bugs — locale and currency edge cases, a nil-map panic, a removed await, a battery-draining poller — fixed with a passing hidden test.</li>
-                <li>Following a rider&apos;s report into the backend, and moving the fix to the service that holds the defect.</li>
+                <li>Crash-data bugs — locale and currency edge cases, a nil-map panic, a removed await, a battery-draining poller: ten code bugs pass every lane in all three seeds.</li>
+                <li>Following a rider&apos;s report into the backend and moving the fix to the service that holds the defect — none of those bugs had the right root cause before the hand-off.</li>
                 <li>Saying &ldquo;not our bug&rdquo; for a carrier outage or intended behaviour.</li>
               </ul>
             </Box>
             <Box stripes className="fx p-6" >
               <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-bad">✗ What doesn&apos;t, yet</div>
               <ul className="mt-4 space-y-3 text-[14.5px] leading-[1.55] text-t2">
-                <li>Validated is not always correct: some fixes pass the agent&apos;s own test but not the hidden one.</li>
-                <li>Evidence the client never sees: a CORS failure is only &ldquo;Failed to fetch&rdquo; from the app.</li>
-                <li>One seed per bug: the same bug can pass in one run and miss in the next.</li>
+                <li>Stopping where the symptom surfaced: a CORS change and a payments panic are blamed on the client and the gateway.</li>
+                <li>Fixes narrower than the regression: they pass the agent&apos;s own test but not the hidden one.</li>
+                <li>Right answer, wrong route: a flag misconfiguration is named correctly, then code fixes are tried anyway. Each of these has a generic fix queued, measured next.</li>
               </ul>
             </Box>
           </div>

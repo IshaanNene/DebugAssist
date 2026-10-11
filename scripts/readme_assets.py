@@ -649,8 +649,13 @@ def results(model: str = "gpt-6-luna") -> str:
     body += text(
         56,
         90,
-        f"{model} · {f'{seeds} seeds each' if seeds > 1 else 'one seed'} · code of {_eval_date(runs)}"
-        f" · {path.parent.relative_to(ROOT)} · drawn by make readme-assets",
+        f"{model} · {f'{seeds} seeds each' if seeds > 1 else 'one seed'} · "
+        + (
+            f"commit {runs[0]['commit']}, run {_eval_date(runs)}"
+            if runs[0].get("commit")
+            else f"code of {_eval_date(runs)}"
+        )
+        + f" · {path.parent.relative_to(ROOT)} · drawn by make readme-assets",
         15,
         MUTE,
         500,

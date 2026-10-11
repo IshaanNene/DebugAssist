@@ -176,6 +176,15 @@ Format: **symptom** → cause → fix · *guard*.
   them instead of hiding them.
 - **A shell loop silently did nothing.** zsh doesn't word-split `$VAR`, so `for d in $D` ran once on one bogus
   path and an earlier rescore never applied. *Lesson: print what a batch step did.*
+- **A prompt fix can regress another bug.** The vendored-code rule ("not ours, route it") made one run label our
+  own backend `third_party_lib`. → Every guidance rule that pushes towards one category gets a counterweight, and
+  a fix arm re-runs a few bugs that pass today, not only the targeted ones.
+- **The right answer can still score as a miss.** Seven runs named the correct not-our-code category and then tried
+  code fixes, because the graph routed on Clef's category decision taken *before* the RCA. *Lesson: when a later
+  step knows more, route on what it found; read misses run by run before blaming the model.*
+- **Harness faults look like agent faults.** A network outage turned three runs into $0 failures and a worktree git
+  could not delete stopped one run before it began. → Retries with back-off, direct cleanup, exclusions with a
+  reason. *Lesson: a $0 run is a harness failure until shown otherwise.*
 - **One expensive run can carry an arm's average.** A single bug's three max-length fix attempts (after D14 picked
   the e2e tier) were most of the lean arm's token total. → Read per-bug numbers before averages; the report keeps
   per-run rows next to the arm table.
