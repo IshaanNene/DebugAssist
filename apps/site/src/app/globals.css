@@ -140,7 +140,7 @@ body {
 
 /* ───────────────────────── Motion ─────────────────────────
    Everything is server-rendered in its final state. Motion only applies when the inline script in the
-   layout has set `html.js` (and the Motion observer then adds `.in`), and never with reduced motion. */
+   layout has set `html.js` (and the Motion observer then sets `data-in`), and never with reduced motion. */
 :root {
   --ease-out: cubic-bezier(0.2, 0.75, 0.2, 1);
   --ease-spring: cubic-bezier(0.3, 1.45, 0.5, 1);
@@ -171,7 +171,7 @@ html[data-scrolled] .site-header {
 .js .fx.fx-zoom {
   transform: translateY(18px) scale(0.965);
 }
-.js .fx.in {
+.js .fx[data-in] {
   opacity: 1;
   transform: none;
 }
@@ -182,7 +182,7 @@ html[data-scrolled] .site-header {
   transform-origin: left center;
   transition: transform 0.9s cubic-bezier(0.65, 0, 0.35, 1) 0.3s;
 }
-.js .in .mark-ink,
+.js [data-in] .mark-ink,
 .js .mark-now .mark-ink {
   transform: scaleX(1);
 }
@@ -193,7 +193,7 @@ html[data-scrolled] .site-header {
   transition: transform 0.5s var(--ease-spring);
   transition-delay: calc(var(--i, 0) * 26ms + var(--r, 0) * 110ms);
 }
-.js .wave.in .cell {
+.js .wave[data-in] .cell {
   transform: none;
 }
 
@@ -204,7 +204,7 @@ html[data-scrolled] .site-header {
   transition: transform 1.2s var(--ease-out);
   transition-delay: calc(var(--i, 0) * 110ms + 0.15s);
 }
-.js .grow.in .bar {
+.js .grow[data-in] .bar {
   transform: none;
 }
 
@@ -327,7 +327,7 @@ html[data-scrolled] .site-header {
 .js .typed .type-line {
   clip-path: inset(0 100% 0 0);
 }
-.js .typed.in .type-line {
+.js .typed[data-in] .type-line {
   animation: type 0.9s steps(36, end) forwards;
   animation-delay: calc(var(--i, 0) * 0.85s + 0.2s);
 }
