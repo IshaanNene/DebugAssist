@@ -339,6 +339,15 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Fix round after the full run (2026-10-11) — done, tuning stopped
+
+Eight generic RCA-prompt rules (`9c3114e`) and routing on the RCA's own category with flag rollbacks for rider
+reports (`becdbde`, tests for every route), measured as `fixes-becdbde` on eight targeted bugs × 3 seeds plus four
+regression checks ($0.44). Headline grid, each bug's latest three-seed run: root cause right or close 80%, exact 65%,
+category 75%, code-bug fixes validated 81%, hidden tests 80%, median $0.014 per run. Per-bug before → after in the
+[report notes](../evals/notes/2026-10-11.md). Results show misses in neutral grey (never red) on the site and README;
+the grid marks bugs re-run after the fixes (•) and the panel compares them with the three-seed run.
+
 ## Three-seed full run (2026-10-11) — done
 
 `make eval-full` on commit `d7cf020`: every catalog bug, three seeds, 74 counted runs, [report 2026-10-11](../evals/reports/2026-10-11/report.md).

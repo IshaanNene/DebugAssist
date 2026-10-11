@@ -94,6 +94,14 @@ own arm on the affected bugs plus a few that pass today:
 
 - Lessons learned and roadmap pages generated from these docs.
 
+**Measured (`fixes-becdbde`, 2026-10-11), then stopped.** The prompt rules and the routing fix were re-run on eight of
+the targeted bugs (three seeds) plus four regression checks (all still pass). Wins: BUG-022 wrong ×3 → exact ×3,
+BUG-025 and BUG-024 from code fixes that shouldn't exist to exact (3/3, 2/3), at about a cent a run instead of five
+to ten; hidden tests on BUG-003 0/3 → 2/3 and BUG-009 1/3 → 2/2. No change on BUG-006; BUG-013 worse (wrong ×3);
+BUG-021 now `infra` instead of `network` (still routed). Each further rule moved bugs both ways, so prompt tuning
+stopped here. Not done: BUG-017/018/020 with the new code; giving D05 the active incidents (the RCA saw BUG-006's
+incident and still blamed code — a pre-RCA routing signal is the likelier fix).
+
 ## P18 · Evaluation at scale
 
 - Three seeds on every arm (the main arm has them since 2026-10-11); Clef vs Clef-flash vs LLM decider vs rules as full pipeline arms; skills-off.

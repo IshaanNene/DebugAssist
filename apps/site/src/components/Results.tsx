@@ -1,4 +1,4 @@
-import { evalDate, type BugAgg, type Lane, type Results as R, type Row } from "@/lib/data";
+import { evalDate, type BugAgg, type Lane, type Results as R } from "@/lib/data";
 
 const LANES: [string, Lane][] = [
   ["root cause", "rca"],
@@ -40,24 +40,11 @@ function Cell({ c, lane, title, i = 0, r = 0, size = "md" }: { c: BugAgg["lanes"
   );
 }
 
-/** A single run as an aggregate of one, so re-run panels share the grid's cells. */
-function one(row: Row | undefined, ours: boolean): BugAgg["lanes"] {
-  if (!row) return { rca: { pass: 0, n: 0 }, validated: { pass: 0, n: 0 }, hidden_tests: { pass: 0, n: 0 } };
-  const ran = row.hidden_tests === "True" || row.hidden_tests === "False";
-  return {
-    rca: { pass: row.rca === "exact" || row.rca === "directional" ? 1 : 0, exact: row.rca === "exact" ? 1 : 0, n: 1 },
-    validated: ours ? { pass: row.validated === "True" ? 1 : 0, n: 1 } : { pass: 0, n: 0 },
-    hidden_tests: { pass: row.hidden_tests === "True" ? 1 : 0, n: ran ? 1 : 0 },
-  };
-}
-
 export function Results({ data }: { data: R }) {
   const h = data.headline;
-  const before = Object.fromEntries(data.baseline.map((r) => [r.bug, r]));
-  const near = (rs: Row[]) => rs.filter((r) => r.rca === "exact" || r.rca === "directional").length;
-  const passed = (rs: Row[]) => rs.filter((r) => r.hidden_tests === "True").length;
   // Context-engineering arms measure tokens, not fixes; they are compared in the Tokens section.
-  const arms = data.arms.filter((a) => !a.name.startsWith("context-"));
+  const arms = data.arms;
+  const upd = new Set(h.updated.flatMap((u) => u.bugs));
   return (
     <div>
       {/* headline numbers */}
@@ -81,6 +68,7 @@ export function Results({ data }: { data: R }) {
             {h.current ? `Full catalog · ${h.label}` : "Baseline"} · {h.bugs.length} bugs · {data.model} ·{" "}
             {h.seeds > 1 ? `${h.seeds} seeds each` : "one seed"} · {evalDate(h.eval)}
             {h.commit ? ` · ${h.commit}` : ""}
+            {h.updated.map((u) => ` + ${u.commit} (${u.bugs.length} bugs re-run after the fixes)`).join("")}
           </span>
           <span className="font-mono text-[11px] text-t3">hover a cell for its value</span>
         </div>
@@ -102,6 +90,7 @@ export function Results({ data }: { data: R }) {
                   title={b.ours ? "needs a code fix" : "not our bug: the right answer is routing"}
                 >
                   {b.bug.slice(-3)}
+                  {upd.has(b.bug) && <span className="block leading-none text-t4" title="re-run after the fixes">•</span>}
                 </th>
               ))}
             </tr>
@@ -125,51 +114,53 @@ export function Results({ data }: { data: R }) {
           <Legend cls={TONE.miss} label="no" />
           <Legend cls={TONE.na} label="not applicable" />
           <span className="text-[#1f8fa8]">blue ids: not our bug — the right answer is routing</span>
+          {h.updated.length > 0 && <span>• re-run after the fixes ({h.updated.map((u) => u.commit).join(", ")})</span>}
         </div>
       </div>
 
       {/* re-runs on later code */}
-      {arms.map((arm, ai) => {
-        const prev = arm.rows.map((r) => before[r.bug]).filter(Boolean);
-        return (
-          <div key={arm.name} className={`cbox -mt-px no-top ${ai < arms.length - 1 ? "no-bottom" : ""} grid md:grid-cols-[240px_1fr]`}>
-            <div className="stripes border-b border-line p-5 md:border-b-0 md:border-r">
-              <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">re-run · {arm.commit}</div>
-              <div className="mt-1 font-display text-[22px] font-medium tracking-[-0.02em]">{arm.name}</div>
-              <dl className="mt-3 space-y-1 text-[12.5px] text-t3">
-                <div>
-                  root cause right or close{" "}
-                  <b className="font-medium text-t1">
-                    {near(prev)} → {near(arm.rows)}
-                  </b>{" "}
-                  of {arm.rows.length}
-                </div>
-                <div>
-                  hidden tests passing{" "}
-                  <b className="font-medium text-t1">
-                    {passed(prev)} → {passed(arm.rows)}
-                  </b>
-                </div>
-              </dl>
-              <div className="mt-3 font-mono text-[10px] text-t4">per bug: left = baseline · right = this re-run</div>
-            </div>
-            <div className="wave flex flex-wrap gap-x-6 gap-y-4 p-5">
-              {arm.rows.map((r, ci) => (
-                <div key={r.bug}>
-                  <div className="mb-1 text-center font-mono text-[10px] text-t3">{r.bug.slice(-3)}</div>
-                  <div className="grid grid-cols-2 gap-[3px]">
-                    {LANES.map(([lab, k], li) =>
-                      [one(before[r.bug], data.ours[r.bug]), one(r, data.ours[r.bug])].map((lanes, j) => (
-                        <Cell key={`${k}${j}`} c={lanes[k]} lane={k} size="sm" title={`${r.bug} ${lab} ${j ? "re-run" : "baseline"}`} i={ci * 2 + j * 4} r={li} />
-                      )),
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+      {arms.map((arm, ai) => (
+        <div key={arm.name} className={`cbox -mt-px no-top ${ai < arms.length - 1 ? "no-bottom" : ""} grid md:grid-cols-[240px_1fr]`}>
+          <div className="stripes border-b border-line p-5 md:border-b-0 md:border-r">
+            <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">re-run · {arm.commit}</div>
+            <div className="mt-1 font-display text-[22px] font-medium tracking-[-0.02em]">{arm.name}</div>
+            <dl className="mt-3 space-y-1 text-[12.5px] text-t3">
+              <div>
+                root cause right or close{" "}
+                <b className="font-medium text-t1">
+                  {arm.near[0]}
+                  {arm.seeded ? "%" : ""} → {arm.near[1]}
+                  {arm.seeded ? "%" : ""}
+                </b>
+                {!arm.seeded && <> of {arm.bugs.length}</>}
+              </div>
+              <div>
+                hidden tests passing{" "}
+                <b className="font-medium text-t1">
+                  {arm.passed[0]}
+                  {arm.seeded ? "%" : ""} → {arm.passed[1]}
+                  {arm.seeded ? "%" : ""}
+                </b>
+              </div>
+            </dl>
+            <div className="mt-3 font-mono text-[10px] text-t4">per bug: left = {arm.beforeLabel} · right = this re-run</div>
           </div>
-        );
-      })}
+          <div className="wave flex flex-wrap gap-x-6 gap-y-4 p-5">
+            {arm.bugs.map((b, ci) => (
+              <div key={b.bug}>
+                <div className="mb-1 text-center font-mono text-[10px] text-t3">{b.bug.slice(-3)}</div>
+                <div className="grid grid-cols-2 gap-[3px]">
+                  {LANES.map(([lab, k], li) =>
+                    [b.before, b.after].map((lanes, j) => (
+                      <Cell key={`${k}${j}`} c={lanes[k]} lane={k} size="sm" title={`${b.bug} ${lab} ${j ? "re-run" : "before"}`} i={ci * 2 + j * 4} r={li} />
+                    )),
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

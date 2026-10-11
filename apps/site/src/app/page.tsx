@@ -4,7 +4,7 @@ import { Features } from "@/components/Features";
 import { Loop } from "@/components/Loop";
 import { Results } from "@/components/Results";
 import { Box, Button, Dot, GH, H2, Lead, Mark, doc } from "@/components/ui";
-import { contextArms, contextAudit, facts, featuredRun, results, type ContextArm, type Row } from "@/lib/data";
+import { contextArms, contextAudit, facts, featuredRun, results, type ContextArm } from "@/lib/data";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const COL = "mx-auto w-full max-w-[1200px] px-4 sm:px-8";
@@ -15,9 +15,7 @@ export default function Home() {
   const f = facts();
   const run = featuredRun(data);
   const latest = data.arms[data.arms.length - 1];
-  const passed = (rows: Row[]) => rows.filter((r) => r.hidden_tests === "True").length;
-  const base = Object.fromEntries(data.baseline.map((r) => [r.bug, r]));
-  const latestPrev = latest ? latest.rows.map((r) => base[r.bug]).filter(Boolean) : [];
+  const pct = (v: number) => (latest?.seeded ? `${v}%` : `${v}`);
   const report = doc(`evals/reports/${data.report}/report.md`);
   const v = (i: number) => ({ ["--i" as string]: i });
   const arms = contextArms();
@@ -31,7 +29,15 @@ export default function Home() {
       <Motion />
       <Shortcuts map={{ g: GH, d: doc("README.md"), r: "#results", s: "#start" }} />
 
-      {before && ctxArms.length > 1 ? (
+      {latest?.seeded ? (
+        <a href={report} className="group block border-b border-line bg-surface-1 py-2 text-center text-[12.5px] text-t2 hover:text-t1">
+          <span className="mr-2 inline-flex h-[18px] items-center bg-t1 px-1.5 font-mono text-[10px] uppercase tracking-[0.05em] text-surface">new</span>
+          <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">re-run after the fixes</span> · hidden tests
+          passing {pct(latest.passed[0])} → {pct(latest.passed[1])} on {latest.bugs.length} bugs ·{" "}
+          <span className="underline underline-offset-2">read the report</span>{" "}
+          <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span>
+        </a>
+      ) : before && ctxArms.length > 1 ? (
         <a href={report} className="group block border-b border-line bg-surface-1 py-2 text-center text-[12.5px] text-t2 hover:text-t1">
           <span className="mr-2 inline-flex h-[18px] items-center bg-t1 px-1.5 font-mono text-[10px] uppercase tracking-[0.05em] text-surface">new</span>
           <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">context engineering, measured</span> · input
@@ -43,7 +49,7 @@ export default function Home() {
         latest && (
           <a href={report} className="group block border-b border-line bg-surface-1 py-2 text-center text-[12.5px] text-t2 hover:text-t1">
             <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">re-run · {latest.name}</span> · hidden
-            tests passing {passed(latestPrev)} → {passed(latest.rows)} on {latest.rows.length} bugs ·{" "}
+            tests passing {pct(latest.passed[0])} → {pct(latest.passed[1])} on {latest.bugs.length} bugs ·{" "}
             <span className="underline underline-offset-2">read the report</span>
           </a>
         )
@@ -232,7 +238,7 @@ export default function Home() {
               <ul className="mt-4 space-y-3 text-[14.5px] leading-[1.55] text-t2">
                 <li>Crash-data bugs — locale and currency edge cases, a nil-map panic, a removed await, a battery-draining poller: ten code bugs pass every lane in all three seeds.</li>
                 <li>Following a rider&apos;s report into the backend and moving the fix to the service that holds the defect — none of those bugs had the right root cause before the hand-off.</li>
-                <li>Saying &ldquo;not our bug&rdquo; for a carrier outage or intended behaviour.</li>
+                <li>Saying &ldquo;not our bug&rdquo; — a WebView crash, a vendored SDK, a misconfigured flag, intended behaviour — and routing it instead of patching, for about a cent a run.</li>
               </ul>
             </Box>
             <Box stripes className="fx p-6" >
@@ -240,7 +246,7 @@ export default function Home() {
               <ul className="mt-4 space-y-3 text-[14.5px] leading-[1.55] text-t2">
                 <li>Stopping where the symptom surfaced: a CORS change and a payments panic are blamed on the client and the gateway.</li>
                 <li>Fixes narrower than the regression: they pass the agent&apos;s own test but not the hidden one.</li>
-                <li>Right answer, wrong route: a flag misconfiguration is named correctly, then code fixes are tried anyway. Each of these has a generic fix queued, measured next.</li>
+                <li>An active incident still loses to suspicious code, and seeds disagree on ten bugs: one run of a bug proves little.</li>
               </ul>
             </Box>
           </div>

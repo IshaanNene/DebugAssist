@@ -24,7 +24,6 @@ from collections import Counter
 from contextlib import redirect_stdout
 from html import escape
 from pathlib import Path
-from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "docs" / "assets"
@@ -297,8 +296,8 @@ def overview() -> str:
             sw,
             "Vitals",
             "crashes, hangs, jank",
-            dot_icon(sx + 38, ys[0] + 38, "#F43F5E"),
-            "#F43F5E",
+            dot_icon(sx + 38, ys[0] + 38, "#FB923C"),
+            "#FB923C",
         )
     )
     b.append(
@@ -556,7 +555,7 @@ def _latest_report() -> Path:
 
 
 # A miss: visible and labelled, but a muted rose rather than alarm red.
-MISS = "#7A4352"
+MISS = "#4A5262"  # a miss is shown and labelled, in neutral slate — never red
 
 
 def _per_bug(runs: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -610,14 +609,36 @@ def results(model: str = "gpt-6-luna") -> str:
         key=lambda a: max(x.get("eval", "") for x in every if x.get("arm") == a),
     )
     head = full_arms[-1] if full_arms else None
-    runs = [r for r in every if r.get("arm") == head] if head else baseline
-    seeds = max(Counter(r["bug"] for r in runs).values(), default=1)
+    head_runs = [r for r in every if r.get("arm") == head] if head else baseline
+    seeds = max(Counter(r["bug"] for r in head_runs).values(), default=1)
+    # Arms run after the headline that re-ran a bug with as many seeds replace that bug's cells, so the grid shows
+    # each bug's latest full-strength run (one-seed spot checks never replace three seeds). Context-engineering
+    # arms measure tokens, not fixes: they stay in the report.
+    head_end = max((r.get("eval", "") for r in head_runs), default="")
+    later = [
+        r
+        for r in every
+        if head
+        and r.get("arm") not in (None, "", head)
+        and not r["arm"].startswith("context-")
+        and r.get("eval", "") > head_end
+    ]
+    by_bug_later: dict[str, list[dict[str, str]]] = {}
+    for r in later:
+        by_bug_later.setdefault(r["bug"], []).append(r)
+    upd = {b: rs for b, rs in by_bug_later.items() if len(rs) >= seeds}
+    runs = [r for r in head_runs if r["bug"] not in upd] + [r for rs in upd.values() for r in rs]
+    upd_commits = sorted({r.get("commit", "") for rs in upd.values() for r in rs})
     rows = _per_bug(runs)  # one row per bug; a lane is "some" when only some of its seeds passed
-    # later code versions re-run on some bugs (context-engineering arms measure tokens: they are in the report)
-    arm = sorted(
-        (r for r in every if r.get("arm") and r["arm"] != head and not r["arm"].startswith("context-")),
-        key=lambda r: r["bug"],
-    )
+    if upd:  # the panel: before (the headline run) → after the fixes, on the bugs re-run with as many seeds
+        arm = sorted((r for r in later if r["bug"] in upd), key=lambda r: r["bug"])
+        panel_before, before_label = head_runs, head or "baseline"
+    else:  # the panel: the first run → each later code version, on the bugs it re-ran
+        arm = sorted(
+            (r for r in every if r.get("arm") and r["arm"] != head and not r["arm"].startswith("context-")),
+            key=lambda r: r["bug"],
+        )
+        panel_before, before_label = baseline, "baseline"
     n = len(runs)
     t = lambda v: v == "True"  # noqa: E731
     exact = sum(r["rca"] == "exact" for r in runs)
@@ -651,10 +672,11 @@ def results(model: str = "gpt-6-luna") -> str:
         90,
         f"{model} · {f'{seeds} seeds each' if seeds > 1 else 'one seed'} · "
         + (
-            f"commit {runs[0]['commit']}, run {_eval_date(runs)}"
-            if runs[0].get("commit")
-            else f"code of {_eval_date(runs)}"
+            f"commit {head_runs[0]['commit']}, run {_eval_date(head_runs)}"
+            if head_runs[0].get("commit")
+            else f"code of {_eval_date(head_runs)}"
         )
+        + (f" + {', '.join(upd_commits)} for {len(upd)} bugs re-run after the fixes (•)" if upd else "")
         + f" · {path.parent.relative_to(ROOT)} · drawn by make readme-assets",
         15,
         MUTE,
@@ -690,7 +712,14 @@ def results(model: str = "gpt-6-luna") -> str:
     for i, r in enumerate(rows):
         x = gx + i * (cell + cg)
         body += text(
-            x + cell / 2, gy - 12, r["bug"][-3:], 11, MUTE if ours[r["bug"]] else ACCENT2, 600, "middle", True
+            x + cell / 2,
+            gy - 12,
+            r["bug"][-3:] + (" •" if r["bug"] in upd else ""),
+            11,
+            MUTE if ours[r["bug"]] else ACCENT2,
+            600,
+            "middle",
+            True,
         )
         for li, (_, key) in enumerate(lanes):
             v = r[key]
@@ -723,61 +752,75 @@ def results(model: str = "gpt-6-luna") -> str:
         lx + 20, ly, "cyan ids: not-our-bug cases (right answer is routing, not a fix)", 13, ACCENT2, 500
     )
     if arm:
-        body += _arm_panel(arm, {r["bug"]: r for r in baseline}, ly + 44, w, lanes, colors, t)
+        body += _arm_panel(arm, panel_before, before_label, ly + 44, w, lanes, colors)
     return svg_doc(w, h, body)
 
 
 def _arm_panel(
     arm: list[dict[str, str]],
-    before: dict[str, dict[str, str]],
+    before_runs: list[dict[str, str]],
+    before_label: str,
     y0: float,
     w: int,
     lanes: list[tuple[str, str]],
     colors: dict[str, str],
-    t: Any,
 ) -> str:
-    """Bugs re-run on later code versions (rows labelled with an arm): baseline → each arm, in run order."""
+    """Bugs re-run on later code (rows labelled with an arm): before → each arm, in run order. Seeds are
+    aggregated per bug ("some" when they disagree); the summary is a rate when bugs ran more than once."""
     order: list[str] = []
     for r in sorted(arm, key=lambda r: r.get("eval", "")):
         if r["arm"] not in order:
             order.append(r["arm"])
-    by_arm: dict[str, dict[str, dict[str, str]]] = {a: {} for a in order}
-    for r in sorted(arm, key=lambda r: r.get("eval", "")):
-        by_arm[r["arm"]][r["bug"]] = r  # the latest run of a bug in that arm
+    raw: dict[str, list[dict[str, str]]] = {a: [r for r in arm if r["arm"] == a] for a in order}
+    by_arm = {a: {r["bug"]: r for r in _per_bug(raw[a])} for a in order}
     bugs = sorted({r["bug"] for r in arm})
-    cols = ["baseline", *order]
-    commits = {a: next(iter(by_arm[a].values())).get("commit", "") for a in order}
-    near = lambda rs: sum(r["rca"] in ("exact", "directional") for r in rs)  # noqa: E731
+    before = {r["bug"]: r for r in _per_bug([r for r in before_runs if r["bug"] in bugs])}
+    cols = ["before", *order]
+    commits = {a: raw[a][0].get("commit", "") for a in order}
+
+    def rates(rs: list[dict[str, str]]) -> tuple[str, str]:
+        hid = [r for r in rs if r["hidden_tests"] in ("True", "False")]
+        near = sum(r["rca"] in ("exact", "directional") for r in rs)
+        ok = sum(r["hidden_tests"] == "True" for r in hid)
+        if len(rs) > len({r["bug"] for r in rs}):  # seeded: rates, not counts
+            return f"{round(100 * near / len(rs))}%", f"{round(100 * ok / max(1, len(hid)))}%"
+        return str(near), str(ok)
+
     body = f'<line x1="56" y1="{y0}" x2="{w - 56}" y2="{y0}" stroke="{LINE}"/>'
     body += text(
-        56, y0 + 40, "Re-runs on later code: the same bugs, baseline → " + " → ".join(order), 18, INK, 800
+        56,
+        y0 + 40,
+        f"Re-runs on later code: the same bugs, {before_label} → " + " → ".join(order),
+        18,
+        INK,
+        800,
     )
     y = y0 + 64
     for a in order:
-        rs = list(by_arm[a].values())
-        prev = [before[b] for b in by_arm[a] if b in before]
-        hid = [r for r in rs if r["hidden_tests"] in ("True", "False")]
+        mine = {r["bug"] for r in raw[a]}
+        b_near, b_hid = rates([r for r in before_runs if r["bug"] in mine])
+        a_near, a_hid = rates(raw[a])
         line = (
-            f"{a} ({commits[a]}), {len(rs)} bugs: root cause right or close {near(prev)} → {near(rs)}  ·  "
-            f"hidden tests pass {sum(t(r['hidden_tests']) for r in [p for p in prev if p['hidden_tests'] in ('True', 'False')])}"
-            f" → {sum(t(r['hidden_tests']) for r in hid)}"
+            f"{a} ({commits[a]}), {len(mine)} bugs: root cause right or close {b_near} → {a_near}  ·  "
+            f"hidden tests pass {b_hid} → {a_hid}"
         )
         body += text(56, y, line, 13.5, ACCENT2, 600)
         y += 22
     cell, cg = 28, 4
-    group = len(cols) * (cell + cg) + 30
     gx, gy = 220, y + 46
+    # space the bugs evenly, but never past the right margin
+    group = min(len(cols) * (cell + cg) + 30, (w - 56 - gx + 30) / max(1, len(bugs)))
     for li, (lab, _) in enumerate(lanes):
         body += text(56, gy + li * (cell + cg) + 19, lab, 14, INK, 600)
     for i, bug in enumerate(bugs):
         x = gx + i * group
         body += text(x + (len(cols) * (cell + cg)) / 2, gy - 26, bug[-3:], 12, MUTE, 700, "middle", True)
         for j, c in enumerate(cols):
-            row = before.get(bug) if c == "baseline" else by_arm[c].get(bug)
+            row = before.get(bug) if c == "before" else by_arm[c].get(bug)
             body += text(
                 x + j * (cell + cg) + cell / 2,
                 gy - 8,
-                "B" if c == "baseline" else str(j),
+                "B" if c == "before" else str(j),
                 10,
                 MUTE,
                 600,
@@ -794,7 +837,7 @@ def _arm_panel(
                 )
     key = "  ·  ".join(
         [
-            "B = baseline",
+            f"B = before ({before_label})",
             *[f"{k + 1} = {a}" for k, a in enumerate(order)],
             "empty = not run or not applicable",
         ]

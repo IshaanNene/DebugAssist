@@ -77,20 +77,34 @@ export interface Headline {
   seeds: number;
   current: boolean; // false: the original baseline, run before the later fixes
   bugs: BugAgg[];
+  /** Later arms that re-ran some bugs with as many seeds: those bugs show their latest run. */
+  updated: { arm: string; commit: string; bugs: string[] }[];
+}
+
+/** A re-run panel: the same bugs before (the previous whole-catalog run) and after (this arm). */
+export interface ArmPanel {
+  name: string;
+  commit: string;
+  beforeLabel: string;
+  bugs: { bug: string; before: BugAgg["lanes"]; after: BugAgg["lanes"] }[];
+  near: [number, number]; // runs with the root cause right or close, before → after (as rates when seeded)
+  passed: [number, number]; // hidden tests passing
+  seeded: boolean;
 }
 
 export interface Results {
   report: string;
   model: string;
-  baseline: Row[]; // the original full-catalog run (no arm): the "before" of every re-run panel
+  baseline: Row[]; // the original full-catalog run (no arm)
   headline: Headline;
-  arms: { name: string; commit: string; rows: Row[] }[];
+  arms: ArmPanel[];
   ours: Record<string, boolean>;
   stats: { label: string; value: string; tone: "cyan" | "green" | "violet" | "amber" | "muted" }[];
   catalog: { total: number; code: number; notOurs: number };
 }
 
 const yes = (v: string) => v === "True";
+const EMPTY: BugAgg["lanes"] = { rca: { pass: 0, n: 0 }, validated: { pass: 0, n: 0 }, hidden_tests: { pass: 0, n: 0 } };
 
 function aggregate(rows: Row[], ours: Record<string, boolean>): BugAgg[] {
   const byBug: Record<string, Row[]> = {};
@@ -139,15 +153,32 @@ export function results(model = "gpt-6-luna"): Results {
   }
   const full = order.filter((a) => new Set(armRows[a].map((r) => r.bug)).size >= total);
   const headArm = full[full.length - 1];
-  const headRows = headArm ? armRows[headArm] : baseline;
+  const baseRows = headArm ? armRows[headArm] : baseline;
+  const seedsOf = (rs: Row[], bug: string) => rs.filter((r) => r.bug === bug).length;
+  const headSeeds = Math.max(1, ...aggregate(baseRows, ours).map((b) => b.runs));
+
+  // A later arm that re-ran a bug with as many seeds replaces that bug's cells: the grid shows each bug's latest
+  // full-strength run, and says which code each part ran on. One-seed spot checks never replace three seeds.
+  const later = headArm ? order.slice(order.indexOf(headArm) + 1).filter((a) => !a.startsWith("context-")) : [];
+  const latest: Record<string, Row[]> = {};
+  for (const r of baseRows) (latest[r.bug] ??= []).push(r);
+  const updated: Headline["updated"] = [];
+  for (const a of later) {
+    const bugs = [...new Set(armRows[a].map((r) => r.bug))].filter((b) => seedsOf(armRows[a], b) >= headSeeds).sort();
+    if (!bugs.length) continue;
+    for (const b of bugs) latest[b] = armRows[a].filter((r) => r.bug === b);
+    updated.push({ arm: a, commit: armRows[a][0]?.commit ?? "", bugs });
+  }
+  const headRows = Object.values(latest).flat();
   const headEval = headRows.map((r) => r.eval || "").sort().pop() ?? "";
   const headline: Headline = {
     label: headArm ?? "baseline",
     eval: headEval,
-    commit: headRows[0]?.commit ?? "",
-    seeds: Math.max(1, ...Object.values(aggregate(headRows, ours)).map((b) => b.runs)),
+    commit: baseRows[0]?.commit ?? "",
+    seeds: headSeeds,
     current: !!headArm,
     bugs: aggregate(headRows, ours),
+    updated,
   };
 
   const runs = headRows;
@@ -159,19 +190,41 @@ export function results(model = "gpt-6-luna"): Results {
   const costs = runs.map((r) => Number(r.usd)).sort((a, b) => a - b);
   const median = costs.length ? costs[Math.floor(costs.length / 2)] : 0;
   const frac = (a: number, b: number) => (headline.seeds > 1 ? `${Math.round((100 * a) / (b || 1))}%` : `${a}/${b}`);
+
+  // Re-run panels: arms before the headline compare with the first run; arms after it with the headline run.
+  const nearOf = (rs: Row[]) => rs.filter((r) => r.rca === "exact" || r.rca === "directional").length;
+  const passOf = (rs: Row[]) => rs.filter((r) => r.hidden_tests === "True").length;
+  const hid = (rs: Row[]) => rs.filter((r) => r.hidden_tests === "True" || r.hidden_tests === "False");
+  const panel = (name: string): ArmPanel => {
+    const isLater = later.includes(name);
+    // after the headline, only bugs re-run with as many seeds are compared (one-seed spot checks are in the report)
+    const after = isLater ? armRows[name].filter((r) => seedsOf(armRows[name], r.bug) >= headSeeds) : armRows[name];
+    const before = isLater ? baseRows : baseline;
+    const bugs = [...new Set(after.map((r) => r.bug))].sort();
+    const pick = (rs: Row[]) => rs.filter((r) => bugs.includes(r.bug));
+    const b = pick(before);
+    const seeded = isLater && headSeeds > 1;
+    const rate = (k: number, of: number) => (seeded ? Math.round((100 * k) / (of || 1)) : k);
+    return {
+      name,
+      commit: after[0]?.commit ?? "",
+      beforeLabel: isLater ? `${headArm} (${baseRows[0]?.commit ?? ""})` : "the first run (7 Oct)",
+      bugs: bugs.map((bug) => ({
+        bug,
+        before: aggregate(before.filter((r) => r.bug === bug), ours)[0]?.lanes ?? EMPTY,
+        after: aggregate(after.filter((r) => r.bug === bug), ours)[0].lanes,
+      })),
+      near: [rate(nearOf(b), b.length), rate(nearOf(after), after.length)],
+      passed: [rate(passOf(b), hid(b).length), rate(passOf(after), hid(after).length)],
+      seeded,
+    };
+  };
   return {
     report,
     model,
     baseline,
     headline,
-    arms: order
-      .filter((a) => a !== headArm)
-      .map((name) => {
-        const latest: Record<string, Row> = {};
-        for (const r of armRows[name]) latest[r.bug] = r; // the latest run of a bug in that arm
-        const rows = Object.values(latest).sort((a, b) => a.bug.localeCompare(b.bug));
-        return { name, commit: rows[0]?.commit ?? "", rows };
-      }),
+    arms: order.filter((a) => a !== headArm && !a.startsWith("context-")).map(panel),
     ours,
     stats: [
       { label: "root cause right or close", value: frac(near, n), tone: "cyan" },
