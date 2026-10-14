@@ -4,7 +4,7 @@ import { Features } from "@/components/Features";
 import { Loop } from "@/components/Loop";
 import { Results } from "@/components/Results";
 import { Box, Button, Dot, GH, H2, Lead, Mark, doc } from "@/components/ui";
-import { contextArms, contextAudit, facts, featuredRun, results, type ContextArm } from "@/lib/data";
+import { contextArms, contextAudit, deciderReplay, facts, featuredRun, results, type ContextArm } from "@/lib/data";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const COL = "mx-auto w-full max-w-[1200px] px-4 sm:px-8";
@@ -12,6 +12,7 @@ const COL = "mx-auto w-full max-w-[1200px] px-4 sm:px-8";
 export default function Home() {
   const data = results();
   const ctx = contextAudit();
+  const replay = deciderReplay();
   const f = facts();
   const run = featuredRun(data);
   const latest = data.arms[data.arms.length - 1];
@@ -250,6 +251,77 @@ export default function Home() {
               </ul>
             </Box>
           </div>
+          {replay.length > 0 && (
+            <div id="clef" className="fx mt-2 cbox p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">Does Clef help? Not yet</div>
+                <div className="font-mono text-[11px] text-t4">decision replay · accuracy against the catalog</div>
+              </div>
+              <p className="mt-3 max-w-[80ch] text-[14.5px] leading-[1.55] text-t2">
+                The design bets that small calibrated decision models beat an LLM making the same calls. Replaying every
+                logged decision with each decider, <b className="font-medium text-t1">Clef does not beat the LLM decider yet</b>,
+                and simple rules win on triage and test tier. Those templates are the next thing to fix.
+              </p>
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full min-w-[520px] text-left text-[13px]">
+                  <thead>
+                    <tr className="font-mono text-[11px] text-t3">
+                      <th className="pb-2 font-normal">decision</th>
+                      <th className="pb-2 text-right font-normal">n</th>
+                      {(["clef", "clef-flash", "llm", "rules"] as const).map((b) => (
+                        <th key={b} className="pb-2 text-right font-normal">
+                          {b === "llm" ? "LLM" : b === "rules" ? "rules" : b === "clef" ? "Clef" : "Clef-flash"}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="tabular-nums">
+                    {replay.map((d) => {
+                      const vals = Object.values(d.acc).filter((v): v is number => v !== null);
+                      const best = Math.max(...vals);
+                      return (
+                        <tr key={d.decision} className="border-t border-line">
+                          <td className="py-2 font-mono text-[12px] text-t2">{d.decision.replaceAll("_", " ")}</td>
+                          <td className="py-2 text-right text-t3">{d.n}</td>
+                          {(["clef", "clef-flash", "llm", "rules"] as const).map((b) => {
+                            const v = d.acc[b];
+                            return (
+                              <td key={b} className={`py-2 text-right ${v !== null && v === best ? "font-medium text-t1" : "text-t3"}`}>
+                                {v === null ? "—" : v.toFixed(2)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {data.ablation && (
+                <div className="mt-6 border-t border-line pt-5">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">
+                    End to end, without Clef · {data.ablation.bugs} bugs · {data.ablation.commit}
+                  </div>
+                  <p className="mt-2 max-w-[80ch] text-[14px] leading-[1.55] text-t2">
+                    The same pipeline with the LLM making every Clef decision ({data.ablation.arm}, one run per bug),
+                    against each bug&apos;s latest Clef runs ({data.ablation.clefSeeds} each, on{" "}
+                    {data.ablation.clefCommits.join(" and ")}). <b className="font-medium text-t1">No measurable difference</b>:
+                    the gaps come from single bugs where the root-cause step itself swung, not from a decision.
+                  </p>
+                  <div className="mt-4 grid gap-px bg-line sm:grid-cols-4">
+                    {data.ablation.lanes.map((l) => (
+                      <div key={l.label} className="bg-surface p-4">
+                        <div className="font-display text-[22px] font-medium tabular-nums tracking-[-0.02em] text-t1">
+                          {Math.round(100 * l.clef)}% <span className="text-t4">/</span> {Math.round(100 * l.noClef)}%
+                        </div>
+                        <div className="mt-1 text-[12px] leading-snug text-t3">{l.label} · Clef / no Clef</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {/* ── tokens ── */}

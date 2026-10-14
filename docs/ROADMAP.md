@@ -4,7 +4,7 @@ Where DebugAssist goes after P13. Everything here is measured the same way the f
 an eval run on the catalog, and a report under `evals/reports/` — no feature ships on a blog post's numbers.
 Problems already solved are in [LESSONS.md](LESSONS.md).
 
-Baseline to beat (`evals/reports/2026-10-11`, gpt-6-luna, 25 bugs, each bug's latest three-seed run — 17 on
+Baseline to beat (`evals/reports/2026-10-14`, gpt-6-luna, 25 bugs, each bug's latest three-seed run — 17 on
 `d7cf020`, 8 re-run on `becdbde` after the fix round; 75 runs): root cause right or close 80%, exact 65%, category
 right 75%, code-bug fixes validated 81%, hidden tests 80%, median $0.014 per run. (The first one-seed run,
 `evals/reports/2026-10-07`, scored 64% / 48% / 72% / 63% / 47%.)
@@ -144,7 +144,11 @@ token comparison, Quickstart.
 ## P18 · Evaluation at scale
 
 - Three seeds on every arm (the main arm has them since 2026-10-11); Clef vs Clef-flash vs LLM decider vs rules as full pipeline arms; skills-off.
-- Decision templates where the rules baseline wins (triage, test tier).
+- **Prove or rework Clef.** Neither the replay nor the live `no-clef` arm (2026-10-14: no measurable difference
+  on 14 bugs) shows Clef beating an LLM decider; rules win on D01 triage and D14 test tier. Rework those templates
+  first, finish the `no-clef` arm (BUG-016..025, needs a new OpenRouter key), then re-measure with three seeds.
+- Routing on the RCA's category made a wrong "not ours" RCA terminal (BUG-011 in the `no-clef` arm): route away
+  only when the RCA's category agrees with D05 or carries high confidence.
 - Open from the fix round: give D05 the active incidents (BUG-006); re-run BUG-017/018/020 on the new code; D11
   abstains on rollbacks for rider reports (it was calibrated on crash rates) — teach it the report case.
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.

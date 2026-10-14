@@ -620,7 +620,7 @@ def results(model: str = "gpt-6-luna") -> str:
         for r in every
         if head
         and r.get("arm") not in (None, "", head)
-        and not r["arm"].startswith("context-")
+        and not r["arm"].startswith(("context-", "no-clef"))  # token and decider ablations are not re-runs
         and r.get("eval", "") > head_end
     ]
     by_bug_later: dict[str, list[dict[str, str]]] = {}
@@ -635,7 +635,11 @@ def results(model: str = "gpt-6-luna") -> str:
         panel_before, before_label = head_runs, head or "baseline"
     else:  # the panel: the first run → each later code version, on the bugs it re-ran
         arm = sorted(
-            (r for r in every if r.get("arm") and r["arm"] != head and not r["arm"].startswith("context-")),
+            (
+                r
+                for r in every
+                if r.get("arm") and r["arm"] != head and not r["arm"].startswith(("context-", "no-clef"))
+            ),
             key=lambda r: r["bug"],
         )
         panel_before, before_label = baseline, "baseline"

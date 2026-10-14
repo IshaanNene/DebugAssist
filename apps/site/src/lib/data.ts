@@ -98,12 +98,52 @@ export interface Results {
   baseline: Row[]; // the original full-catalog run (no arm)
   headline: Headline;
   arms: ArmPanel[];
+  ablation: Ablation | null;
   ours: Record<string, boolean>;
   stats: { label: string; value: string; tone: "cyan" | "green" | "violet" | "amber" | "muted" }[];
   catalog: { total: number; code: number; notOurs: number };
 }
 
 const yes = (v: string) => v === "True";
+
+/** The decider ablation: the same pipeline with an LLM making every Clef decision, on the bugs it ran, against each
+ *  bug's latest Clef run. Rates are the mean of per-bug pass rates, so a bug counts once however many seeds it had;
+ *  a code bug with no fix attempted counts as not validated and its hidden test as not passing. */
+export interface Ablation {
+  arm: string;
+  commit: string;
+  bugs: number;
+  clefSeeds: number;
+  clefCommits: string[]; // the code the Clef runs it is compared with ran on
+  lanes: { label: string; clef: number; noClef: number }[];
+}
+
+function ablation(arm: string | undefined, armRows: Record<string, Row[]>, latest: Record<string, Row[]>, ours: Record<string, boolean>): Ablation | null {
+  if (!arm) return null;
+  const nc = armRows[arm].filter((r) => r.rca);
+  const bugs = [...new Set(nc.map((r) => r.bug))].filter((b) => latest[b]?.length);
+  if (!bugs.length) return null;
+  const rate = (rs: Row[], f: (r: Row) => boolean) => rs.filter(f).length / rs.length;
+  const lanes: [string, (r: Row) => boolean, boolean][] = [
+    ["root cause right or close", (r) => r.rca === "exact" || r.rca === "directional", false],
+    ["root cause exact", (r) => r.rca === "exact", false],
+    ["code bugs: fix validated", (r) => yes(r.validated), true],
+    ["code bugs: hidden test passes", (r) => yes(r.hidden_tests), true],
+  ];
+  const commit = nc[0]?.commit ?? "";
+  return {
+    arm,
+    commit,
+    bugs: bugs.length,
+    clefSeeds: Math.max(...bugs.map((b) => latest[b].length)),
+    clefCommits: [...new Set(bugs.flatMap((b) => latest[b].map((r) => r.commit.replace(/-dirty$/, ""))))].sort(), // -dirty: harness-only edits
+    lanes: lanes.map(([label, f, codeOnly]) => {
+      const set = codeOnly ? bugs.filter((b) => ours[b]) : bugs;
+      const mean = (pick: (b: string) => Row[]) => set.reduce((n, b) => n + rate(pick(b), f), 0) / (set.length || 1);
+      return { label, clef: mean((b) => latest[b]), noClef: mean((b) => nc.filter((r) => r.bug === b)) };
+    }),
+  };
+}
 const EMPTY: BugAgg["lanes"] = { rca: { pass: 0, n: 0 }, validated: { pass: 0, n: 0 }, hidden_tests: { pass: 0, n: 0 } };
 
 function aggregate(rows: Row[], ours: Record<string, boolean>): BugAgg[] {
@@ -159,7 +199,9 @@ export function results(model = "gpt-6-luna"): Results {
 
   // A later arm that re-ran a bug with as many seeds replaces that bug's cells: the grid shows each bug's latest
   // full-strength run, and says which code each part ran on. One-seed spot checks never replace three seeds.
-  const later = headArm ? order.slice(order.indexOf(headArm) + 1).filter((a) => !a.startsWith("context-")) : [];
+  // Context-engineering arms measure tokens and decider arms (no-clef-*) are ablations: neither is a re-run of fixes.
+  const isRerun = (a: string) => !a.startsWith("context-") && !a.startsWith("no-clef");
+  const later = headArm ? order.slice(order.indexOf(headArm) + 1).filter(isRerun) : [];
   const latest: Record<string, Row[]> = {};
   for (const r of baseRows) (latest[r.bug] ??= []).push(r);
   const updated: Headline["updated"] = [];
@@ -224,7 +266,8 @@ export function results(model = "gpt-6-luna"): Results {
     model,
     baseline,
     headline,
-    arms: order.filter((a) => a !== headArm && !a.startsWith("context-")).map(panel),
+    arms: order.filter((a) => a !== headArm && isRerun(a)).map(panel),
+    ablation: ablation(order.filter((a) => a.startsWith("no-clef")).pop(), armRows, latest, ours),
     ours,
     stats: [
       { label: "root cause right or close", value: frac(near, n), tone: "cyan" },
@@ -360,4 +403,27 @@ export function contextArms(): ContextArm[] {
         toolsShare: s.tools_share,
       };
     });
+}
+
+export interface DeciderRow {
+  decision: string;
+  n: number;
+  acc: Record<"clef" | "clef-flash" | "llm" | "rules", number | null>;
+}
+
+/** The decision replay (E1): each logged decision re-decided by Clef, Clef-flash, an LLM and rules, scored against
+ *  the catalog. Read from the latest report's e1.csv. */
+export function deciderReplay(): DeciderRow[] {
+  const file = path.join(REPORTS, latestReport(), "e1.csv");
+  if (!fs.existsSync(file)) return [];
+  const rows = parseCsv(fs.readFileSync(file, "utf8"));
+  const by: Record<string, DeciderRow> = {};
+  for (const r of rows) {
+    const d = (by[r.decision] ??= { decision: r.decision, n: 0, acc: { clef: null, "clef-flash": null, llm: null, rules: null } });
+    const b = r.backend as keyof DeciderRow["acc"];
+    if (b in d.acc) d.acc[b] = r.accuracy === "" ? null : Number(r.accuracy);
+    if (b === "clef") d.n = Number(r.n);
+  }
+  // a rules baseline of 0 means "no rule for this decision", not a score
+  return Object.values(by).map((d) => ({ ...d, acc: { ...d.acc, rules: d.acc.rules ? d.acc.rules : null } }));
 }
