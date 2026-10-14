@@ -60,7 +60,7 @@ const FEATURES: { title: string; body: string; art: ReactNode }[] = [
     ),
   },
   {
-    title: "Clef decides, calibrated",
+    title: "Clef decides, on the record",
     body: "Priority, category, rollback, test tier, retry, ship: decision templates on Cloudflare Clef, mapped by policy to act, escalate or a safe default.",
     art: (
       <div className="space-y-3">
@@ -70,7 +70,7 @@ const FEATURES: { title: string; body: string; art: ReactNode }[] = [
           <div className="absolute -top-1.5 -bottom-1.5 left-[74%] border-l-[1.5px] border-[#2f2e2a]" />
         </div>
         <div className="flex justify-between font-mono text-[10px] text-[#6b6b66]">
-          <span>calibrated p</span>
+          <span>p</span>
           <span>p ≥ τ → act</span>
         </div>
       </div>

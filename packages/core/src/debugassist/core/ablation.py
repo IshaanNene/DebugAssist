@@ -7,7 +7,8 @@ DA_ABLATE    comma list of decisions to switch off: D3 (log relevance), D8 (rabb
 DA_DECIDER   routed (default: each template's own Clef model) | clef | clef-flash (one model for all) |
              llm (no Clef: the LLM decides with self-reported confidence).
 DA_LLM_SEED  integer seed passed to the LLM (repeat runs per configuration).
-DA_CONTEXT   full (default) | lean — how much tool output enters an agent's context (ROADMAP P15 items 2, 4, 8):
+DA_CONTEXT   full (default) | lean | clear | compact | concise — how much tool output enters an agent's context
+             (ROADMAP P15; all four alternatives are parked: measured or estimated, off by default):
              lean adds outline tools, caps every file read at 120 lines (with a pointer to the outline), and keeps long command
              logs out of the history (an error summary and the tail come back; the full log is read on demand).
              clear replaces old tool results in the history with one-line stubs, in batches (llm/clearing.py).

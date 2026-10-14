@@ -181,8 +181,8 @@ export default function Home() {
             Investigate, fix, prove — <Mark>repeat.</Mark>
           </H2>
           <Lead className="mt-5">
-            Four phases, twelve steps, always in this order. Clef makes each judgement call with a calibrated
-            probability, LLM agents reason and write code, and deterministic code performs every write — behind a policy
+            Four phases, twelve steps, always in this order. Clef makes each judgement call with a probability,
+            LLM agents reason and write code, and deterministic code performs every write — behind a policy
             gate.
           </Lead>
           <div className="mt-10">
@@ -534,7 +534,7 @@ function ArmCompare({ arms, report }: { arms: ContextArm[]; report: string }) {
         <p className="mt-3 text-[13.5px] leading-[1.55] text-t3">
           Following the audit we tried {n} techniques on the same bugs. Capping reads made agents read more often.
           Clearing old tool results cut tokens per turn, but each clearing rewrites the cached prefix, so the cache hit
-          rate fell and cost barely moved. Compacting into notes saved nothing per turn. All stay opt-in switches.{" "}
+          rate fell and cost barely moved. Compacting into notes saved nothing per turn. All four are parked: off by default, with no further work planned.{" "}
           <a className="text-t1 underline underline-offset-2" href={report}>
             Context by arm
           </a>
@@ -583,7 +583,7 @@ function ArmCompare({ arms, report }: { arms: ContextArm[]; report: string }) {
 }
 
 const STATEMENT =
-  "The plan is code, not a prompt. Models never choose the next step. Clef makes every judgement call with a calibrated probability, agents reason and write the code, and deterministic code performs every write.";
+  "The plan is code, not a prompt. Models never choose the next step. Clef makes every judgement call with a probability, agents reason and write the code, and deterministic code performs every write.";
 
 const STACK: [string, string][] = [
   ["Vitals", "crash analytics"],
@@ -611,7 +611,7 @@ const TERMINAL: [string, string][] = [
 
 const FAQ: [string, string][] = [
   ["What is DebugAssist?", "An open-source pipeline that does what an on-call engineer does when something breaks: it notices the crash or the rider's report, triages it, finds the root cause with evidence, proposes a mitigation, writes a test that fails on the shipped release, fixes the code, proves the fix and opens a pull request — or says it isn't our bug and routes it."],
-  ["Does an LLM decide what happens next?", "No. The plan is a fixed graph in code. LLM agents reason and write code inside steps; every judgement call is a Clef decision with a calibrated probability, mapped to act, escalate or a safe default by policy; deterministic code performs every write."],
+  ["Does an LLM decide what happens next?", "No. The plan is a fixed graph in code. LLM agents reason and write code inside steps; every judgement call is a Clef decision with a probability, mapped to act, escalate or a safe default by policy; deterministic code performs every write."],
   ["Can it change production on its own?", "Writes go through a policy gate and an audit log. It pushes only to bot branches of the demo repositories, flag rollbacks need approval, and every integration is dry-run unless configured otherwise."],
   ["How are the results measured?", "Each catalog bug is injected as a natural-looking commit, triggered by simulated riders, and discovered by the crash and bug-report sources. The agent's root cause is scored against an answer key it never sees, and hidden tests run on its fix. Every number on this page is read from the generated reports when the site is built."],
   ["Which models does it use?", "Any OpenAI-compatible API. The evaluation on this page ran on openai/gpt-6-luna through OpenRouter; decisions run on Cloudflare Clef."],

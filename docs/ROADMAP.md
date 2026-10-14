@@ -9,6 +9,21 @@ Baseline to beat (`evals/reports/2026-10-14`, gpt-6-luna, 25 bugs, each bug's la
 right 75%, code-bug fixes validated 81%, hidden tests 80%, median $0.014 per run. (The first one-seed run,
 `evals/reports/2026-10-07`, scored 64% / 48% / 72% / 63% / 47%.)
 
+## Parked (2026-10-14)
+
+Built or started, measured where possible, and stopped on purpose. Parked means the code stays and is **off by
+default**, nothing here is a next step, and an item comes back only with a reason (a new result, a new need).
+
+| Item | State | Why parked |
+|---|---|---|
+| `DA_CONTEXT=lean` (capped reads, `outline_file`, `read_log`) | Built, measured on 8 bugs | Agents made more, smaller reads: input per run went *up* |
+| `DA_CONTEXT=clear` (old tool results become stubs) | Built, measured on 8 bugs | Input per turn −17%, but the cache hit rate fell with it: cost about level |
+| `DA_CONTEXT=compact` (older steps folded into notes) | Built, measured on 3 bugs | The notes cost what they removed; inconclusive and not worth a full arm |
+| `DA_CONTEXT=concise` (compact JSON, top-k lists) | Built, estimated offline | About 2–3% of input by replay: too small to spend a live arm on |
+| P15 items 5, 6, 9, 10 (tool-use examples, programmatic tool calling, per-repo memory, tool search) | Not started | The audit puts the weight in re-sent `read_file` results, which none of these address |
+| Discord chat notifier | Built, tested against a mock transport | Never run against a real webhook (no workspace); pages go to the mock inbox |
+| P16 integrations other than Langfuse (LiteLLM, local models, Promptfoo, Inspect, GlitchTip, OpenFeature, ast-grep, SWE-bench, OpenHands, Temporal) | Ideas, not started | Kept as a list; the open evaluation questions come first |
+
 ## P14 · Close the biggest gap: backend bugs reported from the app — done (2026-10-10)
 
 **Result** ([evals/reports/2026-10-10](../evals/reports/2026-10-10/report.md), the six bugs re-run): root cause right or close 0/6 → 5/6, hidden tests passing 0 → 2, fixes now made in the service. Still open: fixes after a hand-off that don't validate (3 of 5), and CORS (BUG-017), which is invisible from the client. **Fix quality** (commit `85cb379`): a Python sandbox interpreter fix, the eval retry loop and a forgiving edit tool took hidden-test passes on eight re-run bugs from 0 to 5. Not yet done from the list below: contract evidence (GraphQL schema / API shapes) and linked PRs when both sides change.
@@ -21,7 +36,7 @@ All six services bugs that reached us only through a rider's report were investi
 - Contract evidence for the agent: the GraphQL schema and service API shapes, so field-name drift is visible.
 - **Measure:** BUG-013/014/015/017/019/020 root cause and hidden tests; no regressions on the other 19.
 
-## P15 · Context engineering (how Claude Code does it, applied here)
+## P15 · Context engineering (how Claude Code does it, applied here) — measured, parked
 
 Every turn re-sends the system prompt, tool schemas and the whole history; on BUG-001 a full run read ~300K input
 tokens. Tool schemas are only ~2–2.5K tokens per agent — the weight is tool *results* re-sent every turn. Ordered
@@ -54,26 +69,24 @@ old results (item 3) rewrites the cached prefix and may cost more than it saves 
 long command logs behind `read_log`; eight bugs, one seed, [report 2026-10-10](../evals/reports/2026-10-10/report.md),
 *Context by arm*): **no saving.** Agents made more, smaller reads, so input per run rose and `read_file`'s share
 went up; cost stayed about level on a higher cache rate, and outcomes were within one-seed noise. Kept as an
-opt-in switch. Next: item 3 (clear old results) and item 7 (compaction with notes), because the history re-sent on
-every turn is what grows — and repeated seeds before trusting any small difference.
+opt-in switch; followed by items 3 and 7.
 
 **Clearing arm result** (`DA_CONTEXT=clear`, item 3: tool results older than the newest three become one-line
 stubs — tool, arguments, size, evidence id — in batches triggered at 4K tokens, so the prefix only changes once per
 batch; same eight bugs, *Context by arm*): input per turn and per run fell, but the cache hit rate fell with it, so
 cost moved by a few percent. Root cause right or close matched; hidden-test passes were lower, within one-seed
-noise. Kept opt-in. Next: item 7 (compaction with notes), which keeps a digest instead of stubs.
+noise. Kept opt-in; followed by item 7.
 
 **Compaction arm result** (`DA_CONTEXT=compact`, item 7: steps older than the newest two fold into structured notes
 written by the same model once they pass 4K tokens; **partial — three of the eight bugs** before the API credit ran
 out): input per turn matched the baseline (the notes and their model calls cost what they removed); one run's climb
-through three reproduction tiers doubled the total. Inconclusive; kept opt-in. Next: item 4 (concise tool
-responses), then repeated seeds for everything before trusting small differences.
+through three reproduction tiers doubled the total. Inconclusive; kept opt-in; followed by item 4.
 
 **Concise responses, estimated offline** (`DA_CONTEXT=concise`, item 4: compact JSON instead of two-space-indented,
 lists cut to the top 10 with a count of the rest, long fields clipped, grep output to 30 lines; built, not yet run
 live — the API credit ran out): replaying the fix-quality arm's transcripts through it removes about 5% of the
 re-sent history, roughly 2–3% of the arm's input, because `read_file` (untouched) dominates and MCP results are
-already capped. Deterministic, so the cache prefix is unaffected. A small lever; run it live when there is credit.
+already capped. Deterministic, so the cache prefix is unaffected. A small lever; parked without a live run (see Parked).
 
 **Repeated seeds — done (2026-10-11).** `make eval-full` ran every catalog bug three times on commit `d7cf020`
 (arm `full-d7cf020`, 74 counted runs, under $2); it is now the headline of the README card, the site and the report.
@@ -101,7 +114,7 @@ BUG-021 now `infra` instead of `network` (still routed). Each further rule moved
 stopped here. Not done: BUG-017/018/020 with the new code; giving D05 the active incidents (the RCA saw BUG-006's
 incident and still blamed code — a pre-RCA routing signal is the likelier fix).
 
-## P16 · Integrations (free / open source)
+## P16 · Integrations (free / open source) — Langfuse done; the rest are ideas, parked
 
 | Tool | License* | Why here | Plan |
 |---|---|---|---|

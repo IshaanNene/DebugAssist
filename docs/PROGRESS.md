@@ -342,6 +342,12 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Parked the unfinished pieces (2026-10-14)
+
+The four context-engineering switches, the untried P15 items, the Discord notifier and the P16 integration ideas
+now sit in one table, ROADMAP › Parked, with their state and why they stopped. They stay in the code, off by
+default; the "next" pointers that kept them open in P15 are closed.
+
 ## Review response: Clef stated honestly (2026-10-14)
 
 An outside review asked whether Clef-routed decisions beat a plain LLM decider. They don't, by our own numbers:

@@ -100,7 +100,7 @@ Details, verification and caveats per phase are in [PROGRESS.md](PROGRESS.md); l
 | P12 | Observability, cost, guardrails, privacy | done 2026-10-05 |
 | P13 | Evaluation harness, catalog of 25 bugs with hidden tests, ablations, reports | done 2026-10-07 |
 | P14 | Cross-repo investigation and hand-off | done 2026-10-10 |
-| P15 | Context engineering (lean reads, clearing, compaction, concise results) | measured, kept opt-in |
+| P15 | Context engineering (lean reads, clearing, compaction, concise results) | measured, parked (off by default) |
 | P16 | Langfuse | done 2026-10-10 |
 | P17 | Public site | done 2026-10-10, kept current |
 | — | Three-seed full run; fix round; Clef vs no-Clef ablation | done 2026-10-11 → 14 |
