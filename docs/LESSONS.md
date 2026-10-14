@@ -211,6 +211,12 @@ Format: **symptom** → cause → fix · *guard*.
   headline numbers were end-to-end RCA and fix rates, which depend mostly on the LLM; an outside review spotted it.
   The replay shows no accuracy gain, and a live `no-clef` arm only a small edge within noise. → Stated first in the README and on
   the site, with a Limitations section. *Lesson: the first ablation to run is the one that tests the thesis.*
+- **A real issue can carry its own answer.** cachetools#435's last paragraphs named the faulty function and proposed
+  the fix (an AI-assisted report). → The case shows only the symptom sections and lists what was withheld.
+  *Lesson: read a real bug's report as the agent would see it before using it as a test.*
+- **The pipeline assumed one stack.** Running a real repo surfaced a hard-coded `uv run pytest`, MiniRide wording in
+  prompts and MiniRide repos as search peers. → Repo-declared test commands and repo-aware prompts, with MiniRide
+  byte-for-byte unchanged. *Lesson: one run on someone else's code finds assumptions no amount of your own catalog will.*
 - **One expensive run can carry an arm's average.** A single bug's three max-length fix attempts (after D14 picked
   the e2e tier) were most of the lean arm's token total. → Read per-bug numbers before averages; the report keeps
   per-run rows next to the arm table.

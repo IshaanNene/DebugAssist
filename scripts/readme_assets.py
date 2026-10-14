@@ -620,7 +620,8 @@ def results(model: str = "gpt-6-luna") -> str:
         for r in every
         if head
         and r.get("arm") not in (None, "", head)
-        and not r["arm"].startswith(("context-", "no-clef"))  # token and decider ablations are not re-runs
+        # token and decider ablations and real open-source bugs are not re-runs of the catalog
+        and not r["arm"].startswith(("context-", "no-clef", "real-"))
         and r.get("eval", "") > head_end
     ]
     by_bug_later: dict[str, list[dict[str, str]]] = {}
@@ -638,7 +639,9 @@ def results(model: str = "gpt-6-luna") -> str:
             (
                 r
                 for r in every
-                if r.get("arm") and r["arm"] != head and not r["arm"].startswith(("context-", "no-clef"))
+                if r.get("arm")
+                and r["arm"] != head
+                and not r["arm"].startswith(("context-", "no-clef", "real-"))
             ),
             key=lambda r: r["bug"],
         )

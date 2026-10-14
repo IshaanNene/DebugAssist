@@ -199,8 +199,9 @@ export function results(model = "gpt-6-luna"): Results {
 
   // A later arm that re-ran a bug with as many seeds replaces that bug's cells: the grid shows each bug's latest
   // full-strength run, and says which code each part ran on. One-seed spot checks never replace three seeds.
-  // Context-engineering arms measure tokens and decider arms (no-clef-*) are ablations: neither is a re-run of fixes.
-  const isRerun = (a: string) => !a.startsWith("context-") && !a.startsWith("no-clef");
+  // Context-engineering arms measure tokens, decider arms (no-clef-*) are ablations and real-* arms run real
+  // open-source bugs (shown on their own): none is a re-run of the catalog's fixes.
+  const isRerun = (a: string) => !a.startsWith("context-") && !a.startsWith("no-clef") && !a.startsWith("real-");
   const later = headArm ? order.slice(order.indexOf(headArm) + 1).filter(isRerun) : [];
   const latest: Record<string, Row[]> = {};
   for (const r of baseRows) (latest[r.bug] ??= []).push(r);
@@ -426,4 +427,61 @@ export function deciderReplay(): DeciderRow[] {
   }
   // a rules baseline of 0 means "no rule for this decision", not a score
   return Object.values(by).map((d) => ({ ...d, acc: { ...d.acc, rules: d.acc.rules ? d.acc.rules : null } }));
+}
+
+export interface RealBug {
+  id: string;
+  title: string;
+  issue: string; // upstream issue URL
+  fixPr: string; // upstream fix PR URL
+  arm: string;
+  decider: string; // which decider the runs used
+  runs: number;
+  rcaExact: number;
+  rcaNear: number;
+  validated: number;
+  hidden: number;
+  hiddenRan: number;
+  medianUsd: number;
+}
+
+/** Real open-source bugs (groundtruth/real/REAL-*): each case's latest arm, from the latest report. */
+export function realBugs(): RealBug[] {
+  const dir = path.join(ROOT, "groundtruth", "real");
+  if (!fs.existsSync(dir)) return [];
+  const rows = parseCsv(fs.readFileSync(path.join(REPORTS, latestReport(), "results.csv"), "utf8")).filter(
+    (r) => r.bug?.startsWith("REAL-") && r.rca,
+  );
+  return fs
+    .readdirSync(dir)
+    .filter((f) => /^REAL-\d+\.yaml$/.test(f))
+    .sort()
+    .flatMap((f) => {
+      const id = f.replace(/\.yaml$/, "");
+      const text = fs.readFileSync(path.join(dir, f), "utf8");
+      const field = (k: string) => text.match(new RegExp(`^\\s*${k}:\\s*(.+?)(\\s+#.*)?$`, "m"))?.[1] ?? ""; // YAML comments need a space before #
+      const mine = rows.filter((r) => r.bug === id);
+      if (!mine.length) return [];
+      const arm = mine.map((r) => r.arm).sort().pop() ?? "";
+      const rs = mine.filter((r) => r.arm === arm);
+      const costs = rs.map((r) => Number(r.usd)).sort((a, b) => a - b);
+      const ran = rs.filter((r) => r.hidden_tests === "True" || r.hidden_tests === "False");
+      return [
+        {
+          id,
+          title: field("title"),
+          issue: field("issue"),
+          fixPr: field("fix_pr"),
+          arm,
+          decider: (rs[0]?.config ?? "").startsWith("no-clef") ? "LLM decider" : "Clef",
+          runs: rs.length,
+          rcaExact: rs.filter((r) => r.rca === "exact").length,
+          rcaNear: rs.filter((r) => r.rca === "exact" || r.rca === "directional").length,
+          validated: rs.filter((r) => r.validated === "True").length,
+          hidden: ran.filter((r) => r.hidden_tests === "True").length,
+          hiddenRan: ran.length,
+          medianUsd: costs.length ? costs[Math.floor(costs.length / 2)] : 0,
+        },
+      ];
+    });
 }
