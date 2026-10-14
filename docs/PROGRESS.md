@@ -1,12 +1,15 @@
 # Progress
 
-| Phase | Status | Date | Notes |
-|---|---|---|---|
-| P0 Plan & scaffold | ✅ done | 2026-10-04 | See below |
-| P1 Decision engine | ✅ done | 2026-10-04 | See below |
-| P2a Target system + telemetry | ✅ done | 2026-10-04 | See below |
-| P2b Sources + catalog + simulator | ✅ done | 2026-10-04 | See below |
-| P3 Walking skeleton | ⏭ next | | |
+| Phase | Status | Date |
+|---|---|---|
+| P0–P2b Scaffold, decision engine, target system, sources and catalog | ✅ done | 2026-10-04 |
+| P3–P12 Walking skeleton through observability, guardrails and privacy | ✅ done | 2026-10-05 |
+| P13 Evaluation harness and ablations | ✅ done | 2026-10-07 |
+| P14 Cross-repo hand-off · fix quality · P15 context engineering · P16 Langfuse · P17 site | ✅ done / measured | 2026-10-10 |
+| Three-seed full run · fix round · Clef vs no-Clef ablation · cloneable repo | ✅ done | 2026-10-11 → 14 |
+| P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
+
+The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
 
 ## P0 — Plan & scaffold (2026-10-04)
 
