@@ -1,0 +1,21 @@
+{
+  "bugs": [
+    "BUG-016",
+    "BUG-017",
+    "BUG-018",
+    "BUG-019",
+    "BUG-020",
+    "BUG-021",
+    "BUG-022",
+    "BUG-023",
+    "BUG-024",
+    "BUG-025"
+  ],
+  "configs": [
+    "no-clef"
+  ],
+  "seeds": 1,
+  "until": "ship_gate",
+  "arm": "no-clef-bfbd1db",
+  "commit": "cb1568e"
+}

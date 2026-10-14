@@ -144,9 +144,10 @@ token comparison, Quickstart.
 ## P18 · Evaluation at scale
 
 - Three seeds on every arm (the main arm has them since 2026-10-11); Clef vs Clef-flash vs LLM decider vs rules as full pipeline arms; skills-off.
-- **Prove or rework Clef.** Neither the replay nor the live `no-clef` arm (2026-10-14: no measurable difference
-  on 14 bugs) shows Clef beating an LLM decider; rules win on D01 triage and D14 test tier. Rework those templates
-  first, finish the `no-clef` arm (BUG-016..025, needs a new OpenRouter key), then re-measure with three seeds.
+- **Prove or rework Clef.** The replay shows no accuracy gain over an LLM decider, and the live `no-clef` arm
+  (2026-10-14, 24 bugs, one seed) a small edge for Clef within noise; rules win on D01 triage and D14 test tier, and
+  D13 escalated BUG-020 to a human in every Clef seed. Rework D01, D13 and D14 first, then re-measure with three
+  seeds on both arms.
 - Routing on the RCA's category made a wrong "not ours" RCA terminal (BUG-011 in the `no-clef` arm): route away
   only when the RCA's category agrees with D05 or carries high confidence.
 - Open from the fix round: give D05 the active incidents (BUG-006); re-run BUG-017/018/020 on the new code; D11
