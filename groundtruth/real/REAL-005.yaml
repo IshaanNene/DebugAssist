@@ -1,0 +1,35 @@
+# Answer key for a real open-source bug (never mounted into a sandbox; read by the scorer after a run).
+# The input the agent sees is sources/github/issues/more-itertools-1304.yaml. Fix merged 2026-09-29.
+id: REAL-005
+title: ichunked(..., 0) raises islice's ValueError on a nonempty iterable (more-itertools/more-itertools#1304)
+source: GH-more-itertools-1304
+repo: more-itertools
+language: python
+category: own_code
+expected_outcome: pr
+upstream:
+  issue: https://github.com/more-itertools/more-itertools/issues/1304
+  fix_pr: https://github.com/more-itertools/more-itertools/pull/1305
+  fix_commit: 1ea82a711c69f590054987b5cb194157f8ce8ac4
+  buggy_commit: 790bb0bb2c03e7a07282e5f16f4b1fde35b8fcf5
+  license: MIT (more-itertools)
+  pr_head: f89d7a3331ba6b5421273e556c0a738e3dd1dd35
+ground_truth:
+  location:
+    repo: more-itertools
+    module: more_itertools
+    file: more_itertools/more.py
+    function: ichunked
+  rca_facts:
+  - ichunked validates n only when it first slices a chunk, so n=0 reaches islice(iterator, n - 1) and raises islice's error.
+  - chunked treats n=0 as 'yield nothing' and rejects negative n with 'n must be at least 0'.
+  - 'The fix checks n up front like chunked: return for 0, raise for negative.'
+  hidden_tests:
+  - src: real/REAL-005/test_more_upstream.py
+    repo: more-itertools
+    dest: tests/test_more_upstream.py
+    command: .venv/bin/python -m pytest -q tests/test_more_upstream.py::IchunkedTests::test_zero_nonempty tests/test_more_upstream.py::IchunkedTests::test_negative
+validation:
+  verified: '2026-10-14'
+  how: on the buggy commit both selected tests fail; with the upstream fix they pass and the full suite passes (767)
+  hidden_test: upstream's tests/test_more.py at the fix, verbatim; the new test_zero_nonempty and the updated test_negative are selected

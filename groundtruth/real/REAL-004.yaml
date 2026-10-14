@@ -1,0 +1,35 @@
+# Answer key for a real open-source bug (never mounted into a sandbox; read by the scorer after a run).
+# The input the agent sees is sources/github/issues/parse-249.yaml. Fix merged 2026-09-18.
+id: REAL-004
+title: '{:F} (Decimal) cannot parse negative numbers; {:f}/{:F} also miss nan/inf that {:e}/{:g} accept (r1chardj0n3s/parse#249)'
+source: GH-parse-249
+repo: parse
+language: python
+category: own_code
+expected_outcome: pr
+upstream:
+  issue: https://github.com/r1chardj0n3s/parse/issues/249
+  fix_pr: https://github.com/r1chardj0n3s/parse/pull/250
+  fix_commit: 529dc2e01a0d882ec55d673304253b40eb4d38b2
+  buggy_commit: 8059e320eccf40d750843006dd2ef25197bbff74
+  license: MIT (parse, © Richard Jones)
+  pr_head: 91294850a8e418b152b1f5d415a74a16abeabe2c
+ground_truth:
+  location:
+    repo: parse
+    module: parse
+    file: parse/__init__.py
+    function: _handle_field
+  rca_facts:
+  - _handle_field adds the sign prefix only for the types listed in is_numeric, and 'F' (Decimal) is not listed.
+  - The f/F regex lacks the nan/inf alternatives the e/g regexes have.
+  - The fix adds F to is_numeric and gives f/F a non-capturing nan/inf alternation.
+  hidden_tests:
+  - src: real/REAL-004/test_parse_upstream.py
+    repo: parse
+    dest: tests/test_parse_upstream.py
+    command: .venv/bin/python -m pytest -q tests/test_parse_upstream.py::test_numbers
+validation:
+  verified: '2026-10-14'
+  how: on the buggy commit test_numbers fails; with the upstream fix it passes and the full suite passes (97)
+  hidden_test: 'upstream''s tests/test_parse.py at the fix, verbatim; test_numbers holds the new assertions (the test pinning the exact regex string is not used: another correct fix may use another regex)'

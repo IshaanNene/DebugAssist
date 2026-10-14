@@ -12,3 +12,7 @@ node_modules/
 .DS_Store
 .claude/settings.local.json
 /targets/cachetools/
+/targets/cachetools-440/
+/targets/semver/
+/targets/parse/
+/targets/more-itertools/

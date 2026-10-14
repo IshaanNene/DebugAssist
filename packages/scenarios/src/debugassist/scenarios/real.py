@@ -167,11 +167,11 @@ def prepare(case_id: str, log: Callable[[str], None] = print) -> Path:
         _git(dest, "tag", tag)
         _git(dest, "reflog", "expire", "--expire=now", "--all")
         _git(dest, "gc", "-q", "--prune=now")
-    fix = case.upstream.get("fix_commit", "")
-    if fix and _git(dest, "cat-file", "-e", fix, check=False).returncode == 0:
-        raise RuntimeError(
-            f"{dest}: the fix commit {fix[:10]} is reachable — the checkout would leak the answer"
-        )
+    # The fix and, for merged pull requests, the PR branch's head must both be unreachable.
+    for key in ("fix_commit", "pr_head"):
+        sha = case.upstream.get(key, "")
+        if sha and _git(dest, "cat-file", "-e", sha, check=False).returncode == 0:
+            raise RuntimeError(f"{dest}: {key} {sha[:10]} is reachable — the checkout would leak the answer")
     if _git(dest, "rev-parse", "-q", "--verify", f"refs/tags/{tag}", check=False).returncode:
         raise RuntimeError(f"{dest}: tag {tag} is missing")
     return dest
