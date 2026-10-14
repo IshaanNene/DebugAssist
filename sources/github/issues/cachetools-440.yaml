@@ -1,0 +1,58 @@
+# A real, public GitHub issue, frozen as the pipeline's input (the "github" issue source).
+# Only part of the report is shown to the agent; what is withheld, and why, is listed at the bottom.
+# The answer key is groundtruth/real/REAL-002.yaml and never reaches the agent.
+id: GH-cachetools-440
+case: REAL-002
+url: https://github.com/tkem/cachetools/issues/440
+filed_at: '2026-10-11T15:31:31Z'
+title: Failed TTL expiration calculation leaves an unusable cache entry
+repo: cachetools-440
+gh_repo: tkem/cachetools
+language: python
+component: .
+about: cachetools, an open-source Python library of memoizing collections and decorators (source under src/cachetools/, tests under tests/, run with pytest)
+# The code the report was filed against: upstream `develop` at the parent of the fix.
+checkout:
+  url: https://github.com/tkem/cachetools.git
+  branch: develop
+  commit: f4f288579dc3c8f82f62d0eaca7774303d9d3768
+  version: 7.2.1-dev
+  config: |
+    # How DebugAssist builds and tests this repository (added locally; not part of upstream).
+    version: 1
+    repo: cachetools-440
+    default_agent_type: github-issue
+    bot_branch_prefix: debugassist/
+    components:
+      .:
+        path: .
+        language: python
+        owner: maintainers
+        setup: SETUPTOOLS_SCM_PRETEND_VERSION=7.2.1 uv venv -q .venv && SETUPTOOLS_SCM_PRETEND_VERSION=7.2.1 uv pip install -q -p .venv -e . pytest pytest-cov
+        lint: "true"
+        test: .venv/bin/python -m pytest -q
+        test_one: .venv/bin/python -m pytest -q {file}
+        test_file_glob: "tests/test_*.py"
+body: |
+  **Expected result**
+
+  An insertion whose expiration cannot be computed should raise the original arithmetic error without adding an unusable entry.
+
+  **Actual result**
+
+  The insertion raises `OverflowError`, then checking membership raises `TypeError: '<' not supported between instances of 'datetime.datetime' and 'NoneType'`.
+
+  **Reproduction steps**
+
+  ```python
+  from datetime import datetime, timedelta
+  from cachetools import TTLCache
+
+  cache = TTLCache(maxsize=1, ttl=timedelta(days=1), timer=lambda: datetime.max)
+  try:
+      cache['overflow'] = 1
+  except OverflowError:
+      pass
+  print('overflow' in cache)  # raises TypeError
+  ```
+withheld: The "Describe the bug" section, which names `TTLCache.__setitem__` and the order in which it inserts the value and computes the expiration, and the closing offer of a fix ("computes the expiration before mutating the cache").

@@ -1,0 +1,57 @@
+# A real, public GitHub issue, frozen as the pipeline's input (the "github" issue source).
+# Only part of the report is shown to the agent; what is withheld, and why, is listed at the bottom.
+# The answer key is groundtruth/real/REAL-004.yaml and never reaches the agent.
+id: GH-parse-249
+case: REAL-004
+url: https://github.com/r1chardj0n3s/parse/issues/249
+filed_at: '2026-09-18T05:30:03Z'
+title: '{:F} (Decimal) cannot parse negative numbers; {:f}/{:F} also miss nan/inf that {:e}/{:g} accept'
+repo: parse
+gh_repo: r1chardj0n3s/parse
+language: python
+component: .
+about: parse, an open-source Python library that parses strings with str.format() syntax, the reverse of format() (source in the parse/ package, tests under tests/, run with pytest)
+# The code the report was filed against: upstream `master` at the parent of the fix.
+checkout:
+  url: https://github.com/r1chardj0n3s/parse.git
+  branch: master
+  commit: 8059e320eccf40d750843006dd2ef25197bbff74
+  version: 1.22.1-dev
+  config: |
+    # How DebugAssist builds and tests this repository (added locally; not part of upstream).
+    version: 1
+    repo: parse
+    default_agent_type: github-issue
+    bot_branch_prefix: debugassist/
+    components:
+      .:
+        path: .
+        language: python
+        owner: maintainers
+        setup: uv venv -q .venv && uv pip install -q -p .venv -e . -r tests/requirements.txt
+        lint: "true"
+        test: .venv/bin/python -m pytest -q
+        test_one: .venv/bin/python -m pytest -q {file}
+        test_file_glob: "tests/test_*.py"
+body: |
+  Two related gaps in the fixed-point / Decimal types.
+
+  ## 1. `{:F}` (Decimal) cannot parse a negative number
+
+  ```python
+  >>> import parse
+  >>> parse.parse("{:F}", "-2.5")
+  None                       # expected Decimal('-2.5')
+  >>> parse.parse("{:F}", "2.5")
+  <Result (Decimal('2.5'),) {}>
+  >>> parse.parse("{:f}", "-2.5")   # float, same regex, works
+  <Result (-2.5,) {}>
+  ```
+
+  ## 2. `{:f}` and `{:F}` do not parse `nan`/`inf`, but `{:e}`/`{:g}` do
+
+  ```python
+  >>> parse.parse("{:f}", "nan")     # None
+  >>> parse.parse("{:e}", "nan")     # nan
+  ```
+withheld: 'The original title''s parenthetical "(F missing from is_numeric)"; the "Cause" paragraph and code naming `_handle_field`''s `is_numeric` set and its history (#32, #102); the sentence comparing the f/F regex with the e/g regexes; and the "Fix" section.'

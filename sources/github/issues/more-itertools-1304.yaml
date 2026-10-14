@@ -1,0 +1,55 @@
+# A real, public GitHub issue, frozen as the pipeline's input (the "github" issue source).
+# Only part of the report is shown to the agent; what is withheld, and why, is listed at the bottom.
+# The answer key is groundtruth/real/REAL-005.yaml and never reaches the agent.
+id: GH-more-itertools-1304
+case: REAL-005
+url: https://github.com/more-itertools/more-itertools/issues/1304
+filed_at: '2026-09-29T15:56:52Z'
+title: ichunked(..., 0) raises islice's ValueError on a nonempty iterable
+repo: more-itertools
+gh_repo: more-itertools/more-itertools
+language: python
+component: .
+about: more-itertools, an open-source Python library of iterator building blocks beyond itertools (source in the more_itertools/ package, tests under tests/, run with pytest)
+# The code the report was filed against: upstream `master` at the parent of the fix.
+checkout:
+  url: https://github.com/more-itertools/more-itertools.git
+  branch: master
+  commit: 790bb0bb2c03e7a07282e5f16f4b1fde35b8fcf5
+  version: 11.1.0-dev
+  config: |
+    # How DebugAssist builds and tests this repository (added locally; not part of upstream).
+    version: 1
+    repo: more-itertools
+    default_agent_type: github-issue
+    bot_branch_prefix: debugassist/
+    components:
+      .:
+        path: .
+        language: python
+        owner: maintainers
+        setup: uv venv -q .venv && uv pip install -q -p .venv -e . pytest
+        lint: "true"
+        test: .venv/bin/python -m pytest -q
+        test_one: .venv/bin/python -m pytest -q {file}
+        test_file_glob: "tests/test_*.py"
+body: |
+  `ichunked` is documented as being like `chunked`, but with lazy chunks. `chunked` treats `n=0` as "yield nothing". `ichunked` only does that when the source is already empty.
+
+  I hit this switching a streaming pipeline from `chunked` to `ichunked` so batches would not be materialized as lists. Chunk size comes from the same config in both paths; `0` means "this stage is disabled, emit nothing."
+
+  ```python
+  from more_itertools import chunked, ichunked
+
+  rows = ["a", "b", "c"]  # e.g. leftover rows from a DB cursor
+  chunk_size = 0          # config: skip this sink
+
+  print(list(chunked(rows, chunk_size)))
+  # []
+
+  print([list(c) for c in ichunked(rows, chunk_size)])
+  # ValueError: Stop argument for islice() must be None or an integer: 0 <= x <= sys.maxsize.
+  ```
+
+  Negative `n` has the same leak: `chunked` raises `ValueError: n must be at least 0`, `ichunked` raises islice's "Indices for islice() must be None or an integer...".
+withheld: The end of the first paragraph's last sentence, which names the internal call (`islice(iterator, n - 1)`); the paragraph noting that `IchunkedTests.test_zero` only covers an empty iterable; and "Happy to send a PR."

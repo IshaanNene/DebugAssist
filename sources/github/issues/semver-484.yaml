@@ -1,0 +1,80 @@
+# A real, public GitHub issue, frozen as the pipeline's input (the "github" issue source).
+# The report is shown to the agent in full.
+# The answer key is groundtruth/real/REAL-003.yaml and never reaches the agent.
+id: GH-semver-484
+case: REAL-003
+url: https://github.com/python-semver/python-semver/issues/484
+filed_at: '2026-09-22T20:38:22Z'
+title: New prerelease bump behaviour breaks consistency with old RC numbering
+repo: semver
+gh_repo: python-semver/python-semver
+language: python
+component: .
+about: python-semver, an open-source Python library for parsing, comparing and bumping semantic versions (source under src/semver/, tests under tests/, run with pytest)
+# The code the report was filed against: upstream `master` at the parent of the fix.
+checkout:
+  url: https://github.com/python-semver/python-semver.git
+  branch: master
+  commit: f53d13d13814a180a464763d6363bacb8a9f6c7f
+  version: 3.1.0-dev
+  config: |
+    # How DebugAssist builds and tests this repository (added locally; not part of upstream).
+    version: 1
+    repo: semver
+    default_agent_type: github-issue
+    bot_branch_prefix: debugassist/
+    components:
+      .:
+        path: .
+        language: python
+        owner: maintainers
+        setup: SETUPTOOLS_SCM_PRETEND_VERSION=3.1.0 uv venv -q .venv && SETUPTOOLS_SCM_PRETEND_VERSION=3.1.0 uv pip install -q -p .venv -e . pytest pytest-cov
+        lint: "true"
+        test: .venv/bin/python -m pytest -q
+        test_one: .venv/bin/python -m pytest -q {file}
+        test_file_glob: "tests/test_*.py"
+body: |
+  ### Which version of Python is the problem with?
+
+  3.12
+
+  ### What semver version are you using?
+
+  3.1.0
+
+  ### What OS are you using? (Add more in the Environment section)
+
+  Linux
+
+  ### Situation
+
+  #462 introduced a change to how prerelease versions are incremented. However, for existing automations using semver, this change can cause issues by reverting the prerelease version to an earlier number.
+
+  As an example adapted from a real situation found in production, we have a version string created from the previous semver release (version 3.0.4) which looks something like "0.1.2-rc3".
+  ```Pycon
+  >>> import semver
+  >>> v = semver.Version.parse("0.1.2-rc3")
+  >>> v.next_version("prerelease")
+  Version(major=0, minor=1, patch=2, prerelease='rc.1', build=None)
+  ```
+
+  The example above sets the RC version backwards from version 3 to version 1, which can break existing CI automations which expect strictly increasing RC numbers.
+
+  ### How to reproduce
+
+  Example snippet:
+
+  ```Pycon
+  >>> import semver
+  >>> v = semver.Version.parse("0.1.2-rc3")
+  >>> v.next_version("prerelease")
+  Version(major=0, minor=1, patch=2, prerelease='rc.1', build=None)
+  ```
+
+  ### Expected behavior
+
+  RC numbers created with the default settings should not ever decrease due to an internal API change. The expected output would be either "0.1.2-rc4" or "0.1.2-rc.4".
+
+  ### Environment
+
+  _No response_
