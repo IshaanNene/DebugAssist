@@ -102,10 +102,40 @@ def _older(when: str | None, than: str | None) -> bool:
     )
 
 
+def ingest_github(ref: str) -> Issue:
+    """A frozen public GitHub issue on a real repository (sources/github/issues/): the report as shown to the
+    agent, and the repository's own description for the prompts."""
+    from debugassist.scenarios import real
+
+    gh = real.load_issue(ref)
+    return Issue(
+        source="github",
+        id=gh.id,
+        url=gh.url,
+        title=gh.title[:160],
+        kind="bug_report",
+        app=gh.repo,
+        platform="library",
+        version=gh.checkout.version,
+        first_version=gh.checkout.version,
+        last_version=gh.checkout.version,
+        events=1,
+        repo=gh.repo,
+        gh_repo=gh.gh_repo,
+        component=gh.component,
+        language=gh.language,
+        opened_at=gh.filed_at,
+        report={"title": gh.title, "body": gh.body, "url": gh.url, "filed_at": gh.filed_at},
+        about=gh.about,
+    )
+
+
 async def dedup_candidates(issue: Issue, deps: Deps, k: int = 8) -> list[dict[str, str]]:
     """Open Vitals issues and recent BugDrop reports for the same app opened *before* this one (the earliest
     issue is the canonical one), newest first — D2's options."""
     out: list[dict[str, str]] = []
+    if issue.source == "github":
+        return out  # a frozen GitHub issue has no Vitals or BugDrop siblings
     async with httpx.AsyncClient(timeout=15) as http:
         try:
             issues = (await http.get(f"{deps.vitals_url}/api/issues", params={"status": "open"})).json()
@@ -506,7 +536,15 @@ async def collect(state: RunState, deps: Deps) -> dict[str, Any]:
     assert issue
     ctx = RunContext(run_id=state.run_id, issue_id=issue.id)
     notes: list[str] = []
-    core = vitals_core(issue, notes) if issue.source == "vitals" else bugdrop_core(issue, notes)
+    if issue.source == "github":
+        # A real repository: the report as filed is the evidence; the agents read code and history with tools.
+        core = [
+            EvidenceItem.make(
+                "github", "issue", f'The GitHub issue as filed: "{issue.title[:80]}"', issue.report
+            )
+        ]
+    else:
+        core = vitals_core(issue, notes) if issue.source == "vitals" else bugdrop_core(issue, notes)
     decisions = list(state.decisions)
     shots = None
     if issue.source == "bugdrop":
@@ -515,7 +553,7 @@ async def collect(state: RunState, deps: Deps) -> dict[str, Any]:
             core.append(shot_item)
             shots = shot_item.data
             decisions.append(shot_ledger or "")
-    optional = optional_windows(issue, notes)
+    optional = optional_windows(issue, notes) if issue.source != "github" else []  # no MiniRide telemetry
     kept, pruned, d3 = await score_and_fit(issue, core, optional, deps, ctx)
     if d3:
         decisions.append(d3)

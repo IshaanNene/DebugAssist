@@ -12,7 +12,7 @@ Category = Literal["own_code", "third_party_lib", "infra", "network", "flag_conf
 
 
 class Issue(BaseModel):
-    source: Literal["vitals", "bugdrop"]
+    source: Literal["vitals", "bugdrop", "github"]
     id: str
     url: str
     title: str
@@ -32,7 +32,8 @@ class Issue(BaseModel):
     latest_event: dict[str, Any] = Field(default_factory=dict[str, Any])
     session_id: str | None = None
     opened_at: str | None = None  # when the source first saw it (dedup only looks at older issues)
-    report: dict[str, Any] = Field(default_factory=dict[str, Any])  # BugDrop: the report as filed
+    report: dict[str, Any] = Field(default_factory=dict[str, Any])  # BugDrop / GitHub: the report as filed
+    about: str | None = None  # GitHub: what the repository is (real repos are not MiniRide)
 
 
 class Triage(BaseModel):

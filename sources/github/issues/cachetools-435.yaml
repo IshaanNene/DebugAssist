@@ -1,0 +1,72 @@
+# A real, public GitHub issue, frozen as the pipeline's input (the "github" issue source). Only the report's symptom
+# sections are shown to the agent: the issue's last three paragraphs name the faulty function, propose a fix and say
+# an AI assistant inspected the code — they would hand the agent its answer, so they are withheld (listed below).
+# The answer key (fix commit, location, hidden test) is in groundtruth/real/REAL-001.yaml and never reaches the agent.
+id: GH-cachetools-435
+case: REAL-001
+url: https://github.com/tkem/cachetools/issues/435
+filed_at: "2026-10-07T01:55:15Z"
+title: cachedmethod class access loses the explicitly supplied instance
+repo: cachetools
+gh_repo: tkem/cachetools
+language: python
+component: "."
+about: >-
+  cachetools, an open-source Python library of memoizing collections and decorators (source under src/cachetools/,
+  tests under tests/, run with pytest)
+# The code the report was filed against: upstream `develop` three commits after v7.2.1, the parent of the fix.
+checkout:
+  url: https://github.com/tkem/cachetools.git
+  branch: develop
+  commit: 0985ec0d8fefdce90bcbba2dfe88117dad9bb6f6
+  version: 7.2.1-dev
+  config: |
+    # How DebugAssist builds and tests this repository (added locally; not part of upstream cachetools).
+    version: 1
+    repo: cachetools
+    default_agent_type: github-issue
+    bot_branch_prefix: debugassist/
+    components:
+      .:
+        path: .
+        language: python
+        owner: maintainers
+        setup: SETUPTOOLS_SCM_PRETEND_VERSION=7.2.1 uv venv -q .venv && SETUPTOOLS_SCM_PRETEND_VERSION=7.2.1 uv pip install -q -p .venv -e . pytest
+        lint: "true"
+        test: .venv/bin/python -m pytest -q
+        test_one: .venv/bin/python -m pytest -q {file}
+        test_file_glob: "tests/test_*.py"
+body: |
+  **Describe the bug**
+
+  Calling an instance method decorated with `cachedmethod` through its class raises `AttributeError`, even when the instance is explicitly supplied. This worked in cachetools 6.2.0 and fails on current master `9976f1a8076631560f49c5b0dfda7e4d00ee0a4a` (7.2.1), on Windows with Python 3.12.14.
+
+  **Expected result**
+
+  `Example.value(example, 3)` should behave like `example.value(3)`, including using the instance's cache. This is ordinary instance-method access, not `@classmethod` usage.
+
+  **Actual result**
+
+  The instance call returns `6`. The class call raises `AttributeError: 'NoneType' object has no attribute 'cache'`.
+
+  **Reproduction steps**
+
+  ```python
+  from cachetools import Cache, cachedmethod
+
+  class Example:
+      def __init__(self):
+          self.cache = Cache(2)
+
+      @cachedmethod(lambda self: self.cache)
+      def value(self, number):
+          return number * 2
+
+  example = Example()
+  print(example.value(3))
+  print(Example.value(example, 3))
+  ```
+withheld: >-
+  The last three paragraphs of the issue: one naming `_DescriptorBase.__get__` and what it returns on class access,
+  one proposing a fix (return an unbound callable that binds the explicit instance), and a note that an AI assistant
+  inspected the code and ran the reproducer.

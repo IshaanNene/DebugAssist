@@ -15,7 +15,7 @@ import subprocess
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import yaml
@@ -33,7 +33,17 @@ from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
-from debugassist.pipeline import budget, collector, crossrepo, e2e, fixplan, postmerge, pr_body, skills
+from debugassist.pipeline import (
+    budget,
+    collector,
+    crossrepo,
+    e2e,
+    fixplan,
+    postmerge,
+    pr_body,
+    profile,
+    skills,
+)
 from debugassist.pipeline import rca as rca_mod
 from debugassist.pipeline.deps import APPS, Deps
 from debugassist.pipeline.state import (
@@ -201,9 +211,12 @@ async def ingest(state: RunState, deps: Deps) -> dict[str, Any]:
     ref = state.issue_ref
     if ref.upper().startswith("BD-"):
         return _with_agent_type(await collector.ingest_bugdrop(ref, deps), deps)
+    if ref.upper().startswith("GH-"):
+        return _with_agent_type(collector.ingest_github(ref), deps)
     if not ref.upper().startswith("VIT-"):
         raise ValueError(
-            f"unknown issue reference {ref!r}: expected a Vitals issue (VIT-…) or a BugDrop report (BD-…)"
+            f"unknown issue reference {ref!r}: expected a Vitals issue (VIT-…), a BugDrop report (BD-…) "
+            "or a frozen GitHub issue (GH-…)"
         )
     async with httpx.AsyncClient(base_url=deps.vitals_url, timeout=15) as http:
         d = (await http.get(f"/api/issues/{ref.upper()}")).raise_for_status().json()
@@ -260,7 +273,7 @@ def _with_agent_type(issue: Issue, deps: Deps) -> dict[str, Any]:
 
 
 def _source_label(issue: Issue) -> str:
-    return "BugDrop report" if issue.source == "bugdrop" else "Vitals issue"
+    return {"bugdrop": "BugDrop report", "github": "GitHub issue"}.get(issue.source, "Vitals issue")
 
 
 def _notify(deps: Deps, run_id: str, msg: ChatMessage) -> dict[str, Any]:
@@ -447,7 +460,7 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
     blocks = [
         (
             "para",
-            f"Opened automatically from {'Vitals issue' if issue.source == 'vitals' else 'BugDrop report'} {issue.id} "
+            f"Opened automatically from {_source_label(issue)} {issue.id} "
             f"({issue.events} events, {issue.app} {issue.first_version}→{issue.last_version}).",
         ),
         ("heading", "Signal"),
@@ -462,7 +475,7 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
             f"Priority {priority} (Clef), severity: {severity}\nOwner: {team} (from {owner_source}); on-call {triage.oncall}\n"
             f"Customer impacting: p={triage.customer_impacting:.2f}; worth an agent run: p={triage.worth_agent_run:.2f}",
         ),
-        ("para", f"{'Vitals' if issue.source == 'vitals' else 'BugDrop'}: {issue.url}"),
+        ("para", f"{_source_label(issue)}: {issue.url}"),
         ("para", f"DebugAssist run {state.run_id} is investigating."),
     ]
     verdict = deps.gate.verdict("jira.create_issue")
@@ -615,7 +628,11 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
         for f in findings:
             costs[f"subagent_{f['id']}"] = float(f.get("cost_usd") or 0.0)
     skill_prompt, skill_tools = skills.for_node(deps.agent_type, "classify_rca", issue)
-    spec = LLMNodeSpec(node="classify_rca", system_prompt=_prompt("rca_system.md") + skill_prompt, **cfg)
+    spec = LLMNodeSpec(
+        node="classify_rca",
+        system_prompt=profile.for_issue(_prompt("rca_system.md"), issue) + skill_prompt,
+        **cfg,
+    )
     prompt = rca_prompt(issue, _bundle(st.evidence), rca_mod.findings_text(findings))
     monitor_ledgers: list[str] = []
     r = await deps.runner().run(
@@ -652,7 +669,7 @@ async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
 def rca_prompt(issue: Issue, bundle: str, findings: str) -> str:
     """The RCA agent's task. Everything that came from users, logs, code or other agents is fenced as data."""
     return (
-        f"Issue {issue.id} from {'Vitals' if issue.source == 'vitals' else 'BugDrop'}, seen in repo "
+        f"Issue {issue.id} from {_source_label(issue).split()[0]}, seen in repo "
         f"{issue.repo} (component '{issue.component}', {issue.language}).\n"
         + untrusted.fence("issue title", issue.title)
         + f"\nEvents: {issue.events}; versions {issue.first_version}→{issue.last_version}.\n"
@@ -671,11 +688,16 @@ def rca_prompt(issue: Issue, bundle: str, findings: str) -> str:
             if findings
             else ""
         )
-        + "Repositories you can search: miniride-client (the React client, at the repo root) and "
-        "miniride-services (gateway/, dispatch/, payments/). Where a bug is seen is not always where it lives: "
-        "when the client handles a response correctly, follow the request into the service that produced it. "
-        "Code paths are repo-relative; set location.repo to the repository that holds the defect. "
-        "Investigate and submit the RCA."
+        + (
+            f"Repository you can search: {issue.repo} — {issue.about}. "
+            "Code paths are repo-relative; set location.repo to it. Investigate and submit the RCA."
+            if issue.about
+            else "Repositories you can search: miniride-client (the React client, at the repo root) and "
+            "miniride-services (gateway/, dispatch/, payments/). Where a bug is seen is not always where it lives: "
+            "when the client handles a response correctly, follow the request into the service that produced it. "
+            "Code paths are repo-relative; set location.repo to the repository that holds the defect. "
+            "Investigate and submit the RCA."
+        )
     )
 
 
@@ -821,9 +843,12 @@ def _new_test_files(sb: Sandbox) -> list[str]:
     return sorted(tests, key=lambda f: (sb.worktree / f).stat().st_mtime)
 
 
-def _test_cmd(language: str, test_file: str, component: str) -> str:
-    """The pipeline, not the agent, decides how the reproduction test is run."""
+def _test_cmd(language: str, test_file: str, component: str, template: str | None = None) -> str:
+    """The pipeline, not the agent, decides how the reproduction test is run: the repo's own `test_one` command
+    from its .DebugAssist/pipeline.yaml when it declares one, else the language's default runner."""
     rel = test_file if component == "." else test_file.removeprefix(f"{component}/")
+    if template:
+        return template.format(file=rel)
     if language == "python":
         return f"uv run --offline pytest -q {rel}"
     if language == "go":
@@ -843,7 +868,11 @@ def _repro_cmd(issue: Issue, test_file: str) -> str:
     rel = test_file if issue.component == "." else test_file.removeprefix(f"{issue.component}/")
     if rel.startswith("e2e/"):
         return e2e.e2e_cmd(test_file, issue.component)
-    return _test_cmd(issue.language, test_file, issue.component)
+    pipeline = ROOT / "targets" / issue.repo / ".DebugAssist" / "pipeline.yaml"
+    cfg: dict[str, Any] = (yaml.safe_load(pipeline.read_text()) or {}) if pipeline.is_file() else {}
+    comps = cast(dict[str, dict[str, Any]], cfg.get("components") or {})
+    template = cast(str | None, (comps.get(issue.component) or {}).get("test_one"))
+    return _test_cmd(issue.language, test_file, issue.component, template)
 
 
 def _tier_problem(tier: Tier, issue: Issue, test_file: str) -> str | None:

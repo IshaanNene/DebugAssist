@@ -23,6 +23,7 @@ Source = Literal[
     "incident",
     "screenshot",
     "jira",
+    "github",
 ]
 
 
