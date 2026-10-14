@@ -19,6 +19,9 @@ from typing import Any, cast
 from debugassist.core.policy import ROOT
 from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.scenarios.catalog import Bug
+from debugassist.scenarios.real import RealCase
+
+Case = Bug | RealCase  # a catalog bug, or a real open-source bug scored the same way
 
 RUNS = ROOT / ".data" / "runs"
 EVAL_WORK = ROOT / ".data" / "evals"
@@ -29,7 +32,7 @@ def _obj(v: Any) -> dict[str, Any]:
     return cast(dict[str, Any], v) if isinstance(v, dict) else {}
 
 
-def _norm_path(path: str, bug: Bug, repo: str | None = None) -> str:
+def _norm_path(path: str, bug: Case, repo: str | None = None) -> str:
     p = path.strip().lstrip("./")
     comp = bug.component if bug.component not in (".", "miniride-client") else ""
     gt = bug.ground_truth.location
@@ -55,7 +58,7 @@ def _fn(name: str | None) -> str:
     return (name or "").split(".")[-1].split("(")[0].strip()
 
 
-def rca_verdict(output: dict[str, Any] | None, bug: Bug) -> str:
+def rca_verdict(output: dict[str, Any] | None, bug: Case) -> str:
     """exact | directional | wrong | none (for code bugs); for not-our-bug cases see `score_run`."""
     if not output:
         return "none"
@@ -72,7 +75,7 @@ def rca_verdict(output: dict[str, Any] | None, bug: Bug) -> str:
     return "wrong"
 
 
-def outcome_ok(ship: str | None, bug: Bug) -> bool:
+def outcome_ok(ship: str | None, bug: Case) -> bool:
     if bug.expected_outcome == "pr":
         return ship in ("open_pr", "draft_pr")
     return ship in ("rca_only", "escalate")
@@ -120,7 +123,7 @@ def _hidden_cmd(language: str, rel: str) -> str:
     return f"pnpm exec vitest run {rel}"
 
 
-def hidden_tests(run_id: str, bug: Bug, state: dict[str, Any]) -> dict[str, Any]:
+def hidden_tests(run_id: str, bug: Case, state: dict[str, Any]) -> dict[str, Any]:
     """Run the catalog's hidden tests against the agent's final worktree (in a copy)."""
     tests = bug.ground_truth.hidden_tests
     src = RUNS / run_id / "repo"
@@ -136,10 +139,14 @@ def hidden_tests(run_id: str, bug: Bug, state: dict[str, Any]) -> dict[str, Any]
         dest = work / t.dest
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(bug.path(t.src), dest)
-        comp = t.dest.split("/", 1)[0] if bug.component != "miniride-client" and "/" in t.dest else "."
+        comp = (
+            t.dest.split("/", 1)[0]
+            if bug.component not in (".", "miniride-client") and "/" in t.dest
+            else "."
+        )
         rel = t.dest if comp == "." else t.dest.split("/", 1)[1]
         sb = EvalSandbox(run_id, ROOT / "targets" / t.repo, str(issue.get("gh_repo", "")), bug.language, work)
-        res: CommandResult = sb.run(_hidden_cmd(bug.language, rel), workdir=comp, timeout=600)
+        res: CommandResult = sb.run(t.command or _hidden_cmd(bug.language, rel), workdir=comp, timeout=600)
         results.append({"test": t.dest, "exit_code": res.exit_code, "tail": res.output[-600:]})
     return {"ran": True, "passed": all(r["exit_code"] == 0 for r in results), "results": results}
 
@@ -172,7 +179,7 @@ def turns(state: dict[str, Any]) -> int:
     return n
 
 
-def score_run(run_id: str, bug: Bug, clef_usd: float = 0.0, run_hidden: bool = True) -> dict[str, Any]:
+def score_run(run_id: str, bug: Case, clef_usd: float = 0.0, run_hidden: bool = True) -> dict[str, Any]:
     state = json.loads((RUNS / run_id / "state.json").read_text())
     rca = _obj(state.get("rca"))
     out = _obj(rca.get("output")) or None

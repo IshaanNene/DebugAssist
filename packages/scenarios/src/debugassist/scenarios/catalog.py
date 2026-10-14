@@ -60,6 +60,7 @@ class HiddenTest(_M):
     src: str
     repo: str
     dest: str
+    command: str | None = None  # how to run it in the repo's sandbox (default: the language's test runner)
 
 
 class Location(_M):

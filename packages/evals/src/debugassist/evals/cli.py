@@ -107,6 +107,34 @@ def run_cmd(
     typer.echo(f"results: {out / 'results.jsonl'}")
 
 
+@app.command("real")
+def real_cmd(
+    cases: Annotated[
+        str, typer.Option(help="comma list of real-bug ids (groundtruth/real/REAL-*), or 'all'")
+    ] = "all",
+    seeds: Annotated[int, typer.Option(help="runs per case")] = 3,
+    config: Annotated[str, typer.Option(help=f"one of: {', '.join(eval_run.CONFIGS)}")] = "routed",
+    max_usd: Annotated[float, typer.Option(help="refuse to start if the estimate is above this")] = 5.0,
+    reserve_usd: Annotated[
+        float, typer.Option(help="stop before the next run when the OpenRouter key has less credit left")
+    ] = 0.0,
+    arm: Annotated[str, typer.Option(help="label in reports, e.g. real-<commit>")] = "",
+) -> None:
+    """Run real open-source bugs (a frozen GitHub issue on the code it was filed against) and score them."""
+    from debugassist.scenarios import real
+
+    ids = real.cases() if cases == "all" else [c.strip().upper() for c in cases.split(",")]
+    e = eval_run.estimate(ids, [config], seeds, _per_run_usd())
+    typer.echo(f"plan: {e['runs']} runs ≈ ${e['total_usd']} (≈ ${e['per_run_usd']}/run)")
+    if e["total_usd"] > max_usd:
+        typer.echo(f"estimate above --max-usd {max_usd}; raise it explicitly to proceed")
+        raise typer.Exit(2)
+    out = asyncio.run(
+        eval_run.evaluate_real(ids, seeds, config=config, reserve_usd=reserve_usd, arm=arm, log=typer.echo)
+    )
+    typer.echo(f"results: {out / 'results.jsonl'}")
+
+
 @app.command()
 def langfuse(
     runs: Annotated[str, typer.Option(help="comma list of evals/runs/<stamp> dirs")],

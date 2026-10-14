@@ -25,7 +25,7 @@ subagents:
       which release it first appeared in. Report rates, not just counts.
   commit-bisector:
     description: finds the offending commit between the last good and the first bad release
-    inputs: [git, releases]
+    inputs: [git, releases, github]
     mcp_servers: [git-history, releases, code-search]
     focus: >-
       Using only the last-good..first-bad window and the modules involved, identify the commit that
@@ -66,7 +66,7 @@ subagents:
       woke the app, and which code path the samples point to.
   code-localizer:
     description: narrows the defect to a file and function from the stack and the code
-    inputs: [code, vitals, git]
+    inputs: [code, vitals, git, github]
     mcp_servers: [code-search, git-history]
     focus: >-
       From stack frames, routes or symptoms, locate the file and function where the defect lives and

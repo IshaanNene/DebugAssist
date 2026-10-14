@@ -240,3 +240,79 @@ def catalog_ids() -> list[str]:
 def estimate(bug_ids: list[str], configs: list[str], seeds: int, per_run_usd: float) -> dict[str, Any]:
     n = len(bug_ids) * len(configs) * seeds
     return {"runs": n, "per_run_usd": round(per_run_usd, 3), "total_usd": round(n * per_run_usd, 2)}
+
+
+async def evaluate_real(
+    case_ids: list[str],
+    seeds: int,
+    *,
+    config: str = "routed",
+    until: str | None = "ship_gate",
+    reserve_usd: float = 0.0,
+    arm: str = "",
+    log: Callable[[str], None] = print,
+) -> Path:
+    """Real open-source bugs (groundtruth/real/): prepare the repo at the code the issue was filed against, run the
+    pipeline on the frozen GitHub issue, and score it like a catalog bug. No scenario, no simulator: the issue is
+    the discovery. Writes stay mocked (MOCK_WRITES) — nothing reaches the upstream repository."""
+    from debugassist.scenarios import real
+
+    if config not in CONFIGS:
+        raise ValueError(f"unknown config {config}; known: {sorted(CONFIGS)}")
+    out = RUNS_OUT / datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    out.mkdir(parents=True, exist_ok=True)
+    commit = await asyncio.to_thread(_commit)
+    (out / "plan.json").write_text(
+        json.dumps(
+            {
+                "real": case_ids,
+                "configs": [config],
+                "seeds": seeds,
+                "until": until,
+                "arm": arm,
+                "commit": commit,
+            },
+            indent=2,
+        )
+    )
+    ledger = await Ledger.open(get_settings().database_url)
+    try:
+        for case_id in case_ids:
+            case = real.load_case(case_id)
+            log(f"{case.id}: {case.title}")
+            await asyncio.to_thread(real.prepare, case.id, lambda m: log(f"  {m}"))
+            for seed in range(1, seeds + 1):
+                left = credit_remaining() if reserve_usd else None
+                if left is not None and left < reserve_usd:
+                    log(f"stopping: ${left:.2f} credit left, under the ${reserve_usd:.2f} reserve")
+                    _append(out, {"bug": case.id, "error": f"skipped: credit ${left:.2f} under reserve"})
+                    return out
+                t0 = time.time()
+                run_id = await asyncio.to_thread(run_pipeline, case.source, config, seed, until, log)
+                if run_id is None:
+                    _append(
+                        out, {"bug": case.id, "config": config, "seed": seed, "error": "run did not start"}
+                    )
+                    continue
+                result = await asyncio.to_thread(
+                    score.score_run, run_id, case, await _clef_usd(ledger, run_id)
+                )
+                row = {
+                    "arm": arm,
+                    "commit": commit,
+                    "config": config,
+                    "seed": seed,
+                    "issue": case.source,
+                    "deduped_from": None,
+                    "labelled_decisions": 0,  # decision labels come from the catalog; real cases have none
+                    "wall_s": round(time.time() - t0, 1),
+                    **result,
+                }
+                _append(out, row)
+                log(
+                    f"    {config} seed {seed}: rca {row['rca']} · validated {row['validated']} · "
+                    f"hidden {row['hidden_tests']} · ${row['usd']:.3f}"
+                )
+    finally:
+        await ledger.close()
+    return out

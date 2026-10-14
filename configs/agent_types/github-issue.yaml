@@ -1,0 +1,27 @@
+# Agent type: a public GitHub issue on a real repository (no MiniRide telemetry: the report, the code and its history).
+name: github-issue
+description: Public GitHub issues on real repositories — a report and a reproducer, investigated through code and git history
+priority: 15
+match: { sources: [github] }
+marketplace_ref: working
+skill_token_budget: 3500
+nodes:
+  classify_rca:
+    reasoning_effort: high
+    max_turns: 20
+    max_tool_calls: 30
+    max_budget_usd: 0.50
+    mcp_servers: [code-search, git-history]
+  fix:
+    reasoning_effort: high
+    max_turns: 20
+    max_tool_calls: 40
+    max_budget_usd: 1.00
+skills:
+  reproduce: [test-planning]
+  fix: [test-planning]
+subagents:
+  prefer: [code-localizer, commit-bisector]
+validation: { max_attempts: 3, ladder: [unit] }
+runtime_image: debugassist/runtime-github-issue
+run_budget_usd: 3.00

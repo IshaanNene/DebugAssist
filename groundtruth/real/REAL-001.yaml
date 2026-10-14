@@ -1,0 +1,33 @@
+# Answer key for a real open-source bug (never mounted into a sandbox, read by the scorer after a run).
+# The input the agent sees is sources/github/issues/cachetools-435.yaml.
+id: REAL-001
+title: cachedmethod class access loses the explicitly supplied instance (tkem/cachetools#435)
+source: GH-cachetools-435
+repo: cachetools
+language: python
+category: own_code
+expected_outcome: pr
+upstream:
+  issue: https://github.com/tkem/cachetools/issues/435
+  fix_pr: https://github.com/tkem/cachetools/pull/436
+  fix_commit: c59bf8dc9c3ce8b9a246b189a3dc8e325f97f974  # merged 2026-10-11; absent from the agent's checkout
+  buggy_commit: 0985ec0d8fefdce90bcbba2dfe88117dad9bb6f6
+  license: MIT (cachetools, © Thomas Kemmer) — the hidden test below is upstream's own regression test
+ground_truth:
+  # From the fix's diff: the class-access branch of the descriptor's __get__ returned the wrapper bound to None.
+  location: { repo: cachetools, module: src/cachetools, file: src/cachetools/_cachedmethod.py, function: __get__ }
+  rca_facts:
+    - "Accessing a cachedmethod through its class (obj is None) returns a wrapper bound to None."
+    - "Calling that wrapper with an explicit instance evaluates the cache factory with None, hence the AttributeError."
+    - "The fix returns an unbound callable that binds the supplied instance through the descriptor."
+  hidden_tests:
+    # Upstream's tests/test_cachedmethod.py at the fix commit, copied in under another name so it cannot collide
+    # with tests the agent wrote; only its new regression class is selected.
+    - src: real/REAL-001/test_cachedmethod_upstream.py
+      repo: cachetools
+      dest: tests/test_cachedmethod_upstream.py
+      command: .venv/bin/python -m pytest -q tests/test_cachedmethod_upstream.py -k UnboundMethodTest
+validation:
+  # Checked by hand before any agent run: on the buggy commit the selected tests fail (10 failures) and the issue's
+  # reproducer raises the reported AttributeError; with the upstream fix they pass and the full suite passes (343).
+  verified: "2026-10-14"

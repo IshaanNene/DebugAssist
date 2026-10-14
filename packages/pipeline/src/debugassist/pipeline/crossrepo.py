@@ -55,7 +55,10 @@ def peer_roots(run_id: str, current: str) -> dict[str, Path]:
 
 
 def code_repos(run_id: str, issue: Issue, worktree: Path) -> dict[str, str]:
-    """CODE_REPOS for the MCP servers: the issue's sandbox plus read-only peers."""
+    """CODE_REPOS for the MCP servers: the issue's sandbox plus read-only peers (MiniRide only: a real
+    repository from a GitHub issue is searched on its own)."""
+    if issue.source == "github":
+        return {issue.repo: str(worktree)}
     return {issue.repo: str(worktree), **{k: str(v) for k, v in peer_roots(run_id, issue.repo).items()}}
 
 

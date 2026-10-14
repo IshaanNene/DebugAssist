@@ -26,7 +26,7 @@ from debugassist.core.policy import ROOT
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
 from debugassist.llm.spec import LLMNodeSpec, LLMResult, ToolCall
-from debugassist.pipeline import collector
+from debugassist.pipeline import collector, profile
 from debugassist.pipeline.deps import Deps
 from debugassist.pipeline.state import Claim, Finding, Issue, RCAOutput, RunState
 
@@ -296,8 +296,9 @@ async def run_subagent(
     inputs = [e for e in state.evidence if e.source in s["inputs"]]
     spec = LLMNodeSpec(
         node=f"subagent_{sid}",
-        system_prompt=SUBAGENT_PROMPT.format(
-            sid=sid, description=s["description"], focus=" ".join(s["focus"].split())
+        system_prompt=profile.for_issue(
+            SUBAGENT_PROMPT.format(sid=sid, description=s["description"], focus=" ".join(s["focus"].split())),
+            state.issue,
         ),
         mcp_servers=s["mcp_servers"],
         **limits,
