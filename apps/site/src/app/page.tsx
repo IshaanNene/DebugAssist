@@ -4,7 +4,7 @@ import { Features } from "@/components/Features";
 import { Loop } from "@/components/Loop";
 import { Results } from "@/components/Results";
 import { Box, Button, Dot, GH, H2, Lead, Mark, doc } from "@/components/ui";
-import { contextArms, contextAudit, deciderReplay, facts, featuredRun, results, type ContextArm } from "@/lib/data";
+import { contextArms, contextAudit, deciderReplay, facts, featuredRun, realBugs, results, type ContextArm } from "@/lib/data";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const COL = "mx-auto w-full max-w-[1200px] px-4 sm:px-8";
@@ -13,6 +13,7 @@ export default function Home() {
   const data = results();
   const ctx = contextAudit();
   const replay = deciderReplay();
+  const reals = realBugs();
   const f = facts();
   const run = featuredRun(data);
   const latest = data.arms[data.arms.length - 1];
@@ -323,6 +324,40 @@ export default function Home() {
               )}
             </div>
           )}
+          {reals.map((b) => (
+            <div key={b.id} id="real" className="fx mt-2 cbox p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">A real open-source bug · {b.id}</div>
+                <div className="font-mono text-[11px] text-t4">
+                  {b.runs} runs · {b.decider} · {b.arm}
+                </div>
+              </div>
+              <p className="mt-3 max-w-[80ch] text-[14.5px] leading-[1.55] text-t2">
+                Beyond the synthetic catalog: a public issue,{" "}
+                <a className="text-t1 underline underline-offset-2" href={b.issue}>
+                  {b.title.replace(/\s*\(.*\)\s*$/, "")}
+                </a>
+                , run on the code it was filed against — history cut at that commit, so the{" "}
+                <a className="text-t1 underline underline-offset-2" href={b.fixPr}>
+                  upstream fix
+                </a>{" "}
+                cannot be found — and scored against the fix&apos;s location and its own regression test.
+              </p>
+              <div className="mt-4 grid gap-px bg-line sm:grid-cols-4">
+                {[
+                  ["root cause exact", `${b.rcaExact}/${b.runs}`],
+                  ["fix validated by its own test", `${b.validated}/${b.runs}`],
+                  ["upstream's regression test passes", `${b.hidden}/${b.hiddenRan}`],
+                  ["median cost per run", `$${b.medianUsd.toFixed(3)}`],
+                ].map(([label, v]) => (
+                  <div key={label} className="bg-surface p-4">
+                    <div className="font-display text-[22px] font-medium tabular-nums tracking-[-0.02em] text-t1">{v}</div>
+                    <div className="mt-1 text-[12px] leading-snug text-t3">{label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </section>
 
         {/* ── tokens ── */}

@@ -342,6 +342,17 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## A real open-source bug (2026-10-14)
+
+tkem/cachetools#435 (`cachedmethod` through its class raises `AttributeError`; fixed upstream in #436) run through the
+pipeline from a frozen GitHub issue, on the code it was filed against with history cut at the fix's parent. New: a
+`github` issue source, `sources/github/issues/` (input) and `groundtruth/real/` (answer key, upstream's regression
+test verbatim), `scenarios.real.prepare` (pruned checkout; refuses if the fix is reachable), a `github-issue` agent
+type, repo-aware prompts (MiniRide prompts unchanged), a repo-declared single-test command, and `debugassist eval
+real`. Two smoke runs found the hard-coded `uv run pytest` and a hidden-test path bug before the scored runs. Result,
+three runs with the LLM decider (Clef 401 from this machine): root cause exact 3/3, fix validated 3/3, upstream's
+regression test 0/3 — each fix handled the reported call but broke keyword access to the instance and `__wrapped__`.
+
 ## Parked the unfinished pieces (2026-10-14)
 
 The four context-engineering switches, the untried P15 items, the Discord notifier and the P16 integration ideas

@@ -186,6 +186,7 @@ def rescore(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]
     import json
 
     from debugassist.evals import score
+    from debugassist.scenarios import real
     from debugassist.scenarios.catalog import get_bug
 
     path = eval_dir / "results.jsonl"
@@ -194,9 +195,9 @@ def rescore(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]
     out: list[dict[str, object]] = []
     for row in rows:
         if row.get("run_id") and (score.RUNS / row["run_id"] / "state.json").is_file():
-            fresh = score.score_run(
-                row["run_id"], get_bug(row["bug"]), float(row.get("clef_usd") or 0), False
-            )
+            bug_id = str(row["bug"])
+            case = real.load_case(bug_id) if bug_id.startswith("REAL-") else get_bug(bug_id)
+            fresh = score.score_run(row["run_id"], case, float(row.get("clef_usd") or 0), False)
             row = {**row, **fresh, **{k: row[k] for k in keep if k in row}}
         out.append(row)
     path.write_text("".join(json.dumps(r, default=str) + "\n" for r in out))
@@ -217,7 +218,7 @@ def label(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]) 
         try:
             for line in (eval_dir / "results.jsonl").read_text().splitlines():
                 r = json.loads(line)
-                if r.get("run_id"):
+                if r.get("run_id") and not str(r["bug"]).startswith("REAL-"):  # labels come from the catalog
                     n += await labels.label_run(ledger, r["run_id"], get_bug(r["bug"]))
         finally:
             await ledger.close()

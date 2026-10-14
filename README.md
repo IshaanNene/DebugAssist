@@ -84,10 +84,23 @@ The design bets that small calibrated decision models beat an LLM making the sam
 
 <sub>25 synthetic bugs, three seeds each in the top grid — read it as strengths and gaps, not precise rates. The report also has a decision-level evaluation (accuracy, Brier, calibration per decision), a replay of the logged decisions across Clef, Clef-flash, an LLM decider and a rules baseline, and every caveat. All runs use `openai/gpt-6-luna`. Reproduce: <code>debugassist eval run --bugs all</code> · <code>debugassist eval replay</code> · <code>debugassist eval report</code>.</sub>
 
+### A real open-source bug
+
+Beyond the synthetic catalog, one public issue: [tkem/cachetools#435](https://github.com/tkem/cachetools/issues/435) — calling a `cachedmethod` through its class raises `AttributeError` — filed on 7 October 2026 and fixed upstream four days later. The pipeline ran on the code the issue was filed against, with git history cut at that commit (the [upstream fix](https://github.com/tkem/cachetools/pull/436) cannot be found), and saw only the report's symptom sections: the issue's last paragraphs named the faulty function and proposed the fix, so they were withheld ([case file](sources/github/issues/cachetools-435.yaml)). Three runs with the LLM decider:
+
+| | |
+|---|---|
+| Root cause exact (`_DescriptorBase.__get__`, where upstream fixed it); every run named `57d2e48`, the 7.0.3 change that added the faulty branch (not scored) | **3 / 3** |
+| Reproduction fails on the release, fix passes it, suite and checks green | **3 / 3** |
+| Upstream's own regression test passes | **0 / 3** |
+| Median cost per run | $0.025 |
+
+The diagnosis was right every time; the fixes were not complete. Each made the reported call work but wrapped the method in a new object, so ordinary method access the upstream test also checks — passing the instance by keyword (`Cached.get(self=c, value=2)`), and `__wrapped__` — broke. The same pattern as the catalog: a fix as narrow as the report, not as wide as the semantics.
+
 ## ⚠️ Limitations
 
 Read the numbers above with these in mind:
-- **Synthetic bugs, one app.** All 25 bugs were written and injected by the author into MiniRide, a small app built for this project. "80% root cause right" is 80% on bugs designed here, not on real-world crashes; no real open-source bug has been run yet.
+- **Synthetic bugs, one app.** All 25 catalog bugs were written and injected by the author into MiniRide, a small app built for this project. "80% root cause right" is 80% on bugs designed here, not on real-world crashes. One [real open-source bug](#a-real-open-source-bug) has been run so far — one case, three runs.
 - **Same author, both sides.** The catalog and the agent skills were written by the same person. Skills are generic and linted for leaks, and the answer key (`groundtruth/`) never reaches the agent, but it is in this public repo, so a model trained on it later could be contaminated.
 - **Small samples.** Three seeds per bug, 25 bugs. Seeds still disagree on ten bugs; treat single-bug differences between arms as noise unless they repeat.
 - **Clef is unproven.** See [Does Clef help?](#does-clef-help-not-yet): no accuracy gain over an LLM decider so far.

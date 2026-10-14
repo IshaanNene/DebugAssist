@@ -165,6 +165,10 @@ token comparison, Quickstart.
   only when the RCA's category agrees with D05 or carries high confidence.
 - Open from the fix round: give D05 the active incidents (BUG-006); re-run BUG-017/018/020 on the new code; D11
   abstains on rollbacks for rider reports (it was calibrated on crash rates) — teach it the report case.
+- **Real open-source bugs — first one done (2026-10-14).** tkem/cachetools#435 through the pipeline (`debugassist eval
+  real`, groundtruth/real/REAL-001): root cause exact 3/3, upstream's regression test 0/3 — the fixes were as narrow as
+  the report. Next: more cases (several repos and bug kinds), with Clef once its token works from this machine again;
+  a team catalog for real repos (triage currently assigns a MiniRide team).
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 
