@@ -4,3 +4,4 @@
 [submodule "targets/miniride-services"]
 	path = targets/miniride-services
 	url = https://github.com/IshaanNene/miniride-services.git
+	update = none
