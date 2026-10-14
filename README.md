@@ -18,7 +18,7 @@
 <tr>
 <td width="33%" valign="top">
 <h3>🟧 Clef decides</h3>
-Every judgement call — priority, root-cause category, roll back a flag or not, which test tier, retry, ship as PR or draft — is one of <b>18 Cloudflare Clef decision templates</b> with calibrated probabilities, mapped to <i>act / escalate / safe default</i> by policy and written to a ledger.
+Every judgement call — priority, root-cause category, roll back a flag or not, which test tier, retry, ship as PR or draft — is one of <b>18 Cloudflare Clef decision templates</b> returning probabilities, mapped to <i>act / escalate / safe default</i> by policy and written to a ledger. Does Clef beat an LLM making the same calls? <a href="#does-clef-help-not-yet">Not yet, by our own numbers</a>.
 </td>
 <td width="33%" valign="top">
 <h3>🟪 LLMs reason</h3>
@@ -37,7 +37,7 @@ The plan is a fixed <b>LangGraph</b> graph; models never choose the next step. A
 <img src="docs/assets/results.svg" alt="Evaluation of 25 catalog bugs end to end: per-bug root cause, validated fix and hidden-test result" width="100%">
 </div>
 
-Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-11`](evals/reports/2026-10-11/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid shows every catalog bug's latest **three-seed** run: all 25 on commit `d7cf020` (`make eval-full`), with the 8 bugs re-run after the last round of fixes (marked •) on `becdbde`; amber means the seeds disagreed or the root cause was only close, grey means a miss. Against the first one-seed run on the code of 2026-10-07, root cause right or close went from 64% to **80%**, exact from 48% to **65%**, and hidden tests passing from 47% to **80%**, at a median of **$0.014** a run. The panel below compares the re-run bugs before and after those fixes.
+Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-14`](evals/reports/2026-10-14/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid shows every catalog bug's latest **three-seed** run: all 25 on commit `d7cf020` (`make eval-full`), with the 8 bugs re-run after the last round of fixes (marked •) on `becdbde`; amber means the seeds disagreed or the root cause was only close, grey means a miss. Against the first one-seed run on the code of 2026-10-07, root cause right or close went from 64% to **80%**, exact from 48% to **65%**, and hidden tests passing from 47% to **80%**, at a median of **$0.014** a run. The panel below compares the re-run bugs before and after those fixes.
 
 <table>
 <tr>
@@ -66,7 +66,33 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 </tr>
 </table>
 
+### Does Clef help? Not yet
+
+The design bets that small calibrated decision models beat an LLM making the same judgement calls. **Our own measurements don't show that yet.** Replaying every logged decision against the catalog's answers (`debugassist eval replay`, same inputs for each decider):
+
+| Decision | n | Clef | Clef-flash | LLM decider | Rules |
+|---|---:|---:|---:|---:|---:|
+| D01 triage (priority, owner) | 40 | 0.15 | 0.15 | 0.28 | **0.30** |
+| D05 root-cause category | 40 | 0.70 | **0.75** | 0.73 | 0.63 |
+| D11 flag rollback | 4 | 0.75 | 0.75 | 0.75 | — |
+| D12 localisation | 21 | 0.48 | 0.48 | 0.48 | — |
+| D14 test tier | 26 | 0.42 | 0.50 | 0.46 | **0.73** |
+
+<sub>Accuracy against the catalog's answers. Clef's calibration (Brier score) is slightly better than the LLM's on D05, D11 and D14 and worse on D01 and D12; latency and cost per decision are about the same. Rules win on triage and test tier — those templates need rework.</sub>
+
+**End to end, it makes no measurable difference either.** We ran the same pipeline with the LLM making every Clef decision (`no-clef` arm, one run per bug; 14 bugs before the API key expired) and compared it with each bug's latest Clef runs: root cause right or close **0.83 with Clef vs 0.86 without**, exact 0.71 vs 0.71, code-bug fixes validated 0.87 vs 0.77, hidden tests passing 0.79 vs 0.69, at the same cost. The gaps come from single bugs where the root-cause step itself swung, not from a decision; one run against three is within noise. So on this catalog the outcome is decided by the investigation, not by the decision layer — the case for Clef here is auditability (a ledger of every call, act/escalate bands), not accuracy, until a reworked template shows otherwise.
+
 <sub>25 synthetic bugs, three seeds each in the top grid — read it as strengths and gaps, not precise rates. The report also has a decision-level evaluation (accuracy, Brier, calibration per decision), a replay of the logged decisions across Clef, Clef-flash, an LLM decider and a rules baseline, and every caveat. All runs use `openai/gpt-6-luna`. Reproduce: <code>debugassist eval run --bugs all</code> · <code>debugassist eval replay</code> · <code>debugassist eval report</code>.</sub>
+
+## ⚠️ Limitations
+
+Read the numbers above with these in mind:
+- **Synthetic bugs, one app.** All 25 bugs were written and injected by the author into MiniRide, a small app built for this project. "80% root cause right" is 80% on bugs designed here, not on real-world crashes; no real open-source bug has been run yet.
+- **Same author, both sides.** The catalog and the agent skills were written by the same person. Skills are generic and linted for leaks, and the answer key (`groundtruth/`) never reaches the agent, but it is in this public repo, so a model trained on it later could be contaminated.
+- **Small samples.** Three seeds per bug, 25 bugs. Seeds still disagree on ten bugs; treat single-bug differences between arms as noise unless they repeat.
+- **Clef is unproven.** See [Does Clef help?](#does-clef-help-not-yet): no accuracy gain over an LLM decider so far.
+- **Hard to reproduce outside this machine.** `miniride-services` is a private submodule, the Clef token is IP-restricted, and the full stack needs Docker with about 10 GB of RAM. `make demo-push-crash` runs the pipeline keyless with mocks.
+- **Unfinished pieces.** Context compaction (three bugs only) and concise tool results (offline only) were measured and left off; the Discord notifier was never exercised live.
 
 ## 🎬 See it work
 
@@ -261,7 +287,7 @@ Agents and the LLM decider use any OpenAI-compatible API; two providers are inte
 
 Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Phases 0–14 are done: decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA depth, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness with its first live run, and the cross-repo hand-off (P14) for bugs that are seen in the app but live in a service. P15 (context engineering) is in progress: the context audit and three measured arms (lean reads, tool-result clearing, compaction with notes — the last partial) are done; P16's Langfuse integration is done.
 
-**Next** ([roadmap](docs/ROADMAP.md)): context engineering measured arm by arm (tool-result offloading and clearing, concise tool responses, tool-use examples, programmatic tool calling, compaction) · LiteLLM and local models · a public site · evaluation at scale. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
+**Next** ([roadmap](docs/ROADMAP.md)): prove or rework Clef against an LLM decider and rules (D01 triage and D14 test tier first) · one real open-source bug · a client-only path anyone can clone and run · LiteLLM and local models. Measured and parked: context clearing, compaction and concise tool results. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
 
 <br>
 
