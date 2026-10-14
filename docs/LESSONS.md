@@ -209,7 +209,7 @@ Format: **symptom** → cause → fix · *guard*.
   Reported as such. *Lesson: read why a run scored, not only its score.*
 - **The central claim was never tested end to end.** The project's thesis is Clef at every decision point, but the
   headline numbers were end-to-end RCA and fix rates, which depend mostly on the LLM; an outside review spotted it.
-  The replay and a live `no-clef` arm show no gain from Clef on this catalog. → Stated first in the README and on
+  The replay shows no accuracy gain, and a live `no-clef` arm only a small edge within noise. → Stated first in the README and on
   the site, with a Limitations section. *Lesson: the first ablation to run is the one that tests the thesis.*
 - **One expensive run can carry an arm's average.** A single bug's three max-length fix attempts (after D14 picked
   the e2e tier) were most of the lean arm's token total. → Read per-bug numbers before averages; the report keeps

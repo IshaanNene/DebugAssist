@@ -305,8 +305,9 @@ export default function Home() {
                   <p className="mt-2 max-w-[80ch] text-[14px] leading-[1.55] text-t2">
                     The same pipeline with the LLM making every Clef decision ({data.ablation.arm}, one run per bug),
                     against each bug&apos;s latest Clef runs ({data.ablation.clefSeeds} each, on{" "}
-                    {data.ablation.clefCommits.join(" and ")}). <b className="font-medium text-t1">No measurable difference</b>:
-                    the gaps come from single bugs where the root-cause step itself swung, not from a decision.
+                    {data.ablation.clefCommits.join(" and ")}). <b className="font-medium text-t1">A small difference, within noise</b>: the
+                    gaps come from a handful of single bugs and go both ways — one escalated to a human by a Clef decision,
+                    two not-our-bug cases right only with Clef.
                   </p>
                   <div className="mt-4 grid gap-px bg-line sm:grid-cols-4">
                     {data.ablation.lanes.map((l) => (

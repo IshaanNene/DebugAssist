@@ -343,9 +343,9 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 
 An outside review asked whether Clef-routed decisions beat a plain LLM decider. They don't, by our own numbers:
 the decision replay (E1) has Clef matching or trailing the LLM decider on accuracy, and rules winning on D01 triage
-and D14 test tier; and a live `no-clef` arm (an LLM making every Clef decision, one seed, 14 bugs before the
-OpenRouter key expired) scored root cause right or close 0.86 vs 0.83 with Clef, exact 0.71 vs 0.71, fixes
-validated 0.77 vs 0.87, hidden tests 0.69 vs 0.79 — no measurable difference. README and site now lead with
+and D14 test tier; and a live `no-clef` arm (an LLM making every Clef decision, one seed, all 24 discovered bugs) scored root cause
+right or close 0.75 vs 0.79 with Clef, exact 0.58 vs 0.64, fixes validated 0.78 vs 0.80, hidden tests 0.61 vs 0.67 —
+a small edge for Clef, within noise, from single bugs in both directions. README and site now lead with
 this ("Does Clef help? Not yet"), and the README has a Limitations section (synthetic bugs, same author for catalog
 and skills, small samples, private submodule and IP-restricted Clef token, unfinished pieces).
 
