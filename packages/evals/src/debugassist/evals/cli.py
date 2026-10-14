@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 from pathlib import Path
 from statistics import mean
@@ -247,13 +248,31 @@ def report(
     # Decisions and replays count only the runs this report covers (not every labelled run in the ledger).
     run_ids = {r["run_id"] for r in rep.load_results(dirs) if r.get("run_id") and not r.get("excluded")}
 
+    # The labelled decisions these runs logged, also kept in the repo (evals/ledger/decisions.jsonl): a clone
+    # without the local ledger database regenerates the same report from the snapshot.
+    snapshot = base.parent / "ledger" / "decisions.jsonl"
+
     async def points() -> list[metrics.Point]:
         ledger = await Ledger.open(get_settings().database_url)
         try:
             rows = [r for r in await ledger.list() if getattr(r, "run_id", None) in run_ids]
-            return metrics.points(rows, source="catalog")
         finally:
             await ledger.close()
+        live = [(str(r.run_id), p) for r in rows for p in metrics.points([r], source="catalog")]
+        if live:
+            snapshot.parent.mkdir(parents=True, exist_ok=True)
+            snapshot.write_text(
+                "".join(json.dumps({"run_id": rid, **dataclasses.asdict(p)}) + "\n" for rid, p in live)
+            )
+            return [p for _, p in live]
+        if not snapshot.exists():
+            return []
+        saved = [json.loads(line) for line in snapshot.read_text().splitlines() if line.strip()]
+        return [
+            metrics.Point(**{k: v for k, v in d.items() if k != "run_id"})
+            for d in saved
+            if d["run_id"] in run_ids
+        ]
 
     taus = {t.id: t.policy.tau_high for t in load_templates().values()}
     out = rep.write(

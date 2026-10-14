@@ -66,8 +66,10 @@ flags:  ## Create MiniRide feature flags in Unleash (idempotent)
 e2e:  ## Playwright E2E against the running stack (client on :8080)
 	cd targets/miniride-client && pnpm exec playwright test
 
-targets:  ## Fetch the MiniRide target repos (submodules; miniride-services is private)
-	git submodule update --init --recursive
+targets:  ## Fetch the MiniRide target repos (miniride-client is public; miniride-services is private, fetched when you have access)
+	git submodule update --init --recursive targets/miniride-client
+	@git -c submodule.targets/miniride-services.update=checkout submodule update --init targets/miniride-services \
+		|| echo "miniride-services is private: skipped. Everything except the live stack still runs (see README › Quickstart)."
 
 seed: flags  ## Seed local state (flags today; BugDrop/Vitals data in P2b)
 

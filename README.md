@@ -91,7 +91,7 @@ Read the numbers above with these in mind:
 - **Same author, both sides.** The catalog and the agent skills were written by the same person. Skills are generic and linted for leaks, and the answer key (`groundtruth/`) never reaches the agent, but it is in this public repo, so a model trained on it later could be contaminated.
 - **Small samples.** Three seeds per bug, 25 bugs. Seeds still disagree on ten bugs; treat single-bug differences between arms as noise unless they repeat.
 - **Clef is unproven.** See [Does Clef help?](#does-clef-help-not-yet): no accuracy gain over an LLM decider so far.
-- **Hard to reproduce outside this machine.** `miniride-services` is a private submodule, the Clef token is IP-restricted, and the full stack needs Docker with about 10 GB of RAM. `make demo-push-crash` runs the pipeline keyless with mocks.
+- **The live stack is hard to reproduce elsewhere.** `miniride-services` is a private submodule, the Clef token is IP-restricted, and the stack needs Docker with about 10 GB of RAM. A plain clone runs every test and regenerates the full evaluation report from the committed runs ([Quickstart](#-quickstart)), but not new live runs.
 - **Unfinished pieces.** Context compaction (three bugs only) and concise tool results (offline only) were measured and left off; the Discord notifier was never exercised live.
 
 ## 🎬 See it work
@@ -210,15 +210,25 @@ The one write tool an agent can reach, `rollback_flag`, asks the policy gate fir
 
 ## 🚀 Quickstart
 
+**Anyone — no Docker, no keys, a few minutes.** Clone, run every test, and regenerate the evaluation report from the committed runs: the numbers above come out identical (checked on an anonymous clone).
+
 ```bash
 git clone --recurse-submodules https://github.com/IshaanNene/DebugAssist && cd DebugAssist
 make bootstrap                                      # uv workspace (Python 3.13) + git hooks
+make check                                          # ruff + pyright strict + every test (what CI runs)
+uv run debugassist eval report --notes evals/notes/2026-10-11.md   # rebuild the report from evals/runs/
+```
+
+<sub>The clone checks out the public client repo and skips the private services repo (<code>miniride-services</code>) instead of failing. The per-run evidence lives in <code>evals/runs/</code> and the labelled decisions in <code>evals/ledger/decisions.jsonl</code>, so the report needs neither the stack nor the local ledger database.</sub>
+
+**The live stack and the demo — needs access to `miniride-services`.** The gateway, dispatch and payments services are built from it, so the stack, the scenarios and the keyless demo run only with access (`make targets` fetches it when you have it), Docker, and about 10 GB of RAM:
+
+```bash
+make targets                                        # fetch the target repos you can access
 make up PROFILES="core obs flags faults target sources" && make flags
 make demo-push-crash                                # keyless: scripted LLM, mock Clef/GitHub/Jira/chat
 make dashboard                                      # http://localhost:3000
 ```
-
-<sub>The client target repo (<code>miniride-client</code>) is public; the services repo is private, so a fresh clone builds the full stack only with access to it. The pipeline, decision engine, evaluation code and all tests run without it.</sub>
 
 To go live, add keys to `.env` (see [`.env.example`](.env.example)); each integration switches to live when its credentials are present, or force one with `DA_MODE_<LLM|CLEF|GITHUB|JIRA|CHAT>=live|mock`:
 
