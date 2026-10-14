@@ -92,7 +92,7 @@ Read the numbers above with these in mind:
 - **Small samples.** Three seeds per bug, 25 bugs. Seeds still disagree on ten bugs; treat single-bug differences between arms as noise unless they repeat.
 - **Clef is unproven.** See [Does Clef help?](#does-clef-help-not-yet): no accuracy gain over an LLM decider so far.
 - **The live stack is hard to reproduce elsewhere.** `miniride-services` is a private submodule, the Clef token is IP-restricted, and the stack needs Docker with about 10 GB of RAM. A plain clone runs every test and regenerates the full evaluation report from the committed runs ([Quickstart](#-quickstart)), but not new live runs.
-- **Unfinished pieces.** Context compaction (three bugs only) and concise tool results (offline only) were measured and left off; the Discord notifier was never exercised live.
+- **Parked pieces.** Four context-engineering switches (`DA_CONTEXT=lean|clear|compact|concise`) were built and measured or estimated, saved little or nothing, and are off by default; the Discord notifier was never run against a real webhook. They are listed, with why, under [Parked](docs/ROADMAP.md#parked-2026-10-14) in the roadmap; none is a next step.
 
 ## 🎬 See it work
 
