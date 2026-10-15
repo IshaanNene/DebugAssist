@@ -242,7 +242,8 @@ Format: **symptom** → cause → fix · *guard*.
   test at 9/12 runs that made a fix vs 11/14 before. The rule's example was written with that bug in mind, so even a
   pass would have been weak evidence. → Reverted; the arm stays in the report, outside every headline. *Lesson: when
   the agent writes both the test and the fix, asking it to test more widely does not widen the fix — the check has
-  to come from outside it (the repo's own tests, another agent, the callers). And say when an example in a rule was
+  to come from outside it — and the repo's own suite, which already runs, had no test of the broken uses, so
+  it has to be another agent or the callers. And say when an example in a rule was
   taken from the case it is measured on.*
 - **Escalations are a decider's variance, not the change's.** Five of the arm's real-bug runs stopped before any fix
   (D05 once, D13 four times, vs once in the earlier sweep) — decisions that read only the RCA, which the changed

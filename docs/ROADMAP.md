@@ -182,9 +182,11 @@ token comparison, Quickstart.
     `fixwidth-7f15556`: cachetools#435 still 0/3, the same two failures; upstream's test 9/12 runs that made a fix vs
     11/14 before; BUG-003 1/3, BUG-009 2/3. The agent writes the reproduction and then fixes against it, so a rule it
     is asked to follow in its own test does not reach the fix.
-  - Next, structural rather than prompt: run the repo's *existing* tests for the changed unit as part of validation
-    (cachetools' suite already calls methods with keyword arguments); a second reproduction written by a separate
-    agent from the issue alone; or score the fix against callers found by `find_references`.
+  - Next, structural rather than prompt. Running the repo's existing tests is already part of validation (the whole
+    suite, every attempt) and does not help here: cachetools' 341 tests passed with all three narrow fixes — none
+    calls a method through its class, with or without keywords, and `__wrapped__` is only checked on instance access.
+    What is left: a second reproduction written by a separate agent from the issue alone, which the fix must also
+    pass; or a check against the callers `find_references` finds.
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 
