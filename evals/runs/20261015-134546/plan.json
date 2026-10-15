@@ -1,0 +1,13 @@
+{
+  "bugs": [
+    "BUG-003",
+    "BUG-009"
+  ],
+  "configs": [
+    "no-clef"
+  ],
+  "seeds": 3,
+  "until": "ship_gate",
+  "arm": "fixwidth-7f15556",
+  "commit": "7f15556"
+}

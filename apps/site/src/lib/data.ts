@@ -176,8 +176,9 @@ const stamp = (e: string) => (e ? `${e.slice(0, 4)}-${e.slice(4, 6)}-${e.slice(6
 
 export function results(model = "gpt-6-luna"): Results {
   const report = latestReport();
+  // Catalog bugs only: real open-source bugs (REAL-*) are reported on their own (realBugs).
   const all = parseCsv(fs.readFileSync(path.join(REPORTS, report, "results.csv"), "utf8")).filter(
-    (r) => (r.model || "").includes(model) && r.rca,
+    (r) => (r.model || "").includes(model) && r.rca && !r.bug.startsWith("REAL-"),
   );
   const outcomes = expectedOutcomes();
   const ours = Object.fromEntries(Object.entries(outcomes).map(([b, o]) => [b, o === "pr"]));
@@ -200,8 +201,9 @@ export function results(model = "gpt-6-luna"): Results {
   // A later arm that re-ran a bug with as many seeds replaces that bug's cells: the grid shows each bug's latest
   // full-strength run, and says which code each part ran on. One-seed spot checks never replace three seeds.
   // Context-engineering arms measure tokens, decider arms (no-clef-*) are ablations and real-* arms run real
-  // open-source bugs (shown on their own): none is a re-run of the catalog's fixes.
-  const isRerun = (a: string) => !a.startsWith("context-") && !a.startsWith("no-clef") && !a.startsWith("real-");
+  // open-source bugs (shown on their own), fixwidth-* is a prompt experiment that was reverted: none is a re-run of
+  // the catalog's fixes.
+  const isRerun = (a: string) => !["context-", "no-clef", "real-", "fixwidth-"].some((p) => a.startsWith(p));
   const later = headArm ? order.slice(order.indexOf(headArm) + 1).filter(isRerun) : [];
   const latest: Record<string, Row[]> = {};
   for (const r of baseRows) (latest[r.bug] ??= []).push(r);
@@ -465,7 +467,7 @@ export function realBugs(): RealBug[] {
         const q = v.match(/^(['"])(.*)\1$/);
         return q ? (q[1] === "'" ? q[2].replaceAll("''", "'") : q[2]) : v;
       };
-      const mine = rows.filter((r) => r.bug === id);
+      const mine = rows.filter((r) => r.bug === id && (r.arm ?? "").startsWith("real-"));
       if (!mine.length) return [];
       const arm = mine.map((r) => r.arm).sort().pop() ?? "";
       const rs = mine.filter((r) => r.arm === arm);
@@ -490,4 +492,38 @@ export function realBugs(): RealBug[] {
         },
       ];
     });
+}
+
+export interface FixWidth {
+  arm: string;
+  /** upstream's test on the real bugs, over runs that made a fix: the real-* arms, then the experiment */
+  before: { pass: number; ran: number };
+  after: { pass: number; ran: number };
+  /** REAL-001, the case the rules were written for */
+  target: { before: { pass: number; ran: number }; after: { pass: number; ran: number } };
+}
+
+/** The fix-width prompt experiment (fixwidth-*, reverted) against the real bugs' own arms. */
+export function fixWidth(): FixWidth | null {
+  const rows = parseCsv(fs.readFileSync(path.join(REPORTS, latestReport(), "results.csv"), "utf8")).filter(
+    (r) => r.bug?.startsWith("REAL-") && r.hidden_tests && r.hidden_tests !== "None",
+  );
+  const arm = rows
+    .map((r) => r.arm ?? "")
+    .filter((a) => a.startsWith("fixwidth-"))
+    .sort()
+    .pop();
+  if (!arm) return null;
+  const count = (rs: Row[]) => ({ pass: rs.filter((r) => r.hidden_tests === "True").length, ran: rs.length });
+  const before = rows.filter((r) => (r.arm ?? "").startsWith("real-"));
+  const after = rows.filter((r) => r.arm === arm);
+  return {
+    arm,
+    before: count(before),
+    after: count(after),
+    target: {
+      before: count(before.filter((r) => r.bug === "REAL-001")),
+      after: count(after.filter((r) => r.bug === "REAL-001")),
+    },
+  };
 }

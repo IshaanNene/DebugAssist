@@ -555,6 +555,9 @@ def _latest_report() -> Path:
 
 
 # A miss: visible and labelled, but a muted rose rather than alarm red.
+# arms that are not re-runs of the catalog's fixes: token and decider ablations, real open-source bugs, and the
+# fix-width prompt experiment (reverted)
+SIDE_ARMS = ("context-", "no-clef", "real-", "fixwidth-")
 MISS = "#4A5262"  # a miss is shown and labelled, in neutral slate — never red
 
 
@@ -594,7 +597,13 @@ def results(model: str = "gpt-6-luna") -> str:
     """The latest evaluation as one card: headline rates and a per-bug grid. Every number is computed here
     from evals/reports/<date>/results.csv (written by `debugassist eval report`)."""
     path = _latest_report()
-    every = [r for r in csv.DictReader(path.open()) if model in (r.get("model") or "") and r.get("rca")]
+    every = [
+        r
+        for r in csv.DictReader(path.open())
+        if model in (r.get("model") or "")
+        and r.get("rca")
+        and not r["bug"].startswith("REAL-")  # catalog bugs only
+    ]
     from debugassist.scenarios.catalog import get_bug, load_catalog  # "not our bug" columns, catalog size
 
     baseline = sorted((r for r in every if not r.get("arm")), key=lambda r: r["bug"])  # the first full run
@@ -620,8 +629,8 @@ def results(model: str = "gpt-6-luna") -> str:
         for r in every
         if head
         and r.get("arm") not in (None, "", head)
-        # token and decider ablations and real open-source bugs are not re-runs of the catalog
-        and not r["arm"].startswith(("context-", "no-clef", "real-"))
+        # token and decider ablations, real open-source bugs and the reverted fix-width experiment are not re-runs
+        and not r["arm"].startswith(SIDE_ARMS)
         and r.get("eval", "") > head_end
     ]
     by_bug_later: dict[str, list[dict[str, str]]] = {}
@@ -636,13 +645,7 @@ def results(model: str = "gpt-6-luna") -> str:
         panel_before, before_label = head_runs, head or "baseline"
     else:  # the panel: the first run → each later code version, on the bugs it re-ran
         arm = sorted(
-            (
-                r
-                for r in every
-                if r.get("arm")
-                and r["arm"] != head
-                and not r["arm"].startswith(("context-", "no-clef", "real-"))
-            ),
+            (r for r in every if r.get("arm") and r["arm"] != head and not r["arm"].startswith(SIDE_ARMS)),
             key=lambda r: r["bug"],
         )
         panel_before, before_label = baseline, "baseline"

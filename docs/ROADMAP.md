@@ -176,9 +176,15 @@ token comparison, Quickstart.
   checked against the issue's own expectation (adapted and documented if upstream's is stricter); the checkout
   verified with the fix — and, for a merged PR, its branch head — unreachable.
 - **Fix width is the weak lane, on real code too.** Diagnosis was exact on every real-bug run; the misses were fixes
-  as narrow as the report (cachetools#435 0/3), as in the catalog (BUG-003, BUG-009). A generic lever to measure: the
-  reproduction step tests the behaviour's other ordinary forms (keyword arguments, sibling inputs, the same call
-  through another path), not only the reported one.
+  as narrow as the report (cachetools#435 0/3), as in the catalog (BUG-003, BUG-009).
+  - *Tried 2026-10-15, no effect, reverted:* prompt rules for the reproduction (also guard the ordinary uses — keyword
+    arguments, sibling inputs, the unit's signature and attributes) and the fix (keep the unit's contract). Arm
+    `fixwidth-7f15556`: cachetools#435 still 0/3, the same two failures; upstream's test 9/12 runs that made a fix vs
+    11/14 before; BUG-003 1/3, BUG-009 2/3. The agent writes the reproduction and then fixes against it, so a rule it
+    is asked to follow in its own test does not reach the fix.
+  - Next, structural rather than prompt: run the repo's *existing* tests for the changed unit as part of validation
+    (cachetools' suite already calls methods with keyword arguments); a second reproduction written by a separate
+    agent from the issue alone; or score the fix against callers found by `find_references`.
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 

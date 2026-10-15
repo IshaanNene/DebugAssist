@@ -4,7 +4,17 @@ import { Features } from "@/components/Features";
 import { Loop } from "@/components/Loop";
 import { Results } from "@/components/Results";
 import { Box, Button, Dot, GH, H2, Lead, Mark, doc } from "@/components/ui";
-import { contextArms, contextAudit, deciderReplay, facts, featuredRun, realBugs, results, type ContextArm } from "@/lib/data";
+import {
+  contextArms,
+  contextAudit,
+  deciderReplay,
+  facts,
+  featuredRun,
+  fixWidth,
+  realBugs,
+  results,
+  type ContextArm,
+} from "@/lib/data";
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const COL = "mx-auto w-full max-w-[1200px] px-4 sm:px-8";
@@ -14,6 +24,7 @@ export default function Home() {
   const ctx = contextAudit();
   const replay = deciderReplay();
   const reals = realBugs();
+  const fw = fixWidth();
   const f = facts();
   const run = featuredRun(data);
   const latest = data.arms[data.arms.length - 1];
@@ -388,6 +399,18 @@ export default function Home() {
                   </tbody>
                 </table>
               </div>
+              {fw && (
+                <p className="mt-5 max-w-[80ch] text-[13.5px] leading-[1.55] text-t3">
+                  <span className="text-t2">Widening fixes by prompt didn&apos;t work.</span> Two generic rules — guard
+                  the ordinary uses a fix must not break, keep the unit&apos;s contract — re-run on all five: cachetools#435
+                  passed upstream&apos;s test in {fw.target.after.pass}/{fw.target.after.ran} runs that made a fix
+                  {` (${fw.target.before.pass}/${fw.target.before.ran} before)`}, all five in{" "}
+                  {fw.after.pass}/{fw.after.ran}
+                  {` (${fw.before.pass}/${fw.before.ran} before)`}. The rules were written with that bug in mind, and
+                  were reverted; the runs are in the report as{" "}
+                  <code className="font-mono text-[12px]">{fw.arm}</code>.
+                </p>
+              )}
             </div>
           )}
         </section>

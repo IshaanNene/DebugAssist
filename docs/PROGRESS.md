@@ -7,6 +7,7 @@
 | P13 Evaluation harness and ablations | ✅ done | 2026-10-07 |
 | P14 Cross-repo hand-off · fix quality · P15 context engineering · P16 Langfuse · P17 site | ✅ done / measured | 2026-10-10 |
 | Three-seed full run · fix round · Clef vs no-Clef ablation · cloneable repo | ✅ done | 2026-10-11 → 14 |
+| Real open-source bugs (five) · fix-width prompt experiment (no effect, reverted) | ✅ done | 2026-10-14 → 15 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
 The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
@@ -341,6 +342,19 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Docker Desktop here has no host networking, so the runtime container joins the compose network and uses service names; links shown to people stay on localhost.
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
+
+## Fix width by prompt (2026-10-15) — tried, no effect, reverted
+
+- Two generic prompt rules (`7f15556`): the reproduction also guards the ordinary uses a fix must not break (keyword
+  arguments, sibling inputs, the unit's signature, return type and attributes); the fix keeps the unit's contract.
+  The keyword-argument example was written with cachetools#435 in mind.
+- Arm `fixwidth-7f15556`, LLM decider, $0.41 in all: REAL-001..005 three seeds each (REAL-001 four — seed 1
+  escalated at D05, and the resume ran seeds 2–4), BUG-003 and BUG-009 three each. Interrupted once by a session
+  restart; resumed with `--start-seed`.
+- Result: cachetools#435 upstream's test 0/3 runs that made a fix (0/3 before), failing the same two ways; all five
+  9/12 (11/14 before); BUG-003 1/3, BUG-009 2/3. Five real-bug runs escalated before the fix at decisions that read
+  only the RCA — decider variance. Prompts reverted; the arm is in the report and excluded from the headline, the
+  site's grid and the README chart (`SIDE_ARMS`); the site and README say what was tried. Next steps: ROADMAP.
 
 ## Four more real open-source bugs (2026-10-14 → 15)
 

@@ -237,6 +237,16 @@ Format: **symptom** → cause → fix · *guard*.
   same kind as the catalog's: a cachetools fix that made the reported call work but broke other ordinary calls the
   upstream test checks (0/3). *Lesson: when synthetic and real results fail the same way, the failure is the
   pipeline's — fix width, not the benchmark.*
+- **A prompt rule aimed at one failure did not move it.** Rules asking the reproduction to guard keyword calls and
+  the unit's contract, and the fix to keep it, left cachetools#435 at 0/3 with the same two failures, and upstream's
+  test at 9/12 runs that made a fix vs 11/14 before. The rule's example was written with that bug in mind, so even a
+  pass would have been weak evidence. → Reverted; the arm stays in the report, outside every headline. *Lesson: when
+  the agent writes both the test and the fix, asking it to test more widely does not widen the fix — the check has
+  to come from outside it (the repo's own tests, another agent, the callers). And say when an example in a rule was
+  taken from the case it is measured on.*
+- **Escalations are a decider's variance, not the change's.** Five of the arm's real-bug runs stopped before any fix
+  (D05 once, D13 four times, vs once in the earlier sweep) — decisions that read only the RCA, which the changed
+  prompts never touch. *Lesson: before blaming a change for a drop, check whether the step that dropped can see it.*
 - **One expensive run can carry an arm's average.** A single bug's three max-length fix attempts (after D14 picked
   the e2e tier) were most of the lean arm's token total. → Read per-bug numbers before averages; the report keeps
   per-run rows next to the arm table.
