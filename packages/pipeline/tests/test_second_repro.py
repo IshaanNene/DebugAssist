@@ -70,6 +70,7 @@ class Checker:
         }
         (wt / self.name).parent.mkdir(exist_ok=True)
         (wt / self.name).write_text(self.test)
+        self.sb.diff("v1.0.0")  # as the real runner does: marks new files intent-to-add
         out = {"test_file": self.name, "asserts": "head returns [] for n <= 0", "failure": "AssertionError"}
         self.feedback = kw["validate_output"](out)
         return LLMResult(
@@ -96,6 +97,7 @@ def _setup(tmp_path: Path, fix: str, second: str) -> tuple[RunState, Any, FakeSa
     (wt / "tests").mkdir()
     (wt / "tests" / "test_repro.py").write_text(FIRST)
     src_diff = _git(wt, "diff", "--", "lib.py")
+    FakeSandbox(wt).diff("v1.0.0")  # the fix step's own diffs leave its new test intent-to-add
     data = json.loads(FIXTURE.read_text())
     data["issue"].update(
         repo="toy",
