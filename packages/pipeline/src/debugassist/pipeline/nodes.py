@@ -22,7 +22,7 @@ import yaml
 from langchain_core.tools import BaseTool, tool
 
 from debugassist.core import untrusted
-from debugassist.core.ablation import ablated
+from debugassist.core.ablation import ablated, second_repro
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT, Verdict
 from debugassist.core.settings import Integration, Mode
@@ -1143,6 +1143,130 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     }
 
 
+def _tracked(sb: Sandbox, path: str) -> bool:
+    out = subprocess.run(["git", "ls-files", "--", path], cwd=sb.worktree, capture_output=True, text=True)
+    return bool(out.stdout.strip())
+
+
+def check_prompt(issue: Issue, comp: dict[str, Any], base: str, location: str) -> str:
+    """The independent check's task: the report and where the defect is — not the RCA's reproduction idea or fix
+    direction, the fix, or the first test."""
+    return (
+        f"Repository {issue.repo}, component dir '{issue.component}' ({issue.language}); commands run from there. "
+        f"Release {base}.\n"
+        + (f"The repository: {issue.about}.\n" if issue.about else "")
+        + f"Component test command: `{comp['test']}`; tests live under `{comp.get('test_file_glob', 'test/')}`.\n"
+        + untrusted.fence("issue title", issue.title)
+        + "\n"
+        + (
+            untrusted.fence("user report", json.dumps(issue.report, default=str)[:3000]) + "\n"
+            if issue.report
+            else ""
+        )
+        + (
+            untrusted.fence("latest event", json.dumps(issue.latest_event, default=str)[:1500]) + "\n"
+            if issue.latest_event
+            else ""
+        )
+        + f"\nThe defect is in {location}.\nWrite the test, run it to see it fail, then submit."
+    )
+
+
+async def second_reproduction(
+    state: RunState, deps: Deps, sb: Sandbox, comp: dict[str, Any], src_diff: str, base: str
+) -> tuple[TestRun | None, dict[str, Any], float]:
+    """DA_SECOND_REPRO: a separate agent writes a test from the report alone, on the release, without the fix or
+    any test the fixing agent wrote; the fix is then run against it. Returns (the run with the fix, or None when no
+    valid second reproduction was written; a record; cost). Leaves the worktree as it found it."""
+    issue, rca = state.issue, state.rca
+    assert issue and rca and rca.output
+    loc = f"{rca.output.location.file} → {rca.output.location.function}"
+    hidden = {f: (sb.worktree / f).read_text() for f in _new_test_files(sb)}  # the fixing agent's tests
+    subprocess.run(["git", "apply", "-R", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
+    for f in hidden:
+        if _tracked(sb, f):
+            subprocess.run(["git", "checkout", "-q", "--", f], cwd=sb.worktree, check=False)
+        else:
+            (sb.worktree / f).unlink(missing_ok=True)
+    rec: dict[str, Any] = {}
+    cost = 0.0
+    path: str | None = None
+    cmd = ""
+    try:
+        cfg = budget.cap(dict(deps.agent_type["nodes"]["fix"]), deps)
+        check_cfg: dict[str, Any] = {**cfg, "max_turns": min(15, int(cfg["max_turns"]))}
+        node = "reproduce_check" + (f"_{len(state.fix_attempts)}" if len(state.fix_attempts) > 1 else "")
+        skill_prompt, skill_tools = skills.for_node(deps.agent_type, "reproduce", issue)
+        spec = LLMNodeSpec(
+            node=node,
+            system_prompt=_prompt("reproduce_check_system.md") + skill_prompt,
+            **check_cfg,
+        )
+        tools = (
+            build_workspace_tools(
+                sb, allow_edits=True, allow_commands=True, editable=is_test_path, workdir=issue.component
+            )
+            + skill_tools
+        )
+
+        def check(out: dict[str, Any]) -> str | None:
+            p = str(out.get("test_file", ""))
+            if not is_test_path(p) or not (sb.worktree / p).is_file():
+                return f"{p} does not exist as a test file. Create it with write_file first."
+            if p in hidden or _tracked(sb, p):
+                return f"{p} is already taken; write your test in a new file with another name."
+            cmd = _repro_cmd(issue, p)
+            res = _run_test(sb, issue, cmd)
+            return _repro_problem(cmd, res.exit_code, res.output, issue)
+
+        r = await deps.runner(_apply_diff(sb)).run(
+            spec,
+            check_prompt(issue, comp, base, loc),
+            ReproOutput,
+            tools=tools,
+            diff_fn=lambda: sb.diff(base),
+            validate_output=check,
+        )
+        _stop_if_out_of_quota(r, state, "validate")
+        cost = r.cost_usd
+        rec["llm"] = _llm_summary(r)
+        _revert_non_tests(sb)  # source is read-only for the checker, whatever it ran
+        written = [f for f in _new_test_files(sb) if f not in hidden and not _tracked(sb, f)]
+        claimed = str((r.output or {}).get("test_file", ""))
+        path = claimed if claimed in written else (written[-1] if written else None)
+        if path is None:
+            rec["result"] = "no second reproduction written; not checked"
+            return None, rec, cost
+        cmd = _repro_cmd(issue, path)
+        before = _run_test(sb, issue, cmd)
+        rec.update(test_file=path, command=cmd, before_exit=before.exit_code)
+        if problem := _repro_problem(cmd, before.exit_code, before.output, issue):
+            rec["result"] = (
+                f"the second test does not reproduce the bug on the release; not checked: {problem[:300]}"
+            )
+            return None, rec, cost
+        rec["test_source"] = (sb.worktree / path).read_text()[:2500]
+    finally:
+        subprocess.run(["git", "apply", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
+        for f, text in hidden.items():
+            (sb.worktree / f).parent.mkdir(parents=True, exist_ok=True)
+            (sb.worktree / f).write_text(text)
+        if path is not None and "test_source" not in rec:
+            (sb.worktree / path).unlink(missing_ok=True)
+    assert path is not None
+    after = _run_test(sb, issue, cmd)
+    (sb.worktree / path).unlink(missing_ok=True)  # a check, not part of the fix
+    rec.update(after_exit=after.exit_code, after_tail=after.output[-1500:] if after.exit_code else "")
+    rec["result"] = "passes with the fix" if after.exit_code == 0 else "fails with the fix"
+    run = TestRun(
+        label="second reproduction, written without seeing the fix, with the fix",
+        command=cmd,
+        exit_code=after.exit_code,
+        output_tail=after.output[-3000:],
+    )
+    return run, rec, cost
+
+
 # ---- N6 validate ----------------------------------------------------------------------------
 
 
@@ -1222,8 +1346,20 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
         and "failing_before_problem" not in record
         and (v.static is None or v.static.exit_code == 0)
     )
+    costs = dict(state.costs)
+    v.independent = None
+    if v.passed and second_repro() and fa.tier != "e2e_env":
+        src_diff = subprocess.run(
+            ["git", "diff", "--", *src], cwd=sb.worktree, capture_output=True, text=True, check=True
+        ).stdout
+        run, rec, cost = await second_reproduction(state, deps, sb, comp, src_diff, f"v{issue.last_version}")
+        node = "reproduce_check" + (f"_{fa.n}" if fa.n > 1 else "")
+        costs[node] = costs.get(node, 0.0) + cost
+        record["second_reproduction"] = rec
+        v.independent = run
+        v.passed = run is None or run.exit_code == 0  # no valid second test: the fix is not held to one
     v.attempts.append(record)
-    return {"validation": v}
+    return {"validation": v, "costs": costs}
 
 
 async def decide_retry(state: RunState, deps: Deps) -> bool:

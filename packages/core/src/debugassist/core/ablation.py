@@ -14,6 +14,9 @@ DA_CONTEXT   full (default) | lean | clear | compact | concise — how much tool
              clear replaces old tool results in the history with one-line stubs, in batches (llm/clearing.py).
              compact folds older steps into structured working notes, in batches (llm/compaction.py).
              concise sends compact JSON, top-k lists and clipped long fields from tools (llm/concise.py).
+DA_SECOND_REPRO  1 = after a fix passes its own reproduction and the suite, a separate agent writes a second
+             reproduction from the report alone (without seeing the fix or the first test); the fix must pass it too.
+             Off by default (an experiment: ROADMAP, fix width).
 """
 
 from __future__ import annotations
@@ -53,6 +56,10 @@ def context_mode() -> str:
     return value
 
 
+def second_repro() -> bool:
+    return os.environ.get("DA_SECOND_REPRO", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def lean() -> bool:
     return context_mode() == "lean"
 
@@ -64,4 +71,5 @@ def label() -> str:
         decider()
         + ("" if not off else "-no-" + "-".join(o.lower() for o in off))
         + ("" if context_mode() == "full" else f"-{context_mode()}")
+        + ("-repro2" if second_repro() else "")
     )

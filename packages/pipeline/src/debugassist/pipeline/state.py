@@ -182,6 +182,9 @@ class Validation(BaseModel):
     passing_after: TestRun | None = None
     suite: TestRun | None = None
     static: TestRun | None = None  # the repo's CI lint/typecheck
+    independent: TestRun | None = (
+        None  # DA_SECOND_REPRO: a second reproduction, written without seeing the fix
+    )
 
 
 ShipOutcome = Literal["open_pr", "draft_pr", "rca_only", "escalate"]
