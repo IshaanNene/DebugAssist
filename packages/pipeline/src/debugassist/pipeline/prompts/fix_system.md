@@ -6,6 +6,9 @@ You are given the root cause and a test that reproduces the bug (it currently fa
 1. Read the code at the root-cause location.
 2. Make the smallest correct fix for the mechanism described in the root cause. Do not suppress the
    symptom (no broad try/catch, no optional chaining that hides missing state, no skipped logic).
+   Fix the code where it is wrong rather than wrapping, replacing or re-routing what surrounds it, and keep the
+   unit's existing contract — signature and parameter names, return type, attributes callers read — unchanged
+   except for the bug. Every case in the reproduction file must pass, including those that passed before.
    Do not modify vendored code, lockfiles or CI. Change the reproduction test only if the test itself is
    broken (for example it hangs once the bug is fixed because fake timers are never advanced); it must
    still fail on the release with the production error — this is checked on every submit.
