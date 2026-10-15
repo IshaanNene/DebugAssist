@@ -120,6 +120,9 @@ Format: **symptom** → cause → fix · *guard*.
 - **iCloud Desktop.** Unreadable placeholders ("Resource deadlock avoided"), `* 2` conflict copies, and macOS
   hiding files in dot-directories so Python 3.13 skipped `.pth` files. → The PEX build copies only the Python
   workspace; `make sync` installs a path hook. *Lesson: don't keep a repo in an iCloud-synced folder.*
+  Again on 2026-10-14: a `sqlalchemy-2.1.3.dist-info` holding only conflict copies ("RECORD 2") looked installed
+  but could not be uninstalled, so every pre-commit hook's `uv run` re-synced the venv — and the formatter it ran
+  disagreed with ours. → Deleted the phantom folder. *Guard: a hook that prints install output is a broken venv.*
 - **A case-insensitive collision.** A new `.debugassist/` scratch dir collided with the tracked `.DebugAssist/`. →
   `.da-e2e/`.
 - **No host networking on Docker Desktop.** → Runtime containers join the compose network and use service names.
@@ -134,6 +137,9 @@ Format: **symptom** → cause → fix · *guard*.
   paths stay blocked — the first version of the path fix stripped them and a test caught it.*
 - **Long runs died when the laptop slept.** → Detached processes, the app's keep-awake hold, and evaluations that
   resume from the next bug.
+- **Session restarts killed sweeps mid-run — and stopped Docker.** Three times a restart ended a background sweep (the
+  last run's result lost, the rest saved row by row), and twice Docker was down afterwards, so the next sweep failed
+  at once. → Resume at the next bug, or at a seed (`eval real --start-seed`); check `docker info` before a sweep.
 
 ## 5. Telemetry stack
 
@@ -220,6 +226,17 @@ Format: **symptom** → cause → fix · *guard*.
 - **Upstream's test can be stricter than the report.** python-semver#484 accepts `rc4` or `rc.4`; upstream's test pins
   `rc4`. Scoring with it unchanged would fail fixes the report allows. → An adapted copy accepts both, documented in
   the case. *Lesson: check the hidden test against the issue's own expectation, not only against the upstream fix.*
+- **A merge-commit fix leaves a second way in.** For fixes merged by a merge commit, the pruned checkout was first
+  checked only for the merge itself; the PR branch's head is another commit holding the fix. → The case records
+  `pr_head`, and the checkout refuses to finish if either is reachable. *Lesson: list every object that contains the
+  answer, not the one you thought of.*
+- **Someone else's test is someone else's code.** The first commit of an upstream test file failed pre-commit: our
+  formatter rewrote it. → `groundtruth/real` is excluded from ruff, with `force-exclude` so files passed by name (as
+  pre-commit does) are skipped too; the copy is checked byte for byte against upstream.
+- **The weakest lane is not a catalog artifact.** On real code the diagnosis was exact 15/15, and the misses were the
+  same kind as the catalog's: a cachetools fix that made the reported call work but broke other ordinary calls the
+  upstream test checks (0/3). *Lesson: when synthetic and real results fail the same way, the failure is the
+  pipeline's — fix width, not the benchmark.*
 - **One expensive run can carry an arm's average.** A single bug's three max-length fix attempts (after D14 picked
   the e2e tier) were most of the lean arm's token total. → Read per-bug numbers before averages; the report keeps
   per-run rows next to the arm table.
@@ -249,3 +266,6 @@ Format: **symptom** → cause → fix · *guard*.
 4. **Count tokens and dollars per turn**, not per run; it is where the waste shows.
 5. **Read the misses run by run, then stop when fixes start trading bugs.** The routing gap that cost seven runs
    their verdict was only visible in the runs; the last prompt rules were only visible as a wash in the arm.
+6. **Validate a test case before an agent sees it.** Every real bug's hidden test was run on the buggy commit (must
+   fail) and with the upstream fix (must pass), and read against the issue's own expectation; the report was read as
+   the agent would see it. Each check caught something.
