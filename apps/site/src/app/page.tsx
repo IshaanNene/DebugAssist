@@ -411,6 +411,19 @@ export default function Home() {
                   <code className="font-mono text-[12px]">{fw.arm}</code>.
                 </p>
               )}
+              {fw?.repro2 && (
+                <p className="mt-3 max-w-[80ch] text-[13.5px] leading-[1.55] text-t3">
+                  <span className="text-t2">Nor did a second, independent reproduction.</span> A separate agent wrote
+                  its own failing test from the report alone, without the fix or the first test, and the fix had to
+                  pass it too. It passed every fix it checked; the hidden tests failed on most:{" "}
+                  {fw.repro2.bugs
+                    .map((b) => `${b.bug} ${b.hidden.pass}/${b.hidden.ran} hidden, second test ${b.second.pass}/${b.second.ran}`)
+                    .join(" · ")}
+                  . Both agents read the same report, and the report shows one example — the other cases the hidden
+                  tests check are not in it. Off by default; arm{" "}
+                  <code className="font-mono text-[12px]">{fw.repro2.arm}</code>.
+                </p>
+              )}
             </div>
           )}
         </section>

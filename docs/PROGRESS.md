@@ -7,7 +7,7 @@
 | P13 Evaluation harness and ablations | ✅ done | 2026-10-07 |
 | P14 Cross-repo hand-off · fix quality · P15 context engineering · P16 Langfuse · P17 site | ✅ done / measured | 2026-10-10 |
 | Three-seed full run · fix round · Clef vs no-Clef ablation · cloneable repo | ✅ done | 2026-10-11 → 14 |
-| Real open-source bugs (five) · fix-width prompt experiment (no effect, reverted) | ✅ done | 2026-10-14 → 15 |
+| Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction (off) | ✅ done | 2026-10-14 → 15 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
 The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
@@ -342,6 +342,20 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Docker Desktop here has no host networking, so the runtime container joins the compose network and uses service names; links shown to people stay on localhost.
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
+
+## Second reproduction (2026-10-15) — built, measured, no effect, off by default
+
+- `DA_SECOND_REPRO=1` (eval config `no-clef-repro2`): after a fix passes its own reproduction, the suite and the CI
+  checks, `validate` hides the fix and the fixing agent's tests, a separate agent (`reproduce_check_system.md`)
+  writes a test from the report alone on the release, and the fix must pass it; a failure goes back to the fix step
+  as validation feedback. No valid second test: the fix is not held to one, recorded as "unchecked". Eval rows carry
+  `repro2` per validated attempt. Tests: `packages/pipeline/tests/test_second_repro.py` (throwaway git repo,
+  scripted checker).
+- First arm (`repro2-84efb0b`) stopped after two REAL-001 runs and discarded: `git ls-files` counted the checker's
+  intent-to-add test as tracked, so every second test was dropped. Fixed in `f277379`.
+- Arm `repro2-f277379`, $0.27: REAL-001 and BUG-003 three seeds each, BUG-009 three (one wrong root cause, one D13
+  escalation). The second test passed all 7 fixes it checked; the hidden test passed 1/7. Not run on REAL-002..005
+  (their fixes already pass upstream's tests; credit was about $0.9). Site, README, ROADMAP, LESSONS updated.
 
 ## Fix width by prompt (2026-10-15) — tried, no effect, reverted
 

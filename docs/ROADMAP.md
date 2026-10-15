@@ -185,8 +185,14 @@ token comparison, Quickstart.
   - Next, structural rather than prompt. Running the repo's existing tests is already part of validation (the whole
     suite, every attempt) and does not help here: cachetools' 341 tests passed with all three narrow fixes — none
     calls a method through its class, with or without keywords, and `__wrapped__` is only checked on instance access.
-    What is left: a second reproduction written by a separate agent from the issue alone, which the fix must also
-    pass; or a check against the callers `find_references` finds.
+  - *Tried 2026-10-15, no effect, kept off:* a second reproduction (`DA_SECOND_REPRO=1`) — a separate agent writes
+    a test from the report alone, without the fix or the first test, and the fix must pass it. Arm `repro2-f277379`:
+    it passed all 7 fixes it checked, and the hidden test passed 1/7 (cachetools#435 0/3, BUG-003 0/3, BUG-009 1/1).
+    The second agent tested the report's own example, like the first.
+  - So the missing cases are not in the report, and a second reader does not add them. What could: tests from the
+    unit's *other* callers and documented uses rather than from the report (`find_references`, docstrings, the
+    docs' examples — cachetools' docs show keyword calls), or a property-style check that varies how the reported
+    call is made (positional/keyword, through the class/instance) mechanically rather than by asking a model.
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 

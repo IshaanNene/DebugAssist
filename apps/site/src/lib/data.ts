@@ -494,29 +494,49 @@ export function realBugs(): RealBug[] {
     });
 }
 
+interface Tally {
+  pass: number;
+  ran: number;
+}
+
 export interface FixWidth {
   arm: string;
   /** upstream's test on the real bugs, over runs that made a fix: the real-* arms, then the experiment */
-  before: { pass: number; ran: number };
-  after: { pass: number; ran: number };
+  before: Tally;
+  after: Tally;
   /** REAL-001, the case the rules were written for */
-  target: { before: { pass: number; ran: number }; after: { pass: number; ran: number } };
+  target: { before: Tally; after: Tally };
+  /** the second-reproduction arm (repro2-*), if run: per bug, the hidden test and the second test, over fixes */
+  repro2: { arm: string; bugs: { bug: string; hidden: Tally; second: Tally }[] } | null;
 }
 
-/** The fix-width prompt experiment (fixwidth-*, reverted) against the real bugs' own arms. */
+/** The fix-width experiments: prompt rules (fixwidth-*, reverted) and a second reproduction (repro2-*, off by
+ * default), against the real bugs' own arms. */
 export function fixWidth(): FixWidth | null {
-  const rows = parseCsv(fs.readFileSync(path.join(REPORTS, latestReport(), "results.csv"), "utf8")).filter(
-    (r) => r.bug?.startsWith("REAL-") && r.hidden_tests && r.hidden_tests !== "None",
-  );
-  const arm = rows
-    .map((r) => r.arm ?? "")
-    .filter((a) => a.startsWith("fixwidth-"))
-    .sort()
-    .pop();
+  const all = parseCsv(fs.readFileSync(path.join(REPORTS, latestReport(), "results.csv"), "utf8"));
+  const fixed = (r: Row) => r.hidden_tests === "True" || r.hidden_tests === "False";
+  const rows = all.filter((r) => r.bug?.startsWith("REAL-") && fixed(r));
+  const latestArm = (p: string) =>
+    all
+      .map((r) => r.arm ?? "")
+      .filter((a) => a.startsWith(p))
+      .sort()
+      .pop();
+  const arm = latestArm("fixwidth-");
   if (!arm) return null;
-  const count = (rs: Row[]) => ({ pass: rs.filter((r) => r.hidden_tests === "True").length, ran: rs.length });
+  const count = (rs: Row[]): Tally => ({ pass: rs.filter((r) => r.hidden_tests === "True").length, ran: rs.length });
   const before = rows.filter((r) => (r.arm ?? "").startsWith("real-"));
   const after = rows.filter((r) => r.arm === arm);
+  const r2 = latestArm("repro2-");
+  const r2rows = all.filter((r) => r.arm === r2 && fixed(r));
+  // the second test's verdict on the fix that shipped: the last attempt it checked
+  const second = (r: Row) => {
+    try {
+      return (JSON.parse(r.repro2 || "[]") as string[]).at(-1) ?? "unchecked";
+    } catch {
+      return "unchecked";
+    }
+  };
   return {
     arm,
     before: count(before),
@@ -525,5 +545,15 @@ export function fixWidth(): FixWidth | null {
       before: count(before.filter((r) => r.bug === "REAL-001")),
       after: count(after.filter((r) => r.bug === "REAL-001")),
     },
+    repro2: r2
+      ? {
+          arm: r2,
+          bugs: [...new Set(r2rows.map((r) => r.bug))].sort().map((bug) => {
+            const rs = r2rows.filter((r) => r.bug === bug);
+            const checked = rs.filter((r) => second(r) !== "unchecked");
+            return { bug, hidden: count(rs), second: { pass: checked.filter((r) => second(r) === "pass").length, ran: checked.length } };
+          }),
+        }
+      : null,
   };
 }

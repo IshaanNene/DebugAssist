@@ -1,0 +1,12 @@
+{
+  "real": [
+    "REAL-001"
+  ],
+  "configs": [
+    "no-clef-repro2"
+  ],
+  "seeds": 1,
+  "until": "ship_gate",
+  "arm": "repro2-f277379",
+  "commit": "f277379"
+}
