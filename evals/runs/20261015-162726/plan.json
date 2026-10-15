@@ -1,0 +1,13 @@
+{
+  "bugs": [
+    "BUG-003",
+    "BUG-009"
+  ],
+  "configs": [
+    "no-clef-repro2"
+  ],
+  "seeds": 3,
+  "until": "ship_gate",
+  "arm": "repro2-f277379",
+  "commit": "f277379"
+}

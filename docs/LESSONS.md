@@ -245,6 +245,15 @@ Format: **symptom** → cause → fix · *guard*.
   to come from outside it — and the repo's own suite, which already runs, had no test of the broken uses, so
   it has to be another agent or the callers. And say when an example in a rule was
   taken from the case it is measured on.*
+- **A second reader of the same report writes the same narrow test.** A separate agent, given only the report and
+  none of the fix, wrote a test of the report's own example in every case; it passed all 7 fixes it checked while
+  the hidden test failed six. The narrowness was in the input, not in the fixing agent's bias. *Lesson: independence
+  of the checker is not independence of its information — a check needs a source the report does not have.*
+- **A check that silently checks nothing looks like a pass.** The first second-reproduction runs reported "not
+  checked" every time: `git ls-files` counts files marked intent-to-add (as the runner's diff does) as tracked, so
+  the checker's new test was thrown away. The unit test's fake sandbox never ran that diff. → Compare with the
+  release commit; the fake now does what the real runner does, and the test fails on the old code. *Lesson: when a
+  new check never fires, inspect one run before reading the totals — and make fakes reproduce the real side effects.*
 - **Escalations are a decider's variance, not the change's.** Five of the arm's real-bug runs stopped before any fix
   (D05 once, D13 four times, vs once in the earlier sweep) — decisions that read only the RCA, which the changed
   prompts never touch. *Lesson: before blaming a change for a drop, check whether the step that dropped can see it.*
