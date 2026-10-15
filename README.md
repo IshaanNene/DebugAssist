@@ -56,7 +56,7 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 
 **What doesn't (yet)**
 - **Stopping where the symptom surfaced** — a CORS change and a payments panic were blamed on the client's gateway address and on the gateway's timeout, in every seed: the investigation doesn't yet follow a failed call to the service it called.
-- **Fixes narrower than the regression** — some fixes pass the agent's own test but not the hidden one: a fix restored the retry key but kept the shortened timeout from the same commit; another added the one missing city instead of handling a missing city.
+- **Fixes narrower than the regression** — some fixes pass the agent's own test but not the hidden one: a fix restored the retry key but kept the shortened timeout from the same commit; another added the one missing city instead of handling a missing city. Prompt rules asking for wider fixes didn't change this ([below](#real-open-source-bugs)).
 - **An active incident still loses to suspicious code** — the database incident was in the evidence and a subagent named it, yet every seed blamed client code; and one gateway bug got worse after the last prompt round.
 - **Seeds still disagree** on ten bugs, so one run of a bug proves little; one root cause was exact in every seed yet escalated to a human each time, because the agent left the mechanism "unconfirmed" without reading the code.
 - **Diminishing returns** — the last round of prompt rules helped some bugs and cost others (a carrier outage moved from `network` to `infra`), so tuning stopped there; the report lists each before → after.
@@ -98,6 +98,8 @@ Beyond the synthetic catalog: five public issues from four small Python librarie
 | **All five** | **15/15** | **14/15** | **11/15** |
 
 <sub>Median cost $0.014–0.025 per run. Root cause exact means the file and function upstream changed. The semver hidden test is adapted from upstream's: the issue accepts `rc4` or `rc.4`, so the old-style cases accept either. One semver run was escalated to a human by the fix-strategy decision (a change to version-numbering behaviour) and made no fix. Every cachetools#435 fix made the reported call work but broke keyword access to the instance and `__wrapped__`, which upstream's test also checks.</sub>
+
+**Widening fixes by prompt didn't work.** We added two generic rules — the reproduction also guards the ordinary uses a fix must not break (the same call with keyword arguments, sibling inputs, the unit's signature and attributes), and the fix keeps the unit's contract — and re-ran all five real bugs and two catalog bugs. cachetools#435 still failed upstream's test in every run that made a fix (0/3), the same two ways; across the five cases upstream's test passed 9/12 runs that made a fix, against 11/14 before. The rule's keyword-argument example was written with that bug in mind, so even a pass would have proved little. The change was reverted; the runs are in the report as `fixwidth-7f15556`, outside every number above.
 
 ## ⚠️ Limitations
 

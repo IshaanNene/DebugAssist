@@ -1,0 +1,15 @@
+{
+  "real": [
+    "REAL-002",
+    "REAL-003",
+    "REAL-004",
+    "REAL-005"
+  ],
+  "configs": [
+    "no-clef"
+  ],
+  "seeds": 3,
+  "until": "ship_gate",
+  "arm": "fixwidth-7f15556",
+  "commit": "7f15556"
+}
