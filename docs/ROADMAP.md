@@ -170,6 +170,15 @@ token comparison, Quickstart.
   regression test 11/15. Next: other languages (TypeScript, Go), larger repos, bugs without a reproducer in the
   report; Clef once its token works from this machine again; a team catalog for real repos (triage currently assigns
   a MiniRide team).
+  Adding a case: a recent issue (after the model's likely training data) on a small, offline-testable repo; a fix
+  with its own regression test; the report read as the agent sees it and any sentence naming the cause or fix
+  withheld and listed; the hidden test run on the buggy commit (fails) and with the upstream fix (passes), and
+  checked against the issue's own expectation (adapted and documented if upstream's is stricter); the checkout
+  verified with the fix — and, for a merged PR, its branch head — unreachable.
+- **Fix width is the weak lane, on real code too.** Diagnosis was exact on every real-bug run; the misses were fixes
+  as narrow as the report (cachetools#435 0/3), as in the catalog (BUG-003, BUG-009). A generic lever to measure: the
+  reproduction step tests the behaviour's other ordinary forms (keyword arguments, sibling inputs, the same call
+  through another path), not only the reported one.
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 
