@@ -1143,9 +1143,11 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     }
 
 
-def _tracked(sb: Sandbox, path: str) -> bool:
-    out = subprocess.run(["git", "ls-files", "--", path], cwd=sb.worktree, capture_output=True, text=True)
-    return bool(out.stdout.strip())
+def _at(sb: Sandbox, base: str, path: str) -> str | None:
+    """The file as it is in the release, None if it is not there. (Not `git ls-files`: the runner's diff marks new
+    files intent-to-add, which lists them as tracked.)"""
+    out = subprocess.run(["git", "show", f"{base}:{path}"], cwd=sb.worktree, capture_output=True, text=True)
+    return out.stdout if out.returncode == 0 else None
 
 
 def check_prompt(issue: Issue, comp: dict[str, Any], base: str, location: str) -> str:
@@ -1184,8 +1186,8 @@ async def second_reproduction(
     hidden = {f: (sb.worktree / f).read_text() for f in _new_test_files(sb)}  # the fixing agent's tests
     subprocess.run(["git", "apply", "-R", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
     for f in hidden:
-        if _tracked(sb, f):
-            subprocess.run(["git", "checkout", "-q", "--", f], cwd=sb.worktree, check=False)
+        if (old := _at(sb, base, f)) is not None:
+            (sb.worktree / f).write_text(old)
         else:
             (sb.worktree / f).unlink(missing_ok=True)
     rec: dict[str, Any] = {}
@@ -1213,7 +1215,7 @@ async def second_reproduction(
             p = str(out.get("test_file", ""))
             if not is_test_path(p) or not (sb.worktree / p).is_file():
                 return f"{p} does not exist as a test file. Create it with write_file first."
-            if p in hidden or _tracked(sb, p):
+            if p in hidden or _at(sb, base, p) is not None:
                 return f"{p} is already taken; write your test in a new file with another name."
             cmd = _repro_cmd(issue, p)
             res = _run_test(sb, issue, cmd)
@@ -1231,7 +1233,7 @@ async def second_reproduction(
         cost = r.cost_usd
         rec["llm"] = _llm_summary(r)
         _revert_non_tests(sb)  # source is read-only for the checker, whatever it ran
-        written = [f for f in _new_test_files(sb) if f not in hidden and not _tracked(sb, f)]
+        written = [f for f in _new_test_files(sb) if f not in hidden and _at(sb, base, f) is None]
         claimed = str((r.output or {}).get("test_file", ""))
         path = claimed if claimed in written else (written[-1] if written else None)
         if path is None:
