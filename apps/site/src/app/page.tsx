@@ -324,40 +324,72 @@ export default function Home() {
               )}
             </div>
           )}
-          {reals.map((b) => (
-            <div key={b.id} id="real" className="fx mt-2 cbox p-6">
+          {reals.length > 0 && (
+            <div id="real" className="fx mt-2 cbox p-6">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">A real open-source bug · {b.id}</div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">
+                  Real open-source bugs · {reals.length} {reals.length === 1 ? "case" : "cases"}
+                </div>
                 <div className="font-mono text-[11px] text-t4">
-                  {b.runs} runs · {b.decider} · {b.arm}
+                  {reals[0].runs} runs each · {reals[0].decider}
                 </div>
               </div>
               <p className="mt-3 max-w-[80ch] text-[14.5px] leading-[1.55] text-t2">
-                Beyond the synthetic catalog: a public issue,{" "}
-                <a className="text-t1 underline underline-offset-2" href={b.issue}>
-                  {b.title.replace(/\s*\(.*\)\s*$/, "")}
-                </a>
-                , run on the code it was filed against — history cut at that commit, so the{" "}
-                <a className="text-t1 underline underline-offset-2" href={b.fixPr}>
-                  upstream fix
-                </a>{" "}
-                cannot be found — and scored against the fix&apos;s location and its own regression test.
+                Beyond the synthetic catalog: public issues from small Python libraries, each run on the code it was filed
+                against — history cut at that commit, so the upstream fix cannot be found — and scored against the
+                fix&apos;s location and its own regression test. Where a report named its own cause, that part was
+                withheld.
               </p>
-              <div className="mt-4 grid gap-px bg-line sm:grid-cols-4">
-                {[
-                  ["root cause exact", `${b.rcaExact}/${b.runs}`],
-                  ["fix validated by its own test", `${b.validated}/${b.runs}`],
-                  ["upstream's regression test passes", `${b.hidden}/${b.hiddenRan}`],
-                  ["median cost per run", `$${b.medianUsd.toFixed(3)}`],
-                ].map(([label, v]) => (
-                  <div key={label} className="bg-surface p-4">
-                    <div className="font-display text-[22px] font-medium tabular-nums tracking-[-0.02em] text-t1">{v}</div>
-                    <div className="mt-1 text-[12px] leading-snug text-t3">{label}</div>
-                  </div>
-                ))}
+              <div className="mt-5 overflow-x-auto">
+                <table className="w-full min-w-[560px] text-left text-[13px]">
+                  <thead>
+                    <tr className="font-mono text-[11px] text-t3">
+                      <th className="pb-2 font-normal">issue</th>
+                      <th className="pb-2 text-right font-normal">root cause exact</th>
+                      <th className="pb-2 text-right font-normal">fix validated</th>
+                      <th className="pb-2 text-right font-normal">upstream test passes</th>
+                      <th className="pb-2 text-right font-normal">median cost</th>
+                    </tr>
+                  </thead>
+                  <tbody className="tabular-nums">
+                    {reals.map((b) => (
+                      <tr key={b.id} className="border-t border-line">
+                        <td className="py-2 pr-3">
+                          <a className="text-t1 underline underline-offset-2" href={b.issue}>
+                            {b.issue.replace("https://github.com/", "").replace("/issues/", "#")}
+                          </a>
+                          <div className="text-[12px] text-t3">{b.title.replace(/\s*\([^()]*#\d+\)\s*$/, "")}</div>
+                        </td>
+                        <td className="py-2 text-right text-t2">
+                          {b.rcaExact}/{b.runs}
+                        </td>
+                        <td className="py-2 text-right text-t2">
+                          {b.validated}/{b.runs}
+                        </td>
+                        <td className="py-2 text-right text-t2">
+                          {b.hidden}/{b.hiddenRan}
+                        </td>
+                        <td className="py-2 text-right text-t3">${b.medianUsd.toFixed(3)}</td>
+                      </tr>
+                    ))}
+                    <tr className="border-t border-line-strong font-medium text-t1">
+                      <td className="py-2">all {reals.length}</td>
+                      <td className="py-2 text-right">
+                        {reals.reduce((n, b) => n + b.rcaExact, 0)}/{reals.reduce((n, b) => n + b.runs, 0)}
+                      </td>
+                      <td className="py-2 text-right">
+                        {reals.reduce((n, b) => n + b.validated, 0)}/{reals.reduce((n, b) => n + b.runs, 0)}
+                      </td>
+                      <td className="py-2 text-right">
+                        {reals.reduce((n, b) => n + b.hidden, 0)}/{reals.reduce((n, b) => n + b.hiddenRan, 0)}
+                      </td>
+                      <td />
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
-          ))}
+          )}
         </section>
 
         {/* ── tokens ── */}

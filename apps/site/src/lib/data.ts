@@ -459,13 +459,19 @@ export function realBugs(): RealBug[] {
     .flatMap((f) => {
       const id = f.replace(/\.yaml$/, "");
       const text = fs.readFileSync(path.join(dir, f), "utf8");
-      const field = (k: string) => text.match(new RegExp(`^\\s*${k}:\\s*(.+?)(\\s+#.*)?$`, "m"))?.[1] ?? ""; // YAML comments need a space before #
+      // one scalar from the YAML: comments need a space before #; quoted values are unquoted ('' → ')
+      const field = (k: string) => {
+        const v = text.match(new RegExp(`^\\s*${k}:\\s*(.+?)(\\s+#.*)?$`, "m"))?.[1] ?? "";
+        const q = v.match(/^(['"])(.*)\1$/);
+        return q ? (q[1] === "'" ? q[2].replaceAll("''", "'") : q[2]) : v;
+      };
       const mine = rows.filter((r) => r.bug === id);
       if (!mine.length) return [];
       const arm = mine.map((r) => r.arm).sort().pop() ?? "";
       const rs = mine.filter((r) => r.arm === arm);
       const costs = rs.map((r) => Number(r.usd)).sort((a, b) => a - b);
-      const ran = rs.filter((r) => r.hidden_tests === "True" || r.hidden_tests === "False");
+      // every real case is a code bug: a run that made no fix counts as not passing (the denominator is every run)
+      const ran = rs;
       return [
         {
           id,

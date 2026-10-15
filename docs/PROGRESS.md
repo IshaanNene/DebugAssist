@@ -342,6 +342,15 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Four more real open-source bugs (2026-10-14 → 15)
+
+tkem/cachetools#440, python-semver#484, r1chardj0n3s/parse#249, more-itertools#1304, built like the first (frozen
+issue, pruned checkout, the fix's location and regression test as the answer key; the semver hidden test adapted
+because the issue accepts two outputs), each validated by hand before any agent run. Merged-PR fixes also check the
+PR branch head is unreachable. Three runs each: root cause exact 12/12, upstream's test 11/12 (one semver run
+escalated by D13). All five cases: root cause exact 15/15, fix validated 14/15, upstream's test 11/15. `eval real
+--start-seed` reruns one interrupted seed. The site's real-bug section is one table; README › Real open-source bugs.
+
 ## A real open-source bug (2026-10-14)
 
 tkem/cachetools#435 (`cachedmethod` through its class raises `AttributeError`; fixed upstream in #436) run through the
