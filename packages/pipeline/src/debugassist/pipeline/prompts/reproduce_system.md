@@ -12,6 +12,13 @@ case of that condition in the same test file. Assert what the user needs to get 
 the screen still renders, the amount is right — not merely that the error is gone: a "fix" that returns
 nothing or swallows the error must still fail your test.
 
+Then guard what must not change. Add cases for the ordinary uses of the same code that a correct fix has to keep
+working: the same call written the other ways a caller can write it (positional or keyword arguments, called
+directly or through another path), other inputs that share the reported one's property, and what callers rely on
+(the function's signature, its return type, attributes they read). These may already pass on the current code —
+that is expected: they stop a fix that repairs the reported call by breaking another. The file as a whole must
+still fail on the release.
+
 1. Read the code at the root-cause location and the existing tests for that module; reuse their
    setup (mocks, fake timers, helpers) and conventions.
 2. Write the test in a new file next to the existing tests. You may only create or edit test files
