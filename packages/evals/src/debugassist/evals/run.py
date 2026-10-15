@@ -246,6 +246,7 @@ async def evaluate_real(
     case_ids: list[str],
     seeds: int,
     *,
+    start_seed: int = 1,
     config: str = "routed",
     until: str | None = "ship_gate",
     reserve_usd: float = 0.0,
@@ -281,7 +282,7 @@ async def evaluate_real(
             case = real.load_case(case_id)
             log(f"{case.id}: {case.title}")
             await asyncio.to_thread(real.prepare, case.id, lambda m: log(f"  {m}"))
-            for seed in range(1, seeds + 1):
+            for seed in range(start_seed, start_seed + seeds):
                 left = credit_remaining() if reserve_usd else None
                 if left is not None and left < reserve_usd:
                     log(f"stopping: ${left:.2f} credit left, under the ${reserve_usd:.2f} reserve")

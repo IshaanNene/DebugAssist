@@ -113,6 +113,7 @@ def real_cmd(
         str, typer.Option(help="comma list of real-bug ids (groundtruth/real/REAL-*), or 'all'")
     ] = "all",
     seeds: Annotated[int, typer.Option(help="runs per case")] = 3,
+    start_seed: Annotated[int, typer.Option(help="first seed (resume an interrupted sweep)")] = 1,
     config: Annotated[str, typer.Option(help=f"one of: {', '.join(eval_run.CONFIGS)}")] = "routed",
     max_usd: Annotated[float, typer.Option(help="refuse to start if the estimate is above this")] = 5.0,
     reserve_usd: Annotated[
@@ -130,7 +131,9 @@ def real_cmd(
         typer.echo(f"estimate above --max-usd {max_usd}; raise it explicitly to proceed")
         raise typer.Exit(2)
     out = asyncio.run(
-        eval_run.evaluate_real(ids, seeds, config=config, reserve_usd=reserve_usd, arm=arm, log=typer.echo)
+        eval_run.evaluate_real(
+            ids, seeds, start_seed=start_seed, config=config, reserve_usd=reserve_usd, arm=arm, log=typer.echo
+        )
     )
     typer.echo(f"results: {out / 'results.jsonl'}")
 
