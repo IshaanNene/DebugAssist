@@ -4,7 +4,7 @@ Where DebugAssist goes after P13. Everything here is measured the same way the f
 an eval run on the catalog, and a report under `evals/reports/` — no feature ships on a blog post's numbers.
 Problems already solved are in [LESSONS.md](LESSONS.md).
 
-Baseline to beat (`evals/reports/2026-10-14`, gpt-6-luna, 25 bugs, each bug's latest three-seed run — 17 on
+Baseline to beat (`evals/reports/2026-10-15`, gpt-6-luna, 25 bugs, each bug's latest three-seed run — 17 on
 `d7cf020`, 8 re-run on `becdbde` after the fix round; 75 runs): root cause right or close 80%, exact 65%, category
 right 75%, code-bug fixes validated 81%, hidden tests 80%, median $0.014 per run. (The first one-seed run,
 `evals/reports/2026-10-07`, scored 64% / 48% / 72% / 63% / 47%.)
@@ -165,10 +165,11 @@ token comparison, Quickstart.
   only when the RCA's category agrees with D05 or carries high confidence.
 - Open from the fix round: give D05 the active incidents (BUG-006); re-run BUG-017/018/020 on the new code; D11
   abstains on rollbacks for rider reports (it was calibrated on crash rates) — teach it the report case.
-- **Real open-source bugs — first one done (2026-10-14).** tkem/cachetools#435 through the pipeline (`debugassist eval
-  real`, groundtruth/real/REAL-001): root cause exact 3/3, upstream's regression test 0/3 — the fixes were as narrow as
-  the report. Next: more cases (several repos and bug kinds), with Clef once its token works from this machine again;
-  a team catalog for real repos (triage currently assigns a MiniRide team).
+- **Real open-source bugs — five done (2026-10-14/15).** Five public issues from four Python libraries
+  (`debugassist eval real`, groundtruth/real/REAL-001..005): root cause exact 15/15, fix validated 14/15, upstream's
+  regression test 11/15. Next: other languages (TypeScript, Go), larger repos, bugs without a reproducer in the
+  report; Clef once its token works from this machine again; a team catalog for real repos (triage currently assigns
+  a MiniRide team).
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 

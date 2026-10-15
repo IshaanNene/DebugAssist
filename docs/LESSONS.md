@@ -217,6 +217,9 @@ Format: **symptom** → cause → fix · *guard*.
 - **The pipeline assumed one stack.** Running a real repo surfaced a hard-coded `uv run pytest`, MiniRide wording in
   prompts and MiniRide repos as search peers. → Repo-declared test commands and repo-aware prompts, with MiniRide
   byte-for-byte unchanged. *Lesson: one run on someone else's code finds assumptions no amount of your own catalog will.*
+- **Upstream's test can be stricter than the report.** python-semver#484 accepts `rc4` or `rc.4`; upstream's test pins
+  `rc4`. Scoring with it unchanged would fail fixes the report allows. → An adapted copy accepts both, documented in
+  the case. *Lesson: check the hidden test against the issue's own expectation, not only against the upstream fix.*
 - **One expensive run can carry an arm's average.** A single bug's three max-length fix attempts (after D14 picked
   the e2e tier) were most of the lean arm's token total. → Read per-bug numbers before averages; the report keeps
   per-run rows next to the arm table.

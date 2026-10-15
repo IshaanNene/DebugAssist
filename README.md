@@ -37,7 +37,7 @@ The plan is a fixed <b>LangGraph</b> graph; models never choose the next step. A
 <img src="docs/assets/results.svg" alt="Evaluation of 25 catalog bugs end to end: per-bug root cause, validated fix and hidden-test result" width="100%">
 </div>
 
-Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-14`](evals/reports/2026-10-14/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid shows every catalog bug's latest **three-seed** run: all 25 on commit `d7cf020` (`make eval-full`), with the 8 bugs re-run after the last round of fixes (marked •) on `becdbde`; amber means the seeds disagreed or the root cause was only close, grey means a miss. Against the first one-seed run on the code of 2026-10-07, root cause right or close went from 64% to **80%**, exact from 48% to **65%**, and hidden tests passing from 47% to **80%**, at a median of **$0.014** a run. The panel below compares the re-run bugs before and after those fixes.
+Every catalog bug was injected into the MiniRide repos, discovered from simulated rider traffic, and run through the whole pipeline with no human in the loop. The agent never sees the answer key; an evaluator scores its root cause against the catalog and runs **hidden tests** on its fix. The card above is drawn from [`evals/reports/2026-10-15`](evals/reports/2026-10-15/report.md) by `make readme-assets`; nothing in it is typed by hand. The top grid shows every catalog bug's latest **three-seed** run: all 25 on commit `d7cf020` (`make eval-full`), with the 8 bugs re-run after the last round of fixes (marked •) on `becdbde`; amber means the seeds disagreed or the root cause was only close, grey means a miss. Against the first one-seed run on the code of 2026-10-07, root cause right or close went from 64% to **80%**, exact from 48% to **65%**, and hidden tests passing from 47% to **80%**, at a median of **$0.014** a run. The panel below compares the re-run bugs before and after those fixes.
 
 <table>
 <tr>
@@ -84,23 +84,25 @@ The design bets that small calibrated decision models beat an LLM making the sam
 
 <sub>25 synthetic bugs, three seeds each in the top grid — read it as strengths and gaps, not precise rates. The report also has a decision-level evaluation (accuracy, Brier, calibration per decision), a replay of the logged decisions across Clef, Clef-flash, an LLM decider and a rules baseline, and every caveat. All runs use `openai/gpt-6-luna`. Reproduce: <code>debugassist eval run --bugs all</code> · <code>debugassist eval replay</code> · <code>debugassist eval report</code>.</sub>
 
-### A real open-source bug
+### Real open-source bugs
 
-Beyond the synthetic catalog, one public issue: [tkem/cachetools#435](https://github.com/tkem/cachetools/issues/435) — calling a `cachedmethod` through its class raises `AttributeError` — filed on 7 October 2026 and fixed upstream four days later. The pipeline ran on the code the issue was filed against, with git history cut at that commit (the [upstream fix](https://github.com/tkem/cachetools/pull/436) cannot be found), and saw only the report's symptom sections: the issue's last paragraphs named the faulty function and proposed the fix, so they were withheld ([case file](sources/github/issues/cachetools-435.yaml)). Three runs with the LLM decider:
+Beyond the synthetic catalog: five public issues from four small Python libraries, filed and fixed upstream between September and October 2026. Each ran on the code it was filed against, with git history cut at that commit so the upstream fix cannot be found, and was scored against the fix's location and the fix's own regression test. Where a report named its own cause or fix, that part was withheld; every case file lists what ([`sources/github/issues/`](sources/github/issues/)). Three runs each, with the LLM decider:
 
-| | |
-|---|---|
-| Root cause exact (`_DescriptorBase.__get__`, where upstream fixed it); every run named `57d2e48`, the 7.0.3 change that added the faulty branch (not scored) | **3 / 3** |
-| Reproduction fails on the release, fix passes it, suite and checks green | **3 / 3** |
-| Upstream's own regression test passes | **0 / 3** |
-| Median cost per run | $0.025 |
+| Issue | Root cause exact | Fix validated | Upstream's test passes |
+|---|---:|---:|---:|
+| [tkem/cachetools#435](https://github.com/tkem/cachetools/issues/435) — a `cachedmethod` called through its class raises `AttributeError` | 3/3 | 3/3 | 0/3 |
+| [tkem/cachetools#440](https://github.com/tkem/cachetools/issues/440) — a failed TTL insertion leaves an unusable entry | 3/3 | 3/3 | 3/3 |
+| [python-semver#484](https://github.com/python-semver/python-semver/issues/484) — an `rc3` prerelease bumps back to `rc.1` | 3/3 | 2/3 | 2/3 |
+| [parse#249](https://github.com/r1chardj0n3s/parse/issues/249) — `{:F}` rejects negative numbers; `f`/`F` reject `nan`/`inf` | 3/3 | 3/3 | 3/3 |
+| [more-itertools#1304](https://github.com/more-itertools/more-itertools/issues/1304) — `ichunked(…, 0)` raises instead of yielding nothing | 3/3 | 3/3 | 3/3 |
+| **All five** | **15/15** | **14/15** | **11/15** |
 
-The diagnosis was right every time; the fixes were not complete. Each made the reported call work but wrapped the method in a new object, so ordinary method access the upstream test also checks — passing the instance by keyword (`Cached.get(self=c, value=2)`), and `__wrapped__` — broke. The same pattern as the catalog: a fix as narrow as the report, not as wide as the semantics.
+<sub>Median cost $0.014–0.025 per run. Root cause exact means the file and function upstream changed. The semver hidden test is adapted from upstream's: the issue accepts `rc4` or `rc.4`, so the old-style cases accept either. One semver run was escalated to a human by the fix-strategy decision (a change to version-numbering behaviour) and made no fix. Every cachetools#435 fix made the reported call work but broke keyword access to the instance and `__wrapped__`, which upstream's test also checks.</sub>
 
 ## ⚠️ Limitations
 
 Read the numbers above with these in mind:
-- **Synthetic bugs, one app.** All 25 catalog bugs were written and injected by the author into MiniRide, a small app built for this project. "80% root cause right" is 80% on bugs designed here, not on real-world crashes. One [real open-source bug](#a-real-open-source-bug) has been run so far — one case, three runs.
+- **Synthetic bugs, one app.** All 25 catalog bugs were written and injected by the author into MiniRide, a small app built for this project. "80% root cause right" is 80% on bugs designed here, not on real-world crashes. Five [real open-source bugs](#real-open-source-bugs) have been run so far — small Python libraries, three runs each; that is a sample, not a benchmark.
 - **Same author, both sides.** The catalog and the agent skills were written by the same person. Skills are generic and linted for leaks, and the answer key (`groundtruth/`) never reaches the agent, but it is in this public repo, so a model trained on it later could be contaminated.
 - **Small samples.** Three seeds per bug, 25 bugs. Seeds still disagree on ten bugs; treat single-bug differences between arms as noise unless they repeat.
 - **Clef is unproven.** See [Does Clef help?](#does-clef-help-not-yet): no accuracy gain over an LLM decider so far.

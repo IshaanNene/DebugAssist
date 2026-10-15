@@ -104,7 +104,7 @@ Details, verification and caveats per phase are in [PROGRESS.md](PROGRESS.md); l
 | P16 | Langfuse | done 2026-10-10 |
 | P17 | Public site | done 2026-10-10, kept current |
 | — | Three-seed full run; fix round; Clef vs no-Clef ablation | done 2026-10-11 → 14 |
-| — | First real open-source bug (tkem/cachetools#435) | done 2026-10-14 |
+| — | Real open-source bugs: five issues from four Python libraries | done 2026-10-14 → 15 |
 | P18 | Evaluation at scale; prove or rework Clef; more real bugs | open |
 
 ## 5. Evaluation
@@ -134,7 +134,7 @@ is asked for first. The spec's original cost model (Claude prices, about $2.50�
 | Risk | Status |
 |---|---|
 | Ground-truth leakage inflating results | Isolation test; natural-commit injection; scorer reads ground truth after the run. The answer key is in a public repo, so a future model could be trained on it — stated in README › Limitations. |
-| Synthetic bugs written by the same author as the skills | Partly addressed: one real open-source bug run (root cause exact 3/3, upstream test 0/3); more cases on the roadmap. |
+| Synthetic bugs written by the same author as the skills | Partly addressed: five real open-source bugs run (root cause exact 15/15, upstream tests 11/15); still small Python libraries only. |
 | Small samples | Three seeds per bug in the headline; seeds still disagree on ten bugs. |
 | Clef's value unproven | Open. The replay and the live `no-clef` arm show no clear gain; rework D01, D13, D14 first ([ROADMAP](ROADMAP.md)). |
 | Clef token expiry (2026-11-03) | Mock decider in CI; live Clef needs a renewed token. |
