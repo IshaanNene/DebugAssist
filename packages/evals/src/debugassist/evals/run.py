@@ -34,6 +34,7 @@ CONFIGS: dict[str, dict[str, str]] = {
     "clef": {"DA_DECIDER": "clef"},
     "clef-flash": {"DA_DECIDER": "clef-flash"},
     "no-clef": {"DA_DECIDER": "llm"},  # the LLM decides everything, with self-reported confidence
+    "no-clef-repro2": {"DA_DECIDER": "llm", "DA_SECOND_REPRO": "1"},  # + a second, independent reproduction
     "no-d3": {"DA_ABLATE": "D3"},
     "no-d8": {"DA_ABLATE": "D8"},
     "no-d9": {"DA_ABLATE": "D9"},
@@ -202,6 +203,11 @@ async def evaluate(
                     _append(out, row)
                     log(
                         f"    {config} seed {seed}: rca {row['rca']} · validated {row['validated']} · hidden {row['hidden_tests']} · ${row['usd']:.3f}"
+                        + (
+                            f" · second repro {'/'.join(cast(list[str], row['repro2']))}"
+                            if row.get("repro2")
+                            else ""
+                        )
                     )
     finally:
         await ledger.close()
@@ -313,6 +319,11 @@ async def evaluate_real(
                 log(
                     f"    {config} seed {seed}: rca {row['rca']} · validated {row['validated']} · "
                     f"hidden {row['hidden_tests']} · ${row['usd']:.3f}"
+                    + (
+                        f" · second repro {'/'.join(cast(list[str], row['repro2']))}"
+                        if row.get("repro2")
+                        else ""
+                    )
                 )
     finally:
         await ledger.close()

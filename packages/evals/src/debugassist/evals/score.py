@@ -219,6 +219,15 @@ def score_run(run_id: str, bug: Case, clef_usd: float = 0.0, run_hidden: bool = 
         "outcome": ship,
         "outcome_ok": outcome_ok(ship, bug),
         "validated": bool(validation.get("passed")),
+        # DA_SECOND_REPRO: per validated attempt, what the second reproduction did (pass / fail / unchecked)
+        "repro2": [
+            {"passes with the fix": "pass", "fails with the fix": "fail"}.get(
+                str(r.get("result")), "unchecked"
+            )
+            for a in cast(list[Any], validation.get("attempts") or [])
+            if (r := _obj(_obj(a).get("second_reproduction")))
+        ]
+        or None,
         "tier": last.get("tier"),
         "hidden_tests": hidden.get("passed") if hidden.get("ran") else None,
         "diff_similarity": diff_similarity(str(last.get("diff", "")), reference) if reference else None,

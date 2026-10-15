@@ -201,9 +201,9 @@ export function results(model = "gpt-6-luna"): Results {
   // A later arm that re-ran a bug with as many seeds replaces that bug's cells: the grid shows each bug's latest
   // full-strength run, and says which code each part ran on. One-seed spot checks never replace three seeds.
   // Context-engineering arms measure tokens, decider arms (no-clef-*) are ablations and real-* arms run real
-  // open-source bugs (shown on their own), fixwidth-* is a prompt experiment that was reverted: none is a re-run of
+  // open-source bugs (shown on their own), fixwidth-* and repro2-* are fix-width experiments: none is a re-run of
   // the catalog's fixes.
-  const isRerun = (a: string) => !["context-", "no-clef", "real-", "fixwidth-"].some((p) => a.startsWith(p));
+  const isRerun = (a: string) => !["context-", "no-clef", "real-", "fixwidth-", "repro2-"].some((p) => a.startsWith(p));
   const later = headArm ? order.slice(order.indexOf(headArm) + 1).filter(isRerun) : [];
   const latest: Record<string, Row[]> = {};
   for (const r of baseRows) (latest[r.bug] ??= []).push(r);
