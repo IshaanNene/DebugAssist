@@ -189,10 +189,16 @@ token comparison, Quickstart.
     a test from the report alone, without the fix or the first test, and the fix must pass it. Arm `repro2-f277379`:
     it passed all 7 fixes it checked, and the hidden test passed 1/7 (cachetools#435 0/3, BUG-003 0/3, BUG-009 1/1).
     The second agent tested the report's own example, like the first.
-  - So the missing cases are not in the report, and a second reader does not add them. What could: tests from the
-    unit's *other* callers and documented uses rather than from the report (`find_references`, docstrings, the
-    docs' examples — cachetools' docs show keyword calls), or a property-style check that varies how the reported
-    call is made (positional/keyword, through the class/instance) mechanically rather than by asking a model.
+  - *Tried 2026-10-16, stricter but no effect on the outcome, kept off:* the same checker shown the code's other
+    uses (`DA_SECOND_REPRO=callers`, `pipeline/usages.py`: docs, type stubs, tests, callers by git grep). Arm
+    `callers-0ed427d`: on cachetools#435 it sent back 3 fixes that had passed their own test, yet every shipped fix
+    still failed upstream's test (0/3), the same two ways; BUG-003 0/2. The repository never calls a method with
+    `self=`: the docs show keyword arguments only for `cached` functions (`foo(a=1)`). Cost per REAL-001 run about
+    doubled from the extra attempts.
+  - What is left is mechanical: vary how the reported call is made (positional ↔ keyword arguments, through the
+    class ↔ the instance, introspection attributes such as `__wrapped__`/`__name__`) and require the fix to keep
+    every variant that worked before the regression working — a property check that needs no model and no source
+    the report lacks. Language-specific (Python first); worth it only if more real bugs fail this way.
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 

@@ -249,6 +249,14 @@ Format: **symptom** → cause → fix · *guard*.
   none of the fix, wrote a test of the report's own example in every case; it passed all 7 fixes it checked while
   the hidden test failed six. The narrowness was in the input, not in the fixing agent's bias. *Lesson: independence
   of the checker is not independence of its information — a check needs a source the report does not have.*
+- **Giving the checker more of the repo made it stricter, not right.** Shown the code's docs, stubs and tests, the
+  independent checker covered keyword arguments and cache sharing and sent back three narrow fixes, yet every
+  shipped fix still failed upstream's test: the uses upstream tests (`self=` as a keyword, `__wrapped__` on class
+  access) appear nowhere in the repository. *Lesson: a check is only as wide as its sources; when no source has the
+  case, only a mechanical variation of the call can find it.*
+- **Feed a parser the text, not its serialisation.** The report reached the usage collector as JSON, so its code
+  block's newlines were escaped, nothing matched, and names came from prose. → Pass the string fields; a test with a
+  real report shape. *Lesson: check what a new stage actually received in the first live run, before the totals.*
 - **A check that silently checks nothing looks like a pass.** The first second-reproduction runs reported "not
   checked" every time: `git ls-files` counts files marked intent-to-add (as the runner's diff does) as tracked, so
   the checker's new test was thrown away. The unit test's fake sandbox never ran that diff. → Compare with the

@@ -411,17 +411,29 @@ export default function Home() {
                   <code className="font-mono text-[12px]">{fw.arm}</code>.
                 </p>
               )}
-              {fw?.repro2 && (
+              {fw?.checks[0] && (
                 <p className="mt-3 max-w-[80ch] text-[13.5px] leading-[1.55] text-t3">
                   <span className="text-t2">Nor did a second, independent reproduction.</span> A separate agent wrote
                   its own failing test from the report alone, without the fix or the first test, and the fix had to
                   pass it too. It passed every fix it checked; the hidden tests failed on most:{" "}
-                  {fw.repro2.bugs
+                  {fw.checks[0].bugs
                     .map((b) => `${b.bug} ${b.hidden.pass}/${b.hidden.ran} hidden, second test ${b.second.pass}/${b.second.ran}`)
                     .join(" · ")}
                   . Both agents read the same report, and the report shows one example — the other cases the hidden
                   tests check are not in it. Off by default; arm{" "}
-                  <code className="font-mono text-[12px]">{fw.repro2.arm}</code>.
+                  <code className="font-mono text-[12px]">{fw.checks[0].arm}</code>.
+                </p>
+              )}
+              {fw?.checks[1] && (
+                <p className="mt-3 max-w-[80ch] text-[13.5px] leading-[1.55] text-t3">
+                  <span className="text-t2">Showing it the code&apos;s other uses made it stricter, not enough.</span>{" "}
+                  The checker also saw how the code is used elsewhere in the repository — docs, type stubs, tests,
+                  callers, collected by git grep. It sent back {fw.checks[1].bugs.reduce((n, b) => n + b.rejected, 0)}{" "}
+                  fixes that had passed their own test, yet no final fix passed the hidden tests:{" "}
+                  {fw.checks[1].bugs.map((b) => `${b.bug} ${b.hidden.pass}/${b.hidden.ran} hidden, ${b.rejected} sent back`).join(" · ")}
+                  . The repository never calls the method with <code className="font-mono text-[12px]">self=</code>;
+                  only upstream&apos;s new test does. Off by default; arm{" "}
+                  <code className="font-mono text-[12px]">{fw.checks[1].arm}</code>.
                 </p>
               )}
             </div>
