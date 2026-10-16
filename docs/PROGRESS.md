@@ -343,6 +343,19 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Library-call spellings and the variations replay (2026-10-16)
+
+- `callvariants`: REPL sessions (`>>>`) read as code, a report's blocks as one session, earlier statements allowed
+  to fail; library calls (non-stdlib imports and variables assigned from them) spelled at run time from
+  `inspect.signature` — every argument by keyword, or by position; iterators compared by what they yield, reprs
+  without addresses. Applies to all five real reports now. Tests: three more in `test_callvariants.py`.
+- `debugassist eval replay-variants` (`evals/variants_replay.py`): no model; scratch checkouts in
+  `.data/variants-replay/`, the repo's own setup, upstream fixes fetched from GitHub, earlier fixes from the run
+  cassettes (test files and binaries left out). Rendered in the report as *Call variations, replayed*: upstream 5/5
+  pass; 20/20 good fixes pass; 12/14 narrow fixes rejected. Replaces an earlier scratch-script count in the README.
+- Found on the way: runs on parse captured `.pyc` and `.coverage` in the fix diff (the repo does not ignore them) —
+  filed as a separate task.
+
 ## Call variations (2026-10-16) — built, measured, stops narrow fixes validating, off by default
 
 - `DA_CALL_VARIANTS=1` (eval config `no-clef-variants`): `pipeline/callvariants.py` re-spells each call of a

@@ -448,7 +448,10 @@ export default function Home() {
                   and that fix handles keyword calls. Upstream&apos;s test still failed (
                   {`${fw.checks[2].bugs.reduce((n, b) => n + b.hidden.pass, 0)}/${fw.checks[2].bugs.reduce((n, b) => n + b.hidden.ran, 0)}`}
                   ) on what the spellings cannot test —{" "}
-                  <code className="font-mono text-[12px]">__wrapped__</code> and cache statistics. Off by default; arm{" "}
+                  <code className="font-mono text-[12px]">__wrapped__</code> and cache statistics.
+                  {fw.replay &&
+                    ` Replayed on every earlier fix of the five real bugs — library calls spelled too, from their run-time signatures — it rejects ${fw.replay.narrow.pass} of ${fw.replay.narrow.ran} that upstream's test fails, passes ${fw.replay.good.pass} of ${fw.replay.good.ran} that it passes, and passes upstream's own fix in ${fw.replay.upstream.pass} of ${fw.replay.upstream.ran}.`}{" "}
+                  Off by default; arm{" "}
                   <code className="font-mono text-[12px]">{fw.checks[2].arm}</code>.
                 </p>
               )}

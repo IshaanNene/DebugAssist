@@ -259,8 +259,12 @@ Format: **symptom** → cause → fix · *guard*.
   being marked validated — where three model-based checks had passed every one. *Lesson: when the gap is "the
   other ways to say the same thing", enumerate them; don't ask a reader of the same text to imagine them.*
 - **Replay a new check on old runs before spending on new ones.** The cassettes held every earlier fix's diff;
-  applying them to a scratch copy measured the check for free and showed upstream's fix passes it (no false
-  positive). *Lesson: an archive of past attempts is a free test set for any new validator.*
+  applying them to a scratch copy measured the check for free — 39 fixes and five upstream fixes, no false alarm.
+  *Lesson: an archive of past attempts is a free test set for any new validator.*
+- **A scratch script is not a source for published numbers.** The first replay ran from a throwaway script and its
+  "11 of 12" went into the README. → `debugassist eval replay-variants` writes its result into the report, which
+  renders it; the README cites that. *Lesson: if a number is worth publishing, make the command that made it part
+  of the repo first.*
 - **Feed a parser the text, not its serialisation.** The report reached the usage collector as JSON, so its code
   block's newlines were escaped, nothing matched, and names came from prose. → Pass the string fields; a test with a
   real report shape. *Lesson: check what a new stage actually received in the first live run, before the totals.*
