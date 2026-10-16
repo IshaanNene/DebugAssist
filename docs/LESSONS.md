@@ -266,6 +266,24 @@ Format: **symptom** → cause → fix · *guard*.
   Python's own, and the 20 good fixes and 5 upstream fixes still pass, but only one of those exercises the new
   part. *Lesson: a check derived from the test it is scored on needs cases it was not derived from before its
   number means much; say so next to the number.*
+- **An agent's reproduction tests the fix, not the past.** Bisecting with the whole test file found no good release
+  for semver#484: the test also asserts behaviour no release ever had. One of its cases — the old `rc3` → `rc4`
+  behaviour — passed on 3.0.4 and bisected straight to #462, the commit the report blames, where the RCA had named
+  a later one. → Bisect each failing case alone when the file never passes. *Lesson: to ask "when did this
+  break", test only what used to work.*
+- **"Not a regression" was the wrong name.** cachetools#435 did regress, from 6.2.0, but that release is on a branch
+  the checkout's history does not contain; every 7.x release fails the test, in other ways before 7.0.3. → The
+  result is `no_good_release`, with that reason. *Lesson: name a result by what was observed, not by the conclusion
+  it seems to support.*
+- **A fixed number of newest tags misses old good releases.** The first replay tried the eight newest and stopped
+  at 7.1.3. → Tags at doubling distances (1st, 2nd, 4th … oldest) reach any release in a few runs; bisect narrows the
+  rest. A first draft also ran `git clean -fd` between commits, which would have deleted dependency directories the
+  repo does not ignore (`.venv` in four of five) — caught before it ran; only the placed test file is removed now.
+- **iCloud evicted the repo from under the tools.** With the repo on an iCloud-synced Desktop, 71 tracked files,
+  ~3,000 files in `.venv` and parts of the submodules became "dataless": reading them blocked, so `uv sync`, pyright
+  and `make check` hung and a replay was killed. → Restored from git (delete, then check out), `.venv` rebuilt.
+  *Lesson: when every tool hangs at once, check the file system before the tools — and keep a working repo out of
+  synced folders.*
 - **A scratch script is not a source for published numbers.** The first replay ran from a throwaway script and its
   "11 of 12" went into the README. → `debugassist eval replay-variants` writes its result into the report, which
   renders it; the README cites that. *Lesson: if a number is worth publishing, make the command that made it part

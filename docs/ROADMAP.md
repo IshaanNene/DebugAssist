@@ -218,6 +218,15 @@ token comparison, Quickstart.
     define or decorate methods, to test the attribute comparison on code it was not designed from. Then decide
     whether to turn it on: it lowers "validated" by refusing narrow fixes, which is the point, and costs extra
     attempts (about $0.06 a run on REAL-001). A TypeScript version for the catalog would need its own parser.
+- **Prove the culprit commit by running it — built 2026-10-16, off by default.** `DA_BISECT=1`
+  (`pipeline/bisect.py`, no model): the validated reproduction test run back through history (release tags at
+  doubling distances, then `git bisect`; bad only with the release's exception; the file's failing cases one by one
+  when the whole file never passes). `debugassist eval replay-bisect` on 30 earlier tests: python-semver#484 bisects
+  to #462 — the change the report blames — in 3/3 runs, where the RCA named a later commit; the other four real
+  bugs have no good release in their checkout's history. Next: a live arm; non-pytest runners (vitest `-t`, `go
+  test -run`) for the per-case step; bisecting across release branches (cachetools' last good release, 6.2.0, is on
+  one); and scoring "introduced by" against a known culprit — the catalog's are one commit by construction, so it
+  needs real regressions.
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 
