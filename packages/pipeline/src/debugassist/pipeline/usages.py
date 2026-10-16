@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 
 CONTEXT = 8  # lines either side of a hit
@@ -44,13 +45,18 @@ def defined(worktree: Path, name: str) -> bool:
     return subprocess.run(["git", "grep", "-q", "-E", pat], cwd=worktree, check=False).returncode == 0
 
 
+def report_text(report: Mapping[str, object]) -> str:
+    """The report's own text (its string fields, newlines intact), not its JSON: code blocks must still match."""
+    return "\n".join(v for v in report.values() if isinstance(v, str))
+
+
 def names_for(worktree: Path, function: str | None, report: str) -> list[str]:
     """The root-cause function (last part, and its class) and the report's code identifiers the repo defines."""
     out: list[str] = []
     for part in (function or "").replace("::", ".").split("."):
         if part and part not in out:
             out.append(part)
-    code = "\n".join(_CODE.findall(report)) or report
+    code = "\n".join(_CODE.findall(report))  # identifiers from prose would be guesses
     found = [
         i
         for i in dict.fromkeys(_IDENT.findall(code))

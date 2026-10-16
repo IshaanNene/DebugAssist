@@ -44,3 +44,10 @@ def test_collect_puts_docs_and_stubs_before_source_and_skips_excluded_files(tmp_
     headers = [line for line in out.splitlines() if line.startswith("---")]
     assert [h.split()[1].split(":")[0] for h in headers] == ["docs/index.rst", "src/lib.pyi", "src/use.py"]
     assert "CHANGELOG" not in out and "return xs[:n]" not in out
+
+
+def test_a_reports_prose_gives_no_names_only_its_code(tmp_path: Path) -> None:
+    wt = _repo(tmp_path, {"pkg/core.py": "def call(x):\n    pass\n\n\ndef memo(f):\n    return f\n"})
+    report = {"body": "Any call fails.\n\n```python\nmemo(1)\n```\n", "url": "https://example.test/1"}
+    assert usages.report_text(report).count("\n") > 2  # real newlines, not JSON escapes
+    assert usages.names_for(wt, None, usages.report_text(report)) == ["memo"]
