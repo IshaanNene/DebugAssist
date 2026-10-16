@@ -1,9 +1,11 @@
-"""DebugAssist API for the dashboard (port 8400). Read-only over runs, the decision ledger and the
-sources, plus feedback; `GET /api/runs/{id}/stream` pushes live updates (server-sent events)."""
+"""DebugAssist API for the dashboard (port 8400): runs, the decision ledger and the sources, plus feedback;
+`GET /api/runs/{id}/stream` pushes live updates (server-sent events). Not read-only: some POSTs start agent work
+(feedback, diff fixes, runs) and spend money, and there is no authentication — serve it on localhost only."""
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import subprocess
@@ -68,8 +70,20 @@ async def github_webhook(request: Request) -> dict[str, Any]:
     if obj(payload.get("label")).get("name") != s.github_app_label:
         return {"queued": False, "reason": "another label"}
     repo, number = payload["repository"]["full_name"], int(payload["issue"]["number"])
+    # The signature covers the body, not the headers: the delivery id names a file, so it must be a GUID, and
+    # a body seen before is a replay (a real re-label changes `updated_at` and so the body) whatever its id.
+    try:
+        delivery = str(uuid.UUID(request.headers.get("x-github-delivery") or ""))
+    except ValueError:
+        raise HTTPException(400, "X-GitHub-Delivery must be a GUID") from None
+    seen = QUEUE.parent / "deliveries"
+    seen.mkdir(parents=True, exist_ok=True)
+    marks = [seen / delivery, seen / hashlib.sha256(body).hexdigest()]
+    if any(m.exists() for m in marks):
+        return {"queued": False, "reason": "duplicate delivery"}
+    for m in marks:
+        m.touch()
     QUEUE.mkdir(parents=True, exist_ok=True)
-    delivery = request.headers.get("x-github-delivery") or uuid.uuid4().hex
     (QUEUE / f"{delivery}.json").write_text(json.dumps({"repo": repo, "number": number}))
     return {"queued": True, "issue": f"{repo}#{number}"}
 

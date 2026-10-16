@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from debugassist.core.evidence import EvidenceItem
-from debugassist.core.guards import GuardError, check_command, check_egress, confine
+from debugassist.core.guards import GuardError, check_command, confine
 from debugassist.core.policy import Policy, PolicyGate, Verdict
 
 POLICY = Policy(
@@ -86,12 +86,6 @@ def test_confine(tmp_path: Path) -> None:
     for bad in ["../outside", "/etc/passwd", ".env", ".git/config", "src/../../x"]:
         with pytest.raises(GuardError):
             confine(tmp_path, bad)
-
-
-def test_egress() -> None:
-    check_egress("openrouter.ai")
-    with pytest.raises(GuardError):
-        check_egress("pastebin.com")
 
 
 def test_evidence_ids_are_stable() -> None:

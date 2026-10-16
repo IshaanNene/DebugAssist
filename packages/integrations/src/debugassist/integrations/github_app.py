@@ -12,10 +12,10 @@ and draft pull requests only.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
-import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -25,10 +25,13 @@ from typing import Any, Protocol, cast
 import httpx
 import jwt
 
+from debugassist.core import hostgit
 from debugassist.core.policy import ROOT
 from debugassist.integrations.github import GitHubLive
 
 API = "https://api.github.com"
+MAX_PAGES = 50
+REPOS_TTL = 600.0  # seconds
 MARKER = "<!-- debugassist:"  # starts every comment the app writes, so a poll never runs an issue twice
 
 
@@ -50,8 +53,19 @@ class GitHubApp(Protocol):
     def comments(self, repo: str, number: int) -> list[str]: ...
     def repo_info(self, repo: str) -> dict[str, Any]: ...
     def clone_url(self, repo: str) -> str: ...
+    def git_env(self, repo: str) -> dict[str, str]: ...
     def client(self, repo: str) -> GitHubLive | None: ...
     def comment(self, repo: str, number: int, body: str) -> None: ...
+
+
+def git_auth_env(token: str) -> dict[str, str]:
+    basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+    return {
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
+        "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {basic}",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
 
 
 def app_jwt(app_id: str, private_key: str, now: int | None = None) -> str:
@@ -87,6 +101,7 @@ class GitHubAppLive:
         self.http = http or httpx.Client(base_url=API, timeout=30)
         self._tokens: dict[int, tuple[str, float]] = {}  # installation id → (token, expires at)
         self._repos: dict[str, int] | None = None  # owner/name → installation id
+        self._repos_at = 0.0  # refreshed every REPOS_TTL: installs and uninstalls show up without a restart
 
     def _headers(self, token: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
@@ -107,7 +122,7 @@ class GitHubAppLive:
         return str(d["token"])
 
     def _map(self) -> dict[str, int]:
-        if self._repos is None:
+        if self._repos is None or time.time() - self._repos_at > REPOS_TTL:
             repos: dict[str, int] = {}
             r = self.http.get("/app/installations", headers=self._headers(app_jwt(self.app_id, self.key)))
             r.raise_for_status()
@@ -126,7 +141,7 @@ class GitHubAppLive:
                     if len(items) < 100:
                         break
                     page += 1
-            self._repos = repos
+            self._repos, self._repos_at = repos, time.time()
         return self._repos
 
     def _token(self, repo: str) -> str:
@@ -139,29 +154,47 @@ class GitHubAppLive:
         r.raise_for_status()
         return r.json()
 
+    def _get_all(self, repo: str, path: str, **params: Any) -> list[dict[str, Any]]:
+        """Every page of a list endpoint (GitHub returns 30 items by default and 100 at most per page): a
+        marker comment past the first page must still be seen, or the poll runs the issue again forever."""
+        out: list[dict[str, Any]] = []
+        url: str | None = path
+        query: dict[str, Any] | None = {**params, "per_page": 100}
+        for _ in range(MAX_PAGES):
+            if url is None:
+                break
+            r = self.http.get(url, headers=self._headers(self._token(repo)), params=query)
+            r.raise_for_status()
+            out += cast(list[dict[str, Any]], r.json())
+            url, query = r.links.get("next", {}).get("url"), None  # the next link carries the query
+        return out
+
     def installed_repos(self) -> list[str]:
         return sorted(self._map())
 
     def labeled_issues(self, repo: str, label: str) -> list[AppIssue]:
-        items = cast(
-            list[dict[str, Any]], self._get(repo, f"/repos/{repo}/issues", labels=label, state="open")
-        )
+        items = self._get_all(repo, f"/repos/{repo}/issues", labels=label, state="open")
         return [_issue(repo, d) for d in items if "pull_request" not in d]  # the issues API lists PRs too
 
     def issue(self, repo: str, number: int) -> AppIssue:
         return _issue(repo, cast(dict[str, Any], self._get(repo, f"/repos/{repo}/issues/{number}")))
 
     def comments(self, repo: str, number: int) -> list[str]:
-        items = cast(
-            list[dict[str, Any]], self._get(repo, f"/repos/{repo}/issues/{number}/comments", per_page=100)
-        )
+        items = self._get_all(repo, f"/repos/{repo}/issues/{number}/comments")
         return [str(c.get("body") or "") for c in items]
 
     def repo_info(self, repo: str) -> dict[str, Any]:
         return cast(dict[str, Any], self._get(repo, f"/repos/{repo}"))
 
     def clone_url(self, repo: str) -> str:
-        return f"https://x-access-token:{self._token(repo)}@github.com/{repo}.git"
+        return f"https://github.com/{repo}.git"  # no credentials: they go in git_env, never in a URL or argv
+
+    def git_env(self, repo: str) -> dict[str, str]:
+        """Environment that authenticates git to github.com as the installation, as actions/checkout does.
+
+        A token in the URL ends up in argv, so in any CalledProcessError, run state, trace or log that
+        records the failed command; the environment is not."""
+        return git_auth_env(self._token(repo))
 
     def comment(self, repo: str, number: int, body: str) -> None:
         r = self.http.post(
@@ -185,11 +218,15 @@ class AppRepoClient(GitHubLive):
         self.repo = repo
 
     def push(self, worktree: Path, branch: str) -> None:
-        subprocess.run(
-            ["git", "push", "-q", "-f", self.app.clone_url(self.repo), f"HEAD:refs/heads/{branch}"],
-            cwd=worktree,
+        hostgit.run(
+            worktree,
+            "push",
+            "-q",
+            "-f",
+            self.app.clone_url(self.repo),
+            f"HEAD:refs/heads/{branch}",
             check=True,
-            capture_output=True,  # the URL holds the token: keep it out of logs
+            extra_env=self.app.git_env(self.repo),
         )
 
 
@@ -253,6 +290,9 @@ class GitHubAppMock:
 
     def clone_url(self, repo: str) -> str:
         return str(self._repo(repo)["clone_url"])  # a local path in mock mode
+
+    def git_env(self, repo: str) -> dict[str, str]:
+        return {}
 
     def client(self, repo: str) -> GitHubLive | None:
         return None  # the pipeline's own GitHubMock records PRs and pushes

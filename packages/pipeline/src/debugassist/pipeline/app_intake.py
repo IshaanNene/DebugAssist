@@ -4,19 +4,20 @@ A repository the app is installed on is checked out into `targets/gh--<owner>--<
 default branch's head, which is tagged locally as the release under test (`vapp-<sha>`); the fix branches from
 there and the draft PR targets the default branch. The repository opts in by carrying `.DebugAssist/pipeline.yaml`
 (how to build and test it, as for the real-bug cases); without it nothing runs. The clone URL holds the
-installation token, so git output is captured and the remote is reset to the plain URL afterwards.
+installation token goes to git through its environment (`http.extraheader`), never in a URL, argv or `.git/config`.
 """
 
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 from typing import Any, cast
 
 import yaml
 
+from debugassist.core import hostgit
 from debugassist.core.policy import ROOT
+from debugassist.core.redaction import redact_secrets
 from debugassist.integrations.github_app import GitHubApp
 from debugassist.pipeline.state import Issue
 
@@ -43,12 +44,10 @@ def target_name(repo: str) -> str:
     return "gh--" + repo.replace("/", "--")
 
 
-def _git(cwd: Path, *args: str) -> str:
-    out = subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+def _git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
+    out = hostgit.run(cwd, *args, extra_env=env)
     if out.returncode:
-        raise RuntimeError(
-            f"git {args[0]} failed: {out.stderr.strip()[-300:]}".replace("x-access-token:", "***:")
-        )
+        raise RuntimeError(redact_secrets(f"git {args[0]} failed: {out.stderr.strip()[-300:]}"))
     return out.stdout.strip()
 
 
@@ -57,14 +56,12 @@ def ensure_checkout(app: GitHubApp, repo: str) -> tuple[Path, str, str, dict[str
     info = app.repo_info(repo)
     branch = str(info.get("default_branch") or "main")
     dest = TARGETS / target_name(repo)
-    url = app.clone_url(repo)
+    url, auth = app.clone_url(repo), app.git_env(repo)
     if not (dest / ".git").exists():
         dest.parent.mkdir(parents=True, exist_ok=True)
-        _git(dest.parent, "clone", "-q", "--branch", branch, url, str(dest))
-        if url.startswith("https://"):
-            _git(dest, "remote", "set-url", "origin", f"https://github.com/{repo}.git")  # no token at rest
+        _git(dest.parent, "clone", "-q", "--branch", branch, url, str(dest), env=auth)
     else:
-        _git(dest, "fetch", "-q", url, branch)
+        _git(dest, "fetch", "-q", url, branch, env=auth)
         _git(dest, "checkout", "-q", "-f", "-B", branch, "FETCH_HEAD")
     sha = _git(dest, "rev-parse", "--short=10", "HEAD")
     cfg_file = dest / ".DebugAssist" / "pipeline.yaml"

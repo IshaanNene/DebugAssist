@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from debugassist.core.settings import Integration, Mode, Settings
@@ -6,14 +8,6 @@ from debugassist.core.settings import Integration, Mode, Settings
 def make(**kwargs: object) -> Settings:
     # _env_file=None keeps the developer's real .env out of unit tests.
     return Settings(_env_file=None, **kwargs)  # type: ignore[call-arg]
-
-
-@pytest.fixture(autouse=True)
-def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in ("OPEN_ROUTER_API_KEY", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_KEY", "JIRA_API_KEY"):
-        monkeypatch.delenv(name, raising=False)
-    for i in Integration:
-        monkeypatch.delenv(f"DA_MODE_{i.name}", raising=False)
 
 
 def test_everything_is_mock_without_keys() -> None:
@@ -46,3 +40,23 @@ def test_replay_only_for_llm() -> None:
     assert make(da_mode_llm="replay").mode(Integration.LLM) is Mode.REPLAY
     with pytest.raises(ValueError, match="replay"):
         make(da_mode_clef="replay").mode(Integration.CLEF)
+
+
+def test_an_exported_github_token_does_not_make_pushes_live(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit P2-10: `gh`, Codespaces and CI export GITHUB_TOKEN; that alone must not turn GitHub writes live."""
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_ambient")
+    assert make().mode(Integration.GITHUB) is Mode.MOCK
+    assert make(da_mode_github="live").mode(Integration.GITHUB) is Mode.LIVE  # an explicit opt-in still works
+    env = tmp_path / ".env"
+    env.write_text("GITHUB_TOKEN=ghp_configured\n")
+    monkeypatch.setitem(Settings.model_config, "env_file", str(env))
+    assert Settings().mode(Integration.GITHUB) is Mode.LIVE  # configured for this project: live as before
+
+
+def test_the_suite_sees_no_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The root conftest clears every settings variable and the .env file for unit tests."""
+    from debugassist.core.settings import get_settings
+
+    assert set(get_settings().modes().values()) == {Mode.MOCK}

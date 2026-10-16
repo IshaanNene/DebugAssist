@@ -14,11 +14,12 @@
 from __future__ import annotations
 
 import re
-import subprocess
 from pathlib import Path
 from typing import Any
 
+from debugassist.core import hostgit
 from debugassist.core.ablation import ablated
+from debugassist.core.guards import walk_files
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
 from debugassist.integrations.sandbox import Sandbox
@@ -55,7 +56,7 @@ def _ctx(state: RunState) -> RunContext:
 
 
 def _git(sb: Sandbox, *args: str) -> str:
-    out = subprocess.run(["git", *args], cwd=sb.worktree, capture_output=True, text=True)
+    out = hostgit.run(sb.worktree, *args)
     return out.stdout.strip() if out.returncode == 0 else ""
 
 
@@ -144,9 +145,9 @@ def candidates(sb: Sandbox, state: RunState) -> tuple[list[dict[str, str]], list
     if search:
         comp = root if issue.component == "." else root / issue.component
         word = re.compile(r"\b(" + "|".join(re.escape(i) for i in sorted(search)) + r")\b")
-        for path in comp.rglob("*"):
+        for path in walk_files(comp, {"node_modules"}):
             rel = str(path.relative_to(root))
-            if "node_modules" in path.parts or not src(rel) or rel in reasons:
+            if not src(rel) or rel in reasons:
                 continue
             try:
                 hits = set(word.findall(path.read_text(errors="replace")))

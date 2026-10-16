@@ -170,6 +170,7 @@ def _resolve(state: RunState, deps: Deps, approve_flag_restore: bool) -> list[st
         done.append(
             _jira(
                 deps,
+                state.run_id,
                 tr.jira_key,
                 f"Resolved after deploy: {_rates(w)}. (DebugAssist post-merge watch)",
                 "Done",
@@ -178,15 +179,14 @@ def _resolve(state: RunState, deps: Deps, approve_flag_restore: bool) -> list[st
     if m and m.flag and m.action == "rolled_back" and m.rolled_back_from:
         verdict = deps.gate.verdict("flags.restore")
         live = verdict is Verdict.LIVE or (verdict is Verdict.APPROVAL and approve_flag_restore)
-        res = ff.rollback_flag(
-            m.flag, m.rolled_back_from, reason=f"{issue.id}: fix deployed and verified", dry_run=not live
-        )
-        deps.gate.record(
-            "flags.restore",
-            Verdict.LIVE if live else Verdict.DRY_RUN,
+        res = ff.apply_rollout(
+            m.flag,
+            m.rolled_back_from,
+            reason=f"{issue.id}: fix deployed and verified",
+            authorized=live,
+            action="flags.restore",
+            gate=deps.gate,
             run_id=state.run_id,
-            detail={"flag": m.flag, "to": m.rolled_back_from},
-            result=res,
         )
         done.append(
             f"flag {m.flag} → {m.rolled_back_from}% ({'applied' if res.get('applied') else 'dry run'})"
@@ -205,6 +205,7 @@ def _reopen(state: RunState, deps: Deps) -> list[str]:
         done.append(
             _jira(
                 deps,
+                state.run_id,
                 tr.jira_key,
                 f"Still happening after the deploy: {_rates(w)}. Reopening. (DebugAssist)",
                 "In Progress",
@@ -231,11 +232,21 @@ def _reopen(state: RunState, deps: Deps) -> list[str]:
     return done
 
 
-def _jira(deps: Deps, key: str, text: str, status: str) -> str:
+def _jira(deps: Deps, run_id: str, key: str, text: str, status: str) -> str:
     """Comment and move the ticket; a Jira error is reported, not fatal (the rest still happens)."""
     try:
-        deps.jira.comment(key, [("para", text)])
-        deps.jira.transition(key, status)
+        d = {"key": key}
+        v, _ = deps.gate.gated(
+            "jira.comment", lambda: deps.jira.comment(key, [("para", text)]), run_id=run_id, detail=d
+        )
+        w, _ = deps.gate.gated(
+            "jira.transition",
+            lambda: deps.jira.transition(key, status),
+            run_id=run_id,
+            detail={**d, "to": status},
+        )
+        if Verdict.LIVE not in (v, w):
+            return f"jira {key}: {v.value} by policy"
         return f"jira {key} → {status}"
     except httpx.HTTPError as exc:
         return f"jira {key}: failed ({type(exc).__name__})"

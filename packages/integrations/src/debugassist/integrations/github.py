@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
@@ -11,6 +10,7 @@ from typing import Protocol
 import httpx
 from pydantic import BaseModel
 
+from debugassist.core import hostgit
 from debugassist.core.policy import ROOT
 
 
@@ -48,9 +48,7 @@ class GitHubLive:
 
     def push(self, worktree: Path, branch: str) -> None:
         # Uses the developer's configured git remote credentials (the token never enters the sandbox).
-        subprocess.run(
-            ["git", "push", "-q", "-f", "origin", f"HEAD:refs/heads/{branch}"], cwd=worktree, check=True
-        )
+        hostgit.run(worktree, "push", "-q", "-f", "origin", f"HEAD:refs/heads/{branch}", check=True)
 
     def open_pr(self, repo: str, head: str, base: str, title: str, body: str, draft: bool) -> PullRequest:
         existing = self.http.get(
@@ -104,13 +102,7 @@ class GitHubMock:
         return True
 
     def push(self, worktree: Path, branch: str) -> None:
-        patch = subprocess.run(
-            ["git", "format-patch", "-1", "--stdout"],
-            cwd=worktree,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
+        patch = hostgit.run(worktree, "format-patch", "-1", "--stdout", check=True).stdout
         (self.root / f"{branch.replace('/', '__')}.patch").write_text(patch)
 
     def open_pr(self, repo: str, head: str, base: str, title: str, body: str, draft: bool) -> PullRequest:

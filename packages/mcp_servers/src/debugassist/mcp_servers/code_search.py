@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import fnmatch
 import re
-import subprocess
 from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from debugassist.core import ablation
-from debugassist.core.guards import GuardError, confine
+from debugassist.core import ablation, hostgit
+from debugassist.core.guards import GuardError, confine, walk_files
 from debugassist.core.outline import outline
 from debugassist.mcp_servers.common import cap, with_evidence
 from debugassist.mcp_servers.repos import repo_roots, resolve
@@ -49,9 +48,9 @@ SYMBOL_DEF = [
 
 def _files(root: Path, path_glob: str | None) -> list[Path]:
     out: list[Path] = []
-    for p in root.rglob("*"):
+    for p in walk_files(root, SKIP_DIRS):
         rel = p.relative_to(root)
-        if any(part in SKIP_DIRS for part in rel.parts) or not p.is_file() or p.suffix not in TEXT_EXT:
+        if p.suffix not in TEXT_EXT:
             continue
         if path_glob and not fnmatch.fnmatch(str(rel), path_glob):
             continue
@@ -189,12 +188,7 @@ def blame(repo: str, path: str, start_line: int, end_line: int) -> dict[str, Any
         confine(root, path)
     except GuardError as exc:
         return {"error": str(exc)}
-    out = subprocess.run(
-        ["git", "blame", "--line-porcelain", "-L", f"{start_line},{end_line}", "--", path],
-        cwd=root,
-        capture_output=True,
-        text=True,
-    )
+    out = hostgit.run(root, "blame", "--line-porcelain", "-L", f"{start_line},{end_line}", "--", path)
     if out.returncode:
         return {"error": out.stderr.strip()[:300]}
     rows: list[dict[str, Any]] = []

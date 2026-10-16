@@ -3,17 +3,22 @@
 The agent edits files only inside the worktree (paths are confined by the guards) and its commands
 run in a container with the worktree mounted and `--network none`. Dependencies are installed once
 per run with network, before the agent starts.
+
+The worktree is untrusted input to the host: the container runs as the host user with no capabilities, the
+worktree's `.git` is mounted read-only, and host git goes through `core.hostgit`, which never discovers the
+repository from the worktree.
 """
 
 from __future__ import annotations
 
+import os
 import shlex
 import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from debugassist.core import tracing
+from debugassist.core import hostgit, tracing
 from debugassist.core.guards import check_command
 from debugassist.core.policy import ROOT
 
@@ -44,7 +49,7 @@ class Sandbox:
         return RUNS / self.run_id / "repo"
 
     def _git(self, *args: str, cwd: Path | None = None) -> str:
-        out = subprocess.run(["git", *args], cwd=cwd or self.worktree, capture_output=True, text=True)
+        out = hostgit.run(cwd or self.worktree, *args)
         if out.returncode:
             raise RuntimeError(f"git {' '.join(args)}: {out.stderr.strip()}")
         return out.stdout.strip()
@@ -97,13 +102,21 @@ class Sandbox:
         """Run a command in the language image with the worktree mounted at /work."""
         check_command(command)
         image = IMAGES[self.language]
-        setup = "corepack enable >/dev/null 2>&1; " if self.language == "typescript" else ""
+        # Not root, so corepack cannot write /usr/local/bin: its shims go to a directory on PATH under /tmp.
+        setup = (
+            "export PATH=/tmp/bin:$PATH; mkdir -p /tmp/bin && "
+            "corepack enable --install-directory /tmp/bin >/dev/null 2>&1; "
+            if self.language == "typescript"
+            else ""
+        )
         cmd = [
             "docker",
             "run",
             "--rm",
+            *self.hardening(),
             "-v",
             f"{self.worktree}:/work",
+            *self.git_mount(),
             "-w",
             f"/work/{workdir}".rstrip("/."),
             "--network",
@@ -146,6 +159,18 @@ class Sandbox:
                 result = CommandResult(command, 124, f"timed out after {timeout}s")
             tracing.set_attributes(sp, exit_code=result.exit_code, **{"output.value": result.output[-2000:]})
             return result
+
+    def hardening(self) -> list[str]:
+        """Least privilege for the container: the host user's ids (so files it writes are not root-owned and
+        git's ownership checks keep their meaning), no capabilities, no privilege gain, a process cap."""
+        user = [] if os.name == "nt" else ["--user", f"{os.getuid()}:{os.getgid()}"]
+        return [*user, "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "512"]
+
+    def git_mount(self) -> list[str]:
+        """Mount the worktree's `.git` read-only over itself, so commands cannot replace it (the host never
+        trusts it either — see `core.hostgit`)."""
+        dot = self.worktree / ".git"
+        return ["-v", f"{dot}:/work/.git:ro"] if dot.exists() and not dot.is_symlink() else []
 
     def install(self, setup: str, workdir: str = ".") -> CommandResult:
         """Install dependencies (the one step allowed network access)."""

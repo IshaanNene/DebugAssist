@@ -31,7 +31,7 @@ x-langfuse-env: &langfuse-env
   CLICKHOUSE_USER: clickhouse
   CLICKHOUSE_PASSWORD: clickhouse
   CLICKHOUSE_CLUSTER_ENABLED: "false"
-  REDIS_CONNECTION_STRING: redis://redis:6379
+  REDIS_CONNECTION_STRING: redis://:${REDIS_PASSWORD:-debugassist-dev}@redis:6379
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
   LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
   LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: debugassist
@@ -63,7 +63,7 @@ services:
       POSTGRES_USER: debugassist
       POSTGRES_PASSWORD: debugassist  # local-only dev credential
       POSTGRES_DB: debugassist
-    ports: ["5432:5432"]
+    ports: ["127.0.0.1:5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -76,9 +76,13 @@ services:
     <<: *restart
     profiles: [core]
     image: redis:8.10.2-alpine
-    ports: ["6379:6379"]
+    # A password, and (like every published port here) loopback only: the queue worker runs what Redis holds.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-debugassist-dev}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-debugassist-dev}
+    ports: ["127.0.0.1:6379:6379"]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
       interval: 5s
       retries: 20
 
@@ -91,7 +95,7 @@ services:
     environment:
       MINIO_ROOT_USER: debugassist
       MINIO_ROOT_PASSWORD: debugassist-dev  # local-only dev credential
-    ports: ["9000:9000", "9001:9001"]
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: [miniodata:/data]
 
   jaeger:
@@ -99,7 +103,7 @@ services:
     profiles: [obs]
     image: jaegertracing/jaeger:2.21.0
     ports:
-      - "16686:16686"  # UI + query API (OTLP is received via the collector)
+      - "127.0.0.1:16686:16686"  # UI + query API (OTLP is received via the collector)
 
   otel-collector:
     <<: *restart
@@ -108,8 +112,8 @@ services:
     command: ["--config=/etc/otelcol/config.yaml"]
     volumes: ["./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro"]
     ports:
-      - "4317:4317"  # OTLP gRPC
-      - "4318:4318"  # OTLP HTTP (services + browser)
+      - "127.0.0.1:4317:4317"  # OTLP gRPC
+      - "127.0.0.1:4318:4318"  # OTLP HTTP (services + browser)
     depends_on: [jaeger, loki, prometheus]
 
   loki:
@@ -117,7 +121,7 @@ services:
     profiles: [obs]
     image: grafana/loki:3.7.8
     command: ["-config.file=/etc/loki/local-config.yaml"]
-    ports: ["3100:3100"]
+    ports: ["127.0.0.1:3100:3100"]
 
   prometheus:
     <<: *restart
@@ -126,14 +130,14 @@ services:
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=2d",
               "--web.enable-remote-write-receiver"]
     volumes: ["./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
-    ports: ["9090:9090"]
+    ports: ["127.0.0.1:9090:9090"]
 
   phoenix:
     <<: *restart
     profiles: [obs]
     image: arizephoenix/phoenix:20.19.0
     ports:
-      - "6006:6006"  # UI + OTLP HTTP (/v1/traces)
+      - "127.0.0.1:6006:6006"  # UI + OTLP HTTP (/v1/traces)
     environment:
       PHOENIX_WORKING_DIR: /phoenix
     volumes: [phoenixdata:/phoenix]
@@ -174,7 +178,7 @@ services:
       redis: {condition: service_healthy}
       minio: {condition: service_started}
       langfuse-worker: {condition: service_started}
-    ports: ["3200:3000"]  # :3000 is the DebugAssist dashboard
+    ports: ["127.0.0.1:3200:3000"]  # :3000 is the DebugAssist dashboard
     environment:
       <<: *langfuse-env
       HOSTNAME: 0.0.0.0  # Next.js binds to the container hostname otherwise (the health check uses localhost)
@@ -214,7 +218,7 @@ services:
       test: ["CMD", "wget", "-qO-", "http://localhost:4242/health"]
       interval: 5s
       retries: 30
-    ports: ["4242:4242"]
+    ports: ["127.0.0.1:4242:4242"]
 
   toxiproxy:
     <<: *restart
@@ -223,8 +227,8 @@ services:
     command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
     volumes: ["./toxiproxy/toxiproxy.json:/config/toxiproxy.json:ro"]
     ports:
-      - "8474:8474"           # control API
-      - "18000-18010:18000-18010"  # proxied listeners created at runtime
+      - "127.0.0.1:8474:8474"           # control API
+      - "127.0.0.1:18000-18010:18000-18010"  # proxied listeners created at runtime
 
   # ---- MiniRide target system -------------------------------------------------------------
   dispatch:
@@ -239,7 +243,7 @@ services:
       OTEL_SERVICE_NAME: dispatch
       # Through Toxiproxy so scenarios can degrade the database link (latency, resets).
       DISPATCH_DATABASE_URL: postgresql+psycopg://debugassist:debugassist@toxiproxy:15432/miniride
-    ports: ["8001:8001"]
+    ports: ["127.0.0.1:8001:8001"]
     depends_on:
       postgres: { condition: service_healthy }
       toxiproxy: { condition: service_started }
@@ -254,7 +258,7 @@ services:
     environment:
       <<: *miniride-otel
       OTEL_SERVICE_NAME: payments
-    ports: ["8002:8002"]
+    ports: ["127.0.0.1:8002:8002"]
 
   gateway:
     <<: *restart
@@ -269,7 +273,7 @@ services:
       DISPATCH_URL: http://dispatch:8001
       PAYMENTS_URL: http://payments:8002
       CORS_ORIGINS: http://localhost:5173,http://localhost:8080,http://localhost:8081
-    ports: ["4000:4000"]
+    ports: ["127.0.0.1:4000:4000"]
     depends_on:
       dispatch: { condition: service_healthy }
       payments: { condition: service_healthy }
@@ -289,7 +293,7 @@ services:
     healthcheck:
       <<: *health
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
-    ports: ["8080:8080"]
+    ports: ["127.0.0.1:8080:8080"]
     depends_on:
       gateway: { condition: service_healthy }
 
@@ -309,7 +313,7 @@ services:
     healthcheck:
       <<: *health
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
-    ports: ["8081:8080"]
+    ports: ["127.0.0.1:8081:8080"]
 
   # ---- Sources: app-quality tools ----------------------------------------------------------
   vitals:
@@ -323,7 +327,7 @@ services:
     healthcheck:
       <<: *health
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/healthz')"]
-    ports: ["8100:8100"]
+    ports: ["127.0.0.1:8100:8100"]
     depends_on:
       postgres: { condition: service_healthy }
 
@@ -343,7 +347,7 @@ services:
     healthcheck:
       <<: *health
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/healthz')"]
-    ports: ["8200:8200"]
+    ports: ["127.0.0.1:8200:8200"]
     depends_on:
       postgres: { condition: service_healthy }
       minio: { condition: service_started }
@@ -356,7 +360,7 @@ services:
     healthcheck:
       <<: *health
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8300/healthz')"]
-    ports: ["8300:8300"]
+    ports: ["127.0.0.1:8300:8300"]
 
 volumes:
   incidentsdata:

@@ -9,6 +9,7 @@
 | Three-seed full run · fix round · Clef vs no-Clef ablation · cloneable repo | ✅ done | 2026-10-11 → 14 |
 | Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction, callers check, call variations (off) · bisect proof (off) | ✅ done | 2026-10-14 → 16 |
 | GitHub App (labeled issues on installed repositories → comment + draft PR) | built, not live | 2026-10-16 |
+| Audit fixes: sandbox trust boundary, credentials, dev stack, App contract, write gate ([below](#audit-fixes-2026-10-16)) | ✅ done (container flags not run under Docker yet) | 2026-10-16 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
 The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
@@ -667,3 +668,41 @@ only on their own bugs, so the grid kept showing them as failures. Still open: C
 **Findings / not done**
 - The instrumentor also traces each agent middleware hook (~280 CHAIN spans per run): noisy but harmless.
 - Raw tool outputs inside Phoenix spans are not redacted. Phoenix is self-hosted and only LLM/Clef inputs leave the machine, which are redacted; an OpenInference TraceConfig could mask them if Phoenix ever runs remotely.
+
+## Audit fixes (2026-10-16)
+
+From the engineering audit of `87a07bf`. Every item has a regression test; `make check`: 466 passed, 3 live
+skipped, also with dummy `GITHUB_TOKEN`, `GROQ_CLOUD_API`, `OPEN_ROUTER_API_KEY`, Cloudflare and Discord values
+exported.
+
+**Done**
+- **P1-1 sandbox bypass** ([ADR 0009](adr/0009-worktree-is-untrusted.md)): `core.hostgit` for every host git call
+  on a worktree (verified git dir, hooks and fsmonitor off; a swapped `.git` is refused, tested); containers run
+  as the host user with `--cap-drop ALL`, `no-new-privileges`, `--pids-limit 512` and `.git` mounted read-only;
+  `guards.walk_files` (no symlinks) for `grep`, `search_code` and the fix plan's reference scan.
+- **P1-2 / P3-14 credentials**: the App token goes to git via `http.extraheader` in the environment (clone, fetch,
+  push); node errors, the console line and span attributes are redacted (`redact_secrets`); redaction knows
+  `gh[pousr]_`, `gsk_`, `ATATT…`, URL userinfo, Discord webhook tokens and `NAME_API_KEY=` / `…_TOKEN=` values.
+- **P1-3 dev stack**: every published compose port is `127.0.0.1` (CI checks it), Redis has a password
+  (`REDIS_PASSWORD`, default `debugassist-dev`), the Arq worker and pool use JSON, never pickle.
+- **P2-4 webhook**: `X-GitHub-Delivery` must be a GUID; a repeated delivery id or body is dropped.
+- **P2-5 draft only**: a ready PR only on the policy's own `repos`, enforced in the ship gate and again at PR time.
+- **P2-6 flag rollback**: the node's decision (a human approval included) applies it through
+  `feature_flags.apply_rollout`; the agent's MCP tool still needs a live policy; the audit records what happened.
+- **P2-7 Jira**: every comment, transition and link goes through `PolicyGate.gated`.
+- **P2-8 (part)**: the harness config comes from the release tag; a release without one is an error.
+- **P2-10**: an exported `GITHUB_TOKEN` no longer makes GitHub live (it must be in `.env`, or `DA_MODE_GITHUB=live`);
+  the root conftest hides every settings variable and `.env` from unit tests.
+- **P2-12 poller**: comments and labeled issues read across pages; installations refreshed every 10 min; failed
+  runs retried at 5 and 10 min, then a failure comment; webhook deliveries stay queued until their run ends; one
+  repository's error no longer stops the poll.
+- **P3-13, P3-19, P3-21, P3-22**: the uncalled egress guard removed and the README's safety claims corrected;
+  commit trailers name the source (`Fixes: <issue url>` for GitHub issues); doc drift (LESSONS timeout,
+  ARCHITECTURE, the API's "read-only"); `git status -z` parsing, renames included.
+
+**Not done / not verified**
+- The container flags and the corepack change have not been run under Docker here (no daemon in this session):
+  `make demo-push-crash` or one live run is the check. If a setup step needs root it will now fail.
+- Open from the audit: P2-8's second half (run the suite with the release's tests restored), P2-9 hermetic
+  graph tests, P2-11 persistent MCP sessions, P3-15 per-run context, P3-16 crash-safe "on the release" checks,
+  P3-17, P3-18 migrations, P3-20, P3-23; supply-chain CI jobs and SHA-pinned actions; the red-team evaluation.

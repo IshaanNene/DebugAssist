@@ -12,9 +12,10 @@ a few per name, within a character budget.
 from __future__ import annotations
 
 import re
-import subprocess
 from collections.abc import Mapping
 from pathlib import Path
+
+from debugassist.core import hostgit
 
 CONTEXT = 8  # lines either side of a hit
 PER_NAME = 6  # snippets per name
@@ -35,14 +36,14 @@ def _rank(path: str) -> int:
 
 
 def _git(worktree: Path, *args: str) -> str:
-    out = subprocess.run(["git", *args], cwd=worktree, capture_output=True, text=True, check=False)
+    out = hostgit.run(worktree, *args, check=False)
     return out.stdout
 
 
 def defined(worktree: Path, name: str) -> bool:
     """Whether the repository defines `name` (a def, class, function, type or exported const)."""
     pat = rf"(def|class|function|type|interface|const|let|var|func)[[:space:]]+{re.escape(name)}([^A-Za-z0-9_]|$)"
-    return subprocess.run(["git", "grep", "-q", "-E", pat], cwd=worktree, check=False).returncode == 0
+    return hostgit.run(worktree, "grep", "-q", "-E", pat, check=False).returncode == 0
 
 
 def report_text(report: Mapping[str, object]) -> str:

@@ -16,7 +16,17 @@ JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\
 BEARER = re.compile(
     r"(?i)\b(bearer|token|api[_-]?key|secret|password|authorization)\b([\"']?\s*[:=]\s*[\"']?|\s+)([A-Za-z0-9._~+/=-]{8,})"
 )
-KEY_PREFIXED = re.compile(r"\b(sk|pk|rk|ghp|gho|github_pat|xox[abposr])[-_][A-Za-z0-9_-]{10,}\b")
+KEY_PREFIXED = re.compile(
+    r"\b(sk|pk|rk|gh[pousr]|github_pat|gsk|xox[abposr])[-_][A-Za-z0-9_-]{10,}\b"  # OpenAI/OpenRouter, GitHub, Groq, Slack
+    r"|\bATATT[A-Za-z0-9_=-]{20,}"  # Atlassian (Jira) API tokens
+)
+# NAME_API_KEY=…, GITHUB_TOKEN: …: a value assigned to a credential-looking name, whatever its format
+# (Cloudflare tokens have no prefix).
+KEY_ASSIGN = re.compile(
+    r"\b([A-Z][A-Z0-9_]*(?:API_KEY|API|TOKEN|SECRET|PASSWORD|PRIVATE_KEY|WEBHOOK_URL))(\s*[:=]\s*[\"']?)([^\s\"']{6,})"
+)
+URL_USERINFO = re.compile(r"(?<=://)[^/\s:@]+:[^/\s@]+@")  # https://x-access-token:ghs_…@github.com
+DISCORD_WEBHOOK = re.compile(r"(discord(?:app)?\.com/api/webhooks/\d+/)[A-Za-z0-9_-]+")
 CARD = re.compile(r"\b\d(?:[ -]?\d){12,18}\b")
 PHONE = re.compile(
     r"(?<![\w.])(?:"
@@ -54,10 +64,19 @@ def _coarse(value: float) -> float:
     return round(value, 2)  # ~1 km: city-level, not a street address
 
 
-def redact_text(text: str) -> str:
+def redact_secrets(text: str) -> str:
+    """Credentials only (no PII rules): for errors, tracebacks and span attributes, where numbers and
+    addresses are diagnostics, not personal data."""
+    text = URL_USERINFO.sub("[token]@", text)
+    text = DISCORD_WEBHOOK.sub(r"\1[token]", text)
     text = JWT.sub("[token]", text)
     text = KEY_PREFIXED.sub("[token]", text)
-    text = BEARER.sub(lambda m: f"{m.group(1)}{m.group(2)}[token]", text)
+    text = KEY_ASSIGN.sub(lambda m: f"{m.group(1)}{m.group(2)}[token]", text)
+    return BEARER.sub(lambda m: f"{m.group(1)}{m.group(2)}[token]", text)
+
+
+def redact_text(text: str) -> str:
+    text = redact_secrets(text)
     text = EMAIL.sub("[email]", text)
     text = CARD.sub(_card, text)
     text = LATLNG_PAIR.sub(lambda m: f"{_coarse(float(m.group(1)))}, {_coarse(float(m.group(2)))}", text)

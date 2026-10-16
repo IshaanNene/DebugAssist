@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from enum import StrEnum
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
+from dotenv import dotenv_values
 from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -175,7 +177,20 @@ class Settings(BaseSettings):
             if explicit is Mode.REPLAY and integration is not Integration.LLM:
                 raise ValueError("replay mode is only supported for the LLM integration")
             return explicit
+        if integration is Integration.GITHUB and not self._configured_in_env_file(
+            "GITHUB_TOKEN", "GITHUB_API_KEY"
+        ):
+            # `gh`, Codespaces and CI runners export GITHUB_TOKEN: an ambient token must not turn pushes and PRs
+            # live. Implicit live needs the token in this project's .env; otherwise say DA_MODE_GITHUB=live.
+            return Mode.MOCK
         return Mode.LIVE if self._has_credentials(integration) else Mode.MOCK
+
+    def _configured_in_env_file(self, *names: str) -> bool:
+        env_file = self.model_config.get("env_file")
+        if not isinstance(env_file, str | Path) or not Path(env_file).is_file():
+            return False
+        values = {k.upper(): v for k, v in dotenv_values(env_file).items()}
+        return any(values.get(n) for n in names)
 
     def modes(self) -> dict[Integration, Mode]:
         return {i: self.mode(i) for i in Integration}

@@ -100,7 +100,8 @@ def test_pending_takes_webhook_deliveries_and_labeled_issues_once(tmp_path: Path
         ("acme/widgets", 9, "webhook"),
         ("acme/widgets", 3, "labeled"),
     ]
-    assert not list((tmp_path / "queue").glob("*.json"))  # consumed
+    assert not list((tmp_path / "queue").glob("*.json"))  # taken: held in processing/ until the run ends
+    app_cli.done_delivery("acme/widgets", 9)
     a.comment("acme/widgets", 3, "<!-- debugassist:run r1 -->\ndone")
     assert app_cli.pending(a, gate, "debugassist") == []  # already answered
     closed = PolicyGate(
@@ -122,3 +123,38 @@ def test_the_comment_carries_the_marker_the_cause_and_the_pr() -> None:
     assert text.startswith("<!-- debugassist:run ") and "pull/5" in text
     assert state.rca and state.rca.output and state.rca.output.location.file in text
     assert "outside this repository" in app_comment(state, None, "rca_only")
+
+
+def test_a_failed_run_is_retried_with_backoff_then_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Audit P2-12: a failed run was marked `exit N` and never retried or reported."""
+    a = _app(tmp_path, _upstream(tmp_path))
+    gate = PolicyGate(
+        Policy.model_validate({"repos": [], "app_installations": True}), installed=a.installed_repos
+    )
+    monkeypatch.setattr(app_cli, "_spawn", lambda ref, llm: 2)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    clock = [1_000_000.0]
+    monkeypatch.setattr(app_cli.time, "time", lambda: clock[0])
+    for attempt in range(1, app_cli.MAX_ATTEMPTS + 1):
+        assert app_cli.pending(a, gate, "debugassist") == [("acme/widgets", 3, "labeled")]
+        assert app_cli.run_one(a, "acme/widgets", 3) == 2
+        assert app_cli.pending(a, gate, "debugassist") == []  # backing off
+        clock[0] += app_cli.RETRY_BASE * 2**attempt
+    [c] = a.comments("acme/widgets", 3)
+    assert c.startswith(app_cli.FAILED)
+    assert app_cli.pending(a, gate, "debugassist") == []  # reported: not run again
+
+
+def test_a_webhook_delivery_survives_until_its_run_ends(tmp_path: Path) -> None:
+    a = _app(tmp_path, _upstream(tmp_path))
+    gate = PolicyGate(
+        Policy.model_validate({"repos": [], "app_installations": True}), installed=a.installed_repos
+    )
+    (tmp_path / "queue").mkdir()
+    (tmp_path / "queue" / "d1.json").write_text(json.dumps({"repo": "acme/widgets", "number": 9}))
+    assert ("acme/widgets", 9, "webhook") in app_cli.pending(a, gate, "debugassist")
+    # the poller dies here: the delivery is still there for the next pass
+    assert ("acme/widgets", 9, "webhook") in app_cli.pending(a, gate, "debugassist")
+    app_cli.done_delivery("acme/widgets", 9)
+    assert ("acme/widgets", 9, "webhook") not in app_cli.pending(a, gate, "debugassist")

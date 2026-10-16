@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,7 +20,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from debugassist.core import untrusted
+from debugassist.core import hostgit, untrusted
 from debugassist.core.policy import Verdict
 from debugassist.core.settings import Integration, get_settings
 from debugassist.integrations.sandbox import IMAGES
@@ -148,8 +147,8 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
         entry["llm"] = {k: v for k, v in nodes.llm_summary(r).items() if k != "tool_calls"}
         problem = check({}) if r.output else "the agent did not submit"
         if problem:
-            subprocess.run(["git", "checkout", "-q", "--", "."], cwd=sb.worktree, check=False)
-            subprocess.run(["git", "clean", "-qfd"], cwd=sb.worktree, check=False)
+            hostgit.run(sb.worktree, "checkout", "-q", "--", ".", check=False)
+            hostgit.run(sb.worktree, "clean", "-qfd", check=False)
             entry |= {"status": "rejected", "reason": problem[:600]}
             return entry
         out = DiffFixOutput.model_validate(r.output)
@@ -159,13 +158,7 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
             "commit": sha[:12],
             "title": out.commit_title,
             "summary": out.summary,
-            "diff": subprocess.run(
-                ["git", "diff", before_head, "HEAD"],
-                cwd=sb.worktree,
-                capture_output=True,
-                text=True,
-                check=True,
-            ).stdout[-8000:],
+            "diff": hostgit.run(sb.worktree, "diff", before_head, "HEAD", check=True).stdout[-8000:],
         }
         fa.diff = sb.diff(base)
         fa.files = changed_files(fa.diff)
@@ -179,7 +172,7 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
 
 
 def _git(cwd: Path, *args: str) -> str:
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True, check=False).stdout.strip()
+    return hostgit.run(cwd, *args, check=False).stdout.strip()
 
 
 def _push_and_comment(

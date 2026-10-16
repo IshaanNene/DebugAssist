@@ -14,7 +14,7 @@ from pathlib import Path
 from langchain_core.tools import BaseTool, tool
 
 from debugassist.core import ablation
-from debugassist.core.guards import GuardError, confine
+from debugassist.core.guards import GuardError, confine, walk_files
 from debugassist.core.outline import outline
 from debugassist.integrations.sandbox import Sandbox
 
@@ -206,13 +206,9 @@ def build_workspace_tools(
         except re.error as exc:
             return f"bad regex: {exc}"
         hits: list[str] = []
-        for f in sorted(root.rglob("*")):
+        for f in walk_files(root, SKIP):
             rel = f.relative_to(root)
-            if (
-                any(part in SKIP for part in rel.parts)
-                or not f.is_file()
-                or not fnmatch.fnmatch(str(rel), path_glob)
-            ):
+            if not fnmatch.fnmatch(str(rel), path_glob):
                 continue
             try:
                 for i, line in enumerate(f.read_text(errors="replace").splitlines(), 1):

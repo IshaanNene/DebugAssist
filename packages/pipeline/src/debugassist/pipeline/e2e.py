@@ -16,6 +16,7 @@ import shlex
 import subprocess
 from typing import Any, cast
 
+from debugassist.core import hostgit
 from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.workspace_tools import changed_files, is_test_path
 
@@ -207,16 +208,8 @@ def write_helpers(sb: Sandbox, component: str) -> None:
 def _source_key(sb: Sandbox) -> str:
     """Builds depend only on non-test files: HEAD plus the diff of changed source files."""
     src = [f for f in changed_files(sb.diff("HEAD")) if not is_test_path(f)]
-    diff = (
-        subprocess.run(
-            ["git", "diff", "HEAD", "--", *src], cwd=sb.worktree, capture_output=True, text=True, check=True
-        ).stdout
-        if src
-        else ""
-    )
-    head = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=sb.worktree, capture_output=True, text=True, check=True
-    ).stdout
+    diff = hostgit.run(sb.worktree, "diff", "HEAD", "--", *src, check=True).stdout if src else ""
+    head = hostgit.run(sb.worktree, "rev-parse", "HEAD", check=True).stdout
     return hashlib.sha256((head + diff).encode()).hexdigest()[:12]
 
 

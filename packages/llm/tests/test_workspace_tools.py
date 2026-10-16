@@ -177,3 +177,16 @@ def test_lean_leaves_short_command_output_whole(tmp_path: Path, monkeypatch: Any
     sb = LoudSandbox(tmp_path, output="1 passed\nok")
     tools = _lean_tools(sb, allow_edits=False, allow_commands=True)
     assert tools["run_command"].invoke({"command": "go test ./..."}) == "exit code 1\n1 passed\nok"
+
+
+def test_grep_never_follows_a_symlink_out_of_the_worktree(tmp_path: Path) -> None:
+    """Audit P1-1: `notes.txt -> ../.env` was blocked by read_file but returned by grep."""
+    (tmp_path / ".env").write_text("OPENROUTER_API_KEY=sk-or-secret\n")
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    tools, _ = _tools(wt, allow_edits=False, allow_commands=False)
+    (wt / "notes.txt").symlink_to("../.env")
+    (wt / "linked").symlink_to(tmp_path, target_is_directory=True)
+    (wt / ".env").write_text("GITHUB_TOKEN=ghp_local\n")
+    assert tools["grep"].invoke({"pattern": "API_KEY|TOKEN"}) == "no matches"
+    assert "blocked" in tools["read_file"].invoke({"path": "notes.txt"}).lower()
