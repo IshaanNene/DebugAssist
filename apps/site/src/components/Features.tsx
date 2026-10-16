@@ -116,10 +116,41 @@ const FEATURES: { title: string; body: string; art: ReactNode }[] = [
       </div>
     ),
   },
+  {
+    title: "Culprit commit, proven by running it",
+    body: "The validated reproduction test goes back through history — earlier releases until it passes, then git bisect — so “introduced by” is a result, not a guess.",
+    art: (
+      <div className="space-y-2.5">
+        <div className={`${slab} flex justify-between`}>
+          <span>v3.0.4 · test</span>
+          <span className="text-[#3f8f4f]">passes</span>
+        </div>
+        <div className={`${slab} ml-5 flex justify-between !border-[#8b7cf0]`}>
+          <span>d8813b6 · first bad</span>
+          <span>◆</span>
+        </div>
+        <div className={`${slab} ml-10 flex justify-between`}>
+          <span>release · test</span>
+          <span className="text-bad">fails</span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: "On your own repositories",
+    body: "Install the GitHub App, add a pipeline config, label an issue: DebugAssist comments the root cause on it and opens a draft PR from a bot branch.",
+    art: (
+      <div className="space-y-2.5">
+        <div className={`${slab} inline-block bg-[#f6f87e]`}>label · debugassist</div>
+        <div className={`${slab} ml-6`}>comment · root cause, where, since when</div>
+        <div className={`${slab} ml-12`}>draft PR · debugassist/fix-…</div>
+      </div>
+    ),
+  },
 ];
 
 // Bento: wide cards put the drawing beside the text.
-const WIDE = new Set([0, 3, 5]);
+const WIDE = new Set([0, 3, 5, 7]);
 
 export function Features() {
   return (

@@ -287,11 +287,12 @@ make demo-push-crash                                # keyless: scripted LLM, moc
 make dashboard                                      # http://localhost:3000
 ```
 
-To go live, add keys to `.env` (see [`.env.example`](.env.example)); each integration switches to live when its credentials are present, or force one with `DA_MODE_<LLM|CLEF|GITHUB|JIRA|CHAT>=live|mock`:
+To go live, add keys to `.env` (see [`.env.example`](.env.example)); each integration switches to live when its credentials are present, or force one with `DA_MODE_<LLM|CLEF|GITHUB|GITHUB_APP|JIRA|CHAT>=live|mock`:
 
 ```bash
 uv run debugassist run latest --llm live            # real agents, Clef, GitHub PR and Jira ticket
 make trigger BUG=009 && uv run debugassist run latest --llm live
+uv run debugassist app poll                         # GitHub App: labeled issues on installed repos (docs/github-app.md)
 ```
 
 <details>
@@ -352,9 +353,9 @@ Agents and the LLM decider use any OpenAI-compatible API; two providers are inte
 
 ## 📍 Status
 
-Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Done: P0–P14 (decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness, cross-repo hand-off), P16's Langfuse integration and P17's public site; a three-seed run of the catalog with a fix round and a Clef-vs-LLM ablation; a clone that runs every test and rebuilds the report without the private repo; five real open-source bugs; and four attempts to widen narrow fixes. Measured and parked, off by default: P15's context-engineering switches and the model-based fix-width checks ([parked](docs/ROADMAP.md#parked-2026-10-14)).
+Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Done: P0–P14 (decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness, cross-repo hand-off), P16's Langfuse integration and P17's public site; a three-seed run of the catalog with a fix round and a Clef-vs-LLM ablation; a clone that runs every test and rebuilds the report without the private repo; five real open-source bugs; four attempts to widen narrow fixes; a bisect proof of the culprit commit; and a GitHub App for labeled issues on any repository it is installed on. Measured and parked, off by default: P15's context-engineering switches and the model-based fix-width checks ([parked](docs/ROADMAP.md#parked-2026-10-14)).
 
-**Next** ([roadmap](docs/ROADMAP.md)): live runs of the call-variation check with all its parts and of the bisect proof, and more real bugs — other languages, larger repos, reports that define or decorate methods — to test it on code it was not designed from; then decide whether to turn it on · prove or rework Clef (D01 triage and D14 test tier first) · LiteLLM and local models. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
+**Next** ([roadmap](docs/ROADMAP.md)): the GitHub App on a first real repository; live runs of the call-variation check with all its parts and of the bisect proof, and more real bugs — other languages, larger repos, reports that define or decorate methods — to test it on code it was not designed from; then decide whether to turn it on · prove or rework Clef (D01 triage and D14 test tier first) · LiteLLM and local models. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
 
 <br>
 
