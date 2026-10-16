@@ -27,6 +27,7 @@ export default function Home() {
   const reals = realBugs();
   const fw = fixWidth();
   const bis = bisectReplay();
+  const foundBisect = bis.find((b) => b.found > 0);
   const f = facts();
   const run = featuredRun(data);
   const latest = data.arms[data.arms.length - 1];
@@ -44,7 +45,16 @@ export default function Home() {
       <Motion />
       <Shortcuts map={{ g: GH, d: doc("README.md"), r: "#results", s: "#start" }} />
 
-      {latest?.seeded ? (
+      {foundBisect ? (
+        <a href="#real" className="group block border-b border-line bg-surface-1 py-2 text-center text-[12.5px] text-t2 hover:text-t1">
+          <span className="mr-2 inline-flex h-[18px] items-center bg-t1 px-1.5 font-mono text-[10px] uppercase tracking-[0.05em] text-surface">new</span>
+          <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">culprit commit, proven</span> ·{" "}
+          {foundBisect.issue.replace("https://github.com/", "").replace("/issues/", "#")} bisects to {foundBisect.commit.slice(0, 7)}{" "}
+          in {foundBisect.found}/{foundBisect.tests} runs, by running the agent&apos;s test · and a GitHub App for your
+          repos · <span className="underline underline-offset-2">see how</span>{" "}
+          <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span>
+        </a>
+      ) : latest?.seeded ? (
         <a href={report} className="group block border-b border-line bg-surface-1 py-2 text-center text-[12.5px] text-t2 hover:text-t1">
           <span className="mr-2 inline-flex h-[18px] items-center bg-t1 px-1.5 font-mono text-[10px] uppercase tracking-[0.05em] text-surface">new</span>
           <span className="font-mono text-[10.5px] uppercase tracking-[0.05em] text-t3">re-run after the fixes</span> · hidden tests
@@ -107,6 +117,14 @@ export default function Home() {
                 <span>
                   <b className="font-medium text-t1">{data.catalog.total}</b>-bug evaluation catalog
                 </span>
+                {reals.length > 0 && (
+                  <>
+                    <Dot />
+                    <span>
+                      <b className="font-medium text-t1">{reals.length}</b> real open-source bugs
+                    </span>
+                  </>
+                )}
                 <Dot />
                 <span>
                   <b className="font-medium text-t1">{f.templates}</b> Clef decision templates
@@ -132,9 +150,9 @@ export default function Home() {
                     on-call engineer.
                   </h1>
                   <p className="fx mt-7 max-w-[50ch] text-[16.5px] leading-[1.6] text-t3" style={v(2)}>
-                    A crash or a rider&apos;s bug report goes in. Triage, an evidence-backed root cause, a mitigation, a
-                    test that fails on the shipped release, the fix and its proof come out — as a pull request. Measured
-                    on a bug catalog, with every number generated.
+                    A crash, a rider&apos;s bug report or a labeled GitHub issue goes in. Triage, an evidence-backed root
+                    cause, a mitigation, a test that fails on the shipped release, the fix and its proof come out — as a
+                    pull request. Measured on a bug catalog and on real open-source bugs, with every number generated.
                   </p>
                   <div className="fx mt-8 flex flex-wrap gap-2" style={v(3)}>
                     <Button href="#start" variant="primary" hint="S">
@@ -622,7 +640,7 @@ export default function Home() {
               <Pills title="Models & decisions" items={["Cloudflare Clef", "OpenRouter", "GroqCloud", "OpenAI-compatible", "LangGraph", "LangChain"]} stack="middle" />
               <Pills title="Telemetry" items={["OpenTelemetry", "Jaeger", "Loki", "Prometheus", "Phoenix", "Langfuse"]} stack="middle" className="md:-ml-px" />
             </div>
-            <Pills title="Target languages & tools" items={["TypeScript · React", "Python · FastAPI", "Go", "Playwright", "GitHub", "Unleash", "Docker"]} stack="middle" />
+            <Pills title="Target languages & tools" items={["TypeScript · React", "Python · FastAPI", "Go", "Playwright", "GitHub", "GitHub App", "Unleash", "Docker"]} stack="middle" />
             <Pills title="On the roadmap" items={["LiteLLM", "Ollama · vLLM", "Promptfoo", "Inspect AI", "GlitchTip", "SWE-bench Lite"]} stack="last" muted />
           </div>
         </section>
@@ -634,7 +652,7 @@ export default function Home() {
           </H2>
           <div className="mt-12 cbox">
             <div className="grid gap-px bg-line md:grid-cols-3">
-              <Col i={0} title="Self-host it" items={[["make up — app, telemetry, sources", null], ["MIT licensed", null], ["mock mode, no keys needed", null]]} />
+              <Col i={0} title="Self-host it" items={[["make up — app, telemetry, sources", null], ["mock mode, no keys needed", null], ["The GitHub App on your repos", doc("docs/github-app.md")]]} />
               <Col i={1} title="Read the process" items={[["Lessons learned", doc("docs/LESSONS.md")], ["Architecture", doc("docs/ARCHITECTURE.md")], ["Decision records", `${GH}/tree/main/docs/adr`]]} />
               <Col i={2} title="Check the numbers" items={[["Latest report", report], ["Roadmap", doc("docs/ROADMAP.md")], ["Progress log", doc("docs/PROGRESS.md")]]} />
             </div>
@@ -837,7 +855,9 @@ const TERMINAL: [string, string][] = [
 const FAQ: [string, string][] = [
   ["What is DebugAssist?", "An open-source pipeline that does what an on-call engineer does when something breaks: it notices the crash or the rider's report, triages it, finds the root cause with evidence, proposes a mitigation, writes a test that fails on the shipped release, fixes the code, proves the fix and opens a pull request — or says it isn't our bug and routes it."],
   ["Does an LLM decide what happens next?", "No. The plan is a fixed graph in code. LLM agents reason and write code inside steps; every judgement call is a Clef decision with a probability, mapped to act, escalate or a safe default by policy; deterministic code performs every write."],
-  ["Can it change production on its own?", "Writes go through a policy gate and an audit log. It pushes only to bot branches of the demo repositories, flag rollbacks need approval, and every integration is dry-run unless configured otherwise."],
+  ["Can it change production on its own?", "No. Writes go through a policy gate and an audit log. It pushes only to debugassist/* bot branches — of the demo repositories, and of repositories the GitHub App is installed on — opens pull requests as drafts there, never touches the default branch, release branches or tags, needs approval for flag rollbacks, and is dry-run for anything the policy does not list."],
+  ["Can I run it on my own repository?", "Yes, through the GitHub App: install it on the repository, add a .DebugAssist/pipeline.yaml saying how to install and test it, and label an issue debugassist. It checks out the default branch, investigates in a network-less sandbox, comments the root cause on the issue and, when a fix validates, opens a draft pull request. It is built and tested against a fake GitHub API and a mock; it has not yet run on a live repository."],
+  ["How does it know which commit broke something?", "The root-cause step names a suspect by reading history. With the bisect proof on, the validated reproduction test is also run back through earlier releases until it passes, then git bisect finds the first commit where it fails — a result anyone can re-run. On python-semver#484 it found the change the reporter blamed, where the reading had named a later one."],
   ["How are the results measured?", "Each catalog bug is injected as a natural-looking commit, triggered by simulated riders, and discovered by the crash and bug-report sources. The agent's root cause is scored against an answer key it never sees, and hidden tests run on its fix. Every number on this page is read from the generated reports when the site is built."],
   ["Which models does it use?", "Any OpenAI-compatible API. The evaluation on this page ran on openai/gpt-6-luna through OpenRouter; decisions run on Cloudflare Clef."],
   ["Is it affiliated with Uber, Cloudflare or anyone named here?", "No. It is an independent project inspired by a public talk on MCP-powered crash investigation. Vitals and BugDrop are its own stand-ins for crash analytics and in-app bug reports."],
