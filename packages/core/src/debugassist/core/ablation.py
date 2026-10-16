@@ -21,6 +21,9 @@ DA_SECOND_REPRO  1 = after a fix passes its own reproduction and the suite, a se
 DA_CALL_VARIANTS 1 = after a fix passes, the report's Python calls are re-spelled mechanically (keyword arguments,
              through the instance or the class; pipeline/callvariants.py) and every spelling must behave like the
              reported one with the fix. No model. Off by default.
+DA_BISECT    1 = after a fix is validated, its reproduction test is run back through history (earlier release tags,
+             then git bisect) to find the commit that introduced the bug (pipeline/bisect.py). No model. Off by
+             default.
 """
 
 from __future__ import annotations
@@ -80,6 +83,10 @@ def call_variants() -> bool:
     return os.environ.get("DA_CALL_VARIANTS", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def bisect_enabled() -> bool:
+    return os.environ.get("DA_BISECT", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def lean() -> bool:
     return context_mode() == "lean"
 
@@ -93,4 +100,5 @@ def label() -> str:
         + ("" if context_mode() == "full" else f"-{context_mode()}")
         + {"": "", "report": "-repro2", "callers": "-callers"}[second_repro_mode()]
         + ("-variants" if call_variants() else "")
+        + ("-bisect" if bisect_enabled() else "")
     )

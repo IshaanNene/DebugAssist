@@ -96,6 +96,23 @@ def sections(state: RunState, dashboard_url: str | None = None) -> dict[str, str
         )
     elif o.suspect_commit:
         cause.append(f"**Introduced by:** `{o.suspect_commit}`")
+    b = state.bisect or {}
+    if b.get("result") == "found":
+        cause.append(
+            f"**Bisected:** the reproduction test passes at `{b['good']}` (`{b['good_sha']}`) and fails from "
+            f"`{b['first_bad']}` {b.get('subject', '')} ({b.get('steps')} steps"
+            + (f", {len(b['skipped'])} skipped" if b.get("skipped") else "")
+            + ")"
+            + (
+                " — the commit the RCA named."
+                if b.get("agrees_with_rca") is True
+                else " — not the commit the RCA named."
+                if b.get("agrees_with_rca") is False
+                else ""
+            )
+        )
+    elif b.get("result") == "narrowed":
+        cause.append(f"**Bisected to one of:** {', '.join(f'`{c}`' for c in b.get('candidates', []))}")
     if o.implicated_flag:
         cause.append(f"**Behind flag:** `{o.implicated_flag}`")
 

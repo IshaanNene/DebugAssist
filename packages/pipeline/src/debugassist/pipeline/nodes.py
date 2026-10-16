@@ -22,7 +22,7 @@ import yaml
 from langchain_core.tools import BaseTool, tool
 
 from debugassist.core import untrusted
-from debugassist.core.ablation import ablated, call_variants, second_repro, second_repro_mode
+from debugassist.core.ablation import ablated, bisect_enabled, call_variants, second_repro, second_repro_mode
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT, Verdict
 from debugassist.core.settings import Integration, Mode
@@ -34,6 +34,7 @@ from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
 from debugassist.pipeline import (
+    bisect,
     budget,
     callvariants,
     collector,
@@ -180,6 +181,9 @@ def _repro_problem(cmd: str, exit_code: int, output: str, issue: Issue) -> str |
     if sig and sig not in output:
         return f"`{cmd}` fails, but not with the reported error `{sig}`; reproduce that failure.\n{output[-600:]}"
     return None
+
+
+repro_problem = _repro_problem  # for the evaluation's replays (eval replay-bisect)
 
 
 def _run_on_release(sb: Sandbox, base: str, run: Callable[[], CommandResult]) -> CommandResult | None:
@@ -1322,6 +1326,34 @@ def call_variants_check(sb: Sandbox, issue: Issue, comp: dict[str, Any]) -> dict
     return rec
 
 
+def prove_culprit(state: RunState, sb: Sandbox, issue: Issue, test_file: str, cmd: str) -> dict[str, Any]:
+    """DA_BISECT: the validated reproduction test run back through history to the commit that introduced the bug,
+    set beside the RCA's own suspect. Unit and integration tests only (an E2E spec needs a build per commit)."""
+
+    def run(command: str) -> tuple[int, str]:
+        res = _run_test(sb, issue, command)
+        return res.exit_code, res.output
+
+    def unrelated(code: int, output: str) -> bool:  # failed, but not as a reproduction (syntax, time-out, …)
+        return code != 0 and _repro_problem(cmd, code, output, issue) is not None
+
+    try:
+        rel = test_file if issue.component == "." else test_file.removeprefix(f"{issue.component}/")
+        found = bisect.prove_by_case(
+            sb.worktree,
+            f"v{issue.last_version}",
+            test_file,
+            cmd,
+            bisect.pytest_case_command(cmd, rel),
+            unrelated,
+            run,
+        )
+    except (subprocess.CalledProcessError, OSError) as e:
+        return {"result": "error", "why": str(e)[:300]}
+    suspect = state.rca.output.suspect_commit if state.rca and state.rca.output else None
+    return {**found, "rca_suspect": suspect, "agrees_with_rca": bisect.agrees(found, suspect)}
+
+
 # ---- N6 validate ----------------------------------------------------------------------------
 
 
@@ -1417,7 +1449,10 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
         record["call_variants"] = call_variants_check(sb, issue, comp)
         v.passed = record["call_variants"]["result"] != "fail"
     v.attempts.append(record)
-    return {"validation": v, "costs": costs}
+    out: dict[str, Any] = {"validation": v, "costs": costs}
+    if v.passed and bisect_enabled() and fa.tier != "e2e_env" and fa.repro:
+        out["bisect"] = prove_culprit(state, sb, issue, fa.repro.test_file, str(fa.repro_run["command"]))
+    return out
 
 
 async def decide_retry(state: RunState, deps: Deps) -> bool:
