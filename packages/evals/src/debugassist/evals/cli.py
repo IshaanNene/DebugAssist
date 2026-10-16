@@ -183,6 +183,27 @@ def context(
     typer.echo(f"context audit of {len(ids)} runs: {out / f'{stem}.md'}")
 
 
+@app.command("replay-variants")
+def replay_variants() -> None:
+    """Replay the call-variation check (DA_CALL_VARIANTS) on the upstream fix and every earlier fix of each real
+    case, from the run cassettes (no model) — writes evals/reports/<date>/variants-replay.json and .md."""
+    import csv
+    import json
+    from datetime import UTC, datetime
+
+    from debugassist.evals import report as rep
+    from debugassist.evals import variants_replay as vr
+
+    reports = sorted(p for p in (ROOT / "evals" / "reports").iterdir() if (p / "results.csv").is_file())
+    rows = list(csv.DictReader((reports[-1] / "results.csv").open()))
+    data = vr.replay(rows, log=typer.echo)
+    out = ROOT / "evals" / "reports" / datetime.now(UTC).strftime("%Y-%m-%d")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "variants-replay.json").write_text(json.dumps(data, indent=2))
+    (out / "variants-replay.md").write_text(rep.variants_section(out))
+    typer.echo(f"variants replay: {out / 'variants-replay.md'}")
+
+
 @app.command()
 def rescore(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]) -> None:
     """Recompute each run's score from its saved state with the current scorer (hidden-test results kept)."""

@@ -223,6 +223,51 @@ def _chart_e1(e1: list[dict[str, Any]], path: Path) -> None:
     plt.close(fig)
 
 
+def variants_section(out: Path) -> str:
+    """The `debugassist eval replay-variants` replay saved in this report's directory, if any."""
+    f = out / "variants-replay.json"
+    if not f.is_file():
+        return ""
+    from debugassist.evals import variants_replay as vr
+
+    data = json.loads(f.read_text())
+    rows = vr.summary_rows(data)
+    cols = [
+        "case",
+        "calls",
+        "upstream_fix",
+        "fixes",
+        "test_pass_check_pass",
+        "test_fail_check_fail",
+        "test_pass_check_fail",
+        "test_fail_check_pass",
+    ]
+    detail = [
+        {
+            "case": c["case"],
+            "arm": fx.get("arm"),
+            "seed": fx.get("seed"),
+            "upstream_test": fx["upstream_test"],
+            "check": fx["verdict"],
+            "spellings": fx.get("spellings", ""),
+            "first_mismatch": (fx.get("mismatch") or [""])[0].replace("|", "\\|"),
+        }
+        for c in data.get("cases", [])
+        for fx in c.get("fixes", [])
+    ]
+    return (
+        "## Call variations, replayed (`debugassist eval replay-variants`)\n\n"
+        "The call-variation check (`DA_CALL_VARIANTS`, no model) run on each real case's upstream fix and on the last "
+        "fix of every earlier run of it (diffs from the run cassettes, which are local), set against upstream's "
+        "regression test. `test_pass_check_fail` would be a false alarm; `test_fail_check_pass` a narrow fix the "
+        "check misses.\n\n"
+        + _md_table(rows, cols)
+        + "\n\n"
+        + _md_table(detail, list(detail[0]) if detail else [])
+        + "\n\n"
+    )
+
+
 def _context_section(out: Path) -> str:
     rows = context_by_arm(out)
     if not rows:
@@ -350,7 +395,7 @@ catalog's hidden tests pass on the agent's change (run by the evaluator in a cop
 {_md_table(e1, ["decision", "backend", "n", "accuracy", "brier", "ece", "latency_p50_ms", "usd_per_1k"])}
 ![E1](e1_accuracy.svg)
 
-{_context_section(out)}## Runs
+{_context_section(out)}{variants_section(out)}## Runs
 
 {_md_table(per_bug, ["bug", "config", "seed", "rca", "location", "validated", "hidden", "usd"])}
 {"## Failures" + chr(10) + chr(10) + _md_table(failures, ["bug", "config", "seed", "error"]) if failures else ""}
