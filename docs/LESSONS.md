@@ -255,11 +255,11 @@ Format: **symptom** → cause → fix · *guard*.
   access) appear nowhere in the repository. *Lesson: a check is only as wide as its sources; when no source has the
   case, only a mechanical variation of the call can find it.*
 - **The check that worked needed no model.** Re-spelling the report's call (keyword arguments, class or instance
-  access) is plain Python; it rejected 11 of 12 past narrow fixes offline and, live, kept two narrow fixes from
-  being marked validated — where three model-based checks had passed every one. *Lesson: when the gap is "the
+  access) is plain Python; replayed, it rejects 12 of 14 past narrow fixes (14 with the introspection comparison)
+  and, live, kept two narrow fixes from being marked validated — where three model-based checks had passed every one. *Lesson: when the gap is "the
   other ways to say the same thing", enumerate them; don't ask a reader of the same text to imagine them.*
 - **Replay a new check on old runs before spending on new ones.** The cassettes held every earlier fix's diff;
-  applying them to a scratch copy measured the check for free — 39 fixes and five upstream fixes, no false alarm.
+  applying them to a scratch copy measured the check for free — 34 fixes and five upstream fixes, no false alarm.
   *Lesson: an archive of past attempts is a free test set for any new validator.*
 - **Say when a check was designed from the answer key.** The attribute comparison came from reading upstream's
   test, and it now rejects every narrow fix — which is what a check shaped to its test would do. The invariant is
@@ -313,3 +313,8 @@ Format: **symptom** → cause → fix · *guard*.
 6. **Validate a test case before an agent sees it.** Every real bug's hidden test was run on the buggy commit (must
    fail) and with the upstream fix (must pass), and read against the issue's own expectation; the report was read as
    the agent would see it. Each check caught something.
+
+7. **When a model keeps missing the same thing, stop asking a model.** Three model-based attempts to widen fixes
+   (prompt rules, an independent test writer, the same with the repo's usages) passed the same narrow fixes; about 430
+   lines of `ast` and `inspect` that enumerate the other spellings of a call caught them. Replay any such
+   check on every fix already made before running it live, and say when it was shaped by the answer key.
