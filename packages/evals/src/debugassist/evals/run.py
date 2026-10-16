@@ -43,6 +43,10 @@ CONFIGS: dict[str, dict[str, str]] = {
         "DA_DECIDER": "llm",
         "DA_CALL_VARIANTS": "1",
     },  # the report's calls, re-spelled (no model)
+    "no-clef-bisect": {
+        "DA_DECIDER": "llm",
+        "DA_BISECT": "1",
+    },  # the culprit commit, proven by running the test
     "no-d3": {"DA_ABLATE": "D3"},
     "no-d8": {"DA_ABLATE": "D8"},
     "no-d9": {"DA_ABLATE": "D9"},

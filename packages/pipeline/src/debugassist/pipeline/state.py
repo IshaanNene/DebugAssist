@@ -241,6 +241,7 @@ class RunState(BaseModel):
     post_pr: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # diff fixer runs
     fix_attempts: list[FixAttempt] = Field(default_factory=list[FixAttempt])
     validation: Validation | None = None
+    bisect: dict[str, Any] | None = None  # DA_BISECT: the commit the reproduction test bisects to
     ship: Ship | None = None
     pr: PRInfo | None = None
     notifications: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])

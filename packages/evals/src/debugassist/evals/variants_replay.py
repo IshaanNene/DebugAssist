@@ -22,7 +22,7 @@ import yaml
 from debugassist.core.policy import ROOT
 from debugassist.pipeline import callvariants as cv
 from debugassist.pipeline import usages
-from debugassist.scenarios.real import cases, load_case, load_issue
+from debugassist.scenarios.real import GitHubIssue, cases, load_case, load_issue
 
 SCRATCH = ROOT / ".data" / "variants-replay"
 CASSETTES = ROOT / ".data" / "cassettes"
@@ -35,7 +35,7 @@ _SKIP = [
 ]
 
 
-def _sh(cmd: list[str] | str, cwd: Path, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
+def sh(cmd: list[str] | str, cwd: Path, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         cmd, cwd=cwd, shell=isinstance(cmd, str), capture_output=True, text=True, input=stdin, check=False
     )
@@ -47,7 +47,7 @@ def _check(wt: Path, py: str, code: str) -> dict[str, Any]:
 
     def run(program: str) -> str:
         probe.write_text(program)
-        return _sh([py, probe.name], wt).stdout
+        return sh([py, probe.name], wt).stdout
 
     try:
         rec = cv.run_check(code, run)
@@ -58,6 +58,28 @@ def _check(wt: Path, py: str, code: str) -> dict[str, Any]:
         "spellings": rec.get("checked", 0),
         "mismatch": rec.get("mismatches", [])[:1],
     }
+
+
+# Untracked directories a scratch checkout must keep across resets and checkouts (as the sandbox does).
+EXCLUDE = ("node_modules/", ".venv/", ".cache/", "__pycache__/", "*.pyc", ".coverage", ".pytest_cache/")
+
+
+def scratch_checkout(issue: GitHubIssue) -> tuple[Path, dict[str, Any], str | None]:
+    """A scratch clone of the case's target at its release, set up with the repo's own command (once), with the
+    sandbox's excludes; returns (worktree, component config, error or None)."""
+    SCRATCH.mkdir(parents=True, exist_ok=True)
+    comp: dict[str, Any] = yaml.safe_load(issue.checkout.config)["components"]["."]
+    wt = SCRATCH / issue.repo
+    if not wt.exists():
+        sh(["git", "clone", "-q", str(ROOT / "targets" / issue.repo), str(wt)], SCRATCH)
+        sh(["git", "checkout", "-q", f"v{issue.checkout.version}"], wt)
+        if (r := sh(str(comp["setup"]), wt)).returncode:
+            return wt, comp, f"setup failed: {r.stderr[-300:]}"
+    exclude = wt / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    have = exclude.read_text().splitlines() if exclude.exists() else []
+    exclude.write_text("\n".join([*have, *(p for p in EXCLUDE if p not in have)]) + "\n")
+    return wt, comp, None
 
 
 def replay(rows: list[dict[str, Any]], log: Callable[[str], None] = print) -> dict[str, Any]:
@@ -78,34 +100,28 @@ def replay(rows: list[dict[str, Any]], log: Callable[[str], None] = print) -> di
         if not calls:
             log(f"{cid}: nothing to re-spell")
             continue
-        comp = yaml.safe_load(issue.checkout.config)["components"]["."]
+        wt, comp, err = scratch_checkout(issue)
+        if err:
+            entry["error"] = err
+            continue
         tag = f"v{issue.checkout.version}"
-        wt = SCRATCH / issue.repo
-        if not wt.exists():
-            _sh(["git", "clone", "-q", str(ROOT / "targets" / issue.repo), str(wt)], SCRATCH)
-            _sh(["git", "checkout", "-q", tag], wt)
-            if (r := _sh(str(comp["setup"]), wt)).returncode:
-                entry["error"] = f"setup failed: {r.stderr[-300:]}"
-                continue
         py = str(comp["test"]).split()[0]
 
         def reset(wt: Path = wt, tag: str = tag) -> None:
-            _sh(["git", "checkout", "-q", "-f", tag], wt)
-            _sh(["git", "clean", "-qfd", "-e", ".venv"], wt)
+            sh(["git", "checkout", "-q", "-f", tag], wt)
+            sh(["git", "clean", "-qfd", "-e", ".venv"], wt)
 
         def apply(diff: str, wt: Path = wt) -> bool:
             return (
-                _sh(
-                    ["git", "apply", *_SKIP, "-"], wt, diff if diff.endswith("\n") else diff + "\n"
-                ).returncode
+                sh(["git", "apply", *_SKIP, "-"], wt, diff if diff.endswith("\n") else diff + "\n").returncode
                 == 0
             )
 
         reset()
         entry["release"] = _check(wt, py, code)
         sha = case.upstream["fix_commit"]
-        _sh(["git", "fetch", "-q", f"https://github.com/{issue.gh_repo}.git", sha], wt)
-        up = _sh(["git", "diff", tag, "FETCH_HEAD", "--", ".", ":!tests", ":!test"], wt).stdout
+        sh(["git", "fetch", "-q", f"https://github.com/{issue.gh_repo}.git", sha], wt)
+        up = sh(["git", "diff", tag, "FETCH_HEAD", "--", ".", ":!tests", ":!test"], wt).stdout
         reset()
         entry["upstream"] = _check(wt, py, code) if up and apply(up) else {"verdict": "could not apply"}
         for r in rows:

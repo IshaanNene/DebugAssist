@@ -204,6 +204,34 @@ def replay_variants() -> None:
     typer.echo(f"variants replay: {out / 'variants-replay.md'}")
 
 
+@app.command("replay-bisect")
+def replay_bisect(
+    cases: Annotated[str, typer.Option(help="comma list of real cases to rerun; the others are kept")] = "",
+) -> None:
+    """Replay the bisect proof (DA_BISECT) with the reproduction test of every earlier validated real-bug run, from
+    the run cassettes (no model) — writes evals/reports/<date>/bisect-replay.json and .md."""
+    import csv
+    import json
+    from datetime import UTC, datetime
+
+    from debugassist.evals import bisect_replay as br
+    from debugassist.evals import report as rep
+
+    reports = sorted(p for p in (ROOT / "evals" / "reports").iterdir() if (p / "results.csv").is_file())
+    rows = list(csv.DictReader((reports[-1] / "results.csv").open()))
+    only = {c.strip().upper() for c in cases.split(",") if c.strip()}
+    data = br.replay(rows, log=typer.echo, only=only or None)
+    out = ROOT / "evals" / "reports" / datetime.now(UTC).strftime("%Y-%m-%d")
+    out.mkdir(parents=True, exist_ok=True)
+    f = out / "bisect-replay.json"
+    if only and f.is_file():  # keep the other cases' results from the last full replay
+        kept = [c for c in json.loads(f.read_text())["cases"] if c["case"] not in only]
+        data["cases"] = sorted(kept + data["cases"], key=lambda c: c["case"])
+    f.write_text(json.dumps(data, indent=2))
+    (out / "bisect-replay.md").write_text(rep.bisect_section(out))
+    typer.echo(f"bisect replay: {out / 'bisect-replay.md'}")
+
+
 @app.command()
 def rescore(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]) -> None:
     """Recompute each run's score from its saved state with the current scorer (hidden-test results kept)."""

@@ -268,6 +268,53 @@ def variants_section(out: Path) -> str:
     )
 
 
+def bisect_section(out: Path) -> str:
+    """The `debugassist eval replay-bisect` replay saved in this report's directory, if any."""
+    f = out / "bisect-replay.json"
+    if not f.is_file():
+        return ""
+    from debugassist.evals import bisect_replay as br
+
+    data = json.loads(f.read_text())
+    rows = br.summary_rows(data)
+    detail = [
+        {
+            "case": c["case"],
+            "arm": r.get("arm"),
+            "seed": r.get("seed"),
+            "result": r.get("result"),
+            "good": r.get("good") or "",
+            "first_bad": r.get("first_bad") or ", ".join(r.get("candidates") or []),
+            "subject": str(r.get("subject") or r.get("why") or "").replace("|", "\\|")[:80],
+            "steps": r.get("steps") or "",
+            "rca_suspect": r.get("rca_suspect") or "",
+            "agrees": r.get("agrees_with_rca"),
+        }
+        for c in data.get("cases", [])
+        for r in c.get("runs", [])
+    ]
+    cols = [
+        "case",
+        "tests",
+        "not_applied",
+        "found",
+        "commits",
+        "agree_with_rca",
+        "rca_named_another",
+        "other",
+    ]
+    return (
+        "## Bisect, replayed (`debugassist eval replay-bisect`)\n\n"
+        "Each earlier validated run's reproduction test, run back through history from the release (earlier "
+        "release tags until it passes, then git bisect; a commit is bad only when the test fails with the "
+        "release's exception), no model; set beside the commit the run's RCA named.\n\n"
+        + _md_table(rows, cols)
+        + "\n\n"
+        + (_md_table(detail, list(detail[0])) if detail else "")
+        + "\n\n"
+    )
+
+
 def _context_section(out: Path) -> str:
     rows = context_by_arm(out)
     if not rows:
@@ -395,7 +442,7 @@ catalog's hidden tests pass on the agent's change (run by the evaluator in a cop
 {_md_table(e1, ["decision", "backend", "n", "accuracy", "brier", "ece", "latency_p50_ms", "usd_per_1k"])}
 ![E1](e1_accuracy.svg)
 
-{_context_section(out)}{variants_section(out)}## Runs
+{_context_section(out)}{variants_section(out)}{bisect_section(out)}## Runs
 
 {_md_table(per_bug, ["bug", "config", "seed", "rca", "location", "validated", "hidden", "usd"])}
 {"## Failures" + chr(10) + chr(10) + _md_table(failures, ["bug", "config", "seed", "error"]) if failures else ""}

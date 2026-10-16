@@ -235,6 +235,10 @@ def score_run(run_id: str, bug: Case, clef_usd: float = 0.0, run_hidden: bool = 
             if (r := _obj(_obj(a).get("call_variants")))
         ]
         or None,
+        # DA_BISECT: found / narrowed / no_good_release / unbisectable, and whether it matches the RCA's suspect
+        "bisect": _obj(state.get("bisect")).get("result"),
+        "bisect_commit": _obj(state.get("bisect")).get("first_bad"),
+        "bisect_agrees": _obj(state.get("bisect")).get("agrees_with_rca"),
         "tier": last.get("tier"),
         "hidden_tests": hidden.get("passed") if hidden.get("ran") else None,
         "diff_similarity": diff_similarity(str(last.get("diff", "")), reference) if reference else None,
