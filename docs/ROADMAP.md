@@ -21,6 +21,9 @@ default**, nothing here is a next step, and an item comes back only with a reaso
 | `DA_CONTEXT=compact` (older steps folded into notes) | Built, measured on 3 bugs | The notes cost what they removed; inconclusive and not worth a full arm |
 | `DA_CONTEXT=concise` (compact JSON, top-k lists) | Built, estimated offline | About 2–3% of input by replay: too small to spend a live arm on |
 | P15 items 5, 6, 9, 10 (tool-use examples, programmatic tool calling, per-repo memory, tool search) | Not started | The audit puts the weight in re-sent `read_file` results, which none of these address |
+| `DA_SECOND_REPRO=1` (a second reproduction by a separate agent, from the report alone) | Built, measured on 3 bugs | Passed all 7 fixes it checked; the hidden test passed 1/7 — the checker reads the same narrow report |
+| `DA_SECOND_REPRO=callers` (the same, shown the code's other uses) | Built, measured on 2 bugs | Stricter (3 fixes sent back) but no shipped fix passed; the missing case is nowhere in the repo |
+| `DA_CALL_VARIANTS=1` (the report's calls re-spelled, class/instance introspection compared; no model) | Built, measured live on 1 bug, replayed on 34 fixes | Not parked for a bad result: rejects 14/14 narrow fixes, no false alarm in the replay; waiting for a live arm with the full check and for cases it was not designed from (see P18) |
 | Discord chat notifier | Built, tested against a mock transport | Never run against a real webhook (no workspace); pages go to the mock inbox |
 | P16 integrations other than Langfuse (LiteLLM, local models, Promptfoo, Inspect, GlitchTip, OpenFeature, ast-grep, SWE-bench, OpenHands, Temporal) | Ideas, not started | Kept as a list; the open evaluation questions come first |
 
@@ -177,6 +180,10 @@ token comparison, Quickstart.
   verified with the fix — and, for a merged PR, its branch head — unreachable.
 - **Fix width is the weak lane, on real code too.** Diagnosis was exact on every real-bug run; the misses were fixes
   as narrow as the report (cachetools#435 0/3), as in the catalog (BUG-003, BUG-009).
+  *In short (2026-10-15 → 16):* asking the model for wider fixes or wider tests did not work (prompt rules; a
+  second, independent reproduction; the same shown the code's other uses). A check with no model did: re-spelling
+  the report's calls and comparing class and instance access rejects every narrow cachetools#435 fix in the replay
+  with no false alarm — still unproven live with the full check, and on code it was not designed from.
   - *Tried 2026-10-15, no effect, reverted:* prompt rules for the reproduction (also guard the ordinary uses — keyword
     arguments, sibling inputs, the unit's signature and attributes) and the fix (keep the unit's contract). Arm
     `fixwidth-7f15556`: cachetools#435 still 0/3, the same two failures; upstream's test 9/12 runs that made a fix vs
@@ -197,8 +204,7 @@ token comparison, Quickstart.
     doubled from the extra attempts.
   - *Built 2026-10-16, partly works, kept off:* call variations (`DA_CALL_VARIANTS=1`, `pipeline/callvariants.py`,
     no model) — the report's Python calls re-spelled (keyword, mixed, through the instance or the class), every
-    spelling must behave like the reported one. Offline on 12 earlier cachetools#435 fixes: rejects 11, passes
-    upstream's. Arm `variants-4b1325c`: 4 fixes sent back; validated 1/3 (was 3/3, all narrow), that one handles
+    spelling must behave like the reported one. Arm `variants-4b1325c`: 4 fixes sent back; validated 1/3 (was 3/3, all narrow), that one handles
     keywords; upstream's test still 0/3 (`__wrapped__`, cache statistics). The first check here that changes what
     ships: a narrow fix is no longer reported as validated.
   - *Done 2026-10-16:* library calls spelled from their run-time signatures, REPL sessions read, blocks as one
