@@ -24,6 +24,8 @@ from typing import Any
 import httpx
 from opentelemetry import trace
 
+from debugassist.core.redaction import redact_secrets
+
 PROJECT = os.environ.get("PHOENIX_PROJECT_NAME", "debugassist")
 _provider: Any = None
 
@@ -132,9 +134,12 @@ def _tracer() -> Any:
 
 
 def _attr(value: Any) -> Any:
-    if isinstance(value, str | bool | int | float):
+    """Span attributes may leave the machine (Langfuse Cloud, Phoenix): credentials never do."""
+    if isinstance(value, bool | int | float):
         return value
-    return json.dumps(value, default=str)[:8000]
+    if isinstance(value, str):
+        return redact_secrets(value)
+    return redact_secrets(json.dumps(value, default=str)[:8000])
 
 
 @contextmanager

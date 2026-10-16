@@ -74,7 +74,17 @@ debugassist app poll --once --dry   # what would run
 debugassist app poll            # every 60 s: run each labeled issue once, one at a time
 ```
 
-An issue that already has the app's comment is not run again by the poll; delete the comment to rerun it.
+An issue that already has the app's comment, or that the poll has already run (`.data/app/seen.json`), is not
+run again by the poll. With the webhook connected, removing and re-adding the label reruns it (each delivery is
+queued once: a repeated delivery id or body is dropped); with the poll alone, delete the app's comment and the
+issue's entry in `seen.json`.
+
+A failed run is retried twice, 5 and then 10 minutes later; after the third failure the issue gets a comment
+saying the analysis could not finish. Comments and labeled issues are read across all pages, and the list of
+installed repositories is refreshed every 10 minutes.
+
+Pull requests on an installed repository are always drafts: the policy's own `repos` list is the only place a
+ready-for-review PR can open, whatever the ship decision proposes.
 
 ## Onboarding a repository
 

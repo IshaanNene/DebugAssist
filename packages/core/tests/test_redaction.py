@@ -47,3 +47,27 @@ def test_redacts_nested_structures_and_coordinates() -> None:
     assert out["pickup"] == {"name": "Ferry Building", "lat": 37.8, "lng": -122.39}
     assert out["logs"] == ["user [email] logged in", {"msg": "phone [phone]"}]
     assert out["count"] == 3 and out["ok"] is True
+
+
+SECRETS = [  # every credential in .env.example, with realistic fake values (audit P3-14)
+    ("GROQ_CLOUD_API={}", "gsk_0123456789abcdefABCDEFghij"),
+    ("OPEN_ROUTER_API_KEY={}", "sk-or-v1-0123456789abcdef0123456789abcdef"),
+    ("CLOUDFLARE_API_KEY={}", "Abc123def456Ghi789jkl012MNO345pqr678stu9"),
+    ("GITHUB_TOKEN={}", "ghp_0123456789abcdefABCDEFghijklmnopqr"),
+    ("JIRA_API_KEY={}", "ATATT3xFfGF0abcdefghijklmnopqrstuvwxyz0123"),
+    ("DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/1234567890/{}", "AbCdEf-gh_IJklmnop"),
+    ("GITHUB_APP_WEBHOOK_SECRET={}", "s3cr3t-value-123"),
+    ("token {} in a message", "ghs_0123456789abcdefABCDEF"),
+    ("git push https://x-access-token:{}@github.com/a/b.git", "ghs_0123456789abcdef"),
+    ("posting to https://discord.com/api/webhooks/1234567890/{} failed", "AbCdEf-gh_IJklmnop"),
+    ("a Jira token {} alone", "ATATT3xFfGF0abcdefghijklmnopqrstuvwxyz0123"),
+]
+
+
+@pytest.mark.parametrize("template,secret", SECRETS)
+def test_redacts_every_credential_this_project_uses(template: str, secret: str) -> None:
+    from debugassist.core.redaction import redact_secrets
+
+    raw = template.format(secret)
+    for out in (redact_text(raw), redact_secrets(raw)):
+        assert secret not in out and "[token]" in out

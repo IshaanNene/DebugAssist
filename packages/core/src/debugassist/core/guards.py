@@ -1,12 +1,16 @@
-"""Guards for agent tool calls: shell commands, file paths and network egress.
+"""Guards for agent tool calls: shell commands and file paths.
 
-Defence in depth: commands also run in a network-less container on a disposable worktree.
+These are a denylist and catch mistakes, not an adversary (any interpreter gets past a regex). The boundary is
+the network-less, unprivileged container on a disposable worktree, and host code that treats that worktree as
+untrusted (`core.hostgit`, `walk_files`). There is no egress guard: the container has no network at all.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import shlex
+from collections.abc import Collection
 from pathlib import Path
 
 DENY_COMMANDS = [
@@ -67,9 +71,19 @@ def confine(root: Path, rel: str) -> Path:
     return p
 
 
-ALLOWED_HOSTS = {"localhost", "127.0.0.1", "openrouter.ai", "api.cloudflare.com", "api.github.com"}
+def walk_files(root: Path, skip: Collection[str] = ()) -> list[Path]:
+    """Regular files under `root`, sorted, reached without following a symlink and never secret files.
 
-
-def check_egress(host: str, allowed: set[str] = ALLOWED_HOSTS) -> None:
-    if host not in allowed and not any(host.endswith("." + a) for a in allowed):
-        raise GuardError(f"blocked: egress to {host}")
+    Host-side tools read the worktree the sandboxed agent writes: a symlink there may point anywhere on the
+    host (`notes.txt -> ../../../../.env`), so a walk must neither follow nor return one.
+    """
+    out: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        here = Path(dirpath)
+        dirnames[:] = [n for n in dirnames if n not in skip and n != ".git" and not (here / n).is_symlink()]
+        for name in filenames:
+            p = here / name
+            if p.is_symlink() or not p.is_file() or SECRET_PATHS.search(name):
+                continue
+            out.append(p)
+    return sorted(out)

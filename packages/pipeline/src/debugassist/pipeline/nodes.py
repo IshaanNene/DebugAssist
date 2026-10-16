@@ -21,7 +21,7 @@ import httpx
 import yaml
 from langchain_core.tools import BaseTool, tool
 
-from debugassist.core import untrusted
+from debugassist.core import hostgit, untrusted
 from debugassist.core.ablation import ablated, bisect_enabled, call_variants, second_repro, second_repro_mode
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT, Verdict
@@ -128,7 +128,17 @@ def _top_in_app(frames: list[dict[str, Any]]) -> dict[str, Any] | None:
     return in_app[-1] if in_app else (frames[-1] if frames else None)
 
 
-def _pipeline_yaml(worktree: Path) -> dict[str, Any]:
+def _pipeline_yaml(worktree: Path, issue: Issue | None = None) -> dict[str, Any]:
+    """How to build and test the repository, as of the release under test — never the agent's copy.
+
+    The fix agent may edit any file in its worktree, `.DebugAssist/pipeline.yaml` included; read from there, a
+    `test: "true"` would make "the suite passes" mean nothing (audit P2-8)."""
+    if issue is not None:
+        shown = hostgit.run(worktree, "show", f"v{issue.last_version}:.DebugAssist/pipeline.yaml")
+        if shown.returncode == 0:
+            return yaml.safe_load(shown.stdout)
+        if hostgit.run(worktree, "rev-parse", "--verify", "-q", f"v{issue.last_version}").returncode == 0:
+            raise RuntimeError(f"v{issue.last_version} has no .DebugAssist/pipeline.yaml")
     return yaml.safe_load((worktree / ".DebugAssist" / "pipeline.yaml").read_text())
 
 
@@ -193,19 +203,17 @@ def _run_on_release(sb: Sandbox, base: str, run: Callable[[], CommandResult]) ->
     if not src:
         return None
     # Against the release, not HEAD: once a fix is committed (diff fixer), HEAD already contains it.
-    src_diff = subprocess.run(
-        ["git", "diff", base, "--", *src], cwd=sb.worktree, capture_output=True, text=True, check=True
-    ).stdout
-    subprocess.run(["git", "apply", "-R", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
+    src_diff = hostgit.run(sb.worktree, "diff", base, "--", *src, check=True).stdout
+    hostgit.run(sb.worktree, "apply", "-R", "-", input=src_diff, check=True)
     try:
         return run()
     finally:
-        subprocess.run(["git", "apply", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
+        hostgit.run(sb.worktree, "apply", "-", input=src_diff, check=True)
 
 
 def _component_cfg(state: RunState, worktree: Path) -> dict[str, Any]:
     assert state.issue
-    cfg = _pipeline_yaml(worktree)["components"]
+    cfg = _pipeline_yaml(worktree, state.issue)["components"]
     if state.issue.component == ".":
         return next(iter(cfg.values()))
     return cfg[state.issue.component]
@@ -329,7 +337,7 @@ def app_comment(state: RunState, pr_url: str | None, outcome: str) -> str:
         ]
     lines += [
         "",
-        f"<sub>Automated analysis, run `{state.run_id}`. Remove the label to stop; add it again to rerun.</sub>",
+        f"<sub>Automated analysis, run `{state.run_id}`. Remove the label to stop; remove and re-add it to rerun.</sub>",
     ]
     return "\n".join(lines)
 
@@ -553,7 +561,15 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
     if verdict is Verdict.LIVE:
         ticket = deps.jira.find_open(label)  # one ticket per Vitals issue: reuse it on re-runs
         if ticket:
-            deps.jira.comment(ticket.key, [("para", f"DebugAssist run {state.run_id} picked this up again.")])
+            found = ticket
+            deps.gate.gated(
+                "jira.comment",
+                lambda: deps.jira.comment(
+                    found.key, [("para", f"DebugAssist run {state.run_id} picked this up again.")]
+                ),
+                run_id=state.run_id,
+                detail={"key": found.key},
+            )
         else:
             ticket = deps.jira.create(
                 f"[{priority}] {issue.title[:180]}",
@@ -561,7 +577,13 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
                 priority,
                 ["bug", "debugassist", issue.app, label],
             )
-        deps.jira.transition(ticket.key, "In Progress")
+        opened = ticket
+        deps.gate.gated(
+            "jira.transition",
+            lambda: deps.jira.transition(opened.key, "In Progress"),
+            run_id=state.run_id,
+            detail={"key": opened.key, "to": "In Progress"},
+        )
         triage.jira_key, triage.jira_url, triage.jira_mode = ticket.key, ticket.url, ticket.mode
     deps.gate.record(
         "jira.create_issue", verdict, run_id=state.run_id, detail={"issue": issue.id}, result=triage.jira_key
@@ -859,8 +881,13 @@ async def mitigate(state: RunState, deps: Deps) -> dict[str, Any]:
                 }
             )
             verdict = Verdict.LIVE if approved else Verdict.DRY_RUN
-        res = ff.rollback_flag(
-            flag, 0, reason=f"{issue.id}: {rca.output.summary[:200]}", dry_run=verdict is not Verdict.LIVE
+        res = ff.apply_rollout(
+            flag,
+            0,
+            reason=f"{issue.id}: {rca.output.summary[:200]}",
+            authorized=verdict is Verdict.LIVE,
+            gate=deps.gate,
+            run_id=state.run_id,
         )
         m.action = "rolled_back" if res["applied"] else "dry_run"
         m.rolled_back_from = int(res["from_percent"])
@@ -875,42 +902,43 @@ async def mitigate(state: RunState, deps: Deps) -> dict[str, Any]:
 
 def _apply_diff(sb: Sandbox) -> Any:
     def apply(diff: str) -> None:
-        subprocess.run(
-            ["git", "apply", "--whitespace=nowarn", "-"], input=diff, text=True, cwd=sb.worktree, check=True
-        )
+        hostgit.run(sb.worktree, "apply", "--whitespace=nowarn", "-", input=diff, check=True)
 
     return apply
 
 
-def _revert_non_tests(sb: Sandbox) -> None:
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all"],
-        cwd=sb.worktree,
-        capture_output=True,
-        text=True,
-        check=True,
+def _status(sb: Sandbox) -> list[str]:
+    """Paths `git status` reports, both sides of a rename included; NUL-separated, so quoted, escaped and
+    renamed paths (`old -> new`) are not misread (audit P3-22)."""
+    raw = hostgit.run(
+        sb.worktree, "status", "--porcelain=v1", "-z", "--untracked-files=all", check=True
     ).stdout
-    for line in status.splitlines():
-        path = line[3:].strip().strip('"')
+    parts, out, i = raw.split("\0"), list[str](), 0
+    while i < len(parts):
+        entry, i = parts[i], i + 1
+        if not entry:
+            continue
+        out.append(entry[3:])
+        if "R" in entry[:2] or "C" in entry[:2]:  # the source path follows as its own field
+            out.append(parts[i])
+            i += 1
+    return out
+
+
+def _revert_non_tests(sb: Sandbox) -> None:
+    for path in _status(sb):
         if is_test_path(path):
             continue
-        if line.startswith("??"):
+        if hostgit.run(sb.worktree, "cat-file", "-e", f"HEAD:{path}").returncode == 0:
+            hostgit.run(sb.worktree, "checkout", "-q", "HEAD", "--", path, check=False)
+        else:  # new in the worktree: drop it from the index (intent-to-add) and from disk
+            hostgit.run(sb.worktree, "rm", "-q", "--cached", "--ignore-unmatch", "--", path, check=False)
             (sb.worktree / path).unlink(missing_ok=True)
-        else:
-            subprocess.run(["git", "checkout", "-q", "--", path], cwd=sb.worktree, check=False)
 
 
 def _new_test_files(sb: Sandbox) -> list[str]:
-    status = subprocess.run(
-        ["git", "status", "--porcelain", "--untracked-files=all"],
-        cwd=sb.worktree,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    files = [line[3:].strip().strip('"') for line in status.splitlines()]
-    tests = [f for f in files if is_test_path(f) and (sb.worktree / f).is_file()]
-    return sorted(tests, key=lambda f: (sb.worktree / f).stat().st_mtime)
+    tests = [f for f in _status(sb) if is_test_path(f) and (sb.worktree / f).is_file()]
+    return sorted(set(tests), key=lambda f: (sb.worktree / f).stat().st_mtime)
 
 
 def _test_cmd(language: str, test_file: str, component: str, template: str | None = None) -> str:
@@ -930,7 +958,7 @@ def _test_cmd(language: str, test_file: str, component: str, template: str | Non
 def _run_test(sb: Sandbox, issue: Issue, cmd: str) -> CommandResult:
     """Unit/integration tests run in the sandbox; E2E specs run against a build of the worktree."""
     if e2e.is_e2e_cmd(cmd):
-        return e2e.run(sb, _pipeline_yaml(sb.worktree), issue.component, cmd)
+        return e2e.run(sb, _pipeline_yaml(sb.worktree, issue), issue.component, cmd)
     return sb.run(cmd, workdir=issue.component)
 
 
@@ -965,7 +993,7 @@ def _e2e_tool(sb: Sandbox, issue: Issue) -> BaseTool:
         if _tier_problem("e2e_env", issue, test_file) or not (sb.worktree / test_file).is_file():
             return f"{test_file} is not an existing spec under e2e/"
         res = e2e.run(
-            sb, _pipeline_yaml(sb.worktree), issue.component, e2e.e2e_cmd(test_file, issue.component)
+            sb, _pipeline_yaml(sb.worktree, issue), issue.component, e2e.e2e_cmd(test_file, issue.component)
         )
         return f"exit code {res.exit_code}\n{res.output[-3500:]}"
 
@@ -999,8 +1027,8 @@ def fix_contract_problem(
 def _reset_to(sb: Sandbox, base: str) -> None:
     # Every attempt (and a resumed run) starts from the release tag, not the branch head: after a PR
     # the bot branch holds the previous fix commit. Ignored dirs (node_modules…) survive.
-    subprocess.run(["git", "reset", "-q", "--hard", base], cwd=sb.worktree, check=True)
-    subprocess.run(["git", "clean", "-qfd"], cwd=sb.worktree, check=False)
+    hostgit.run(sb.worktree, "reset", "-q", "--hard", base, check=True)
+    hostgit.run(sb.worktree, "clean", "-qfd", check=False)
 
 
 async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
@@ -1021,7 +1049,7 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     decisions = list(state.decisions)
     plan = state.fix_plan
     if plan is None:
-        plan, ledgers = await fixplan.plan(sb, state, deps, _pipeline_yaml(sb.worktree))
+        plan, ledgers = await fixplan.plan(sb, state, deps, _pipeline_yaml(sb.worktree, issue))
         decisions += ledgers
     if plan.skip:
         return {"fix_plan": plan, "decisions": decisions}
@@ -1216,7 +1244,7 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
 def _at(sb: Sandbox, base: str, path: str) -> str | None:
     """The file as it is in the release, None if it is not there. (Not `git ls-files`: the runner's diff marks new
     files intent-to-add, which lists them as tracked.)"""
-    out = subprocess.run(["git", "show", f"{base}:{path}"], cwd=sb.worktree, capture_output=True, text=True)
+    out = hostgit.run(sb.worktree, "show", f"{base}:{path}")
     return out.stdout if out.returncode == 0 else None
 
 
@@ -1264,7 +1292,7 @@ async def second_reproduction(
     assert issue and rca and rca.output
     loc = f"{rca.output.location.file} → {rca.output.location.function}"
     hidden = {f: (sb.worktree / f).read_text() for f in _new_test_files(sb)}  # the fixing agent's tests
-    subprocess.run(["git", "apply", "-R", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
+    hostgit.run(sb.worktree, "apply", "-R", "-", input=src_diff, check=True)
     for f in hidden:
         if (old := _at(sb, base, f)) is not None:
             (sb.worktree / f).write_text(old)
@@ -1336,7 +1364,7 @@ async def second_reproduction(
             return None, rec, cost
         rec["test_source"] = (sb.worktree / path).read_text()[:2500]
     finally:
-        subprocess.run(["git", "apply", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
+        hostgit.run(sb.worktree, "apply", "-", input=src_diff, check=True)
         for f, text in hidden.items():
             (sb.worktree / f).parent.mkdir(parents=True, exist_ok=True)
             (sb.worktree / f).write_text(text)
@@ -1445,14 +1473,12 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
             output_tail=after.output[-3000:],
         )
         # Failing-before: reverse-apply only the source change, keep the test, run, re-apply.
-        src_diff = subprocess.run(
-            ["git", "diff", "--", *src], cwd=sb.worktree, capture_output=True, text=True, check=True
-        ).stdout
-        subprocess.run(["git", "apply", "-R", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
+        src_diff = hostgit.run(sb.worktree, "diff", "--", *src, check=True).stdout
+        hostgit.run(sb.worktree, "apply", "-R", "-", input=src_diff, check=True)
         try:
             before = _run_test(sb, issue, cmd)
         finally:
-            subprocess.run(["git", "apply", "-"], input=src_diff, text=True, cwd=sb.worktree, check=True)
+            hostgit.run(sb.worktree, "apply", "-", input=src_diff, check=True)
         v.failing_before = TestRun(
             label=f"reproduction test ({fa.tier}) on the release (expected to fail)",
             command=cmd,
@@ -1500,9 +1526,7 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
     costs = dict(state.costs)
     v.independent = None
     if v.passed and second_repro() and fa.tier != "e2e_env":
-        src_diff = subprocess.run(
-            ["git", "diff", "--", *src], cwd=sb.worktree, capture_output=True, text=True, check=True
-        ).stdout
+        src_diff = hostgit.run(sb.worktree, "diff", "--", *src, check=True).stdout
         run, rec, cost = await second_reproduction(state, deps, sb, comp, src_diff, f"v{issue.last_version}")
         node = "reproduce_check" + (f"_{fa.n}" if fa.n > 1 else "")
         costs[node] = costs.get(node, 0.0) + cost
@@ -1597,6 +1621,8 @@ async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
         outcome = "rca_only"  # no verified reproduction or no source change: nothing to put in a PR
     elif not (v and v.passed) and outcome == "open_pr":
         outcome = "draft_pr"  # never a ready PR without validation proof
+    elif outcome == "open_pr" and not _ready_pr_allowed(state, deps):
+        outcome = "draft_pr"  # a repository the app is installed on, not ours: draft PRs only (ADR 0008)
     return {
         "ship": Ship(
             outcome=outcome,
@@ -1605,6 +1631,18 @@ async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
         ),  # pyright: ignore[reportArgumentType]
         "decisions": [*state.decisions, d16.ledger_id or ""],
     }
+
+
+def _commit_trailer(issue: Issue) -> str:
+    """Where the fix came from: a Vitals crash, a BugDrop report, or the GitHub issue (audit P3-19)."""
+    if issue.app_issue is not None or issue.source == "github":
+        return f"Fixes: {issue.url}"
+    return f"{'BugDrop' if issue.source == 'bugdrop' else 'Vitals'}: {issue.id}"
+
+
+def _ready_pr_allowed(state: RunState, deps: Deps) -> bool:
+    issue = state.issue
+    return bool(issue and issue.app_issue is None and deps.gate.ready_pr_allowed(issue.gh_repo))
 
 
 # ---- N8 pr_and_notify -----------------------------------------------------------------------
@@ -1634,12 +1672,10 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
             else f"fix({scope}): {issue.title[:70]}"
         )[:100]
         sb.commit(
-            f"{title}\n\n{rca.output.root_cause if rca.output else ''}\n\nVitals: {issue.id}"
+            f"{title}\n\n{rca.output.root_cause if rca.output else ''}\n\n{_commit_trailer(issue)}"
             + (f"\nJira: {tr.jira_key}" if tr and tr.jira_key else "")
         )
-        branch = subprocess.run(
-            ["git", "branch", "--show-current"], cwd=sb.worktree, capture_output=True, text=True, check=True
-        ).stdout.strip()
+        branch = hostgit.run(sb.worktree, "branch", "--show-current", check=True).stdout.strip()
         base = issue.base_branch or f"release/{issue.last_version}"
         push_v = deps.gate.verdict("github.push_branch", repo=issue.gh_repo, branch=branch)
         pr_v = deps.gate.verdict("github.open_pr", repo=issue.gh_repo)
@@ -1649,9 +1685,9 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
                     f"base branch {base} is not on GitHub; push it first (debugassist scenario inject --push)"
                 )
             deps.github.push(sb.worktree, branch)
-            pr = deps.github.open_pr(
-                issue.gh_repo, branch, base, title, pr_body.pr_body(state), draft=ship.outcome == "draft_pr"
-            )
+            # Enforced here too, not only in the ship gate: a resumed run may carry an older ship decision.
+            draft = ship.outcome == "draft_pr" or not _ready_pr_allowed(state, deps)
+            pr = deps.github.open_pr(issue.gh_repo, branch, base, title, pr_body.pr_body(state), draft=draft)
             out["pr"] = PRInfo(
                 url=pr.url, number=pr.number, branch=branch, base=base, draft=pr.draft, mode=pr.mode
             )
@@ -1664,12 +1700,25 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
         )
     pr_info: PRInfo | None = out.get("pr")
     if tr and tr.jira_key:
+        key, gate = tr.jira_key, deps.gate
         if pr_info:
             jira_blocks.append(("para", f"Pull request: {pr_info.url}"))
-            deps.jira.link(tr.jira_key, pr_info.url, f"PR #{pr_info.number} (DebugAssist)")
-        deps.jira.comment(tr.jira_key, jira_blocks or [("para", f"DebugAssist outcome: {ship.outcome}")])
-        deps.jira.transition(tr.jira_key, "In Review" if pr_info else "In Progress")
-        deps.gate.record("jira.comment", Verdict.LIVE, run_id=state.run_id, detail={"key": tr.jira_key})
+            title = f"PR #{pr_info.number} (DebugAssist)"
+            url = pr_info.url
+            gate.gated(
+                "jira.link", lambda: deps.jira.link(key, url, title), run_id=state.run_id, detail={"key": key}
+            )
+        blocks = jira_blocks or [("para", f"DebugAssist outcome: {ship.outcome}")]
+        gate.gated(
+            "jira.comment", lambda: deps.jira.comment(key, blocks), run_id=state.run_id, detail={"key": key}
+        )
+        to = "In Review" if pr_info else "In Progress"
+        gate.gated(
+            "jira.transition",
+            lambda: deps.jira.transition(key, to),
+            run_id=state.run_id,
+            detail={"key": key, "to": to},
+        )
     # Link the PR / ticket back to the user-facing issue (Vitals or BugDrop).
     links: list[tuple[str, str | None, str | None]] = (
         [("jira", tr.jira_url, tr.jira_key)] if tr and tr.jira_url and tr.jira_url.startswith("http") else []

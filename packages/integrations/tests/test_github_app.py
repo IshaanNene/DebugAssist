@@ -6,11 +6,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import subprocess
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import httpx
 import jwt
+import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
@@ -85,7 +88,10 @@ def test_installation_tokens_repositories_and_issues() -> None:
     assert (issue.number, issue.title, issue.labels) == (3, "Crash", ("debugassist",))
     assert comment_has_marker(a.comments("acme/widgets", 3))
     a.comment("acme/widgets", 3, "hello")
-    assert a.clone_url("acme/widgets") == "https://x-access-token:ghs_inst@github.com/acme/widgets.git"
+    assert a.clone_url("acme/widgets") == "https://github.com/acme/widgets.git"  # no token in URLs
+    assert "ghs_inst" not in json.dumps(
+        a.git_env("acme/widgets")
+    )  # base64 in an extraheader, as checkout does
     assert calls.count("POST /app/installations/7/access_tokens") == 1  # cached
     try:
         a.issue("acme/other", 1)
@@ -117,3 +123,62 @@ def test_the_policy_allows_installed_repos_only_when_it_says_so() -> None:
     assert not PolicyGate(
         Policy.model_validate({**base, "app_installations": True}), installed=down
     ).allowed_repo("acme/widgets")
+
+
+def test_a_failed_push_never_carries_the_token(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Audit P1-2: the token was in the push URL, so in argv and in the CalledProcessError the graph persisted."""
+    pem, _ = _key()
+    a = GitHubAppLive("12345", pem, http=_fake_api([]))
+    repo = tmp_path / "wt"
+    repo.mkdir()
+    for args in (["init", "-q"], ["commit", "-q", "--allow-empty", "-m", "x"]):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=repo, check=True)
+    cfg = tmp_path / "gitconfig"  # github.com resolves to a path that does not exist: the push fails offline
+    cfg.write_text(f'[url "{tmp_path}/missing/"]\n\tinsteadOf = https://github.com/\n')
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(cfg))
+    client = a.client("acme/widgets")
+    assert client is not None
+    with pytest.raises(subprocess.CalledProcessError) as err:
+        client.push(repo, "debugassist/fix")
+    exc = err.value
+    seen = " ".join([str(exc), repr(exc), str(exc.cmd), str(exc.stdout), str(exc.stderr)])
+    assert "ghs_inst" not in seen
+    assert "ghs_inst" not in (repo / ".git" / "config").read_text()
+
+
+def test_comments_and_labeled_issues_are_read_across_pages() -> None:
+    """Audit P2-12: one page of 100 comments hid a marker on page two, so the poll re-ran the issue forever."""
+    pem, _ = _key()
+    expires = (datetime.now(UTC) + timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+    comments = [{"body": f"c{i}"} for i in range(149)] + [{"body": "<!-- debugassist:run x -->"}]
+    issues = [{"number": i, "title": "t", "labels": [{"name": "debugassist"}]} for i in range(45)]
+
+    def page(items: list[dict[str, Any]], req: httpx.Request) -> httpx.Response:
+        n = int(req.url.params.get("page", "1"))
+        size = int(req.url.params.get("per_page", "30"))
+        headers: dict[str, str] = {}
+        if n * size < len(items):
+            nxt = req.url.copy_merge_params({"page": str(n + 1), "per_page": str(size)})
+            headers["link"] = f'<{nxt}>; rel="next"'
+        return httpx.Response(200, json=items[(n - 1) * size : n * size], headers=headers)
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        p = req.url.path
+        if p == "/app/installations":
+            return httpx.Response(200, json=[{"id": 7}])
+        if p == "/app/installations/7/access_tokens":
+            return httpx.Response(201, json={"token": "ghs_inst", "expires_at": expires})
+        if p == "/installation/repositories":
+            return httpx.Response(200, json={"repositories": [{"full_name": "acme/widgets"}]})
+        if p == "/repos/acme/widgets/issues/3/comments":
+            return page(comments, req)
+        if p == "/repos/acme/widgets/issues":
+            return page(issues, req)
+        return httpx.Response(404, json={})
+
+    a = GitHubAppLive(
+        "1", pem, http=httpx.Client(base_url="https://api.github.com", transport=httpx.MockTransport(handler))
+    )
+    got = a.comments("acme/widgets", 3)
+    assert len(got) == 150 and comment_has_marker(got)
+    assert len(a.labeled_issues("acme/widgets", "debugassist")) == 45

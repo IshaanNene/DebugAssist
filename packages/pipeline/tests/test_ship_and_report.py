@@ -31,7 +31,8 @@ class FakeEngine:
 
 async def _ship(state: RunState, action: str) -> str:
     engine = FakeEngine(action)
-    out = await nodes.ship_gate(state, SimpleNamespace(engine=engine))  # pyright: ignore[reportArgumentType]
+    gate = SimpleNamespace(ready_pr_allowed=lambda repo: True)  # pyright: ignore[reportUnknownLambdaType]
+    out = await nodes.ship_gate(state, SimpleNamespace(engine=engine, gate=gate))  # pyright: ignore[reportArgumentType]
     assert engine.calls == ["D16"]
     return out["ship"].outcome
 

@@ -271,16 +271,28 @@ async def test_d12_two_stage_through_the_real_engine_with_many_candidates(sandbo
 
 
 @pytest.mark.parametrize(
-    ("rollout", "significant", "action", "detail"),
+    ("rollout", "significant", "verdict", "approved", "action", "detail"),
     [
-        (0, True, "none", "already at 0%"),
-        (5, True, "dry_run", "5% → 0% (dry run"),
-        (5, False, "none", "no rollback"),
+        (0, True, "dry_run", None, "none", "already at 0%"),
+        (5, True, "dry_run", None, "dry_run", "5% → 0% (dry run"),
+        (5, False, "dry_run", None, "none", "no rollback"),
+        # Audit P2-6: a supervised run's human approval applies the rollback (it was downgraded to a dry run).
+        (5, True, "approval", True, "rolled_back", "5% → 0% (applied)"),
+        (5, True, "approval", False, "dry_run", "5% → 0% (dry run"),
+        (5, True, "live", None, "rolled_back", "5% → 0% (applied)"),
     ],
 )
 async def test_mitigation_rolls_back_only_a_live_significant_flag(
-    monkeypatch: pytest.MonkeyPatch, rollout: int, significant: bool, action: str, detail: str
+    monkeypatch: pytest.MonkeyPatch,
+    rollout: int,
+    significant: bool,
+    verdict: str,
+    approved: bool | None,
+    action: str,
+    detail: str,
 ) -> None:
+    import langgraph.types
+
     from debugassist.core.policy import Verdict
     from debugassist.mcp_servers import feature_flags as ff
 
@@ -288,22 +300,26 @@ async def test_mitigation_rolls_back_only_a_live_significant_flag(
         "exposed": {}, "unexposed": {}, "z": 10.0, "p_value": 1e-9,
         "significant": significant, "share_of_affected_exposed": 1.0,
     }  # fmt: skip
+    applied: list[bool] = []
+
+    def apply_rollout(flag: str, pct: int, *, authorized: bool, **_: Any) -> dict[str, Any]:
+        applied.append(authorized)
+        return {"applied": authorized, "from_percent": rollout}
+
     monkeypatch.setattr(ff, "flag_crash_correlation", lambda fp, flag: corr)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     monkeypatch.setattr(ff, "get_flag", lambda flag: {"rollout_pct": rollout})  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-    monkeypatch.setattr(
-        ff,
-        "rollback_flag",
-        lambda flag, pct, reason, dry_run: {"applied": not dry_run, "from_percent": rollout},  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
-    )
+    monkeypatch.setattr(ff, "apply_rollout", apply_rollout)
+    monkeypatch.setattr(langgraph.types, "interrupt", lambda _q: approved)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     st = rca_state(fingerprint="fp1")
     assert st.rca and st.rca.output
     st.rca.output.implicated_flag = "notif_router_v2"
     deps: Any = SimpleNamespace(
         engine=Engine({"D11": decision("rollback_flag")}),
-        gate=SimpleNamespace(verdict=lambda _a: Verdict.DRY_RUN),  # pyright: ignore[reportUnknownLambdaType]
+        gate=SimpleNamespace(verdict=lambda _a: Verdict(verdict)),  # pyright: ignore[reportUnknownLambdaType]
     )
     m = (await nodes.mitigate(st, deps))["mitigation"]
     assert m.action == action and detail in m.detail
+    assert applied == ([action == "rolled_back"] if action != "none" else [])
 
 
 async def test_llm_nodes_do_not_start_once_the_run_budget_is_spent(tmp_path: Path) -> None:
@@ -407,8 +423,8 @@ async def test_a_report_without_a_crash_group_can_still_roll_back_a_misconfigure
     monkeypatch.setattr(ff, "rollout_history", lambda flag, limit: {"events": events})  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     monkeypatch.setattr(
         ff,
-        "rollback_flag",
-        lambda flag, pct, reason, dry_run: {"applied": not dry_run, "from_percent": 100},  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+        "apply_rollout",
+        lambda flag, pct, *, authorized, **_: {"applied": authorized, "from_percent": 100},  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     )
     st = rca_state()  # a rider report: no crash fingerprint
     assert st.rca and st.rca.output and not (st.issue and st.issue.fingerprint)

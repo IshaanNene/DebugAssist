@@ -7,11 +7,11 @@ first bad versions and history filtered to the relevant module, not the whole lo
 from __future__ import annotations
 
 import re
-import subprocess
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from debugassist.core import hostgit
 from debugassist.mcp_servers.common import truncate, with_evidence
 from debugassist.mcp_servers.repos import resolve
 
@@ -21,7 +21,7 @@ REF = re.compile(r"^[\w./-]{1,100}$")
 
 
 def _git(repo: str, *args: str) -> str:
-    out = subprocess.run(["git", *args], cwd=resolve(repo), capture_output=True, text=True)
+    out = hostgit.run(resolve(repo), *args)
     if out.returncode:
         raise ValueError(out.stderr.strip()[:300])
     return out.stdout

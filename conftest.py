@@ -26,3 +26,22 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     for item in items:
         if "live" in item.keywords:
             item.add_marker(skip)
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_credentials(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unit tests never see the developer's credentials: not exported ones (`gh`, Codespaces and CI runners set
+    GITHUB_TOKEN), and not the repository's `.env`. Either would switch an integration to live (audit P2-10)."""
+    if os.environ.get("DA_LIVE_TESTS") == "1" and "live" in request.keywords:
+        return
+    from debugassist.core.settings import Integration, Settings, get_settings
+
+    for name, field in Settings.model_fields.items():
+        aliases = getattr(field.validation_alias, "choices", None) or []
+        for env in {name, *(str(a) for a in aliases)}:
+            monkeypatch.delenv(env.upper(), raising=False)
+    for i in Integration:
+        monkeypatch.delenv(f"DA_MODE_{i.name}", raising=False)
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    get_settings.cache_clear()
+    request.addfinalizer(get_settings.cache_clear)

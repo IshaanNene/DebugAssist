@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -13,7 +12,7 @@ from typing import Any, cast
 
 import yaml
 
-from debugassist.core import ablation
+from debugassist.core import ablation, hostgit
 from debugassist.core.policy import ROOT, PolicyGate
 from debugassist.core.settings import Integration, Mode, Settings, get_settings
 from debugassist.decisions.engine import DecisionEngine
@@ -107,9 +106,7 @@ class GitHubRouter:
         return self.app.client(repo) or self.default
 
     def _repo_of(self, worktree: Path) -> str:
-        url = subprocess.run(
-            ["git", "remote", "get-url", "origin"], cwd=worktree, capture_output=True, text=True
-        ).stdout.strip()
+        url = hostgit.run(worktree, "remote", "get-url", "origin").stdout.strip()
         m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
         return m.group(1) if m else ""
 

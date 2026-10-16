@@ -119,22 +119,31 @@ def flag_crash_correlation(fingerprint: str, flag: str) -> dict[str, Any]:
     )
 
 
-@mcp.tool()
-def rollback_flag(flag: str, to_percent: int = 0, reason: str = "", dry_run: bool = True) -> dict[str, Any]:
-    """Roll a flag's gradual rollout back (write; policy-gated, dry-run by default)."""
-    gate = PolicyGate(mode=os.environ.get("DEBUGASSIST_MODE", "autonomous"))
-    verdict = gate.verdict("flags.rollback")
+def apply_rollout(
+    flag: str,
+    to_percent: int,
+    *,
+    reason: str,
+    authorized: bool,
+    action: str = "flags.rollback",
+    gate: PolicyGate | None = None,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Set a flag's rollout when the caller has already decided it may (the policy said live, or a human
+    approved a supervised run's interrupt); audit what was actually done.
+
+    The pipeline asks the gate once, in the node, where a human approval is visible; a second gate in here
+    could not see that approval and turned every approved rollback into a dry run (audit P2-6)."""
+    gate = gate or PolicyGate(mode=os.environ.get("DEBUGASSIST_MODE", "autonomous"))
     strategies = _strategies(flag)
     current = _rollout(strategies)
-    effective = "dry_run" if dry_run or verdict is not Verdict.LIVE else "live"
     result: dict[str, Any] = {
         "flag": flag,
         "from_percent": current,
         "to_percent": to_percent,
-        "verdict": verdict.value,
         "applied": False,
     }
-    if effective == "live":
+    if authorized:
         s = next(s for s in strategies if s["name"] == "flexibleRollout")
         params = {**s["parameters"], "rollout": str(to_percent)}
         _http.put(
@@ -144,13 +153,25 @@ def rollback_flag(flag: str, to_percent: int = 0, reason: str = "", dry_run: boo
         ).raise_for_status()
         result["applied"] = True
     gate.record(
-        "flags.rollback",
-        Verdict(effective) if effective == "live" else Verdict.DRY_RUN,
-        run_id=os.environ.get("DEBUGASSIST_RUN_ID"),
+        action,
+        Verdict.LIVE if result["applied"] else Verdict.DRY_RUN,
+        run_id=run_id or os.environ.get("DEBUGASSIST_RUN_ID"),
         detail={"flag": flag, "to": to_percent, "reason": reason},
         result=result,
     )
-    return with_evidence("flags", "rollback", result)
+    return result
+
+
+@mcp.tool()
+def rollback_flag(flag: str, to_percent: int = 0, reason: str = "", dry_run: bool = True) -> dict[str, Any]:
+    """Roll a flag's gradual rollout back (write; policy-gated, dry-run by default)."""
+    gate = PolicyGate(mode=os.environ.get("DEBUGASSIST_MODE", "autonomous"))
+    verdict = gate.verdict("flags.rollback")
+    # An agent's call never carries a human approval: only a policy that says live applies it.
+    result = apply_rollout(
+        flag, to_percent, reason=reason, authorized=not dry_run and verdict is Verdict.LIVE, gate=gate
+    )
+    return with_evidence("flags", "rollback", {**result, "verdict": verdict.value})
 
 
 def main() -> None:

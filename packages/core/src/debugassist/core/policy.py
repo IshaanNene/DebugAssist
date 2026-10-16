@@ -84,6 +84,40 @@ class PolicyGate:
             return Verdict.DRY_RUN
         return v
 
+    def ready_pr_allowed(self, repo: str) -> bool:
+        """Ready-for-review PRs only on the policy's own repositories; on any other (a GitHub App installation)
+        a PR is always a draft, whatever a decision model proposes."""
+        return repo in self.policy.repos
+
+    def gated(
+        self,
+        action: str,
+        perform: Callable[[], Any],
+        *,
+        run_id: str | None,
+        detail: dict[str, Any],
+        repo: str | None = None,
+        branch: str | None = None,
+    ) -> tuple[Verdict, Any]:
+        """Ask, act only on LIVE, and audit what actually happened (also when the write fails)."""
+        v = self.verdict(action, repo=repo, branch=branch)
+        if v is not Verdict.LIVE:
+            self.record(action, v, run_id=run_id, detail=detail, result={"applied": False})
+            return v, None
+        try:
+            result = perform()
+        except Exception as exc:
+            self.record(
+                action,
+                v,
+                run_id=run_id,
+                detail=detail,
+                result={"applied": False, "error": type(exc).__name__},
+            )
+            raise
+        self.record(action, v, run_id=run_id, detail=detail, result={"applied": True, "value": result})
+        return v, result
+
     def record(
         self, action: str, verdict: Verdict, *, run_id: str | None, detail: dict[str, Any], result: Any = None
     ) -> None:

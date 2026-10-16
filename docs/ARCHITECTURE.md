@@ -10,7 +10,7 @@ DebugAssist is an open-source reimplementation of the pipeline described in the 
 | Healthline (crash/perf analytics) | **Vitals** (`sources/vitals/`: browser/Python/Go/Node SDKs + FastAPI service + UI on :8100) | ✅ P2b |
 | Incident tooling | `sources/incidents/` (incidents + third-party dependency status, :8300) | ✅ P2b |
 | Uber apps across 5 monorepos | **MiniRide**: `IshaanNene/miniride-client` (public) + `IshaanNene/miniride-services` (private), git submodules under `targets/` | ✅ P2a |
-| Sourcegraph | `code-search` MCP server | P3/P4 |
+| Sourcegraph | `code-search` MCP server | ✅ P3 |
 | Internal feature-flag platform | Unleash 8 (gradual rollouts, `sessionId` stickiness) + OpenFeature SDKs | ✅ P2a |
 | Distributed tracing | Jaeger 2 via an OpenTelemetry Collector | ✅ P2a |
 | Logging | Loki 3 (native OTLP ingestion) | ✅ P2a |

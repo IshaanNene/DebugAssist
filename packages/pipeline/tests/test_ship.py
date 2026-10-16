@@ -185,16 +185,16 @@ async def test_resolved_issue_is_closed_everywhere_and_flag_restore_waits_for_ap
     )  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     restores: list[dict[str, Any]] = []
 
-    def fake_restore(flag: str, pct: int, reason: str = "", dry_run: bool = True) -> dict[str, Any]:
-        restores.append({"flag": flag, "pct": pct, "dry_run": dry_run})
-        return {"applied": not dry_run}
+    def fake_restore(flag: str, pct: int, *, authorized: bool, action: str, **_: Any) -> dict[str, Any]:
+        restores.append({"flag": flag, "pct": pct, "dry_run": not authorized, "action": action})
+        return {"applied": authorized}
 
-    monkeypatch.setattr(ff, "rollback_flag", fake_restore)
+    monkeypatch.setattr(ff, "apply_rollout", fake_restore)
     w = await postmerge.check(s, d)
     assert w.status == "resolved" and w.decision["action"] == "close_issue"
     assert posted == ["http://vitals/api/issues/VIT-1001/resolve"]
     assert s.triage and d.jira.snapshot(s.triage.jira_key)["status"] == "Done"
-    assert restores == [{"flag": "notif_router_v2", "pct": 5, "dry_run": True}]  # policy: approval
+    assert restores == [{"flag": "notif_router_v2", "pct": 5, "dry_run": True, "action": "flags.restore"}]
     assert any("flag notif_router_v2 → 5% (dry run)" in a for a in w.actions)
     assert d.chat.inbox()[0]["title"].startswith("Resolved:")
 
@@ -223,4 +223,52 @@ def test_a_jira_outage_does_not_stop_the_resolution(tmp_path: Path) -> None:
 
     d = deps(tmp_path)
     d.jira = SimpleNamespace(comment=boom, transition=boom)
-    assert postmerge._jira(d, "SCRUM-9", "x", "Done") == "jira SCRUM-9: failed (ConnectError)"
+    assert postmerge._jira(d, "r1", "SCRUM-9", "x", "Done") == "jira SCRUM-9: failed (ConnectError)"
+
+
+class D16:
+    async def decide(self, decision_id: str, cs: Any, **kw: Any) -> Any:
+        return SimpleNamespace(p=0.9, band=Band.ACT, action="open_pr", chosen={"risk": 0.1}, ledger_id="d16")
+
+
+@pytest.mark.parametrize(
+    ("repos", "app_issue", "outcome"),
+    [
+        (["IshaanNene/miniride-client"], None, "open_pr"),  # our own repository: a ready PR may open
+        ([], None, "draft_pr"),  # any other repository: draft only
+        (["IshaanNene/miniride-client"], 12, "draft_pr"),  # an issue from a GitHub App installation
+    ],
+)
+async def test_ready_prs_only_on_our_own_repositories(
+    tmp_path: Path, repos: list[str], app_issue: int | None, outcome: str
+) -> None:
+    """Audit P2-5: "draft PRs only" on App repositories was promised but rested on D16's output."""
+    from debugassist.core.policy import Policy
+
+    s = run_state()
+    assert s.issue
+    s.issue.app_issue = app_issue
+    d: Any = SimpleNamespace(engine=D16(), gate=PolicyGate(Policy(repos=repos), tmp_path / "audit.jsonl"))
+    assert (await nodes.ship_gate(s, d))["ship"].outcome == outcome
+
+
+def test_every_jira_write_asks_the_gate(tmp_path: Path) -> None:
+    """Audit P2-7: Jira comments and transitions happened, and were audited as live, under a deny policy."""
+    from debugassist.core.policy import Policy, Verdict
+
+    d = deps(tmp_path)
+    d.gate = PolicyGate(
+        Policy(actions={"jira.comment": Verdict.DENY, "jira.transition": Verdict.DENY}),
+        tmp_path / "audit.jsonl",
+    )
+    calls: list[str] = []
+    d.jira = SimpleNamespace(
+        comment=lambda *a: calls.append("comment"), transition=lambda *a: calls.append("move")
+    )
+    assert postmerge._jira(d, "r1", "SCRUM-9", "x", "Done") == "jira SCRUM-9: deny by policy"
+    assert calls == []
+    audit = [json.loads(line) for line in (tmp_path / "audit.jsonl").read_text().splitlines()]
+    assert [(a["action"], a["verdict"]) for a in audit] == [
+        ("jira.comment", "deny"),
+        ("jira.transition", "deny"),
+    ]

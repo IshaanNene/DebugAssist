@@ -162,6 +162,9 @@ def test_diff_fix_jobs_report_running_then_done(client: TestClient) -> None:
     assert client.post(f"/api/runs/{RUN}/diff-fix", json={"instruction": "x"}).status_code == 422
 
 
+D1, D2 = "72d3162e-cc78-11e3-81ab-4c9367dc0958", "3b8a1f2c-0d4e-4a5b-9c6d-7e8f9a0b1c2d"
+
+
 def test_github_webhook_queues_a_labeled_issue_and_rejects_bad_signatures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -176,13 +179,15 @@ def test_github_webhook_queues_a_labeled_issue_and_rejects_bad_signatures(
     monkeypatch.setattr(app_cli, "QUEUE", tmp_path / "queue")
     c = TestClient(app_module.app)
 
-    def post(payload: dict[str, Any], event: str = "issues", secret: str = "s3cret") -> Any:
+    def post(
+        payload: dict[str, Any], event: str = "issues", secret: str = "s3cret", delivery: str = D1
+    ) -> Any:
         body = json.dumps(payload).encode()
         sig = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
         return c.post(
             "/github/webhook",
             content=body,
-            headers={"X-Hub-Signature-256": sig, "X-GitHub-Event": event, "X-GitHub-Delivery": "d-1"},
+            headers={"X-Hub-Signature-256": sig, "X-GitHub-Event": event, "X-GitHub-Delivery": delivery},
         )
 
     labeled: dict[str, Any] = {
@@ -195,10 +200,17 @@ def test_github_webhook_queues_a_labeled_issue_and_rejects_bad_signatures(
         assert post(labeled, secret="wrong").status_code == 401
         r = post(labeled)
         assert r.status_code == 202 and r.json() == {"queued": True, "issue": "acme/widgets#3"}
-        assert json.loads((tmp_path / "queue" / "d-1.json").read_text()) == {
+        assert json.loads((tmp_path / "queue" / f"{D1}.json").read_text()) == {
             "repo": "acme/widgets",
             "number": 3,
         }
+        # Audit P2-4: the delivery header is outside the signature — it names no path, and replays are dropped.
+        assert post(labeled, delivery="../seen").status_code == 400
+        assert not (tmp_path / "seen.json").exists()
+        assert post(labeled).json() == {"queued": False, "reason": "duplicate delivery"}
+        assert post(labeled, delivery=D2).json() == {"queued": False, "reason": "duplicate delivery"}
+        relabeled = {**labeled, "issue": {"number": 3, "updated_at": "2026-10-16T10:00:00Z"}}
+        assert post(relabeled, delivery=D2).json()["queued"] is True
         assert post({**labeled, "label": {"name": "bug"}}).json()["queued"] is False
         assert post({"zen": "hi"}, event="ping").json()["queued"] is False
     finally:

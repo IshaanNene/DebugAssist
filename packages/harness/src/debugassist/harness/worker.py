@@ -4,9 +4,10 @@ runs the pipeline in that type's runtime container. Start one with `debugassist 
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -15,7 +16,20 @@ from arq.worker import Worker
 from debugassist.core.policy import ROOT
 from debugassist.harness import agent_types, launcher
 
-REDIS = RedisSettings.from_dsn(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+REDIS = RedisSettings.from_dsn(
+    os.environ.get("REDIS_URL")
+    or f"redis://:{os.environ.get('REDIS_PASSWORD') or 'debugassist-dev'}@localhost:6379/0"
+)
+
+
+# Arq's default serializer is pickle, and a worker unpickles a job before it looks up the function: whoever
+# can write to Redis would run code as the worker. Jobs here are strings and lists, so JSON carries them.
+def dumps(job: dict[str, Any]) -> bytes:
+    return json.dumps(job, default=str).encode()
+
+
+def loads(raw: bytes) -> dict[str, Any]:
+    return cast(dict[str, Any], json.loads(raw))
 
 
 async def run_issue(
@@ -35,7 +49,7 @@ async def run_issue(
 
 
 async def enqueue(issue_ref: str, agent_type: str | None = None, run_args: list[str] | None = None) -> str:
-    pool = await create_pool(REDIS)
+    pool = await create_pool(REDIS, job_serializer=dumps, job_deserializer=loads)
     try:
         job = await pool.enqueue_job("run_issue", issue_ref, agent_type, run_args or [])
         assert job is not None
@@ -45,4 +59,12 @@ async def enqueue(issue_ref: str, agent_type: str | None = None, run_args: list[
 
 
 def make_worker(burst: bool = False) -> Worker:
-    return Worker(functions=[run_issue], redis_settings=REDIS, burst=burst, job_timeout=3600, max_jobs=2)
+    return Worker(
+        functions=[run_issue],
+        redis_settings=REDIS,
+        burst=burst,
+        job_timeout=3600,
+        max_jobs=2,
+        job_serializer=dumps,
+        job_deserializer=loads,
+    )

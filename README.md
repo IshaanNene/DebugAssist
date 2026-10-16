@@ -323,8 +323,8 @@ Agents and the LLM decider use any OpenAI-compatible API; two providers are inte
 
 ## 🛡️ Guardrails
 
-- **Sandboxed agents** — commands run in `docker run --network none` on a per-run git worktree; only dependency install gets network. Path, command and egress guards on every tool.
-- **Policy-gated writes** — pushes only to `debugassist/*` branches of the two demo repos; every write goes through [`configs/policies/writes.yaml`](configs/policies/writes.yaml) and the audit log; flag rollbacks need approval.
+- **Sandboxed agents** — commands run in `docker run --network none` on a per-run git worktree, as the host user with no capabilities and the worktree's `.git` read-only; only dependency install gets network. Host code treats the worktree as untrusted: git runs with an explicit, verified git dir and no hooks or fsmonitor, and file walks never follow symlinks. Path and command guards on the agent's tools catch mistakes; the container is the boundary.
+- **Policy-gated writes** — pushes only to `debugassist/*` branches of the two demo repos and of repositories the GitHub App is installed on (draft PRs only there, enforced in code); every write — PR, issue comment, Jira, chat, flag — goes through [`configs/policies/writes.yaml`](configs/policies/writes.yaml) and the audit log records what was actually done; flag rollbacks need approval. Credentials reach git through its environment, never argv, and errors and traces are redacted before they are stored.
 - **Proof before PR** — no PR without a reproduction that fails on the release; no ready PR without failing-before / passing-after evidence and green CI checks.
 - **Untrusted input stays data** — bug reports, logs and commit messages are fenced as data, never followed as instructions (with injection fixtures in the tests); ground truth never reaches the agent.
 - **Mock mode everywhere** — every integration has a mock; CI runs with no secrets.

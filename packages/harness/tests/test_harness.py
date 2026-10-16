@@ -189,3 +189,21 @@ def test_host_da_settings_reach_the_container(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv("DA_MODE_GITHUB", "mock")
     cmd = launcher.container_command("web-crash", "VIT-1", [])
     assert "DA_MODE_GITHUB=mock" in cmd and f"DEBUGASSIST_ROOT={launcher.ROOT}" in cmd
+
+
+def test_queue_jobs_are_json_never_pickle() -> None:
+    """Audit P1-3: Arq unpickles a job before looking up its function, so Redis write access was code execution."""
+    import pickle
+
+    from arq.jobs import DeserializationError, deserialize_job, serialize_job
+
+    from debugassist.harness import worker
+
+    w = worker.make_worker(burst=True)
+    assert w.job_deserializer is worker.loads and w.job_deserializer is not pickle.loads
+    raw = serialize_job("run_issue", ("GH-1", None, ["--llm", "mock"]), {}, 1, 0, serializer=worker.dumps)
+    assert raw.startswith(b"{")
+    job = deserialize_job(raw, deserializer=worker.loads)
+    assert (job.function, list(job.args)) == ("run_issue", ["GH-1", None, ["--llm", "mock"]])
+    with pytest.raises(DeserializationError):  # a pickled job is rejected, never unpickled
+        deserialize_job(pickle.dumps({"f": "run_issue"}), deserializer=worker.loads)

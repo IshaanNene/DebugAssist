@@ -21,6 +21,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from debugassist.core import hostgit
+
 Verdict = Literal["good", "bad", "skip"]
 MAX_TAGS = 10  # earlier releases tried for a last good one, at doubling distances
 MAX_STEPS = 40
@@ -29,7 +31,7 @@ MAX_STEPS = 40
 def _git(
     wt: Path, *args: str, stdin: str | None = None, check: bool = False
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", *args], cwd=wt, capture_output=True, text=True, input=stdin, check=check)
+    return hostgit.run(wt, *args, input=stdin, check=check)
 
 
 def _sha(wt: Path, ref: str) -> str:

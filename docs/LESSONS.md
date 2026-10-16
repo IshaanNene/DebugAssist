@@ -9,7 +9,7 @@ Format: **symptom** → cause → fix · *guard*.
 ## 1. LLM providers, routing and cost
 
 - **Calls hung for minutes and never timed out.** OpenRouter keeps queued requests alive by streaming whitespace,
-  so HTTP read timeouts never fire. → Every model call has a 300 s wall-clock bound plus backoff retries;
+  so HTTP read timeouts never fire. → Every model call has a 180 s wall-clock bound (`MODEL_CALL_TIMEOUT_S`) plus backoff retries;
   daily-quota 429s fail fast. *Guard: `bounded_model_call` middleware.*
 - **Unparseable structured output from gpt-oss.** Default routing picked hosts that padded or broke JSON. → Pin
   hosts and send `require_parameters`. *Guard: per-model provider order in settings.*

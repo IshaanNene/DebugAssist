@@ -21,6 +21,7 @@ from typing import Any, cast
 from langgraph.graph import END, START, StateGraph
 
 from debugassist.core import tracing
+from debugassist.core.redaction import redact_secrets
 from debugassist.pipeline import budget, nodes
 from debugassist.pipeline.deps import Deps
 from debugassist.pipeline.state import NODE_KIND, RunState
@@ -115,15 +116,17 @@ async def _run_node(
     except Exception as exc:
         if type(exc).__name__ == "GraphInterrupt":
             raise
+        # Errors are persisted (state.json, node files), traced and served by the API: a credential in an
+        # exception (a token in a failed command's argv) must not survive into any of them.
         update: dict[str, Any] = {
             "status": "failed",
             "errors": [
                 *state.errors,
-                f"{name}: {type(exc).__name__}: {exc}",
-                traceback.format_exc()[-2000:],
+                redact_secrets(f"{name}: {type(exc).__name__}: {exc}"),
+                redact_secrets(traceback.format_exc()[-2000:]),
             ],
         }
-        log(f"  ✗ {name}: {exc}")
+        log(f"  ✗ {name}: {redact_secrets(str(exc))}")
     return update
 
 
