@@ -28,9 +28,10 @@ print(Example.value(example, 3))
 """
 REPORT = f"Calling it through the class fails.\n\n```python\n{SNIPPET}```\n"
 _HEAD = (
-    "class deco:\n    def __init__(self, f):\n        self.f = f\n\n    def __get__(self, obj, cls=None):\n"
+    "import types\n\n\nclass deco:\n    def __init__(self, f):\n        self.f = f\n\n"
+    "    def __get__(self, obj, cls=None):\n"
 )
-_BOUND = "        return lambda *a, **k: self.f(obj, *a, **k)\n"
+_BOUND = "        return types.MethodType(self.f, obj)\n"  # instance access: a real bound method
 RELEASE = (
     _HEAD + "        if obj is None:\n            return lambda *a, **k: self.f(None, *a, **k)\n" + _BOUND
 )
@@ -95,7 +96,8 @@ def test_the_release_only_checks_the_reported_calls_that_work(tmp_path: Path) ->
     # on the release only `example.value(3)` works; its class spellings fail — the bug itself
     rec = _check(tmp_path, RELEASE)
     assert rec["result"] == "fail"
-    assert all(m.split("`")[3] == "example.value(3)" for m in rec["mismatches"])
+    spellings = [m for m in rec["mismatches"] if m.startswith("`")]
+    assert spellings and all(m.split("`")[3] == "example.value(3)" for m in spellings)
 
 
 def test_nothing_to_respell_is_unchecked(tmp_path: Path) -> None:
@@ -151,3 +153,20 @@ def test_a_library_call_is_respelled_from_its_runtime_signature(tmp_path: Path) 
 def test_calls_inside_definitions_and_stdlib_calls_are_not_spelled() -> None:
     code = "import json\nfrom lib import f\n\ndef g():\n    return f(1)\n\njson.dumps(1)\nf(2)\n"
     assert [b.call for b, _ in cv.variants(code)] == ["f(2)"]
+
+
+def test_class_and_instance_access_must_expose_the_same_introspection(tmp_path: Path) -> None:
+    # every spelling works, but class access hides the function: no __wrapped__, a lambda's name
+    hides = (
+        _HEAD
+        + (
+            "        if obj is None:\n            def call(*a, **k):\n                return self.f(*a, **k)\n"
+            "            return call\n"
+        )
+        + "        w = types.MethodType(self.f, obj)\n        return w\n"
+    )
+    rec = _check(tmp_path, hides)
+    assert rec["result"] == "fail"
+    assert any(m.startswith("Example.value vs example.value: __name__") for m in rec["mismatches"])
+    [probe] = cv.attribute_probes(cv.session(REPORT) or "")
+    assert probe.call == "Example.value vs example.value"

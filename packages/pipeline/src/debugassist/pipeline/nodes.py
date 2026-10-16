@@ -1302,48 +1302,24 @@ def call_variants_check(sb: Sandbox, issue: Issue, comp: dict[str, Any]) -> dict
     if issue.language != "python":
         return {"result": "unchecked", "why": f"not Python ({issue.language})"}
     code = callvariants.session(usages.report_text(issue.report))
-    calls = callvariants.variants(code) if code else []
-    if not calls:
-        return {"result": "unchecked", "why": "no call in the report's code to re-spell"}
+    if not code:
+        return {"result": "unchecked", "why": "no Python code in the report"}
     py = _python(comp)
     probe = sb.worktree / (issue.component if issue.component != "." else "") / ".debugassist_variant.py"
 
-    def run(program: str) -> tuple[str, str | None]:
+    def run(program: str) -> str:
         probe.write_text(program)
-        res = sb.run(f"{py} .debugassist_variant.py", workdir=issue.component)
-        got = callvariants.result(res.output) or f"did not run: {res.output.strip()[-300:]}"
-        return got, callvariants.spelled(res.output)
+        return sb.run(f"{py} {probe.name}", workdir=issue.component).output
 
-    mismatches: list[str] = []
-    checked = 0
     try:
-        for base, others in calls:
-            want, _ = run(base.program)
-            if not want.startswith("('ok'"):
-                continue  # the reported call itself does not work with the fix: other checks say so
-            for o in others:
-                got, call = run(o.program)
-                if got in {"('same',)", "('unspellable',)"}:
-                    continue  # a library call already written this way, or one without a signature
-                checked += 1
-                if got != want:
-                    mismatches.append(
-                        f"`{call or o.call}` ({o.label}) gives {got}; `{base.call}` gives {want}"
-                    )
+        rec = callvariants.run_check(code, run)
     finally:
         probe.unlink(missing_ok=True)
-    if not checked:
-        return {"result": "unchecked", "why": "the reported calls do not work with the fix"}
-    return {
-        "result": "fail" if mismatches else "pass",
-        "checked": checked,
-        "mismatches": mismatches[:6],
-        **(
-            {"note": "Callers can make the same call these other ways; the fix must handle them too."}
-            if mismatches
-            else {}
-        ),
-    }
+    if rec["result"] == "fail":
+        rec["note"] = (
+            "Callers can make the same call these other ways, or inspect it; the fix must keep them working."
+        )
+    return rec
 
 
 # ---- N6 validate ----------------------------------------------------------------------------

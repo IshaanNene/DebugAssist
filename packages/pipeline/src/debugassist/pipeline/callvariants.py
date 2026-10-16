@@ -7,6 +7,10 @@ spellings of each call and builds one small program per spelling: the snippet's 
 the call, printing its result (iterators by what they yield, addresses removed) or the exception's type. With the
 fix, every spelling must print what the reported spelling prints.
 
+It also compares introspection: a method the snippet defines and reaches through an instance must expose the
+same `__wrapped__` (the same object), `__name__`, `__qualname__`, `__doc__` and `__module__` through the class —
+as a plain method does, since a bound method forwards them to its function.
+
 Two kinds of call are spelled:
 - a method the snippet defines (its parameters are in the snippet): keyword, mixed, through the instance or class;
 - a library call — a name imported from outside the standard library, or a variable assigned from such a call: its
@@ -19,7 +23,9 @@ from __future__ import annotations
 import ast
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any, cast
 
 _CODE = re.compile(r"```([\w+-]*)[ \t]*\n(.*?)```", re.S)
 _PY = {"", "python", "py", "python3", "pycon", "pytb", "ipython"}
@@ -325,6 +331,89 @@ def variants(snippet: str) -> list[tuple[Variant, list[Variant]]]:
             ]
             out.append((base, others))
     return out
+
+
+INTROSPECTION = ("__wrapped__", "__name__", "__qualname__", "__doc__", "__module__")
+
+
+def attribute_probes(snippet: str) -> list[Variant]:
+    """One program per snippet-defined method that the snippet also reaches through an instance: it compares the
+    introspection attributes of `Class.method` with those of `instance.method` and prints the differences."""
+    tree = ast.parse(snippet)
+    methods = _methods(tree)
+    instances = _instances(tree, set(methods))
+    used = {
+        (instances[n.func.value.id], n.func.attr, n.func.value.id)
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and isinstance(n.func.value, ast.Name)
+        and n.func.value.id in instances
+        and n.func.attr in methods[instances[n.func.value.id]]
+    }
+    keep = (ast.Import, ast.ImportFrom, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef, ast.Assign)
+    prefix: list[ast.stmt] = [
+        st for st in tree.body if isinstance(st, keep)
+    ]  # definitions, instances; no calls
+    out: list[Variant] = []
+    for cls, method, inst in sorted(used):
+        program = (
+            _head(prefix)
+            + "__da = []\n"
+            + f"for __a in {INTROSPECTION!r}:\n"
+            + "    try:\n"
+            + f"        __iv = getattr({inst}.{method}, __a)\n"
+            + "    except Exception:\n"
+            + "        continue\n"
+            + "    try:\n"
+            + f"        __cv = getattr({cls}.{method}, __a)\n"
+            + "    except Exception as __e:\n"
+            + "        __da.append(f'{__a}: missing through the class ({type(__e).__name__})')\n"
+            + "        continue\n"
+            + "    if not (__cv is __iv if __a == '__wrapped__' else __cv == __iv):\n"
+            + "        __da.append(f'{__a}: {__da_norm(__cv)} through the class, {__da_norm(__iv)} through the instance')\n"
+            + f"print({MARK!r}, ('attributes', __da))\n"
+        )
+        out.append(Variant("introspection", f"{cls}.{method} vs {inst}.{method}", program))
+    return out
+
+
+def run_check(code: str, run: Callable[[str], str]) -> dict[str, Any]:
+    """The whole check on one report session: `run(program)` runs a probe with the fix and returns its stdout.
+    Returns {result: pass | fail | unchecked, checked, mismatches[, why]}."""
+    calls = variants(code)
+    attrs = attribute_probes(code)
+    if not calls and not attrs:
+        return {"result": "unchecked", "why": "no call in the report's code to re-spell"}
+    mismatches: list[str] = []
+    checked = 0
+    for base, others in calls:
+        want = result(run(base.program)) or "did not run"
+        if not want.startswith("('ok'"):
+            continue  # the reported call itself does not work with the fix: other checks say so
+        for o in others:
+            out = run(o.program)
+            got = result(out) or "did not run"
+            if got in {"('same',)", "('unspellable',)"}:
+                continue  # a library call already written this way, or one without a signature
+            checked += 1
+            if got != want:
+                mismatches.append(
+                    f"`{spelled(out) or o.call}` ({o.label}) gives {got}; `{base.call}` gives {want}"
+                )
+    for a in attrs:
+        got = result(run(a.program)) or ""
+        try:
+            kind, diffs = ast.literal_eval(got)
+        except (ValueError, SyntaxError):
+            continue  # the probe did not run (e.g. the class cannot be built): nothing to compare
+        if kind != "attributes":
+            continue
+        checked += 1
+        mismatches += [f"{a.call}: {d}" for d in cast(list[str], diffs)]
+    if not checked:
+        return {"result": "unchecked", "why": "the reported calls do not work with the fix"}
+    return {"result": "fail" if mismatches else "pass", "checked": checked, "mismatches": mismatches[:6]}
 
 
 def result(output: str) -> str | None:

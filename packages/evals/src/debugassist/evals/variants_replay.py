@@ -41,32 +41,23 @@ def _sh(cmd: list[str] | str, cwd: Path, stdin: str | None = None) -> subprocess
     )
 
 
-def _check(wt: Path, py: str, calls: list[tuple[cv.Variant, list[cv.Variant]]]) -> dict[str, Any]:
+def _check(wt: Path, py: str, code: str) -> dict[str, Any]:
     """The check as validate runs it, in the scratch checkout."""
     probe = wt / ".debugassist_variant.py"
-    bad: list[str] = []
-    n = 0
 
-    def run(program: str) -> tuple[str, str | None]:
+    def run(program: str) -> str:
         probe.write_text(program)
-        out = _sh([py, probe.name], wt).stdout
-        return cv.result(out) or "did not run", cv.spelled(out)
+        return _sh([py, probe.name], wt).stdout
 
     try:
-        for base, others in calls:
-            want, _ = run(base.program)
-            if not want.startswith("('ok'"):
-                continue
-            for o in others:
-                got, call = run(o.program)
-                if got in {"('same',)", "('unspellable',)"}:
-                    continue
-                n += 1
-                if got != want:
-                    bad.append(f"`{call or o.call}` gives {got}; `{base.call}` gives {want}")
+        rec = cv.run_check(code, run)
     finally:
         probe.unlink(missing_ok=True)
-    return {"verdict": ("fail" if bad else "pass") if n else "unchecked", "spellings": n, "mismatch": bad[:1]}
+    return {
+        "verdict": rec["result"],
+        "spellings": rec.get("checked", 0),
+        "mismatch": rec.get("mismatches", [])[:1],
+    }
 
 
 def replay(rows: list[dict[str, Any]], log: Callable[[str], None] = print) -> dict[str, Any]:
@@ -76,14 +67,13 @@ def replay(rows: list[dict[str, Any]], log: Callable[[str], None] = print) -> di
     for cid in cases():
         case = load_case(cid)
         issue = load_issue(case.source)
-        code = cv.session(usages.report_text({"body": issue.body}))
-        calls = cv.variants(code) if code else []
-        entry: dict[str, Any] = {
-            "case": cid,
-            "issue": issue.url,
-            "calls": [b.call for b, _ in calls],
-            "fixes": [],
-        }
+        code = cv.session(usages.report_text({"body": issue.body})) or ""
+        calls = (
+            [b.call for b, _ in cv.variants(code)] + [a.call for a in cv.attribute_probes(code)]
+            if code
+            else []
+        )
+        entry: dict[str, Any] = {"case": cid, "issue": issue.url, "calls": calls, "fixes": []}
         out.append(entry)
         if not calls:
             log(f"{cid}: nothing to re-spell")
@@ -112,12 +102,12 @@ def replay(rows: list[dict[str, Any]], log: Callable[[str], None] = print) -> di
             )
 
         reset()
-        entry["release"] = _check(wt, py, calls)
+        entry["release"] = _check(wt, py, code)
         sha = case.upstream["fix_commit"]
         _sh(["git", "fetch", "-q", f"https://github.com/{issue.gh_repo}.git", sha], wt)
         up = _sh(["git", "diff", tag, "FETCH_HEAD", "--", ".", ":!tests", ":!test"], wt).stdout
         reset()
-        entry["upstream"] = _check(wt, py, calls) if up and apply(up) else {"verdict": "could not apply"}
+        entry["upstream"] = _check(wt, py, code) if up and apply(up) else {"verdict": "could not apply"}
         for r in rows:
             if r.get("bug") != cid or str(r.get("hidden_tests")) not in {"True", "False"}:
                 continue
@@ -128,7 +118,7 @@ def replay(rows: list[dict[str, Any]], log: Callable[[str], None] = print) -> di
                 continue
             reset()
             diff = str(json.loads(cas[-1].read_text())["result"].get("diff") or "")
-            res = _check(wt, py, calls) if diff and apply(diff) else {"verdict": "could not apply"}
+            res = _check(wt, py, code) if diff and apply(diff) else {"verdict": "could not apply"}
             entry["fixes"].append(
                 {
                     "run_id": r["run_id"],
