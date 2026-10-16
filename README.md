@@ -56,7 +56,7 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 
 **What doesn't (yet)**
 - **Stopping where the symptom surfaced** — a CORS change and a payments panic were blamed on the client's gateway address and on the gateway's timeout, in every seed: the investigation doesn't yet follow a failed call to the service it called.
-- **Fixes narrower than the regression** — some fixes pass the agent's own test but not the hidden one: a fix restored the retry key but kept the shortened timeout from the same commit; another added the one missing city instead of handling a missing city. Prompt rules and a second agent's independent test didn't change this; re-spelling the reported call mechanically now stops some of these fixes from passing validation ([below](#real-open-source-bugs)).
+- **Fixes narrower than the regression** — some fixes pass the agent's own test but not the hidden one: a fix restored the retry key but kept the shortened timeout from the same commit; another added the one missing city instead of handling a missing city. Prompt rules and a second agent's independent test didn't change this; a no-model check that re-spells the reported call rejects every narrow fix in a replay, not yet proven live ([below](#widening-narrow-fixes-four-attempts)).
 - **An active incident still loses to suspicious code** — the database incident was in the evidence and a subagent named it, yet every seed blamed client code; and one gateway bug got worse after the last prompt round.
 - **Seeds still disagree** on ten bugs, so one run of a bug proves little; one root cause was exact in every seed yet escalated to a human each time, because the agent left the mechanism "unconfirmed" without reading the code.
 - **Diminishing returns** — the last round of prompt rules helped some bugs and cost others (a carrier outage moved from `network` to `infra`), so tuning stopped there; the report lists each before → after.
@@ -99,6 +99,19 @@ Beyond the synthetic catalog: five public issues from four small Python librarie
 
 <sub>Median cost $0.014–0.025 per run. Root cause exact means the file and function upstream changed. The semver hidden test is adapted from upstream's: the issue accepts `rc4` or `rc.4`, so the old-style cases accept either. One semver run was escalated to a human by the fix-strategy decision (a change to version-numbering behaviour) and made no fix. Every cachetools#435 fix made the reported call work but broke keyword access to the instance and `__wrapped__`, which upstream's test also checks.</sub>
 
+#### Widening narrow fixes: four attempts
+
+The misses on real code were fixes as narrow as the report. Asking a model for wider fixes or wider tests did not change that; a check with no model did, in a replay of every fix made so far — not yet proven in a live run with all its parts.
+
+| Attempt | Model | What it did to narrow fixes | Upstream / hidden test |
+|---|:---:|---|---:|
+| Prompt rules for wider tests and fixes | yes | nothing — reverted | 0/3 on cachetools#435 |
+| A second agent's test, written from the report alone | yes | passed 7 of 7 fixes it checked | 1/7 |
+| … also shown the repo's other uses (docs, stubs, tests) | yes | sent back 3; every shipped fix still narrow | 0/5 |
+| Call variations and class/instance introspection | no | live: sent back 4, two runs no longer "validated"; replay: rejects 14/14, no false alarm in 20 good fixes | 0/3 live |
+
+<sub>All four are off by default; runs `fixwidth-7f15556`, `repro2-f277379`, `callers-0ed427d`, `variants-4b1325c`, and the replay `debugassist eval replay-variants`, in the latest report. The live run of the last check predates its introspection part, which was added after reading upstream's test. Details:</sub>
+
 **Widening fixes by prompt didn't work.** We added two generic rules — the reproduction also guards the ordinary uses a fix must not break (the same call with keyword arguments, sibling inputs, the unit's signature and attributes), and the fix keeps the unit's contract — and re-ran all five real bugs and two catalog bugs. cachetools#435 still failed upstream's test in every run that made a fix (0/3), the same two ways; across the five cases upstream's test passed 9/12 runs that made a fix, against 11/14 before. The rule's keyword-argument example was written with that bug in mind, so even a pass would have proved little. The change was reverted; the runs are in the report as `fixwidth-7f15556`, outside every number above.
 
 **Nor did a second, independent reproduction.** With `DA_SECOND_REPRO=1`, a separate agent writes its own failing test from the report alone — without seeing the fix or the first test — and the fix must pass it too. On the bugs with narrow fixes it passed every fix it checked (7/7), and the hidden tests still failed on six of them (cachetools#435 0/3, BUG-003 0/3, BUG-009 1/1). Both agents read the same report, and the report shows one example: the uses upstream's test also checks are not in it. The switch is off by default; the runs are `repro2-f277379` in the report.
@@ -115,7 +128,7 @@ Read the numbers above with these in mind:
 - **Small samples.** Three seeds per bug, 25 bugs. Seeds still disagree on ten bugs; treat single-bug differences between arms as noise unless they repeat.
 - **Clef is unproven.** See [Does Clef help?](#does-clef-help-not-yet): no accuracy gain over an LLM decider so far.
 - **The live stack is hard to reproduce elsewhere.** `miniride-services` is a private submodule, the Clef token is IP-restricted, and the stack needs Docker with about 10 GB of RAM. A plain clone runs every test and regenerates the full evaluation report from the committed runs ([Quickstart](#-quickstart)), but not new live runs.
-- **Parked pieces.** Four context-engineering switches (`DA_CONTEXT=lean|clear|compact|concise`) were built and measured or estimated, saved little or nothing, and are off by default; the Discord notifier was never run against a real webhook. They are listed, with why, under [Parked](docs/ROADMAP.md#parked-2026-10-14) in the roadmap; none is a next step.
+- **Parked pieces.** Four context-engineering switches (`DA_CONTEXT=lean|clear|compact|concise`) were built and measured or estimated, saved little or nothing, and are off by default; the Discord notifier was never run against a real webhook; the two model-based fix-width checks (`DA_SECOND_REPRO`) did not widen fixes, and the no-model one (`DA_CALL_VARIANTS`) waits for a live run with all its parts. They are listed, with why, under [Parked](docs/ROADMAP.md#parked-2026-10-14) in the roadmap; none is a next step.
 
 ## 🎬 See it work
 
@@ -318,9 +331,9 @@ Agents and the LLM decider use any OpenAI-compatible API; two providers are inte
 
 ## 📍 Status
 
-Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Phases 0–14 are done: decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA depth, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness with its first live run, and the cross-repo hand-off (P14) for bugs that are seen in the app but live in a service. P15 (context engineering) is in progress: the context audit and three measured arms (lean reads, tool-result clearing, compaction with notes — the last partial) are done; P16's Langfuse integration is done.
+Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Done: P0–P14 (decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness, cross-repo hand-off), P16's Langfuse integration and P17's public site; a three-seed run of the catalog with a fix round and a Clef-vs-LLM ablation; a clone that runs every test and rebuilds the report without the private repo; five real open-source bugs; and four attempts to widen narrow fixes. Measured and parked, off by default: P15's context-engineering switches and the model-based fix-width checks ([parked](docs/ROADMAP.md#parked-2026-10-14)).
 
-**Next** ([roadmap](docs/ROADMAP.md)): prove or rework Clef against an LLM decider and rules (D01 triage and D14 test tier first) · one real open-source bug · a client-only path anyone can clone and run · LiteLLM and local models. Measured and parked: context clearing, compaction and concise tool results. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
+**Next** ([roadmap](docs/ROADMAP.md)): a live run of the call-variation check with all its parts, and more real bugs — other languages, larger repos, reports that define or decorate methods — to test it on code it was not designed from; then decide whether to turn it on · prove or rework Clef (D01 triage and D14 test tier first) · LiteLLM and local models. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
 
 <br>
 
