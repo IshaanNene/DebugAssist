@@ -297,6 +297,22 @@ Format: **symptom** → cause → fix · *guard*.
   hover changed a card's `className` in React, which rewrote the attribute and dropped `in`, hiding the
   architecture legend. → Reveals set a `data-in` attribute, which React never touches, and a `MutationObserver`
   watches elements mounted later. *Lesson: don't mix imperative class changes with React-controlled `className`.*
+- **`git commit -a` swept up a submodule pointer.** A one-line docs commit also staged `targets/miniride-client`;
+  it was caught before the push and redone with explicit paths. → Stage paths by name and print the count of
+  staged `targets/` files before every commit. *Lesson: in a repo with submodules, never commit with `-a`.*
+- **A resume flag meant something else.** `--start-seed 2 --seeds 3` ran seeds 2, 3 and 4 — three more seeds, not
+  up to seed 3. The extra run was reported, not dropped. *Lesson: read a flag's meaning from its code before using
+  it mid-sweep, and report whatever actually ran.*
+- **A doc claim went out unchecked.** The roadmap said cachetools' suite "already calls methods with keyword
+  arguments"; it does not — none of its 341 tests calls a method through its class. → Corrected in the next commit.
+  *Lesson: a sentence about someone else's code is a claim like a number — grep before writing it.*
+- **The status section rotted while every other section was kept current.** README › Status still said "P15 in
+  progress" and listed a real open-source bug as next, days after both were done, because each step updated the
+  section it touched. → Rewritten; status is now part of the write-up checklist. *Lesson: summaries go stale
+  first — re-read them whenever a milestone lands.*
+- **Scripted edits need their output read.** A `sed` across a line break produced "about 430 hundred lines", and a
+  JSX line break rendered "( 0/3)"; both were caught by reading the rendered text, not by any check. *Lesson: after
+  a scripted edit, read the result as the reader will see it.*
 - **Misses in alarm red read as "broken", not "measured".** → Misses are neutral grey on the site and slate in the
   README charts, still shown and labelled. Colour sets the tone; it must never hide a result.
 
