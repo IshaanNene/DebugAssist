@@ -261,6 +261,11 @@ Format: **symptom** → cause → fix · *guard*.
 - **Replay a new check on old runs before spending on new ones.** The cassettes held every earlier fix's diff;
   applying them to a scratch copy measured the check for free — 39 fixes and five upstream fixes, no false alarm.
   *Lesson: an archive of past attempts is a free test set for any new validator.*
+- **Say when a check was designed from the answer key.** The attribute comparison came from reading upstream's
+  test, and it now rejects every narrow fix — which is what a check shaped to its test would do. The invariant is
+  Python's own, and the 20 good fixes and 5 upstream fixes still pass, but only one of those exercises the new
+  part. *Lesson: a check derived from the test it is scored on needs cases it was not derived from before its
+  number means much; say so next to the number.*
 - **A scratch script is not a source for published numbers.** The first replay ran from a throwaway script and its
   "11 of 12" went into the README. → `debugassist eval replay-variants` writes its result into the report, which
   renders it; the README cites that. *Lesson: if a number is worth publishing, make the command that made it part

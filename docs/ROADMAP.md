@@ -205,10 +205,13 @@ token comparison, Quickstart.
     session — now applies to all five real reports. `debugassist eval replay-variants` (no model): upstream's fix
     passes on all five; 20/20 earlier fixes that upstream's test passes pass the check (no false alarm); 12/14 it
     fails are rejected.
-  - Next: compare introspection attributes (`__wrapped__`, `__name__`, `__doc__`) between class and instance access
-    (the two narrow fixes it misses); then decide whether to turn it on — it lowers "validated" by refusing narrow
-    fixes, which is the point, and costs extra attempts (about $0.06 a run on REAL-001). A TypeScript version for
-    the catalog would need its own parser.
+  - *Done 2026-10-16:* class and instance access compared on `__wrapped__` (identity), `__name__`, `__qualname__`,
+    `__doc__`, `__module__`. Replay: 14/14 narrow fixes rejected, 20/20 good fixes and 5/5 upstream fixes pass.
+    Designed after reading upstream's cachetools#435 test; only that report defines methods.
+  - Next: a live arm with the full check (needs credit — the key is at $0.01), and more real bugs whose reports
+    define or decorate methods, to test the attribute comparison on code it was not designed from. Then decide
+    whether to turn it on: it lowers "validated" by refusing narrow fixes, which is the point, and costs extra
+    attempts (about $0.06 a run on REAL-001). A TypeScript version for the catalog would need its own parser.
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 

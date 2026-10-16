@@ -450,7 +450,7 @@ export default function Home() {
                   ) on what the spellings cannot test —{" "}
                   <code className="font-mono text-[12px]">__wrapped__</code> and cache statistics.
                   {fw.replay &&
-                    ` Replayed on every earlier fix of the five real bugs — library calls spelled too, from their run-time signatures — it rejects ${fw.replay.narrow.pass} of ${fw.replay.narrow.ran} that upstream's test fails, passes ${fw.replay.good.pass} of ${fw.replay.good.ran} that it passes, and passes upstream's own fix in ${fw.replay.upstream.pass} of ${fw.replay.upstream.ran}.`}{" "}
+                    ` Replayed on every earlier fix of the five real bugs — library calls spelled too, from their run-time signatures, and class and instance access compared on __wrapped__, __name__ and __doc__ — it rejects ${fw.replay.narrow.pass} of ${fw.replay.narrow.ran} that upstream's test fails, passes ${fw.replay.good.pass} of ${fw.replay.good.ran} that it passes, and passes upstream's own fix in ${fw.replay.upstream.pass} of ${fw.replay.upstream.ran} — the attribute part was added after reading upstream's test, and only cachetools#435 exercises it.`}{" "}
                   Off by default; arm{" "}
                   <code className="font-mono text-[12px]">{fw.checks[2].arm}</code>.
                 </p>

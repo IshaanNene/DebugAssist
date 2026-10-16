@@ -343,6 +343,15 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Introspection comparison (2026-10-16)
+
+- `callvariants.attribute_probes`: for each snippet-defined method reached through an instance, `__wrapped__`
+  (identity), `__name__`, `__qualname__`, `__doc__`, `__module__` must match between class and instance access.
+  `callvariants.run_check` is now shared by `validate` and `eval replay-variants`. Test: one more in
+  `test_callvariants.py`; the toy decorator binds instance access with `types.MethodType`.
+- Replay: 14/14 narrow REAL-001 fixes rejected (12 before), 20/20 good fixes and 5/5 upstream fixes pass. Designed
+  after reading upstream's test (disclosed in README, notes, LESSONS). No live run: $0.01 of credit left.
+
 ## Library-call spellings and the variations replay (2026-10-16)
 
 - `callvariants`: REPL sessions (`>>>`) read as code, a report's blocks as one session, earlier statements allowed
