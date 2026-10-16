@@ -7,7 +7,7 @@
 | P13 Evaluation harness and ablations | ✅ done | 2026-10-07 |
 | P14 Cross-repo hand-off · fix quality · P15 context engineering · P16 Langfuse · P17 site | ✅ done / measured | 2026-10-10 |
 | Three-seed full run · fix round · Clef vs no-Clef ablation · cloneable repo | ✅ done | 2026-10-11 → 14 |
-| Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction and callers check (off) | ✅ done | 2026-10-14 → 16 |
+| Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction, callers check, call variations (off) | ✅ done | 2026-10-14 → 16 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
 The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
@@ -342,6 +342,18 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Docker Desktop here has no host networking, so the runtime container joins the compose network and uses service names; links shown to people stay on localhost.
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
+
+## Call variations (2026-10-16) — built, measured, stops narrow fixes validating, off by default
+
+- `DA_CALL_VARIANTS=1` (eval config `no-clef-variants`): `pipeline/callvariants.py` re-spells each call of a
+  snippet-defined method in the report's Python code (keyword, mixed, through the instance or the class) as small
+  probe programs; `validate` runs them in the sandbox with the fix, and any spelling that behaves differently from
+  the reported one fails validation with the mismatches as feedback. Tests: `test_callvariants.py` (toy decorator
+  with release, narrow and wide versions).
+- Offline replay on the 12 earlier cachetools#435 fixes that passed validation (diffs from the run cassettes):
+  rejects 11; upstream's fix passes every spelling.
+- Arm `variants-4b1325c`, REAL-001 three seeds, $0.19: 4 fixes sent back; validated 1/3 (was 3/3); upstream's test
+  0/3 (the remaining failures are `__wrapped__` and cache statistics). Not applicable to REAL-002..005.
 
 ## Callers check (2026-10-16) — built, measured, stricter but no effect on the outcome, off by default
 

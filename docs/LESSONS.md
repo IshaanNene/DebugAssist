@@ -254,6 +254,13 @@ Format: **symptom** → cause → fix · *guard*.
   shipped fix still failed upstream's test: the uses upstream tests (`self=` as a keyword, `__wrapped__` on class
   access) appear nowhere in the repository. *Lesson: a check is only as wide as its sources; when no source has the
   case, only a mechanical variation of the call can find it.*
+- **The check that worked needed no model.** Re-spelling the report's call (keyword arguments, class or instance
+  access) is plain Python; it rejected 11 of 12 past narrow fixes offline and, live, kept two narrow fixes from
+  being marked validated — where three model-based checks had passed every one. *Lesson: when the gap is "the
+  other ways to say the same thing", enumerate them; don't ask a reader of the same text to imagine them.*
+- **Replay a new check on old runs before spending on new ones.** The cassettes held every earlier fix's diff;
+  applying them to a scratch copy measured the check for free and showed upstream's fix passes it (no false
+  positive). *Lesson: an archive of past attempts is a free test set for any new validator.*
 - **Feed a parser the text, not its serialisation.** The report reached the usage collector as JSON, so its code
   block's newlines were escaped, nothing matched, and names came from prose. → Pass the string fields; a test with a
   real report shape. *Lesson: check what a new stage actually received in the first live run, before the totals.*
