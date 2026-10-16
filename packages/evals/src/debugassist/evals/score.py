@@ -228,6 +228,13 @@ def score_run(run_id: str, bug: Case, clef_usd: float = 0.0, run_hidden: bool = 
             if (r := _obj(_obj(a).get("second_reproduction")))
         ]
         or None,
+        # DA_CALL_VARIANTS: per validated attempt, whether every re-spelling of the report's calls matched
+        "variants": [
+            str(r.get("result") or "unchecked")
+            for a in cast(list[Any], validation.get("attempts") or [])
+            if (r := _obj(_obj(a).get("call_variants")))
+        ]
+        or None,
         "tier": last.get("tier"),
         "hidden_tests": hidden.get("passed") if hidden.get("ran") else None,
         "diff_similarity": diff_similarity(str(last.get("diff", "")), reference) if reference else None,

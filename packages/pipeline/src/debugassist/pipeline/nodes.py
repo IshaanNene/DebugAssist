@@ -22,7 +22,7 @@ import yaml
 from langchain_core.tools import BaseTool, tool
 
 from debugassist.core import untrusted
-from debugassist.core.ablation import ablated, second_repro, second_repro_mode
+from debugassist.core.ablation import ablated, call_variants, second_repro, second_repro_mode
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT, Verdict
 from debugassist.core.settings import Integration, Mode
@@ -35,6 +35,7 @@ from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
 from debugassist.pipeline import (
     budget,
+    callvariants,
     collector,
     crossrepo,
     e2e,
@@ -1287,6 +1288,62 @@ async def second_reproduction(
     return run, rec, cost
 
 
+def _python(comp: dict[str, Any]) -> str:
+    """The component's Python interpreter, from its test command (e.g. `.venv/bin/python -m pytest`)."""
+    first = str(comp.get("test", "")).split()[:1]
+    if first and first[0].rsplit("/", 1)[-1].startswith("python"):
+        return first[0]
+    return "uv run --offline python" if str(comp.get("test", "")).startswith("uv run") else "python"
+
+
+def call_variants_check(sb: Sandbox, issue: Issue, comp: dict[str, Any]) -> dict[str, Any]:
+    """DA_CALL_VARIANTS: run each re-spelling of the report's calls with the fix; every one must print what the
+    reported spelling prints. Returns a record: result pass / fail / unchecked, and the mismatches."""
+    if issue.language != "python":
+        return {"result": "unchecked", "why": f"not Python ({issue.language})"}
+    calls = [
+        c
+        for code in callvariants.snippets(usages.report_text(issue.report))
+        for c in callvariants.variants(code)
+    ]
+    if not calls:
+        return {"result": "unchecked", "why": "no call in the report's code to re-spell"}
+    py = _python(comp)
+    probe = sb.worktree / (issue.component if issue.component != "." else "") / ".debugassist_variant.py"
+
+    def run(program: str) -> str:
+        probe.write_text(program)
+        res = sb.run(f"{py} .debugassist_variant.py", workdir=issue.component)
+        return callvariants.result(res.output) or f"did not run: {res.output.strip()[-300:]}"
+
+    mismatches: list[str] = []
+    checked = 0
+    try:
+        for base, others in calls:
+            want = run(base.program)
+            if not want.startswith("('ok'"):
+                continue  # the reported call itself does not work with the fix: other checks say so
+            for o in others:
+                checked += 1
+                got = run(o.program)
+                if got != want:
+                    mismatches.append(f"`{o.call}` ({o.label}) gives {got}; `{base.call}` gives {want}")
+    finally:
+        probe.unlink(missing_ok=True)
+    if not checked:
+        return {"result": "unchecked", "why": "the reported calls do not work with the fix"}
+    return {
+        "result": "fail" if mismatches else "pass",
+        "checked": checked,
+        "mismatches": mismatches[:6],
+        **(
+            {"note": "Callers can make the same call these other ways; the fix must handle them too."}
+            if mismatches
+            else {}
+        ),
+    }
+
+
 # ---- N6 validate ----------------------------------------------------------------------------
 
 
@@ -1378,6 +1435,9 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
         record["second_reproduction"] = rec
         v.independent = run
         v.passed = run is None or run.exit_code == 0  # no valid second test: the fix is not held to one
+    if v.passed and call_variants():
+        record["call_variants"] = call_variants_check(sb, issue, comp)
+        v.passed = record["call_variants"]["result"] != "fail"
     v.attempts.append(record)
     return {"validation": v, "costs": costs}
 
