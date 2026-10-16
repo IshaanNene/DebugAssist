@@ -162,3 +162,22 @@ def test_the_fixing_agents_test_name_is_refused(tmp_path: Path) -> None:
     _run(state, deps, sb, src_diff)
     assert checker.feedback and "already taken" in checker.feedback
     assert (sb.worktree / "tests" / "test_repro.py").read_text() == FIRST
+
+
+def test_callers_mode_shows_the_checker_the_codes_other_uses(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setenv("DA_SECOND_REPRO", "callers")
+    state, deps, sb, checker, src_diff = _setup(tmp_path, NARROW, SECOND)
+    assert state.rca and state.rca.output
+    state.rca.output.location.file, state.rca.output.location.function = "lib.py", "head"
+    (sb.worktree / "README.md").write_text("Usage:\n\n    head(items, n=-1)  # nothing\n")
+    _git(sb.worktree, "add", "README.md")
+    _, rec, _ = _run(state, deps, sb, src_diff)
+    assert "head(items, n=-1)" in checker.saw["prompt"] and "repository usages" in checker.saw["prompt"]
+    assert rec["usages"]["names"][0] == "head"
+
+
+def test_report_mode_shows_no_usages(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setenv("DA_SECOND_REPRO", "1")
+    state, deps, sb, checker, src_diff = _setup(tmp_path, NARROW, SECOND)
+    _run(state, deps, sb, src_diff)
+    assert "repository usages" not in checker.saw["prompt"]

@@ -556,8 +556,8 @@ def _latest_report() -> Path:
 
 # A miss: visible and labelled, but a muted rose rather than alarm red.
 # arms that are not re-runs of the catalog's fixes: token and decider ablations, real open-source bugs, and the
-# fix-width experiments (fixwidth-: reverted; repro2-: the second reproduction, off by default)
-SIDE_ARMS = ("context-", "no-clef", "real-", "fixwidth-", "repro2-")
+# fix-width experiments (fixwidth-: reverted; repro2-, callers-: the second reproduction, off by default)
+SIDE_ARMS = ("context-", "no-clef", "real-", "fixwidth-", "repro2-", "callers-")
 MISS = "#4A5262"  # a miss is shown and labelled, in neutral slate — never red
 
 

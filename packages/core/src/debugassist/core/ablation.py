@@ -16,7 +16,8 @@ DA_CONTEXT   full (default) | lean | clear | compact | concise — how much tool
              concise sends compact JSON, top-k lists and clipped long fields from tools (llm/concise.py).
 DA_SECOND_REPRO  1 = after a fix passes its own reproduction and the suite, a separate agent writes a second
              reproduction from the report alone (without seeing the fix or the first test); the fix must pass it too.
-             Off by default (an experiment: ROADMAP, fix width).
+             callers = the same, and the agent is also shown how the code is used elsewhere in the repository
+             (docs, type stubs, tests, callers; pipeline/usages.py). Off by default (experiments: ROADMAP, fix width).
 """
 
 from __future__ import annotations
@@ -56,8 +57,20 @@ def context_mode() -> str:
     return value
 
 
+def second_repro_mode() -> str:
+    """'' (off), 'report' (the report alone) or 'callers' (the report and the code's other uses)."""
+    value = os.environ.get("DA_SECOND_REPRO", "").strip().lower()
+    if value in {"", "0", "false", "no", "off"}:
+        return ""
+    if value in {"1", "true", "yes", "on", "report"}:
+        return "report"
+    if value == "callers":
+        return "callers"
+    raise ValueError(f"DA_SECOND_REPRO must be 1, report or callers (got {value!r})")
+
+
 def second_repro() -> bool:
-    return os.environ.get("DA_SECOND_REPRO", "").strip().lower() in {"1", "true", "yes", "on"}
+    return second_repro_mode() != ""
 
 
 def lean() -> bool:
@@ -71,5 +84,5 @@ def label() -> str:
         decider()
         + ("" if not off else "-no-" + "-".join(o.lower() for o in off))
         + ("" if context_mode() == "full" else f"-{context_mode()}")
-        + ("-repro2" if second_repro() else "")
+        + {"": "", "report": "-repro2", "callers": "-callers"}[second_repro_mode()]
     )

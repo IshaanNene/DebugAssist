@@ -35,6 +35,10 @@ CONFIGS: dict[str, dict[str, str]] = {
     "clef-flash": {"DA_DECIDER": "clef-flash"},
     "no-clef": {"DA_DECIDER": "llm"},  # the LLM decides everything, with self-reported confidence
     "no-clef-repro2": {"DA_DECIDER": "llm", "DA_SECOND_REPRO": "1"},  # + a second, independent reproduction
+    "no-clef-callers": {
+        "DA_DECIDER": "llm",
+        "DA_SECOND_REPRO": "callers",
+    },  # … also shown the code's other uses
     "no-d3": {"DA_ABLATE": "D3"},
     "no-d8": {"DA_ABLATE": "D8"},
     "no-d9": {"DA_ABLATE": "D9"},
