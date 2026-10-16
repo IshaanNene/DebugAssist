@@ -32,6 +32,8 @@ export default function Home() {
   const run = featuredRun(data);
   const latest = data.arms[data.arms.length - 1];
   const pct = (v: number) => (latest?.seeded ? `${v}%` : `${v}`);
+  // a share in [0, 1] as a whole percent (the tokens section); `pct` above is for values already in percent
+  const frac = (v: number) => `${Math.round(v * 100)}%`;
   const report = doc(`evals/reports/${data.report}/report.md`);
   const v = (i: number) => ({ ["--i" as string]: i });
   const arms = contextArms();
@@ -592,7 +594,7 @@ export default function Home() {
                 ].map(([share, cls, label], i) => (
                   <div key={label as string} className="h-full min-w-0" style={{ flex: `${share as number} 1 0` }}>
                     <div className={`bar flex h-full items-end border border-line-strong p-2 ${cls}`} style={v(i * 3)}>
-                      <span className="font-display text-[18px] font-medium tracking-[-0.02em] text-t1">{pct(share as number)}</span>
+                      <span className="font-display text-[18px] font-medium tracking-[-0.02em] text-t1">{frac(share as number)}</span>
                     </div>
                     <div className="mt-2 truncate text-[12.5px] text-t3">{label}</div>
                   </div>
@@ -602,7 +604,7 @@ export default function Home() {
             <div className="cbox no-top -mt-px grid gap-px bg-line md:grid-cols-[1fr_1.6fr]">
               <div className="bg-surface p-6">
                 <div className="font-display text-[56px] font-medium leading-none tracking-[-0.04em]">
-                  <span data-count>{pct(ctx.cacheShare)}</span>
+                  <span data-count>{frac(ctx.cacheShare)}</span>
                 </div>
                 <div className="mt-2 text-[13.5px] text-t3">of input served from the prompt cache — the fixed prefix and history are cheap; the volume isn&apos;t.</div>
               </div>
@@ -613,9 +615,9 @@ export default function Home() {
                     <div key={t.tool} className="flex items-center gap-3">
                       <span className="w-32 truncate font-mono text-[12px] text-t2">{t.tool}</span>
                       <div className="h-3 flex-1 border border-line bg-surface-1">
-                        <div className="bar h-full bg-t1" style={{ width: pct(t.share / ctx.topTools[0].share), ...v(i) }} />
+                        <div className="bar h-full bg-t1" style={{ width: `${((t.share / ctx.topTools[0].share) * 100).toFixed(1)}%`, ...v(i) }} />
                       </div>
-                      <span className="w-10 text-right font-mono text-[12px] text-t3">{pct(t.share)}</span>
+                      <span className="w-10 text-right font-mono text-[12px] text-t3">{frac(t.share)}</span>
                     </div>
                   ))}
                 </div>
