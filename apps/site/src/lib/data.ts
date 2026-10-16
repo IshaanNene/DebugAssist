@@ -506,9 +506,13 @@ export interface FixWidth {
   after: Tally;
   /** REAL-001, the case the rules were written for */
   target: { before: Tally; after: Tally };
-  /** the second-reproduction arms (repro2-*: the report alone; callers-*: also the code's other uses), as run:
+  /** the checks, as run: second reproduction (repro2-*: the report alone; callers-*: also the code's other uses)
+   * and call variations (variants-*, no model):
    * per bug, the hidden test, the second test's verdict on the shipped fix, and the fixes it sent back */
-  checks: { arm: string; bugs: { bug: string; hidden: Tally; second: Tally; rejected: number }[] }[];
+  checks: {
+    arm: string;
+    bugs: { bug: string; hidden: Tally; second: Tally; rejected: number; validated: number }[];
+  }[];
 }
 
 /** The fix-width experiments: prompt rules (fixwidth-*, reverted) and a second reproduction (repro2-*, callers-*,
@@ -528,26 +532,27 @@ export function fixWidth(): FixWidth | null {
   const count = (rs: Row[]): Tally => ({ pass: rs.filter((r) => r.hidden_tests === "True").length, ran: rs.length });
   const before = rows.filter((r) => (r.arm ?? "").startsWith("real-"));
   const after = rows.filter((r) => r.arm === arm);
-  const verdicts = (r: Row): string[] => {
+  const verdicts = (r: Row, field = "repro2"): string[] => {
     try {
-      return JSON.parse(r.repro2 || "[]") as string[];
+      return JSON.parse(r[field] || "[]") as string[];
     } catch {
       return [];
     }
   };
-  const check = (a: string) => {
+  const check = (a: string, field = "repro2") => {
     const rs = all.filter((r) => r.arm === a && fixed(r));
     return {
       arm: a,
       bugs: [...new Set(rs.map((r) => r.bug))].sort().map((bug) => {
         const mine = rs.filter((r) => r.bug === bug);
         // the second test's verdict on the fix that shipped is the last attempt it checked
-        const last = mine.map((r) => verdicts(r).at(-1) ?? "unchecked").filter((v) => v !== "unchecked");
+        const last = mine.map((r) => verdicts(r, field).at(-1) ?? "unchecked").filter((v) => v !== "unchecked");
         return {
           bug,
           hidden: count(mine),
           second: { pass: last.filter((v) => v === "pass").length, ran: last.length },
-          rejected: mine.reduce((n, r) => n + verdicts(r).filter((v) => v === "fail").length, 0),
+          rejected: mine.reduce((n, r) => n + verdicts(r, field).filter((v) => v === "fail").length, 0),
+          validated: mine.filter((r) => r.validated === "True").length,
         };
       }),
     };
@@ -560,9 +565,13 @@ export function fixWidth(): FixWidth | null {
       before: count(before.filter((r) => r.bug === "REAL-001")),
       after: count(after.filter((r) => r.bug === "REAL-001")),
     },
-    checks: ["repro2-", "callers-"].flatMap((p) => {
+    checks: [
+      ["repro2-", "repro2"],
+      ["callers-", "repro2"],
+      ["variants-", "variants"],
+    ].flatMap(([p, field]) => {
       const a = latestArm(p);
-      return a ? [check(a)] : [];
+      return a ? [check(a, field)] : [];
     }),
   };
 }

@@ -195,10 +195,17 @@ token comparison, Quickstart.
     still failed upstream's test (0/3), the same two ways; BUG-003 0/2. The repository never calls a method with
     `self=`: the docs show keyword arguments only for `cached` functions (`foo(a=1)`). Cost per REAL-001 run about
     doubled from the extra attempts.
-  - What is left is mechanical: vary how the reported call is made (positional ↔ keyword arguments, through the
-    class ↔ the instance, introspection attributes such as `__wrapped__`/`__name__`) and require the fix to keep
-    every variant that worked before the regression working — a property check that needs no model and no source
-    the report lacks. Language-specific (Python first); worth it only if more real bugs fail this way.
+  - *Built 2026-10-16, partly works, kept off:* call variations (`DA_CALL_VARIANTS=1`, `pipeline/callvariants.py`,
+    no model) — the report's Python calls re-spelled (keyword, mixed, through the instance or the class), every
+    spelling must behave like the reported one. Offline on 12 earlier cachetools#435 fixes: rejects 11, passes
+    upstream's. Arm `variants-4b1325c`: 4 fixes sent back; validated 1/3 (was 3/3, all narrow), that one handles
+    keywords; upstream's test still 0/3 (`__wrapped__`, cache statistics). The first check here that changes what
+    ships: a narrow fix is no longer reported as validated.
+  - Next, if more real bugs need it: spell library-function calls too (`inspect.signature` at run time — the other
+    four real reports call library functions, so this check does not apply to them), and compare introspection
+    attributes (`__wrapped__`, `__name__`, `__doc__`) between class and instance access. Then decide whether to turn
+    it on: it lowers "validated" by refusing narrow fixes, which is the point, and costs extra attempts (about
+    $0.06 a run on REAL-001).
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 

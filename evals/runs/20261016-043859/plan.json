@@ -1,0 +1,12 @@
+{
+  "real": [
+    "REAL-001"
+  ],
+  "configs": [
+    "no-clef-variants"
+  ],
+  "seeds": 3,
+  "until": "ship_gate",
+  "arm": "variants-4b1325c",
+  "commit": "4b1325c"
+}

@@ -436,6 +436,22 @@ export default function Home() {
                   <code className="font-mono text-[12px]">{fw.checks[1].arm}</code>.
                 </p>
               )}
+              {fw?.checks[2] && (
+                <p className="mt-3 max-w-[80ch] text-[13.5px] leading-[1.55] text-t3">
+                  <span className="text-t2">Re-spelling the report&apos;s calls mechanically stopped narrow fixes
+                  shipping as validated.</span>{" "}
+                  No model: the report&apos;s Python calls are rewritten the other ways a caller can make them (keyword
+                  arguments, through the instance or the class), and with the fix every spelling must behave like the
+                  reported one. On cachetools#435 it sent back {fw.checks[2].bugs.reduce((n, b) => n + b.rejected, 0)}{" "}
+                  fixes; {fw.checks[2].bugs.reduce((n, b) => n + b.validated, 0)}/
+                  {fw.checks[2].bugs.reduce((n, b) => n + b.hidden.ran, 0)} runs still validated (every run did before),
+                  and that fix handles keyword calls. Upstream&apos;s test still failed (
+                  {`${fw.checks[2].bugs.reduce((n, b) => n + b.hidden.pass, 0)}/${fw.checks[2].bugs.reduce((n, b) => n + b.hidden.ran, 0)}`}
+                  ) on what the spellings cannot test —{" "}
+                  <code className="font-mono text-[12px]">__wrapped__</code> and cache statistics. Off by default; arm{" "}
+                  <code className="font-mono text-[12px]">{fw.checks[2].arm}</code>.
+                </p>
+              )}
             </div>
           )}
         </section>
