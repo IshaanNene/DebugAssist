@@ -101,3 +101,53 @@ def test_the_release_only_checks_the_reported_calls_that_work(tmp_path: Path) ->
 def test_nothing_to_respell_is_unchecked(tmp_path: Path) -> None:
     assert _check(tmp_path, WIDE, report="It breaks when I click save.")["result"] == "unchecked"
     assert _check(tmp_path, WIDE, language="typescript")["result"] == "unchecked"
+
+
+LIBRARY = """import functools
+
+
+def _guard(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        {fix}
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
+@_guard
+def chunks(items, n):
+    return iter([items[i : i + n] for i in range(0, len(items), n)])
+"""
+NARROW_LIB = LIBRARY.format(fix="if len(args) > 1 and args[1] == 0:\n            return iter([])")
+WIDE_LIB = LIBRARY.format(
+    fix="if (args[1] if len(args) > 1 else kwargs.get('n')) == 0:\n            return iter([])"
+)
+REPL_REPORT = """`chunks` raises for n=0:
+
+```pycon
+>>> from lib import chunks
+>>> rows = [1, 2, 3]
+>>> list(chunks(rows, 0))
+Traceback (most recent call last):
+ValueError: range() arg 3 must not be zero
+```
+"""
+
+
+def test_a_repl_session_is_read_as_its_input_lines() -> None:
+    code = cv.session(REPL_REPORT)
+    assert code == "from lib import chunks\nrows = [1, 2, 3]\nlist(chunks(rows, 0))\n"
+    assert [b.call for b, _ in cv.variants(code)] == ["chunks(rows, 0)"]
+
+
+def test_a_library_call_is_respelled_from_its_runtime_signature(tmp_path: Path) -> None:
+    rec = _check(tmp_path, NARROW_LIB, report=REPL_REPORT)
+    assert rec["result"] == "fail"
+    assert any("chunks(items=rows, n=0)" in m and "ValueError" in m for m in rec["mismatches"])
+    assert _check(tmp_path, WIDE_LIB, report=REPL_REPORT)["result"] == "pass"  # iterators compared by content
+
+
+def test_calls_inside_definitions_and_stdlib_calls_are_not_spelled() -> None:
+    code = "import json\nfrom lib import f\n\ndef g():\n    return f(1)\n\njson.dumps(1)\nf(2)\n"
+    assert [b.call for b, _ in cv.variants(code)] == ["f(2)"]

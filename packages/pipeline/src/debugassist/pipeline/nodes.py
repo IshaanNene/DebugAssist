@@ -1301,33 +1301,35 @@ def call_variants_check(sb: Sandbox, issue: Issue, comp: dict[str, Any]) -> dict
     reported spelling prints. Returns a record: result pass / fail / unchecked, and the mismatches."""
     if issue.language != "python":
         return {"result": "unchecked", "why": f"not Python ({issue.language})"}
-    calls = [
-        c
-        for code in callvariants.snippets(usages.report_text(issue.report))
-        for c in callvariants.variants(code)
-    ]
+    code = callvariants.session(usages.report_text(issue.report))
+    calls = callvariants.variants(code) if code else []
     if not calls:
         return {"result": "unchecked", "why": "no call in the report's code to re-spell"}
     py = _python(comp)
     probe = sb.worktree / (issue.component if issue.component != "." else "") / ".debugassist_variant.py"
 
-    def run(program: str) -> str:
+    def run(program: str) -> tuple[str, str | None]:
         probe.write_text(program)
         res = sb.run(f"{py} .debugassist_variant.py", workdir=issue.component)
-        return callvariants.result(res.output) or f"did not run: {res.output.strip()[-300:]}"
+        got = callvariants.result(res.output) or f"did not run: {res.output.strip()[-300:]}"
+        return got, callvariants.spelled(res.output)
 
     mismatches: list[str] = []
     checked = 0
     try:
         for base, others in calls:
-            want = run(base.program)
+            want, _ = run(base.program)
             if not want.startswith("('ok'"):
                 continue  # the reported call itself does not work with the fix: other checks say so
             for o in others:
+                got, call = run(o.program)
+                if got in {"('same',)", "('unspellable',)"}:
+                    continue  # a library call already written this way, or one without a signature
                 checked += 1
-                got = run(o.program)
                 if got != want:
-                    mismatches.append(f"`{o.call}` ({o.label}) gives {got}; `{base.call}` gives {want}")
+                    mismatches.append(
+                        f"`{call or o.call}` ({o.label}) gives {got}; `{base.call}` gives {want}"
+                    )
     finally:
         probe.unlink(missing_ok=True)
     if not checked:
