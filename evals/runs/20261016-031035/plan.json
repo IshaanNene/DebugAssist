@@ -1,0 +1,12 @@
+{
+  "real": [
+    "REAL-001"
+  ],
+  "configs": [
+    "no-clef-callers"
+  ],
+  "seeds": 3,
+  "until": "ship_gate",
+  "arm": "callers-0ed427d",
+  "commit": "0ed427d"
+}

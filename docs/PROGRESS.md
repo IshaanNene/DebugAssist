@@ -7,7 +7,7 @@
 | P13 Evaluation harness and ablations | ✅ done | 2026-10-07 |
 | P14 Cross-repo hand-off · fix quality · P15 context engineering · P16 Langfuse · P17 site | ✅ done / measured | 2026-10-10 |
 | Three-seed full run · fix round · Clef vs no-Clef ablation · cloneable repo | ✅ done | 2026-10-11 → 14 |
-| Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction (off) | ✅ done | 2026-10-14 → 15 |
+| Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction and callers check (off) | ✅ done | 2026-10-14 → 16 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
 The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
@@ -342,6 +342,18 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Docker Desktop here has no host networking, so the runtime container joins the compose network and uses service names; links shown to people stay on localhost.
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
+
+## Callers check (2026-10-16) — built, measured, stricter but no effect on the outcome, off by default
+
+- `DA_SECOND_REPRO=callers` (eval config `no-clef-callers`): the second reproduction's checker also sees the code's
+  other uses, from `pipeline/usages.py` (git grep: root-cause function and class, then the report's code
+  identifiers the repo defines, most specific first; docs and stubs, then tests, then source; the fault's file left
+  out; 8,000 characters). Tests: `test_usages.py`, two more in `test_second_repro.py`.
+- First arm (`callers-3e70718`) stopped after one run and discarded: the report was passed as JSON, so names came
+  from its prose. Fixed in `0ed427d`.
+- Arm `callers-0ed427d`, $0.26: REAL-001 three seeds — 3 fixes sent back, upstream's test 0/3 (the same two
+  failures); BUG-003 three seeds — 0/2 hidden, one wrong root cause. The repo never calls the method with `self=`.
+  Next (ROADMAP): a mechanical variation of the reported call, if more real bugs fail this way.
 
 ## Second reproduction (2026-10-15) — built, measured, no effect, off by default
 
