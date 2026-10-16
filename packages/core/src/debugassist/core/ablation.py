@@ -18,6 +18,9 @@ DA_SECOND_REPRO  1 = after a fix passes its own reproduction and the suite, a se
              reproduction from the report alone (without seeing the fix or the first test); the fix must pass it too.
              callers = the same, and the agent is also shown how the code is used elsewhere in the repository
              (docs, type stubs, tests, callers; pipeline/usages.py). Off by default (experiments: ROADMAP, fix width).
+DA_CALL_VARIANTS 1 = after a fix passes, the report's Python calls are re-spelled mechanically (keyword arguments,
+             through the instance or the class; pipeline/callvariants.py) and every spelling must behave like the
+             reported one with the fix. No model. Off by default.
 """
 
 from __future__ import annotations
@@ -73,6 +76,10 @@ def second_repro() -> bool:
     return second_repro_mode() != ""
 
 
+def call_variants() -> bool:
+    return os.environ.get("DA_CALL_VARIANTS", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def lean() -> bool:
     return context_mode() == "lean"
 
@@ -85,4 +92,5 @@ def label() -> str:
         + ("" if not off else "-no-" + "-".join(o.lower() for o in off))
         + ("" if context_mode() == "full" else f"-{context_mode()}")
         + {"": "", "report": "-repro2", "callers": "-callers"}[second_repro_mode()]
+        + ("-variants" if call_variants() else "")
     )

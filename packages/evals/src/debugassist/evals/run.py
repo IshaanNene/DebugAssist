@@ -39,6 +39,10 @@ CONFIGS: dict[str, dict[str, str]] = {
         "DA_DECIDER": "llm",
         "DA_SECOND_REPRO": "callers",
     },  # … also shown the code's other uses
+    "no-clef-variants": {
+        "DA_DECIDER": "llm",
+        "DA_CALL_VARIANTS": "1",
+    },  # the report's calls, re-spelled (no model)
     "no-d3": {"DA_ABLATE": "D3"},
     "no-d8": {"DA_ABLATE": "D8"},
     "no-d9": {"DA_ABLATE": "D9"},
@@ -212,6 +216,11 @@ async def evaluate(
                             if row.get("repro2")
                             else ""
                         )
+                        + (
+                            f" · variants {'/'.join(cast(list[str], row['variants']))}"
+                            if row.get("variants")
+                            else ""
+                        )
                     )
     finally:
         await ledger.close()
@@ -326,6 +335,11 @@ async def evaluate_real(
                     + (
                         f" · second repro {'/'.join(cast(list[str], row['repro2']))}"
                         if row.get("repro2")
+                        else ""
+                    )
+                    + (
+                        f" · variants {'/'.join(cast(list[str], row['variants']))}"
+                        if row.get("variants")
                         else ""
                     )
                 )
