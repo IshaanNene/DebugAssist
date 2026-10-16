@@ -22,7 +22,7 @@ import yaml
 from langchain_core.tools import BaseTool, tool
 
 from debugassist.core import untrusted
-from debugassist.core.ablation import ablated, second_repro
+from debugassist.core.ablation import ablated, second_repro, second_repro_mode
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT, Verdict
 from debugassist.core.settings import Integration, Mode
@@ -43,6 +43,7 @@ from debugassist.pipeline import (
     pr_body,
     profile,
     skills,
+    usages,
 )
 from debugassist.pipeline import rca as rca_mod
 from debugassist.pipeline.deps import APPS, Deps
@@ -1150,9 +1151,9 @@ def _at(sb: Sandbox, base: str, path: str) -> str | None:
     return out.stdout if out.returncode == 0 else None
 
 
-def check_prompt(issue: Issue, comp: dict[str, Any], base: str, location: str) -> str:
+def check_prompt(issue: Issue, comp: dict[str, Any], base: str, location: str, uses: str = "") -> str:
     """The independent check's task: the report and where the defect is — not the RCA's reproduction idea or fix
-    direction, the fix, or the first test."""
+    direction, the fix, or the first test. With DA_SECOND_REPRO=callers, also how the code is used elsewhere."""
     return (
         f"Repository {issue.repo}, component dir '{issue.component}' ({issue.language}); commands run from there. "
         f"Release {base}.\n"
@@ -1170,7 +1171,17 @@ def check_prompt(issue: Issue, comp: dict[str, Any], base: str, location: str) -
             if issue.latest_event
             else ""
         )
-        + f"\nThe defect is in {location}.\nWrite the test, run it to see it fail, then submit."
+        + f"\nThe defect is in {location}.\n"
+        + (
+            "\nHow this code is used elsewhere in the repository (its documentation, type stubs, tests, callers):\n"
+            + untrusted.fence("repository usages", uses)
+            + "\nA fix must keep these uses working as well as fix the report's example. Besides the report's case, "
+            "cover the ways they call or rely on this code that the bug touches — how arguments are passed, the "
+            "attributes and return values they use.\n"
+            if uses
+            else ""
+        )
+        + "Write the test, run it to see it fail, then submit."
     )
 
 
@@ -1221,9 +1232,15 @@ async def second_reproduction(
             res = _run_test(sb, issue, cmd)
             return _repro_problem(cmd, res.exit_code, res.output, issue)
 
+        uses = ""
+        if second_repro_mode() == "callers":
+            report = json.dumps(issue.report, default=str) if issue.report else issue.title
+            names = usages.names_for(sb.worktree, rca.output.location.function, report)
+            uses = usages.collect(sb.worktree, names, exclude={rca.output.location.file})
+            rec["usages"] = {"names": names, "chars": len(uses)}
         r = await deps.runner(_apply_diff(sb)).run(
             spec,
-            check_prompt(issue, comp, base, loc),
+            check_prompt(issue, comp, base, loc, uses),
             ReproOutput,
             tools=tools,
             diff_fn=lambda: sb.diff(base),
