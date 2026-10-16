@@ -399,6 +399,70 @@ export default function Home() {
                   </tbody>
                 </table>
               </div>
+              {fw && fw.checks.length === 3 && (
+                <div className="mt-8">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">
+                    Widening narrow fixes · four attempts
+                  </div>
+                  <p className="mt-2 max-w-[80ch] text-[14px] leading-[1.55] text-t2">
+                    The misses on real code were fixes as narrow as the report. Asking a model for wider fixes or
+                    wider tests did not change that; a check with no model did, in a replay of every fix made so far.
+                  </p>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full min-w-[560px] text-left text-[13px]">
+                      <thead>
+                        <tr className="font-mono text-[11px] text-t3">
+                          <th className="pb-2 font-normal">attempt</th>
+                          <th className="pb-2 font-normal">model</th>
+                          <th className="pb-2 font-normal">what it did to narrow fixes</th>
+                          <th className="pb-2 text-right font-normal">upstream / hidden test</th>
+                        </tr>
+                      </thead>
+                      <tbody className="tabular-nums">
+                        {[
+                          [
+                            "Prompt rules for wider tests and fixes",
+                            "yes",
+                            "nothing — reverted",
+                            `${fw.target.after.pass}/${fw.target.after.ran} on cachetools#435`,
+                          ],
+                          [
+                            "A second agent's test, from the report",
+                            "yes",
+                            `passed ${fw.checks[0].bugs.reduce((n, b) => n + b.second.pass, 0)} of ${fw.checks[0].bugs.reduce((n, b) => n + b.second.ran, 0)} fixes it checked`,
+                            `${fw.checks[0].bugs.reduce((n, b) => n + b.hidden.pass, 0)}/${fw.checks[0].bugs.reduce((n, b) => n + b.hidden.ran, 0)}`,
+                          ],
+                          [
+                            "… also shown the repo's other uses",
+                            "yes",
+                            `sent back ${fw.checks[1].bugs.reduce((n, b) => n + b.rejected, 0)}; every shipped fix still narrow`,
+                            `${fw.checks[1].bugs.reduce((n, b) => n + b.hidden.pass, 0)}/${fw.checks[1].bugs.reduce((n, b) => n + b.hidden.ran, 0)}`,
+                          ],
+                          [
+                            "Call variations and introspection",
+                            "no",
+                            fw.replay
+                              ? `live: ${fw.checks[2].bugs.reduce((n, b) => n + b.rejected, 0)} sent back; replay: rejects ${fw.replay.narrow.pass}/${fw.replay.narrow.ran}, no false alarm in ${fw.replay.good.ran}`
+                              : `live: ${fw.checks[2].bugs.reduce((n, b) => n + b.rejected, 0)} sent back`,
+                            `${fw.checks[2].bugs.reduce((n, b) => n + b.hidden.pass, 0)}/${fw.checks[2].bugs.reduce((n, b) => n + b.hidden.ran, 0)} live`,
+                          ],
+                        ].map(([a, m, w, t]) => (
+                          <tr key={a} className="border-t border-line">
+                            <td className="py-2 pr-3 text-t1">{a}</td>
+                            <td className="py-2 pr-3 text-t3">{m}</td>
+                            <td className="py-2 pr-3 text-t2">{w}</td>
+                            <td className="py-2 text-right text-t2">{t}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="mt-2 max-w-[80ch] text-[12.5px] leading-[1.5] text-t4">
+                    The live run of the last check predates its introspection part; the replay is of fixes already made,
+                    and the introspection part was added after reading upstream&apos;s test. Details below.
+                  </p>
+                </div>
+              )}
               {fw && (
                 <p className="mt-5 max-w-[80ch] text-[13.5px] leading-[1.55] text-t3">
                   <span className="text-t2">Widening fixes by prompt didn&apos;t work.</span> Two generic rules — guard
