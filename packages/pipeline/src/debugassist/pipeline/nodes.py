@@ -1234,8 +1234,9 @@ async def second_reproduction(
 
         uses = ""
         if second_repro_mode() == "callers":
-            report = json.dumps(issue.report, default=str) if issue.report else issue.title
-            names = usages.names_for(sb.worktree, rca.output.location.function, report)
+            names = usages.names_for(
+                sb.worktree, rca.output.location.function, usages.report_text(issue.report)
+            )
             uses = usages.collect(sb.worktree, names, exclude={rca.output.location.file})
             rec["usages"] = {"names": names, "chars": len(uses)}
         r = await deps.runner(_apply_diff(sb)).run(
