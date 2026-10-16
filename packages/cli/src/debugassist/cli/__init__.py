@@ -7,6 +7,7 @@ import typer
 from debugassist.decisions.cli import decide, list_templates, modes
 from debugassist.evals.cli import app as eval_app
 from debugassist.harness.cli import app as harness_app
+from debugassist.pipeline.app_cli import app as github_app
 from debugassist.pipeline.cli import ask, feedback_cmd, fix_diff, open_run, run, watch
 from debugassist.pipeline.report import report
 from debugassist.scenarios.cli import app as scenario_app
@@ -25,3 +26,4 @@ app.command("feedback")(feedback_cmd)
 app.add_typer(scenario_app, name="scenario")
 app.add_typer(harness_app, name="harness")
 app.add_typer(eval_app, name="eval")
+app.add_typer(github_app, name="app")

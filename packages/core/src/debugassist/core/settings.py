@@ -37,6 +37,7 @@ class Integration(StrEnum):
     LLM = "llm"
     CLEF = "clef"
     GITHUB = "github"
+    GITHUB_APP = "github_app"  # the GitHub App: labeled issues on the repos it is installed on
     JIRA = "jira"
     CHAT = "chat"  # team chat: a Discord channel webhook, or the local mock inbox
 
@@ -128,6 +129,13 @@ class Settings(BaseSettings):
         default=None, validation_alias=AliasChoices("github_token", "github_api_key")
     )
 
+    # The GitHub App (docs/github-app.md): its id, a path to its private key (the key itself never in .env), and
+    # the webhook secret that signs deliveries to /github/webhook.
+    github_app_id: str | None = None
+    github_app_private_key_path: str | None = None
+    github_app_webhook_secret: SecretStr | None = None
+    github_app_label: str = "debugassist"
+
     jira_api_key: SecretStr | None = None
     jira_base_url: str | None = None
     jira_email: str | None = None
@@ -140,6 +148,7 @@ class Settings(BaseSettings):
     da_mode_llm: Mode | None = None
     da_mode_clef: Mode | None = None
     da_mode_github: Mode | None = None
+    da_mode_github_app: Mode | None = None
     da_mode_jira: Mode | None = None
     da_mode_chat: Mode | None = None
 
@@ -151,6 +160,8 @@ class Settings(BaseSettings):
                 return self.cloudflare_account_id is not None and self.cloudflare_api_key is not None
             case Integration.GITHUB:
                 return self.github_token is not None
+            case Integration.GITHUB_APP:
+                return self.github_app_id is not None and self.github_app_private_key_path is not None
             case Integration.JIRA:
                 return None not in (self.jira_api_key, self.jira_base_url, self.jira_email)
             case Integration.CHAT:

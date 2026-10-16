@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import httpx
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -43,6 +43,35 @@ def _state(run_id: str) -> dict[str, Any]:
     if s is None:
         raise HTTPException(404, f"no run {run_id}")
     return s
+
+
+@app.post("/github/webhook", status_code=202)
+async def github_webhook(request: Request) -> dict[str, Any]:
+    """GitHub App deliveries. Signature-checked (X-Hub-Signature-256 with GITHUB_APP_WEBHOOK_SECRET); an issue
+    `labeled` with the app's label is queued for `debugassist app poll`, everything else is acknowledged."""
+    from debugassist.core.settings import get_settings
+    from debugassist.integrations.github_app import verify_signature
+    from debugassist.pipeline.app_cli import QUEUE
+
+    s = get_settings()
+    if s.github_app_webhook_secret is None:
+        raise HTTPException(503, "GITHUB_APP_WEBHOOK_SECRET is not set")
+    body = await request.body()
+    if not verify_signature(
+        s.github_app_webhook_secret.get_secret_value(), body, request.headers.get("x-hub-signature-256")
+    ):
+        raise HTTPException(401, "bad signature")
+    event = request.headers.get("x-github-event", "")
+    payload = json.loads(body or b"{}")
+    if event != "issues" or payload.get("action") != "labeled":
+        return {"queued": False, "event": event}
+    if obj(payload.get("label")).get("name") != s.github_app_label:
+        return {"queued": False, "reason": "another label"}
+    repo, number = payload["repository"]["full_name"], int(payload["issue"]["number"])
+    QUEUE.mkdir(parents=True, exist_ok=True)
+    delivery = request.headers.get("x-github-delivery") or uuid.uuid4().hex
+    (QUEUE / f"{delivery}.json").write_text(json.dumps({"repo": repo, "number": number}))
+    return {"queued": True, "issue": f"{repo}#{number}"}
 
 
 @app.get("/api/health")

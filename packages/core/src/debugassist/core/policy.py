@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Callable
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -34,6 +35,8 @@ class Policy(BaseModel):
     version: int = 1
     actions: dict[str, Verdict] = Field(default_factory=dict[str, Verdict])
     repos: list[str] = Field(default_factory=list[str])
+    # On: a repository the GitHub App is installed on counts as allowed too (still bot branches, draft PRs).
+    app_installations: bool = False
     branches: dict[str, str] = Field(default_factory=dict[str, str])
 
     @classmethod
@@ -47,15 +50,31 @@ class PolicyError(PermissionError):
 
 class PolicyGate:
     def __init__(
-        self, policy: Policy | None = None, audit_path: Path = DEFAULT_AUDIT, *, mode: str = "autonomous"
+        self,
+        policy: Policy | None = None,
+        audit_path: Path = DEFAULT_AUDIT,
+        *,
+        mode: str = "autonomous",
+        installed: Callable[[], list[str]] | None = None,
     ) -> None:
         self.policy = policy or Policy.load()
         self.audit_path = audit_path
         self.mode = mode  # autonomous | supervised
+        self._installed = installed  # the GitHub App's repositories, asked only when the policy allows them
+
+    def allowed_repo(self, repo: str) -> bool:
+        if repo in self.policy.repos:
+            return True
+        if self.policy.app_installations and self._installed is not None:
+            try:
+                return repo in self._installed()
+            except Exception:  # the app's API unreachable: not allowed, never an accident
+                return False
+        return False
 
     def verdict(self, action: str, *, repo: str | None = None, branch: str | None = None) -> Verdict:
         v = self.policy.actions.get(action, Verdict.DRY_RUN)
-        if repo is not None and repo not in self.policy.repos:
+        if repo is not None and not self.allowed_repo(repo):
             return Verdict.DENY
         if branch is not None:
             prefix = self.policy.branches.get("push_prefix", "debugassist/")

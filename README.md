@@ -132,6 +132,15 @@ An RCA names the commit that introduced the bug by reading diffs. With `DA_BISEC
 
 <sub>Off by default; the PR body gets a "Bisected:" line when it finds one. The catalog is not replayed: each injected release is its last good one plus a single commit.</sub>
 
+### On your own repositories: the GitHub App
+
+Install the app on a repository, add a `.DebugAssist/pipeline.yaml` saying how to build and test it, and label an
+issue `debugassist`: the pipeline checks out the default branch, investigates, comments the root cause on the issue
+and, when a fix validates, opens a **draft** PR from a `debugassist/*` branch. `debugassist app poll` picks up
+labeled issues (no public URL needed); `/github/webhook` on the API queues them as they are labeled. Setup,
+permissions and the safety rules: [docs/github-app.md](docs/github-app.md). Built and tested against a fake GitHub
+API and the mock; no live app yet.
+
 ## ⚠️ Limitations
 
 Read the numbers above with these in mind:
