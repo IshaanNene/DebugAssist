@@ -34,6 +34,8 @@ class Issue(BaseModel):
     opened_at: str | None = None  # when the source first saw it (dedup only looks at older issues)
     report: dict[str, Any] = Field(default_factory=dict[str, Any])  # BugDrop / GitHub: the report as filed
     about: str | None = None  # GitHub: what the repository is (real repos are not MiniRide)
+    base_branch: str | None = None  # GitHub App issues: the default branch the draft PR targets
+    app_issue: int | None = None  # GitHub App issues: the issue number the run comments on
 
 
 class Triage(BaseModel):

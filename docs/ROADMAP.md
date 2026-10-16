@@ -227,6 +227,10 @@ token comparison, Quickstart.
   test -run`) for the per-case step; bisecting across release branches (cachetools' last good release, 6.2.0, is on
   one); and scoring "introduced by" against a known culprit — the catalog's are one commit by construction, so it
   needs real regressions.
+- **GitHub App — built 2026-10-16, not yet live.** `debugassist app status|poll`, `/github/webhook`, `GHA:` issues
+  checked out at the default branch, draft PRs and an issue comment as the app (ADR 0008: an installation is the
+  opt-in, plus `.DebugAssist/pipeline.yaml`). Next: create the app and run it on one real repository; a hosted
+  worker; CI failures as input; per-repository budgets; the PR comment loop for app repositories.
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 

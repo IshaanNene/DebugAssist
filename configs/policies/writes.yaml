@@ -17,8 +17,11 @@ actions:
   chat.message: live            # goes to the mock inbox unless DISCORD_WEBHOOK_URL is set
   flags.rollback: approval      # automatic only if Clef p ≥ τ AND stats are significant AND this says live
   flags.restore: approval
-repos:                          # the only repositories DebugAssist may push to or open PRs on
+repos:                          # repositories DebugAssist may always push to or open PRs on
   - IshaanNene/miniride-client
   - IshaanNene/miniride-services
+app_installations: true         # plus every repository the GitHub App is installed on (docs/github-app.md);
+                                # installing the app on a repo is the opt-in, and it still needs
+                                # .DebugAssist/pipeline.yaml before anything runs
 branches:
   push_prefix: debugassist/     # bot branches; never main, release/* or tags

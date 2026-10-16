@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import re
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -18,7 +20,8 @@ from debugassist.decisions.engine import DecisionEngine
 from debugassist.decisions.factory import build_engine
 from debugassist.harness import agent_types
 from debugassist.integrations.chat import Chat, ChatMock, DiscordWebhook
-from debugassist.integrations.github import GitHub, GitHubLive, GitHubMock
+from debugassist.integrations.github import GitHub, GitHubLive, GitHubMock, PullRequest
+from debugassist.integrations.github_app import GitHubApp, GitHubAppLive, GitHubAppMock
 from debugassist.integrations.jira import Jira, JiraCloud, JiraMock
 from debugassist.llm.runner import CASSETTES, AgentRunner, CassetteRunner, LLMRunner, ScriptedRunner
 
@@ -65,6 +68,7 @@ class Deps:
     bugdrop_url: str = field(default_factory=lambda: os.environ.get("BUGDROP_URL", "http://localhost:8200"))
     bugdrop_ui: str = field(default_factory=lambda: os.environ.get("BUGDROP_UI_URL", "http://localhost:8200"))
     extra: dict[str, Any] = field(default_factory=dict[str, Any])
+    app: GitHubApp | None = None  # the GitHub App (GHA:… issues), live or mock; None when not configured
 
     @property
     def run_dir(self) -> Path:
@@ -81,6 +85,48 @@ class Deps:
 
 def new_run_id(issue_ref: str) -> str:
     return f"{datetime.now(UTC):%Y%m%d-%H%M%S}-{issue_ref.lower()}"
+
+
+def build_app(s: Settings) -> GitHubApp | None:
+    """The GitHub App when it is configured: live with its id and key, mock when DA_MODE_GITHUB_APP=mock."""
+    if s.da_mode_github_app is Mode.MOCK:
+        return GitHubAppMock()
+    if s.mode(Integration.GITHUB_APP) is Mode.LIVE and s.github_app_id and s.github_app_private_key_path:
+        return GitHubAppLive(s.github_app_id, Path(s.github_app_private_key_path).expanduser().read_text())
+    return None
+
+
+class GitHubRouter:
+    """The pipeline's GitHub client: installed repositories go through the app (REST and pushes as the app);
+    everything else through the token client or the mock, as before."""
+
+    def __init__(self, default: GitHub, app: GitHubApp) -> None:
+        self.default, self.app = default, app
+
+    def _for(self, repo: str) -> GitHub:
+        return self.app.client(repo) or self.default
+
+    def _repo_of(self, worktree: Path) -> str:
+        url = subprocess.run(
+            ["git", "remote", "get-url", "origin"], cwd=worktree, capture_output=True, text=True
+        ).stdout.strip()
+        m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
+        return m.group(1) if m else ""
+
+    def remote_branch_exists(self, repo: str, branch: str) -> bool:
+        return self._for(repo).remote_branch_exists(repo, branch)
+
+    def push(self, worktree: Path, branch: str) -> None:
+        self._for(self._repo_of(worktree)).push(worktree, branch)
+
+    def open_pr(self, repo: str, head: str, base: str, title: str, body: str, draft: bool) -> PullRequest:
+        return self._for(repo).open_pr(repo, head, base, title, body, draft)
+
+    def comment(self, repo: str, number: int, body: str) -> None:
+        self._for(repo).comment(repo, number, body)
+
+    def merged(self, repo: str, number: int) -> bool | None:
+        return self._for(repo).merged(repo, number)
 
 
 async def build_deps(
@@ -103,6 +149,9 @@ async def build_deps(
         if s.mode(Integration.GITHUB) is Mode.LIVE and s.github_token
         else GitHubMock()
     )
+    app = build_app(s)
+    if app is not None:
+        github = GitHubRouter(github, app)
     # DA_DECIDER (evaluations): routed = each template's own Clef model; clef / clef-flash = one model for
     # every decision; llm = no Clef (the LLM decides with self-reported confidence).
     which = ablation.decider()
@@ -120,9 +169,10 @@ async def build_deps(
         run_id=run_id,
         settings=s,
         engine=engine,
-        gate=PolicyGate(mode=mode),
+        gate=PolicyGate(mode=mode, installed=app.installed_repos if app else None),
         jira=jira,
         github=github,
+        app=app,
         chat=(
             DiscordWebhook(s.discord_webhook_url.get_secret_value())
             if s.mode(Integration.CHAT) is Mode.LIVE and s.discord_webhook_url

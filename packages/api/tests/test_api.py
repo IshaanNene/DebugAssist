@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -159,3 +160,46 @@ def test_diff_fix_jobs_report_running_then_done(client: TestClient) -> None:
     assert client.get(f"/api/runs/{RUN}/jobs/abc123").json()["result"]["commit"] == "7ac88bc"
     assert client.get(f"/api/runs/{RUN}/jobs/..%2Fx").status_code == 404
     assert client.post(f"/api/runs/{RUN}/diff-fix", json={"instruction": "x"}).status_code == 422
+
+
+def test_github_webhook_queues_a_labeled_issue_and_rejects_bad_signatures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import hashlib
+    import hmac
+
+    from debugassist.core import settings as settings_mod
+    from debugassist.pipeline import app_cli
+
+    monkeypatch.setenv("GITHUB_APP_WEBHOOK_SECRET", "s3cret")
+    settings_mod.get_settings.cache_clear()
+    monkeypatch.setattr(app_cli, "QUEUE", tmp_path / "queue")
+    c = TestClient(app_module.app)
+
+    def post(payload: dict[str, Any], event: str = "issues", secret: str = "s3cret") -> Any:
+        body = json.dumps(payload).encode()
+        sig = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+        return c.post(
+            "/github/webhook",
+            content=body,
+            headers={"X-Hub-Signature-256": sig, "X-GitHub-Event": event, "X-GitHub-Delivery": "d-1"},
+        )
+
+    labeled: dict[str, Any] = {
+        "action": "labeled",
+        "label": {"name": "debugassist"},
+        "repository": {"full_name": "acme/widgets"},
+        "issue": {"number": 3},
+    }
+    try:
+        assert post(labeled, secret="wrong").status_code == 401
+        r = post(labeled)
+        assert r.status_code == 202 and r.json() == {"queued": True, "issue": "acme/widgets#3"}
+        assert json.loads((tmp_path / "queue" / "d-1.json").read_text()) == {
+            "repo": "acme/widgets",
+            "number": 3,
+        }
+        assert post({**labeled, "label": {"name": "bug"}}).json()["queued"] is False
+        assert post({"zen": "hi"}, event="ping").json()["queued"] is False
+    finally:
+        settings_mod.get_settings.cache_clear()

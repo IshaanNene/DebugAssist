@@ -16,3 +16,5 @@ node_modules/
 /targets/semver/
 /targets/parse/
 /targets/more-itertools/
+# GitHub App checkouts (debugassist app poll): one per installed repository
+/targets/gh--*/

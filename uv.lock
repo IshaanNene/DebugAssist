@@ -672,6 +672,7 @@ source = { editable = "packages/integrations" }
 dependencies = [
     { name = "debugassist-core" },
     { name = "httpx" },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "pyyaml" },
 ]
 
@@ -679,6 +680,7 @@ dependencies = [
 requires-dist = [
     { name = "debugassist-core", editable = "packages/core" },
     { name = "httpx", specifier = ">=0.28" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 

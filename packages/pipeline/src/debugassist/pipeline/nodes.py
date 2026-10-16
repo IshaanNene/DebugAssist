@@ -34,6 +34,7 @@ from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
 from debugassist.pipeline import (
+    app_intake,
     bisect,
     budget,
     callvariants,
@@ -219,10 +220,14 @@ async def ingest(state: RunState, deps: Deps) -> dict[str, Any]:
         return _with_agent_type(await collector.ingest_bugdrop(ref, deps), deps)
     if ref.upper().startswith("GH-"):
         return _with_agent_type(collector.ingest_github(ref), deps)
+    if ref.upper().startswith("GHA:"):
+        if deps.app is None:
+            raise ValueError("a GitHub App issue needs the app configured (docs/github-app.md)")
+        return _with_agent_type(app_intake.ingest(ref, deps.app), deps)
     if not ref.upper().startswith("VIT-"):
         raise ValueError(
             f"unknown issue reference {ref!r}: expected a Vitals issue (VIT-…), a BugDrop report (BD-…) "
-            "or a frozen GitHub issue (GH-…)"
+            "a frozen GitHub issue (GH-…) or a GitHub App issue (GHA:owner/repo#123)"
         )
     async with httpx.AsyncClient(base_url=deps.vitals_url, timeout=15) as http:
         d = (await http.get(f"/api/issues/{ref.upper()}")).raise_for_status().json()
@@ -295,6 +300,65 @@ def _notify(deps: Deps, run_id: str, msg: ChatMessage) -> dict[str, Any]:
         "chat.message", verdict, run_id=run_id, detail={"to": msg.to, "title": msg.title}, result=result
     )
     return {"kind": "chat", "title": msg.title, **result}
+
+
+def app_comment(state: RunState, pr_url: str | None, outcome: str) -> str:
+    """What the run says on the GitHub issue it was asked about (starts with the app's marker)."""
+    issue, rca = state.issue, state.rca
+    assert issue
+    o = rca.output if rca else None
+    lines = [f"<!-- debugassist:run {state.run_id} -->", "**DebugAssist** looked into this issue."]
+    if o:
+        lines += ["", o.summary, "", f"**Where:** `{o.location.file}` → `{o.location.function}`"]
+        b = state.bisect or {}
+        if b.get("result") == "found":
+            lines.append(
+                f"**Introduced by:** `{b['first_bad']}` {b.get('subject', '')} (bisected with the test)"
+            )
+        elif o.suspect_commit:
+            lines.append(f"**Suspected cause:** `{o.suspect_commit}`")
+    if pr_url:
+        lines += ["", f"A fix with a reproduction test is ready for review: {pr_url}"]
+    else:
+        lines += [
+            "",
+            {
+                "rca_only": "No fix proposed: the root cause is outside this repository's code.",
+                "escalate": "No fix proposed: this needs a maintainer's decision.",
+            }.get(outcome, f"No pull request ({outcome.replace('_', ' ')})."),
+        ]
+    lines += [
+        "",
+        f"<sub>Automated analysis, run `{state.run_id}`. Remove the label to stop; add it again to rerun.</sub>",
+    ]
+    return "\n".join(lines)
+
+
+def _comment_app_issue(
+    deps: Deps, state: RunState, pr_info: PRInfo | None, outcome: str
+) -> list[dict[str, Any]]:
+    """GitHub App issues: the outcome as a comment on the issue, through the policy gate."""
+    issue = state.issue
+    if issue is None or issue.app_issue is None or deps.app is None:
+        return []
+    verdict = deps.gate.verdict("github.comment", repo=issue.gh_repo)
+    result: Any = "dry_run"
+    if verdict is Verdict.LIVE:
+        try:
+            deps.app.comment(
+                issue.gh_repo, issue.app_issue, app_comment(state, pr_info.url if pr_info else None, outcome)
+            )
+            result = "commented"
+        except (httpx.HTTPError, PermissionError, KeyError) as exc:
+            result = f"failed: {type(exc).__name__}"
+    deps.gate.record(
+        "github.comment",
+        verdict,
+        run_id=state.run_id,
+        detail={"repo": issue.gh_repo, "issue": issue.app_issue},
+        result=result,
+    )
+    return [{"kind": "comment", "issue": f"{issue.gh_repo}#{issue.app_issue}", "result": result}]
 
 
 def _link_source(
@@ -1576,7 +1640,7 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
         branch = subprocess.run(
             ["git", "branch", "--show-current"], cwd=sb.worktree, capture_output=True, text=True, check=True
         ).stdout.strip()
-        base = f"release/{issue.last_version}"
+        base = issue.base_branch or f"release/{issue.last_version}"
         push_v = deps.gate.verdict("github.push_branch", repo=issue.gh_repo, branch=branch)
         pr_v = deps.gate.verdict("github.open_pr", repo=issue.gh_repo)
         if push_v is Verdict.LIVE and pr_v is Verdict.LIVE:
@@ -1613,6 +1677,7 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
     if pr_info:
         links.append(("pr", pr_info.url, f"PR #{pr_info.number} (DebugAssist)"))
     notes += _link_source(deps, state, links, ship.outcome)
+    notes += _comment_app_issue(deps, state, pr_info, ship.outcome)
     if tr:
         o = rca.output
         msg = ChatMessage(

@@ -8,6 +8,7 @@
 | P14 Cross-repo hand-off · fix quality · P15 context engineering · P16 Langfuse · P17 site | ✅ done / measured | 2026-10-10 |
 | Three-seed full run · fix round · Clef vs no-Clef ablation · cloneable repo | ✅ done | 2026-10-11 → 14 |
 | Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction, callers check, call variations (off) · bisect proof (off) | ✅ done | 2026-10-14 → 16 |
+| GitHub App (labeled issues on installed repositories → comment + draft PR) | built, not live | 2026-10-16 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
 The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
@@ -342,6 +343,24 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Docker Desktop here has no host networking, so the runtime container joins the compose network and uses service names; links shown to people stay on localhost.
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
+
+## GitHub App (2026-10-16) — built, tested with a fake API and the mock; not live
+
+- `integrations/github_app.py`: the app JWT (RS256), installation tokens (cached), installed repositories,
+  labeled issues (PRs filtered out), comments; `AppRepoClient` pushes over HTTPS with the installation token;
+  `GitHubAppMock` (`.data/mock/github-app/state.json`). Settings `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY_PATH`,
+  `GITHUB_APP_WEBHOOK_SECRET`, `GITHUB_APP_LABEL`, `DA_MODE_GITHUB_APP`.
+- Policy: `app_installations: true` — an installed repository counts as allowed (ADR 0008; CLAUDE.md updated);
+  bot branches and draft PRs as before; unreachable installation list → nothing extra allowed.
+- `pipeline/app_intake.py`: `GHA:owner/repo#n` → checkout `targets/gh--owner--repo` at the default branch, tag
+  `vapp-<sha>`, requires `.DebugAssist/pipeline.yaml`; `Issue.base_branch` / `app_issue`; the PR targets the default
+  branch; the run comments its outcome on the issue (`app_comment`, policy-gated). `GitHubRouter` sends installed
+  repositories through the app.
+- `debugassist app status | poll [--once --dry]` (`pipeline/app_cli.py`); `POST /github/webhook` (signature-checked,
+  queues labeled issues). Docs: `docs/github-app.md`.
+- Tests: `test_github_app.py` (JWT, signatures, tokens and repositories against `httpx.MockTransport`, the policy),
+  `test_github_app_intake.py` (intake, onboarding comment, poll de-duplication, the comment), the webhook in
+  `test_api.py`. A mock smoke run of `app status` and `app poll --once --dry` checked out a local repository.
 
 ## Bisect proof (2026-10-16) — built, replayed, off by default
 
