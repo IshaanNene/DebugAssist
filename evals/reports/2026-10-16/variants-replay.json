@@ -1,0 +1,447 @@
+{
+  "cases": [
+    {
+      "case": "REAL-001",
+      "issue": "https://github.com/tkem/cachetools/issues/435",
+      "calls": [
+        "example.value(3)",
+        "Example.value(example, 3)"
+      ],
+      "fixes": [
+        {
+          "run_id": "20261014-143928-gh-cachetools-435",
+          "arm": "real-04ab2bf",
+          "seed": "1",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261014-144547-gh-cachetools-435",
+          "arm": "real-04ab2bf",
+          "seed": "2",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261014-145112-gh-cachetools-435",
+          "arm": "real-04ab2bf",
+          "seed": "3",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261015-121623-gh-cachetools-435",
+          "arm": "fixwidth-7f15556",
+          "seed": "2",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261015-122720-gh-cachetools-435",
+          "arm": "fixwidth-7f15556",
+          "seed": "3",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261015-123406-gh-cachetools-435",
+          "arm": "fixwidth-7f15556",
+          "seed": "4",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261015-151217-gh-cachetools-435",
+          "arm": "repro2-f277379",
+          "seed": "1",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261015-153336-gh-cachetools-435",
+          "arm": "repro2-f277379",
+          "seed": "2",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261015-154351-gh-cachetools-435",
+          "arm": "repro2-f277379",
+          "seed": "3",
+          "upstream_test": false,
+          "verdict": "pass",
+          "spellings": 8,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261016-031036-gh-cachetools-435",
+          "arm": "callers-0ed427d",
+          "seed": "1",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261016-033544-gh-cachetools-435",
+          "arm": "callers-0ed427d",
+          "seed": "2",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261016-035324-gh-cachetools-435",
+          "arm": "callers-0ed427d",
+          "seed": "3",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261016-043900-gh-cachetools-435",
+          "arm": "variants-4b1325c",
+          "seed": "1",
+          "upstream_test": false,
+          "verdict": "pass",
+          "spellings": 8,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261016-045016-gh-cachetools-435",
+          "arm": "variants-4b1325c",
+          "seed": "2",
+          "upstream_test": false,
+          "verdict": "fail",
+          "spellings": 8,
+          "mismatch": [
+            "`Example.value(self=example, number=3)` gives ('raises', 'TypeError'); `example.value(3)` gives ('ok', \"'6'\")"
+          ]
+        },
+        {
+          "run_id": "20261016-050719-gh-cachetools-435",
+          "arm": "variants-4b1325c",
+          "seed": "3",
+          "upstream_test": false,
+          "verdict": "unchecked",
+          "spellings": 0,
+          "mismatch": []
+        }
+      ],
+      "release": {
+        "verdict": "fail",
+        "spellings": 4,
+        "mismatch": [
+          "`Example.value(example, 3)` gives ('raises', 'AttributeError'); `example.value(3)` gives ('ok', \"'6'\")"
+        ]
+      },
+      "upstream": {
+        "verdict": "pass",
+        "spellings": 8,
+        "mismatch": []
+      }
+    },
+    {
+      "case": "REAL-002",
+      "issue": "https://github.com/tkem/cachetools/issues/440",
+      "calls": [
+        "TTLCache(maxsize=1, ttl=timedelta(days=1), timer=lambda: datetime.max)"
+      ],
+      "fixes": [
+        {
+          "run_id": "20261014-152206-gh-cachetools-440",
+          "arm": "real-16088da",
+          "seed": "1",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 1,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261014-152833-gh-cachetools-440",
+          "arm": "real-16088da",
+          "seed": "2",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 1,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261014-153254-gh-cachetools-440",
+          "arm": "real-16088da",
+          "seed": "3",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 1,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261015-124514-gh-cachetools-440",
+          "arm": "fixwidth-7f15556",
+          "seed": "1",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 1,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261015-125043-gh-cachetools-440",
+          "arm": "fixwidth-7f15556",
+          "seed": "2",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 1,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261015-125559-gh-cachetools-440",
+          "arm": "fixwidth-7f15556",
+          "seed": "3",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 1,
+          "mismatch": []
+        }
+      ],
+      "release": {
+        "verdict": "pass",
+        "spellings": 1,
+        "mismatch": []
+      },
+      "upstream": {
+        "verdict": "pass",
+        "spellings": 1,
+        "mismatch": []
+      }
+    },
+    {
+      "case": "REAL-003",
+      "issue": "https://github.com/python-semver/python-semver/issues/484",
+      "calls": [
+        "semver.Version.parse('0.1.2-rc3')",
+        "v.next_version('prerelease')"
+      ],
+      "fixes": [
+        {
+          "run_id": "20261014-154217-gh-semver-484",
+          "arm": "real-16088da",
+          "seed": "2",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 2,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261014-154717-gh-semver-484",
+          "arm": "real-16088da",
+          "seed": "3",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 2,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261015-130818-gh-semver-484",
+          "arm": "fixwidth-7f15556",
+          "seed": "3",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 2,
+          "mismatch": []
+        }
+      ],
+      "release": {
+        "verdict": "pass",
+        "spellings": 2,
+        "mismatch": []
+      },
+      "upstream": {
+        "verdict": "pass",
+        "spellings": 2,
+        "mismatch": []
+      }
+    },
+    {
+      "case": "REAL-004",
+      "issue": "https://github.com/r1chardj0n3s/parse/issues/249",
+      "calls": [
+        "parse.parse('{:F}', '-2.5')",
+        "parse.parse('{:F}', '2.5')",
+        "parse.parse('{:f}', '-2.5')",
+        "parse.parse('{:f}', 'nan')",
+        "parse.parse('{:e}', 'nan')"
+      ],
+      "fixes": [
+        {
+          "run_id": "20261014-155129-gh-parse-249",
+          "arm": "real-16088da",
+          "seed": "1",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 5,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261014-155557-gh-parse-249",
+          "arm": "real-16088da",
+          "seed": "2",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 5,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261014-160214-gh-parse-249",
+          "arm": "real-16088da",
+          "seed": "3",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 5,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261015-131339-gh-parse-249",
+          "arm": "fixwidth-7f15556",
+          "seed": "1",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 5,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261015-132340-gh-parse-249",
+          "arm": "fixwidth-7f15556",
+          "seed": "3",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 5,
+          "mismatch": []
+        }
+      ],
+      "release": {
+        "verdict": "pass",
+        "spellings": 5,
+        "mismatch": []
+      },
+      "upstream": {
+        "verdict": "pass",
+        "spellings": 5,
+        "mismatch": []
+      }
+    },
+    {
+      "case": "REAL-005",
+      "issue": "https://github.com/more-itertools/more-itertools/issues/1304",
+      "calls": [
+        "chunked(rows, chunk_size)",
+        "ichunked(rows, chunk_size)"
+      ],
+      "fixes": [
+        {
+          "run_id": "20261014-161314-gh-more-itertools-1304",
+          "arm": "real-16088da",
+          "seed": "1",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 2,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261014-161718-gh-more-itertools-1304",
+          "arm": "real-16088da",
+          "seed": "2",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 2,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261015-031932-gh-more-itertools-1304",
+          "arm": "real-16088da",
+          "seed": "3",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 2,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261015-133247-gh-more-itertools-1304",
+          "arm": "fixwidth-7f15556",
+          "seed": "1",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 2,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261015-133653-gh-more-itertools-1304",
+          "arm": "fixwidth-7f15556",
+          "seed": "2",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 2,
+          "mismatch": []
+        },
+        {
+          "run_id": "20261015-134133-gh-more-itertools-1304",
+          "arm": "fixwidth-7f15556",
+          "seed": "3",
+          "upstream_test": true,
+          "verdict": "pass",
+          "spellings": 2,
+          "mismatch": []
+        }
+      ],
+      "release": {
+        "verdict": "pass",
+        "spellings": 1,
+        "mismatch": []
+      },
+      "upstream": {
+        "verdict": "pass",
+        "spellings": 2,
+        "mismatch": []
+      }
+    }
+  ]
+}

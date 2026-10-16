@@ -513,6 +513,8 @@ export interface FixWidth {
     arm: string;
     bugs: { bug: string; hidden: Tally; second: Tally; rejected: number; validated: number }[];
   }[];
+  /** `debugassist eval replay-variants`: the call-variation check on every earlier fix and the upstream fixes */
+  replay: { narrow: Tally; good: Tally; upstream: Tally } | null;
 }
 
 /** The fix-width experiments: prompt rules (fixwidth-*, reverted) and a second reproduction (repro2-*, callers-*,
@@ -565,6 +567,7 @@ export function fixWidth(): FixWidth | null {
       before: count(before.filter((r) => r.bug === "REAL-001")),
       after: count(after.filter((r) => r.bug === "REAL-001")),
     },
+    replay: variantsReplay(),
     checks: [
       ["repro2-", "repro2"],
       ["callers-", "repro2"],
@@ -573,5 +576,29 @@ export function fixWidth(): FixWidth | null {
       const a = latestArm(p);
       return a ? [check(a, field)] : [];
     }),
+  };
+}
+
+interface ReplayFix {
+  upstream_test: boolean;
+  verdict: string;
+}
+
+/** Totals of the call-variation replay in the latest report: narrow fixes (upstream's test fails) it rejects,
+ * good ones (the test passes) it passes, and upstream's own fixes it passes. */
+function variantsReplay(): FixWidth["replay"] {
+  const f = path.join(REPORTS, latestReport(), "variants-replay.json");
+  if (!fs.existsSync(f)) return null;
+  const data = JSON.parse(fs.readFileSync(f, "utf8")) as {
+    cases: { upstream?: { verdict: string }; fixes?: ReplayFix[]; calls?: string[] }[];
+  };
+  const cs = data.cases.filter((c) => (c.calls ?? []).length);
+  const fx = cs.flatMap((c) => c.fixes ?? []).filter((x) => x.verdict === "pass" || x.verdict === "fail");
+  const narrow = fx.filter((x) => !x.upstream_test);
+  const good = fx.filter((x) => x.upstream_test);
+  return {
+    narrow: { pass: narrow.filter((x) => x.verdict === "fail").length, ran: narrow.length },
+    good: { pass: good.filter((x) => x.verdict === "pass").length, ran: good.length },
+    upstream: { pass: cs.filter((c) => c.upstream?.verdict === "pass").length, ran: cs.length },
   };
 }

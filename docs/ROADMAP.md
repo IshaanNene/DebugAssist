@@ -201,11 +201,14 @@ token comparison, Quickstart.
     upstream's. Arm `variants-4b1325c`: 4 fixes sent back; validated 1/3 (was 3/3, all narrow), that one handles
     keywords; upstream's test still 0/3 (`__wrapped__`, cache statistics). The first check here that changes what
     ships: a narrow fix is no longer reported as validated.
-  - Next, if more real bugs need it: spell library-function calls too (`inspect.signature` at run time — the other
-    four real reports call library functions, so this check does not apply to them), and compare introspection
-    attributes (`__wrapped__`, `__name__`, `__doc__`) between class and instance access. Then decide whether to turn
-    it on: it lowers "validated" by refusing narrow fixes, which is the point, and costs extra attempts (about
-    $0.06 a run on REAL-001).
+  - *Done 2026-10-16:* library calls spelled from their run-time signatures, REPL sessions read, blocks as one
+    session — now applies to all five real reports. `debugassist eval replay-variants` (no model): upstream's fix
+    passes on all five; 20/20 earlier fixes that upstream's test passes pass the check (no false alarm); 12/14 it
+    fails are rejected.
+  - Next: compare introspection attributes (`__wrapped__`, `__name__`, `__doc__`) between class and instance access
+    (the two narrow fixes it misses); then decide whether to turn it on — it lowers "validated" by refusing narrow
+    fixes, which is the point, and costs extra attempts (about $0.06 a run on REAL-001). A TypeScript version for
+    the catalog would need its own parser.
 - Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
 - The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
 
