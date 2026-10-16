@@ -142,8 +142,8 @@ const FEATURES: { title: string; body: string; art: ReactNode }[] = [
     art: (
       <div className="space-y-2.5">
         <div className={`${slab} inline-block bg-[#f6f87e]`}>label · debugassist</div>
-        <div className={`${slab} ml-6`}>comment · root cause, where, since when</div>
-        <div className={`${slab} ml-12`}>draft PR · debugassist/fix-…</div>
+        <div className={`${slab} ml-6`}>comment · root cause</div>
+        <div className={`${slab} ml-12`}>draft PR · debugassist/…</div>
       </div>
     ),
   },
