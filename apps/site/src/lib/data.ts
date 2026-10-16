@@ -602,3 +602,41 @@ function variantsReplay(): FixWidth["replay"] {
     upstream: { pass: cs.filter((c) => c.upstream?.verdict === "pass").length, ran: cs.length },
   };
 }
+
+export interface BisectCase {
+  case: string;
+  issue: string;
+  tests: number;
+  found: number;
+  commit: string;
+  subject: string;
+  good: string;
+  steps: number;
+  rcaAgrees: number;
+  result: string;
+}
+
+/** `debugassist eval replay-bisect` in the latest report: per real case, how many earlier reproduction tests
+ * bisected to a commit, and to which. */
+export function bisectReplay(): BisectCase[] {
+  const f = path.join(REPORTS, latestReport(), "bisect-replay.json");
+  if (!fs.existsSync(f)) return [];
+  type Run = { result?: string; first_bad?: string; subject?: string; good?: string; steps?: number; agrees_with_rca?: boolean };
+  const data = JSON.parse(fs.readFileSync(f, "utf8")) as { cases: { case: string; issue: string; runs: Run[] }[] };
+  return data.cases.map((c) => {
+    const runs = c.runs.filter((r) => r.result && r.result !== "could not apply");
+    const found = runs.filter((r) => r.result === "found");
+    return {
+      case: c.case,
+      issue: c.issue,
+      tests: runs.length,
+      found: found.length,
+      commit: found[0]?.first_bad ?? "",
+      subject: found[0]?.subject ?? "",
+      good: found[0]?.good ?? "",
+      steps: found[0]?.steps ?? 0,
+      rcaAgrees: found.filter((r) => r.agrees_with_rca === true).length,
+      result: found.length ? "found" : (runs[0]?.result ?? ""),
+    };
+  });
+}

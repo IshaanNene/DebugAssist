@@ -10,6 +10,7 @@ import {
   deciderReplay,
   facts,
   featuredRun,
+  bisectReplay,
   fixWidth,
   realBugs,
   results,
@@ -25,6 +26,7 @@ export default function Home() {
   const replay = deciderReplay();
   const reals = realBugs();
   const fw = fixWidth();
+  const bis = bisectReplay();
   const f = facts();
   const run = featuredRun(data);
   const latest = data.arms[data.arms.length - 1];
@@ -399,6 +401,31 @@ export default function Home() {
                   </tbody>
                 </table>
               </div>
+              {bis.length > 0 && (
+                <div className="mt-8">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">
+                    Proving the culprit commit · git bisect with the agent&apos;s test
+                  </div>
+                  <p className="mt-2 max-w-[80ch] text-[14px] leading-[1.55] text-t2">
+                    The RCA names the commit that introduced a bug by reading diffs. With bisect on, the validated
+                    reproduction test is also run back through history — earlier releases until it passes, then git
+                    bisect — no model. Replayed on {bis.reduce((n, b) => n + b.tests, 0)} earlier tests:
+                  </p>
+                  <ul className="mt-2 max-w-[80ch] space-y-1 text-[13.5px] leading-[1.5] text-t3">
+                    {bis.map((b) => (
+                      <li key={b.case}>
+                        <a className="text-t1 underline underline-offset-2" href={b.issue}>
+                          {b.issue.replace("https://github.com/", "").replace("/issues/", "#")}
+                        </a>{" "}
+                        —{" "}
+                        {b.found
+                          ? `bisected to ${b.commit} “${b.subject}” in ${b.found}/${b.tests} runs (last good ${b.good}, ${b.steps} steps)${b.rcaAgrees < b.found ? "; the RCA had named another commit" : ""}`
+                          : "no earlier release in its history passes the test"}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {fw && fw.checks.length === 3 && (
                 <div className="mt-8">
                   <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">

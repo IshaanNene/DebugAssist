@@ -120,6 +120,18 @@ The misses on real code were fixes as narrow as the report. Asking a model for w
 
 **Re-spelling the report's calls mechanically stopped narrow fixes shipping as validated — but not the miss.** With no model at all (`DA_CALL_VARIANTS=1`), the report's Python calls are rewritten the other ways a caller can make them — `Example.value(self=example, number=3)`, `example.value(number=3)` — and with the fix every spelling must behave like the reported one. Replayed on every earlier fix of the five real bugs (`debugassist eval replay-variants`; library calls such as `ichunked(rows, 0)` or `parse.parse("{:F}", "-2.5")` are spelled too, from their run-time signatures), and comparing class and instance access on `__wrapped__`, `__name__` and `__doc__` as plain methods do, it rejects all 14 fixes upstream's test fails, passes all 20 it passes, and passes upstream's own fix on all five. (The attribute comparison was added after reading what upstream's cachetools#435 test asserts, and only that report defines methods, so its no-false-alarm evidence is one upstream fix; no live run with it yet.) Live, three runs: it sent back 4 fixes; only one run still validated, and that fix handles keyword calls — upstream's test went from 10 failing cases to 5, failing on what spellings cannot test (`__wrapped__`, cache statistics). Upstream's test: still 0/3. Runs: `variants-4b1325c`.
 
+### Proving the culprit commit
+
+An RCA names the commit that introduced the bug by reading diffs. With `DA_BISECT=1` the pipeline also *runs* it: once a fix is validated, its reproduction test goes back through history — earlier release tags until it passes, then `git bisect` — with no model. A commit counts as bad only when the test fails the way it does on the release (an import error on old code is skipped, not blamed), and when the whole test file fails on every earlier release, as an agent's test that also asserts the fix often does, each failing case is bisected on its own. Replayed on every earlier validated real-bug run (`debugassist eval replay-bisect`, 30 tests):
+
+| Issue | Result | |
+|---|---|---|
+| [python-semver#484](https://github.com/python-semver/python-semver/issues/484) | **bisected to `d8813b6`** — "Improve bump_prerelease to always get a newer version (#462)", the change the report blames; last good 3.0.4, 4 steps, 3/3 runs | the RCA named a later commit to the same function each time (#472) |
+| cachetools#435 | no good release in this history | broken differently on every 7.x release; its last good release (6.2.0) is on another branch |
+| cachetools#440, parse#249, more-itertools#1304 | no good release | the test fails on every earlier release tried |
+
+<sub>Off by default; the PR body gets a "Bisected:" line when it finds one. The catalog is not replayed: each injected release is its last good one plus a single commit.</sub>
+
 ## ⚠️ Limitations
 
 Read the numbers above with these in mind:
@@ -333,7 +345,7 @@ Agents and the LLM decider use any OpenAI-compatible API; two providers are inte
 
 Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Done: P0–P14 (decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness, cross-repo hand-off), P16's Langfuse integration and P17's public site; a three-seed run of the catalog with a fix round and a Clef-vs-LLM ablation; a clone that runs every test and rebuilds the report without the private repo; five real open-source bugs; and four attempts to widen narrow fixes. Measured and parked, off by default: P15's context-engineering switches and the model-based fix-width checks ([parked](docs/ROADMAP.md#parked-2026-10-14)).
 
-**Next** ([roadmap](docs/ROADMAP.md)): a live run of the call-variation check with all its parts, and more real bugs — other languages, larger repos, reports that define or decorate methods — to test it on code it was not designed from; then decide whether to turn it on · prove or rework Clef (D01 triage and D14 test tier first) · LiteLLM and local models. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
+**Next** ([roadmap](docs/ROADMAP.md)): live runs of the call-variation check with all its parts and of the bisect proof, and more real bugs — other languages, larger repos, reports that define or decorate methods — to test it on code it was not designed from; then decide whether to turn it on · prove or rework Clef (D01 triage and D14 test tier first) · LiteLLM and local models. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
 
 <br>
 

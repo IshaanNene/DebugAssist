@@ -7,7 +7,7 @@
 | P13 Evaluation harness and ablations | ✅ done | 2026-10-07 |
 | P14 Cross-repo hand-off · fix quality · P15 context engineering · P16 Langfuse · P17 site | ✅ done / measured | 2026-10-10 |
 | Three-seed full run · fix round · Clef vs no-Clef ablation · cloneable repo | ✅ done | 2026-10-11 → 14 |
-| Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction, callers check, call variations (off) | ✅ done | 2026-10-14 → 16 |
+| Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction, callers check, call variations (off) · bisect proof (off) | ✅ done | 2026-10-14 → 16 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
 The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
@@ -342,6 +342,20 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Docker Desktop here has no host networking, so the runtime container joins the compose network and uses service names; links shown to people stay on localhost.
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
+
+## Bisect proof (2026-10-16) — built, replayed, off by default
+
+- `DA_BISECT=1` (eval config `no-clef-bisect`): `pipeline/bisect.py` runs the validated reproduction test back
+  through history after validation — release tags at doubling distances until it passes, then `git bisect`; a
+  commit is bad only with an exception the release run also raised, other failures are skipped; when the whole file
+  never passes, each failing pytest case alone (`prove_by_case`). The worktree is restored (patch saved, nothing
+  untracked deleted). State `bisect`, a "Bisected:" line in the PR body, eval columns `bisect`, `bisect_commit`,
+  `bisect_agrees` (against the RCA's suspect). Tests: `test_bisect.py` (toy repos: found, narrowed, no good
+  release, another exception skipped, by case).
+- `debugassist eval replay-bisect [--cases]` (`evals/bisect_replay.py`): 30 earlier tests (3 more not applied).
+  semver#484 → `d8813b6` (#462) in 3/3, last good 3.0.4, 4 steps, through one case each time; the RCA named #472.
+  The other four: no good release in their history.
+- On the way: iCloud had evicted 71 tracked files and much of `.venv` (tools hung); restored from git and rebuilt.
 
 ## Introspection comparison (2026-10-16)
 
