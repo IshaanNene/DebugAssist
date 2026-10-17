@@ -54,7 +54,7 @@ def _no_ambient_credentials(request: pytest.FixtureRequest, monkeypatch: pytest.
     from debugassist.pipeline import app_cli
 
     app_dir = request.getfixturevalue("tmp_path") / "app"
-    for name in ("QUEUE", "SEEN", "LOCK", "METRICS", "OUTCOMES", "REVIEWS"):
+    for name in ("QUEUE", "SEEN", "LOCK", "METRICS", "OUTCOMES", "REVIEWS", "CI_QUEUE"):
         monkeypatch.setattr(app_cli, name, app_dir / getattr(app_cli, name).name)
     get_settings.cache_clear()
     request.addfinalizer(get_settings.cache_clear)

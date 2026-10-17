@@ -424,3 +424,31 @@ def test_a_trusted_review_comment_is_queued_and_a_strangers_is_not(
         settings_mod.get_settings.cache_clear()
     [f] = list(app_cli.REVIEWS.glob("*.json"))
     assert json.loads(f.read_text())["instruction"] == "keep the old signature"
+
+
+def test_a_failed_default_branch_check_is_queued(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """ROADMAP-100 074, at the webhook."""
+    import hashlib
+    import hmac
+
+    from debugassist.core import settings as settings_mod
+    from debugassist.pipeline import app_cli
+
+    monkeypatch.setenv("GITHUB_APP_WEBHOOK_SECRET", "s3cret")
+    settings_mod.get_settings.cache_clear()
+
+    def post(branch: str, delivery: str) -> Any:
+        body = json.dumps({"action": "completed", "check_run": {"id": 77, "conclusion": "failure",
+                           "check_suite": {"head_branch": branch}},
+                           "repository": {"full_name": "acme/widgets", "default_branch": "main"}}).encode()  # fmt: skip
+        sig = "sha256=" + hmac.new(b"s3cret", body, hashlib.sha256).hexdigest()
+        h = {"X-Hub-Signature-256": sig, "X-GitHub-Event": "check_run", "X-GitHub-Delivery": delivery}
+        return TestClient(app_module.app).post("/github/webhook", content=body, headers=h).json()
+
+    try:
+        assert post("feature/x", D1)["queued"] is False
+        assert post("main", D2) == {"queued": True, "ci": "GHCI:acme/widgets@77"}
+    finally:
+        settings_mod.get_settings.cache_clear()
+    [f] = list(app_cli.CI_QUEUE.glob("*.json"))
+    assert json.loads(f.read_text()) == {"ref": "GHCI:acme/widgets@77"}

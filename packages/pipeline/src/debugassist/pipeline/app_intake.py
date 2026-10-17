@@ -10,6 +10,7 @@ installation token goes to git through its environment (`http.extraheader`), nev
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
 
@@ -23,6 +24,18 @@ from debugassist.pipeline.state import Issue
 
 TARGETS = ROOT / "targets"
 _REF = re.compile(r"^GHA:([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)#(\d+)$", re.I)
+_CI_REF = re.compile(r"^GHCI:([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(\d+)$", re.I)
+
+
+def parse_ci_ref(ref_: str) -> tuple[str, int]:
+    m = _CI_REF.match(ref_.strip())
+    if not m:
+        raise ValueError(f"not a CI failure reference: {ref_!r} (expected GHCI:owner/repo@<check run id>)")
+    return m.group(1), int(m.group(2))
+
+
+def ci_ref(repo: str, check_id: int) -> str:
+    return f"GHCI:{repo}@{check_id}"
 
 
 class NotOnboarded(RuntimeError):
@@ -71,13 +84,18 @@ def ensure_checkout(app: GitHubApp, repo: str) -> tuple[Path, str, str, dict[str
     return dest, sha, branch, cast(dict[str, Any], yaml.safe_load(cfg_file.read_text()) or {})
 
 
+def _component(cfg: Mapping[str, Any]) -> tuple[str, str]:
+    """(component, language) of the repository's pipeline.yaml: "." when declared, else its first component."""
+    comps = cast(dict[str, dict[str, Any]], cfg.get("components") or {})
+    component = "." if "." in comps else next(iter(comps), ".")
+    return component, str((comps.get(component) or {}).get("language") or "python")
+
+
 def ingest(ref_: str, app: GitHubApp) -> Issue:
     repo, number = parse_ref(ref_)
     gh = app.issue(repo, number)
     _, sha, branch, cfg = ensure_checkout(app, repo)
-    comps = cast(dict[str, dict[str, Any]], cfg.get("components") or {})
-    component = "." if "." in comps else next(iter(comps), ".")
-    language = str((comps.get(component) or {}).get("language") or "python")
+    component, language = _component(cfg)
     info = app.repo_info(repo)
     about = str(info.get("description") or "").strip()
     version = f"app-{sha}"
@@ -102,5 +120,39 @@ def ingest(ref_: str, app: GitHubApp) -> Issue:
         about=f"{repo}{f', {about}' if about else ''} (the default branch, {branch}, at {sha})",
         base_branch=branch,
         app_issue=number,
+        run_budget_usd=float(cfg["run_budget_usd"]) if cfg.get("run_budget_usd") is not None else None,
+    )
+
+
+def ingest_ci(ref_: str, app: GitHubApp) -> Issue:
+    """A failed check on the default branch, as an issue to investigate (ROADMAP-100 074): the check's output is
+    the report; the fix is a draft PR against the default branch; there is no issue to comment on."""
+    repo, check_id = parse_ci_ref(ref_)
+    run = app.check_run(repo, check_id)
+    _, sha, branch, cfg = ensure_checkout(app, repo)
+    component, language = _component(cfg)
+    version = f"app-{sha}"
+    body = "\n\n".join(p for p in (run.title, run.summary, run.text) if p)[:8000]
+    moved = "" if not run.head_sha or run.head_sha.startswith(sha) else f" (it failed on {run.head_sha[:10]})"
+    return Issue(
+        source="github",
+        id=f"GHCI-{repo.replace('/', '-')}-{check_id}",
+        url=run.url,
+        title=f"CI failure: {run.name} ({run.conclusion})"[:160],
+        kind="bug_report",
+        app=repo.split("/")[1],
+        platform="ci",
+        version=version,
+        first_version=version,
+        last_version=version,
+        events=1,
+        repo=target_name(repo),
+        gh_repo=repo,
+        component=component,
+        language=language,
+        opened_at=run.completed_at,
+        report={"title": f"{run.name} failed", "body": body, "url": run.url, "filed_at": run.completed_at},
+        about=f"{repo} (the default branch, {branch}, at {sha}{moved}); a CI check failed there",
+        base_branch=branch,
         run_budget_usd=float(cfg["run_budget_usd"]) if cfg.get("run_budget_usd") is not None else None,
     )

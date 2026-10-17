@@ -46,10 +46,43 @@ class AppIssue:
     labels: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class CheckRun:
+    """A finished CI check (a check run), the input for a CI failure (ROADMAP-100 074)."""
+
+    repo: str
+    id: int
+    name: str
+    conclusion: str
+    head_sha: str
+    url: str
+    title: str
+    summary: str
+    text: str
+    completed_at: str
+
+
+def _check_run(repo: str, d: dict[str, Any]) -> CheckRun:
+    out = cast(dict[str, Any], d.get("output") or {})
+    return CheckRun(
+        repo=repo,
+        id=int(d["id"]),
+        name=str(d.get("name") or "check"),
+        conclusion=str(d.get("conclusion") or ""),
+        head_sha=str(d.get("head_sha") or ""),
+        url=str(d.get("html_url") or ""),
+        title=str(out.get("title") or ""),
+        summary=str(out.get("summary") or ""),
+        text=str(out.get("text") or ""),
+        completed_at=str(d.get("completed_at") or ""),
+    )
+
+
 class GitHubApp(Protocol):
     def installed_repos(self) -> list[str]: ...
     def labeled_issues(self, repo: str, label: str) -> list[AppIssue]: ...
     def issue(self, repo: str, number: int) -> AppIssue: ...
+    def check_run(self, repo: str, check_id: int) -> CheckRun: ...
     def comments(self, repo: str, number: int) -> list[str]: ...
     def repo_info(self, repo: str) -> dict[str, Any]: ...
     def clone_url(self, repo: str) -> str: ...
@@ -184,6 +217,9 @@ class GitHubAppLive:
     def issue(self, repo: str, number: int) -> AppIssue:
         return _issue(repo, cast(dict[str, Any], self._get(repo, f"/repos/{repo}/issues/{number}")))
 
+    def check_run(self, repo: str, check_id: int) -> CheckRun:
+        return _check_run(repo, cast(dict[str, Any], self._get(repo, f"/repos/{repo}/check-runs/{check_id}")))
+
     def comments(self, repo: str, number: int) -> list[str]:
         items = self._get_all(repo, f"/repos/{repo}/issues/{number}/comments")
         return [str(c.get("body") or "") for c in items]
@@ -272,6 +308,12 @@ class GitHubAppMock:
             if int(d["number"]) == number:
                 return _issue(repo, d)
         raise KeyError(f"{repo}#{number}")
+
+    def check_run(self, repo: str, check_id: int) -> CheckRun:
+        runs = cast(dict[str, dict[str, Any]], self._repo(repo).get("check_runs") or {})
+        if str(check_id) not in runs:
+            raise KeyError(f"{repo} check run {check_id}")
+        return _check_run(repo, {"id": check_id, **runs[str(check_id)]})
 
     def comments(self, repo: str, number: int) -> list[str]:
         return [

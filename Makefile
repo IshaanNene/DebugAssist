@@ -4,7 +4,7 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 PROFILES ?= core obs flags faults target sources
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
-.PHONY: help langfuse eval-full eval eval-report deploy api dashboard lint-skills pex runtime-image worker demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check coverage doctor up down ps logs clean clef-smoke
+.PHONY: help langfuse eval-full eval eval-report deploy api dashboard lint-skills pex runtime-image worker demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check coverage doctor mutate up down ps logs clean clef-smoke
 
 help:  ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -29,6 +29,9 @@ typecheck:  ## Pyright (strict)
 
 test:  ## Unit tests (mock mode)
 	uv run pytest
+
+mutate:  ## Mutation score of the reproduction rules (pipeline/proof.py) against their tests (~2 min)
+	uv run --no-sync python scripts/mutate.py packages/pipeline/src/debugassist/pipeline/proof.py packages/pipeline/tests/test_proof.py
 
 doctor:  ## Is this machine ready? Python, uv, Docker, submodules, .env key names, ports (changes nothing)
 	@uv run --no-sync python scripts/doctor.py
