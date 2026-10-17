@@ -207,3 +207,13 @@ def test_queue_jobs_are_json_never_pickle() -> None:
     assert (job.function, list(job.args)) == ("run_issue", ["GH-1", None, ["--llm", "mock"]])
     with pytest.raises(DeserializationError):  # a pickled job is rejected, never unpickled
         deserialize_job(pickle.dumps({"f": "run_issue"}), deserializer=worker.loads)
+
+
+def test_the_runtime_image_trusts_only_the_mounted_checkout() -> None:
+    """ROADMAP-100 008: no `safe.directory '*'` in the image; the launcher names the checkout."""
+    from debugassist.core.policy import ROOT
+
+    dockerfile = (ROOT / "infra" / "runtime" / "Dockerfile").read_text()
+    assert "safe.directory '*'" not in dockerfile and "safe.directory *" not in dockerfile
+    cmd = launcher.container_command("web-crash", "VIT-1001", [])
+    assert f"GIT_CONFIG_VALUE_0={ROOT}/*" in cmd and "GIT_CONFIG_KEY_0=safe.directory" in cmd
