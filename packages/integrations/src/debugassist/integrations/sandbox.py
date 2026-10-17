@@ -11,6 +11,7 @@ repository from the worktree.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import shlex
 import shutil
@@ -43,10 +44,47 @@ class Sandbox:
     repo_path: Path  # the target repo (submodule checkout)
     repo: str  # owner/name on GitHub
     language: str = "typescript"
+    # A disposable checkout to work in instead of the run's worktree (`pipeline.release.release_checkout`), and
+    # the run worktree's dependency dirs (node_modules, .venv, …) mounted into it at the same paths.
+    root: Path | None = None
+    shared: tuple[str, ...] = ()
 
     @property
     def worktree(self) -> Path:
+        return self.root or self.run_worktree
+
+    @property
+    def run_worktree(self) -> Path:
+        """The run's own worktree, where dependencies were installed."""
         return RUNS / self.run_id / "repo"
+
+    def checkout(self, root: Path) -> Sandbox:
+        """This sandbox, working in `root` (another checkout of the repository) with the run's dependencies."""
+        return dataclasses.replace(self, root=root, shared=tuple(self.dependency_dirs()))
+
+    def dependency_dirs(self) -> list[str]:
+        """The run worktree's ignored directories (installed dependencies, caches), relative to it. The worktree
+        is untrusted: a directory reached through a symlink would mount some other host path, so none is."""
+        wt = self.run_worktree
+        raw = hostgit.run(
+            wt, "status", "--porcelain=v1", "-z", "--ignored=matching", "--untracked-files=normal"
+        ).stdout
+        out: list[str] = []
+        for entry in raw.split("\0"):
+            rel = entry[3:].rstrip("/")
+            if not (entry.startswith("!! ") and entry.endswith("/") and rel and ".git" not in rel.split("/")):
+                continue
+            if (wt / rel).resolve() == wt.resolve() / rel and (wt / rel).is_dir():
+                out.append(rel)
+        return out
+
+    def mounts(self) -> list[str]:
+        """`docker run` volume flags for the shared dependency dirs (none for the run's own worktree)."""
+        out: list[str] = []
+        for rel in self.shared:
+            (self.worktree / rel).mkdir(parents=True, exist_ok=True)  # the mount point
+            out += ["-v", f"{self.run_worktree / rel}:/work/{rel}"]
+        return out
 
     def _git(self, *args: str, cwd: Path | None = None) -> str:
         out = hostgit.run(cwd or self.worktree, *args)
@@ -117,6 +155,7 @@ class Sandbox:
             "-v",
             f"{self.worktree}:/work",
             *self.git_mount(),
+            *self.mounts(),
             "-w",
             f"/work/{workdir}".rstrip("/."),
             "--network",

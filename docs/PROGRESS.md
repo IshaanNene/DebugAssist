@@ -671,7 +671,7 @@ only on their own bugs, so the grid kept showing them as failures. Still open: C
 
 ## Audit fixes (2026-10-16)
 
-From the engineering audit of `87a07bf`. Every item has a regression test; `make check`: 466 passed, 3 live
+From the engineering audit of `87a07bf`. Every item has a regression test; `make check`: 491 passed, 3 live
 skipped, also with dummy `GITHUB_TOKEN`, `GROQ_CLOUD_API`, `OPEN_ROUTER_API_KEY`, Cloudflare and Discord values
 exported.
 
@@ -696,6 +696,27 @@ exported.
 - **P2-12 poller**: comments and labeled issues read across pages; installations refreshed every 10 min; failed
   runs retried at 5 and 10 min, then a failure comment; webhook deliveries stay queued until their run ends; one
   repository's error no longer stops the poll.
+- **P3-16 crash-safe "on the release" checks**: `pipeline.release.release_checkout()` runs every check against
+  the release (failing-before, the fix contract, the second reproduction and its run with the fix) in a
+  disposable `git worktree add --detach` at the release tag next to the run's worktree, with the chosen paths
+  copied in as a patch (git reads them: a planted symlink is not followed) and the run's dependency dirs mounted
+  at the same paths (`Sandbox.checkout`, `--ignored=matching`, symlinked dirs refused). The run's worktree is
+  only read; a crash leaves the fix in place and the next check removes the stale checkout. No `git apply -R`
+  is left in `pipeline/`; a validate resumed after the fix was committed proves the same against the tag.
+- **P2-8 (second half)**: the reproduction test's passing-after run and the component suite run with only the
+  source change and the new tests; pre-existing tests, the harness and test-runner config (`.DebugAssist/`,
+  `conftest.py`, `pytest.ini`, `vitest|jest|playwright.config.*`, …), CI and lockfiles are as in the release.
+  Diff paths are classified (source, new test, modified test, harness, CI, lockfile; `Validation.changes`); a
+  protected class (`Validation.protected`) forces a draft PR in the ship gate and again at PR time, with a
+  warning in the PR body. A reproduction written into an existing test file therefore also gives a draft.
+- **P2-9 hermetic proof-path tests** (`packages/pipeline/tests/test_proof_path.py`): a toy repository (release
+  tag + injected bug, the run worktree a linked worktree as in a real run), a `FakeSandbox` that runs the suite
+  locally and scripted agents acting through the real workspace tools. Covers `fix`, `fix_contract_problem`,
+  `_run_on_release`, `validate` (crash mid-check, resumed after commit, edited existing test, harness changes,
+  second reproduction), `decide_retry`, `ship_gate`, `pr_and_notify`, and four graph runs through
+  `build_graph(...).compile()` with an in-memory checkpointer (validated fix → PR, non-reproducing test →
+  rca_only, weakened test → rejected, draft only; routed category → rca_only), ~0.6 s each. Line coverage from
+  these tests: `fix` 84%, `validate` 89%, `pr_and_notify` 98%, `release.py` 100%.
 - **P3-13, P3-19, P3-21, P3-22**: the uncalled egress guard removed and the README's safety claims corrected;
   commit trailers name the source (`Fixes: <issue url>` for GitHub issues); doc drift (LESSONS timeout,
   ARCHITECTURE, the API's "read-only"); `git status -z` parsing, renames included.
@@ -703,6 +724,9 @@ exported.
 **Not done / not verified**
 - The container flags and the corepack change have not been run under Docker here (no daemon in this session):
   `make demo-push-crash` or one live run is the check. If a setup step needs root it will now fail.
-- Open from the audit: P2-8's second half (run the suite with the release's tests restored), P2-9 hermetic
-  graph tests, P2-11 persistent MCP sessions, P3-15 per-run context, P3-16 crash-safe "on the release" checks,
-  P3-17, P3-18 migrations, P3-20, P3-23; supply-chain CI jobs and SHA-pinned actions; the red-team evaluation.
+- Release checkouts under Docker (2026-10-17, the real `Sandbox`, a run under `.data/runs`): a Python repo after
+  `uv sync` (the mounted `.venv` is found offline: failing-before fails with the assertion, the proof checkout's
+  suite passes) and `miniride-client` v1.6.1 after `pnpm install` (vitest and `pnpm test` run in the checkout
+  with the mounted `node_modules`); the fix stays in the worktree and no checkout is left. Not run: an E2E spec
+  built in a checkout, and a full `make demo-push-crash` (it writes into the shared running stack).
+- Open from the audit: P2-11 persistent MCP sessions, P3-15 per-run context, P3-17, P3-18 migrations, P3-20, P3-23; supply-chain CI jobs and SHA-pinned actions; the red-team evaluation.
