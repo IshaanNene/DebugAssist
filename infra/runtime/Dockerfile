@@ -8,8 +8,8 @@ ARG DOCKER_CLI_VERSION=28.5.1
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl \
  && curl -fsSL "https://download.docker.com/linux/static/stable/$(uname -m)/docker-${DOCKER_CLI_VERSION}.tgz" \
     | tar -xz -C /usr/local/bin --strip-components=1 docker/docker \
- && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/* \
- && git config --system --add safe.directory '*'
+ && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+# Git trusts only the mounted checkout: the launcher sets safe.directory for it (GIT_CONFIG_* in the environment).
 COPY ${PEX} /opt/debugassist.pex
 ENV DA_AGENT_TYPE=${AGENT_TYPE} PEX_ROOT=/tmp/.pex
 LABEL org.opencontainers.image.title="debugassist-runtime-${AGENT_TYPE}"

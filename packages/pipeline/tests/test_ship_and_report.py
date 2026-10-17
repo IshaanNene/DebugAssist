@@ -183,3 +183,30 @@ def test_the_reported_error_is_matched_by_type_and_pattern(title: str, output: s
     issue.kind, issue.title = "crash", title
     problem = nodes._repro_problem("pytest -q t.py", 1, output, issue)  # pyright: ignore[reportPrivateUsage]
     assert (problem is None) is ok, problem
+
+
+@pytest.mark.parametrize(
+    ("title", "body", "output", "ok"),
+    [  # ROADMAP-100 012: a wrong-value report needs a failing assertion, not an error in the test itself
+        ("Fare shows $0 for airport trips", "Expected about $40.", "E       assert 0 == 40", True),
+        (
+            "Fare shows $0 for airport trips",
+            "Expected about $40.",
+            "NameError: name 'fare' is not defined",
+            False,
+        ),
+        ("Fare shows $0 for airport trips", "", "AssertionError: expected 0 to equal 40", True),
+        (
+            "head(xs, 0) returns one item",
+            "TypeError raised when n=0",
+            "TypeError: bad n",
+            True,
+        ),  # names an error
+    ],
+)
+def test_a_wrong_value_report_needs_a_failing_assertion(title: str, body: str, output: str, ok: bool) -> None:
+    issue = _state().issue
+    assert issue
+    issue.kind, issue.title, issue.report = "bug_report", title, {"body": body}
+    problem = nodes._repro_problem("pytest -q t.py", 1, output, issue)  # pyright: ignore[reportPrivateUsage]
+    assert (problem is None) is ok, problem

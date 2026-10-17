@@ -172,6 +172,12 @@ def _stop_if_out_of_quota(r: LLMResult, state: RunState, node: str) -> None:
         )
 
 
+# How test runners report a failed assertion: pytest / unittest, vitest / jest / chai, node:assert, Go's testing.
+ASSERTION_FAILED = re.compile(
+    r"AssertionError|^E\s+assert\b|\bassert .* (==|!=|is|in) |Expected:|Received:|expected .+ to |"
+    r"AssertionError \[ERR_ASSERTION\]|^\s+\S+_test\.go:\d+: |--- FAIL: ",
+    re.M,
+)
 TIMEOUT_MARKERS = ("Test timed out", "Exceeded timeout of", "Timeout of", "Failed: Timeout >")
 
 
@@ -182,6 +188,19 @@ def _error_signature(issue: Issue) -> str | None:
         return None
     msg = re.sub(r"^[A-Za-z_.]*(Error|Exception)\b:?\s*", "", issue.title).strip()
     return msg or None
+
+
+REPORTED_ERROR = re.compile(r"\w*(Error|Exception)\b|Traceback|panic:|crash|throws?\b|raised?\b", re.I)
+
+
+def _wrong_value_report(issue: Issue) -> bool:
+    """A report of a wrong result rather than an error: not a crash, and neither its title nor its text names an
+    exception (a GitHub issue that pastes a traceback is a crash report whatever its kind)."""
+    if issue.kind == "crash":
+        return False
+    report = issue.report or {}
+    text = " ".join([issue.title, *(str(v) for v in report.values() if isinstance(v, str))])
+    return not REPORTED_ERROR.search(text)
 
 
 def _error_type(issue: Issue) -> str | None:
@@ -223,6 +242,13 @@ def _repro_problem(cmd: str, exit_code: int, output: str, issue: Issue) -> str |
         return (
             f"`{cmd}` fails only by timing out, which happens with or without a fix (fake timers never "
             f"advanced? an awaited promise that never settles?). Make it fail with the production error.\n{output[-600:]}"
+        )
+    if _wrong_value_report(issue) and not ASSERTION_FAILED.search(output):
+        # A wrong value, not a crash (ROADMAP-100 012): the test must fail on an assertion about the value, not on an
+        # error of its own (a NameError, a bad import, a typo) that would fail with or without the bug.
+        return (
+            f"`{cmd}` fails, but not on an assertion: the report is a wrong result, so the test must assert the "
+            f"correct value and fail on that assertion.\n{output[-600:]}"
         )
     pattern = error_pattern(issue)
     if pattern is not None and not pattern.search(output):

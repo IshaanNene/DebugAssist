@@ -137,7 +137,10 @@ def container_command(agent_type: str, issue_ref: str, run_args: list[str]) -> l
     t = agent_types.load(agent_type)
     # The host's DA_* settings (e.g. DA_MODE_GITHUB=mock) win over the mounted .env inside the container.
     passthrough = {k: v for k, v in os.environ.items() if k.startswith("DA_")}
-    values = {**SERVICE_ENV, "DEBUGASSIST_ROOT": str(ROOT), **passthrough}
+    # Git's ownership check, trusted for the mounted checkout only (ROADMAP-100 008) — the image used to trust every
+    # directory. Environment config counts as command-line config, which git honours for safe.directory.
+    trust = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "safe.directory", "GIT_CONFIG_VALUE_0": f"{ROOT}/*"}
+    values = {**SERVICE_ENV, "DEBUGASSIST_ROOT": str(ROOT), **trust, **passthrough}
     env = [a for k, v in values.items() for a in ("-e", f"{k}={v}")]
     return [
         "docker", "run", "--rm", "--network", NETWORK,

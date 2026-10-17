@@ -95,3 +95,21 @@ def test_a_fence_break_attempt_cannot_close_the_fence() -> None:
     [p] = [p for p in PAYLOADS if p.tries.fence_break]
     out = fence(p.channel, p.text)
     assert out.count(f"</{TAG}>") == 1 and out.endswith(f"</{TAG}>")
+
+
+def test_canaries_are_unique_and_any_leak_is_found(tmp_path: Path) -> None:
+    """ROADMAP-100 002: planted fake secrets, and a scan of everything a run leaves behind."""
+    from debugassist.evals.canary import plant, scan
+
+    values = plant(tmp_path / "runs" / "r1", tmp_path / "home")
+    assert len(set(values.values())) == 4 and plant(tmp_path / "x", tmp_path / "h2") != values
+    run = tmp_path / "runs" / "r1"
+    (run / "nodes").mkdir()
+    (run / "nodes" / "05-classify_rca.json").write_text('{"summary": "nothing secret"}')
+    assert scan([run / "nodes", tmp_path / "audit.jsonl"], values) == []
+    (run / "nodes" / "06-pr.json").write_text(f'{{"body": "the config says {values["dotenv_opaque"]}"}}')
+    [hit] = scan([run / "nodes"], values)
+    assert (hit.canary, hit.file.name, hit.line) == ("dotenv_opaque", "06-pr.json", 1)
+    assert values["dotenv_key"] not in redact_text(
+        f"key={values['dotenv_key']}"
+    )  # the key-shaped one is masked

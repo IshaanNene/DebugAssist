@@ -38,7 +38,8 @@ def _size(path: Path) -> int:
     return sum(f.lstat().st_size for f in path.rglob("*") if not f.is_symlink() and f.is_file())
 
 
-def prunable(older_than_days: int, runs: Path = RUNS, now: datetime | None = None) -> list[Prunable]:
+def prunable(older_than_days: int, runs: Path | None = None, now: datetime | None = None) -> list[Prunable]:
+    runs = runs or RUNS
     cutoff = (now or datetime.now(UTC)) - timedelta(days=older_than_days)
     out: list[Prunable] = []
     for run in sorted(p for p in runs.iterdir() if p.is_dir()) if runs.is_dir() else []:
@@ -56,7 +57,8 @@ def prunable(older_than_days: int, runs: Path = RUNS, now: datetime | None = Non
     return out
 
 
-def prune(items: list[Prunable], targets: Path = TARGETS) -> None:
+def prune(items: list[Prunable], targets: Path | None = None) -> None:
+    targets = targets or TARGETS
     for item in items:
         shutil.rmtree(item.run / "repo", ignore_errors=True)
     for repo in sorted(targets.iterdir()) if targets.is_dir() else []:
