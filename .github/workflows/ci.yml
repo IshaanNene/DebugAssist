@@ -77,9 +77,4 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: docker compose -f infra/docker-compose.yml --profile '*' config -q
       - name: every published port is loopback-only
-        run: |
-          docker compose -f infra/docker-compose.yml --profile '*' config --format json | python3 -c '
-          import json, sys
-          c = json.load(sys.stdin)
-          bad = [f"{n}:{p.get(\"published\")}" for n, s in c["services"].items() for p in s.get("ports", []) if p.get("host_ip") != "127.0.0.1"]
-          sys.exit(f"published on every interface: {bad}" if bad else 0)'
+        run: docker compose -f infra/docker-compose.yml --profile '*' config --format json | python3 infra/check_loopback.py
