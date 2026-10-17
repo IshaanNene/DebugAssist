@@ -26,6 +26,7 @@ from debugassist.decisions.state import CompactState
 from debugassist.integrations.chat import ChatMessage
 from debugassist.pipeline import collector, skills
 from debugassist.pipeline.deps import Deps
+from debugassist.pipeline.notify import notify
 from debugassist.pipeline.state import RunState
 
 DATA = ROOT / ".data"
@@ -183,8 +184,6 @@ async def route(state: RunState, deps: Deps, entry: dict[str, Any]) -> dict[str,
         out["proposal"] = propose_skill_update(state, deps, kind, comment)
         _append("prompt_log.jsonl", {"node": "fix", "run_id": state.run_id, "kind": kind, "comment": comment})
     else:
-        from debugassist.pipeline.nodes import _notify  # pyright: ignore[reportPrivateUsage]
-
         tr = state.triage
         msg = ChatMessage(
             to=f"@{tr.oncall}" if tr else "#debugassist",
@@ -194,5 +193,5 @@ async def route(state: RunState, deps: Deps, entry: dict[str, Any]) -> dict[str,
             links={"Issue": issue.url, "PR": state.pr.url if state.pr else ""},
             fields={"Rated": target, "Clef D18": f"{kind} (p={d.p:.2f})" if d.p is not None else kind},
         )
-        out["chat"] = _notify(deps, state.run_id, msg)
+        out["chat"] = notify(deps, state.run_id, msg)
     return out

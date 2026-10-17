@@ -39,7 +39,14 @@ CI = re.compile(r"^(\.github/|\.gitlab-ci\.yml$|\.circleci/|\.buildkite/|Jenkins
 # The repository's own harness config and the files that decide which tests run and how.
 HARNESS = re.compile(
     r"(^|/)(\.DebugAssist/|conftest\.py$|pytest\.ini$|tox\.ini$|noxfile\.py$|\.coveragerc$|"
-    r"(vitest|jest|playwright|karma)\.config\.[cm]?[jt]s$|vitest\.workspace\.[cm]?[jt]s$|\.mocharc\.)"
+    r"(vitest|jest|playwright|karma)\.config\.[cm]?[jt]s$|vitest\.workspace\.[cm]?[jt]s$|\.mocharc\.|"
+    r"pyproject\.toml$|setup\.cfg$|package\.json$)"  # [tool.pytest] / addopts, test scripts
+)
+# Added lines that turn tests off or narrow a run to a few: skip / xfail markers, `.only` and `.skip`, `xit`,
+# `fdescribe`, `t.Skip`. In a new test or in source (a decorator, a helper), they can hide a failing case.
+SKIP_MARKERS = re.compile(
+    r"pytest\.(mark\.)?(skip|skipif|xfail)\b|unittest\.(skip|expectedFailure)\b|@skip\b|"
+    r"\b(it|test|describe|suite)\.(only|skip|todo)\s*\(|\b[xf](it|test|describe)\s*\(|\bt\.Skip(f|Now)?\s*\("
 )
 
 
@@ -132,6 +139,28 @@ def classify_changes(worktree: Path, base: str) -> dict[str, list[str]]:
 def protected(classes: dict[str, list[str]]) -> list[str]:
     """`class: path` for each change that keeps a PR a flagged draft."""
     return [f"{c}: {p}" for c in PROTECTED for p in classes.get(c, [])]
+
+
+def skips(worktree: Path, base: str, classes: dict[str, list[str]]) -> list[str]:
+    """`skips_tests: path: line` for each added line in the source change or a new test that disables or
+    narrows tests (ROADMAP-100 task 016); modified tests are already protected as a whole."""
+    paths = [*classes.get("source", []), *classes.get("new_test", [])]
+    if not paths:
+        return []
+    diff = hostgit.run(worktree, "diff", "-U0", "--no-renames", base, "--", *paths).stdout
+    out: list[str] = []
+    current = ""
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            current = line[6:] if line.startswith("+++ b/") else line[4:]
+        elif line.startswith("+") and SKIP_MARKERS.search(line):
+            out.append(f"skips_tests: {current}: {line[1:].strip()[:120]}")
+    return out
+
+
+def flagged(worktree: Path, base: str, classes: dict[str, list[str]]) -> list[str]:
+    """Everything that keeps a PR a flagged draft: protected paths and added test skips."""
+    return [*protected(classes), *skips(worktree, base, classes)]
 
 
 def proof_paths(classes: dict[str, list[str]]) -> list[str]:

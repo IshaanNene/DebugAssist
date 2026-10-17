@@ -27,6 +27,7 @@ from debugassist.decisions.state import CompactState
 from debugassist.integrations.chat import ChatMessage
 from debugassist.pipeline import collector
 from debugassist.pipeline.deps import Deps
+from debugassist.pipeline.notify import notify
 from debugassist.pipeline.state import RunState, Watch
 
 DEPLOYS = ROOT / ".data" / "deploys.jsonl"
@@ -261,7 +262,6 @@ def _rates(w: Watch) -> str:
 
 
 def _chat(deps: Deps, state: RunState, level: str, title: str, text: str) -> str:
-    from debugassist.pipeline.nodes import _notify  # pyright: ignore[reportPrivateUsage]
 
     issue, tr = state.issue, state.triage
     assert issue
@@ -276,5 +276,5 @@ def _chat(deps: Deps, state: RunState, level: str, title: str, text: str) -> str
             "Issue": issue.url,
         },
     )
-    r = _notify(deps, state.run_id, msg)
+    r = notify(deps, state.run_id, msg)
     return f"chat: {r.get('mode')}"

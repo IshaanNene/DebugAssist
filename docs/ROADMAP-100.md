@@ -10,13 +10,13 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## A · Security and the sandbox boundary
 
-- [ ] **001** Prompt-injection red-team catalogue: ≥30 payloads (issue bodies, logs, commit messages, code comments)
+- [x] **001** Prompt-injection red-team catalogue: ≥30 payloads (issue bodies, logs, commit messages, code comments)
   as fixtures under `evals/redteam/`, each with the action it tries (escape, exfiltrate, ungated write).
 - [ ] **002** Canary secrets for the red team: unique values in a fake `.env`, `$HOME` and the App key path; a scorer
   that searches every LLM request, comment, PR body, ticket and trace of a run for them.
 - [ ] **003** $ D Red-team arm: run 001 against the live pipeline, three seeds; report escapes, canary leaks and
   ungated writes (target 0/0/0) under `evals/reports/`.
-- [ ] **004** Offline red-team checks that need no model: every payload's commands go through `check_command`, its
+- [x] **004** Offline red-team checks that need no model: every payload's commands go through `check_command`, its
   paths through `confine`/`walk_files`, its text through the untrusted fence — a test per payload.
 - [ ] **005** Per-run context instead of `os.environ` (audit P3-15): run id, mode and code repos passed explicitly
   to tools and MCP processes; two runs built in one process keep separate values (test).
@@ -40,7 +40,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **014** `test_one` reads its harness config from the release like `test`/`lint`/`setup` (audit: two sources);
   one reader for all of them.
 - [ ] **015** Validation records which checks ran with which command and config hash, stored on the attempt.
-- [ ] **016** A fix that deletes or skips existing tests (`skip`, `xfail`, `.only`) is flagged and forces a draft;
+- [x] **016** A fix that deletes or skips existing tests (`skip`, `xfail`, `.only`) is flagged and forces a draft;
   tests for each marker in Python, TypeScript and Go.
 - [ ] **017** The ship gate refuses `open_pr` when the diff touches more files than the fix plan's location set
   allows (a configurable slack); tests.
@@ -69,14 +69,14 @@ Tasks without a mark can be done and checked offline with `make check`.
   definition, so a new edge without a test fails.
 - [ ] **029** Flakiness guard: the suite runs three times in CI weekly with random order (`pytest-randomly`) and
   reports any test whose result changes.
-- [ ] **030** A test that every action in `writes.yaml` has a call site that goes through `PolicyGate` (static scan),
+- [x] **030** A test that every action in `writes.yaml` has a call site that goes through `PolicyGate` (static scan),
   and no call site writes without one.
 
 ## D · Architecture and code health
 
 - [ ] **031** Split `pipeline/nodes.py` (≈1,800 lines) into `pipeline/nodes/` with one module per node and the
   shared helpers in their own modules; public names unchanged.
-- [ ] **032** Remove the hidden import cycle: `postmerge` and `feedback` stop importing `nodes._notify`; a shared
+- [x] **032** Remove the hidden import cycle: `postmerge` and `feedback` stop importing `nodes._notify`; a shared
   `notify` module.
 - [ ] **033** Typed records for `FixPlan.location/strategy/tier` and `Validation.attempts` instead of dicts.
 - [ ] **034** Errors as typed records (`node`, `type`, `message`, `traceback`) instead of string pairs read by
@@ -112,7 +112,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **052** Counters for runs started, failed, retried and their cost, written per poll pass to `.data/app/metrics.json`
   and exposed on the API.
 - [ ] **053** An alert rule: failure ratio over the last N App runs above a threshold posts to chat (gated).
-- [ ] **054** An operations runbook in `docs/github-app.md`: start, stop, read logs, rerun, revoke the key.
+- [x] **054** An operations runbook in `docs/github-app.md`: start, stop, read logs, rerun, revoke the key.
 - [x] **055** `_extract` stops swallowing exceptions: they are logged and recorded on the result.
 - [ ] **056** Health endpoint that checks its dependencies (ledger DB, queue dir writable, App reachable) separately.
 - [ ] **057** Retention: run directories older than N days are pruned (state kept, worktrees and logs removed).
@@ -142,7 +142,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **073** A PR comment loop for App repositories (review comments → diff fixer), gated and draft-only.
 - [ ] **074** CI failures as input: a failed check run on a default branch becomes an issue-like input.
 - [ ] **075** Per-repository budgets in `pipeline.yaml` (and a global cap), enforced before a run starts.
-- [ ] **076** `debugassist app rerun GHA:owner/repo#n` that clears the seen entry and queues a run.
+- [x] **076** `debugassist app rerun GHA:owner/repo#n` that clears the seen entry and queues a run.
 - [ ] **077** A team catalog for real repositories: CODEOWNERS-based owner instead of MiniRide teams.
 - [ ] **078** Discord notifier tested against a recorded real webhook response (fixture), with rate-limit handling.
 - [ ] **079** Jira client retries and idempotency keys for comment and transition (a resumed run does not double-post).
@@ -166,7 +166,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **091** A guarantees table in the README: each promise links to the test that enforces it.
 - [ ] **092** A doc check in CI: stated limits in docs (timeouts, caps) are compared with the constants in code.
 - [ ] **093** Move the quickstart above the results in the README and split the 41 KB README into linked pages.
-- [ ] **094** `docs/THREAT-MODEL.md`: assets, actors (reporter, maintainer, model), trust boundaries, controls, tests.
+- [x] **094** `docs/THREAT-MODEL.md`: assets, actors (reporter, maintainer, model), trust boundaries, controls, tests.
 - [ ] **095** A contributor guide: workspace layout, adding a package, adding an MCP tool, adding a decision.
 - [ ] **096** `make doctor`: checks Python, uv, Docker, submodules, `.env` keys present (names only), ports free.
 - [ ] **097** Pre-commit hook for the loopback check and for secret-shaped strings in staged files.
@@ -180,3 +180,9 @@ Tasks without a mark can be done and checked offline with `make check`.
   start without a token), 021 (`make coverage` in CI: total ≥76%, `pipeline/` ≥74%; today 77% and 75%), 055,
   061 (`schema_version` 2 with a v1 upgrader), 068, 069 (atomic writes; one poller at a time), 070, 081.
   Not run here: the dashboard's typecheck and lint (Node tools hang on this machine; CI runs them).
+- 2026-10-17: 001, 004 (32 payloads in `evals/redteam/payloads.yaml`, each with the control that must stop it;
+  64 offline checks; only `container` waits for the live arm 003), 016 (added skip/xfail/`.only`/`t.Skip` lines and
+  `pyproject.toml`, `setup.cfg`, `package.json` changes force a flagged draft), 030 (a static scan; it found the
+  poller's "not onboarded" and "failed" comments posted without the gate, now gated, and the diff fixer's comment
+  not audited, now audited), 032 (`pipeline/notify.py`), 054 (Operations in `docs/github-app.md`), 076
+  (`debugassist app rerun`), 094 (`docs/THREAT-MODEL.md`).

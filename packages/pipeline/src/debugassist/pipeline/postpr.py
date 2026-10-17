@@ -198,6 +198,13 @@ def _push_and_comment(
     deps.gate.record(
         "github.push_branch", push_v, run_id=state.run_id, detail={"branch": pr.branch}, result=result
     )
+    deps.gate.record(
+        "github.comment",
+        comment_v,
+        run_id=state.run_id,
+        detail={"repo": issue.gh_repo, "pr": pr.number},
+        result={"applied": result["commented"]},
+    )
     return result
 
 
