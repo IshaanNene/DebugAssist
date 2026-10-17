@@ -233,6 +233,26 @@ def replay_bisect(
 
 
 @app.command()
+def latency(
+    runs_dir: Annotated[Path, typer.Option(help="directory of run directories")] = ROOT / ".data" / "runs",
+    since: Annotated[
+        str, typer.Option(help="only runs whose id starts at or after this (e.g. 20261015)")
+    ] = "",
+) -> None:
+    """p50 / p95 / max seconds per pipeline node across stored runs (where a run's time goes)."""
+    from debugassist.evals.latency import profile
+
+    files = sorted(f for f in runs_dir.glob("*/state.json") if f.parent.name >= since)
+    rows = profile(files)
+    if not rows:
+        typer.echo(f"no runs with timings under {runs_dir}")
+        return
+    typer.echo(f"{'node':<20}{'runs':>6}{'p50 s':>9}{'p95 s':>9}{'max s':>9}")
+    for r in rows:
+        typer.echo(f"{r['node']:<20}{r['runs']:>6}{r['p50_s']:>9}{r['p95_s']:>9}{r['max_s']:>9}")
+
+
+@app.command()
 def rescore(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]) -> None:
     """Recompute each run's score from its saved state with the current scorer (hidden-test results kept)."""
     import json

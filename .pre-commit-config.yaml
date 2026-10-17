@@ -19,6 +19,11 @@ repos:
         entry: .env files must not be committed
         language: fail
         files: (^|/)\.env$
+      - id: no-secrets
+        name: no credential-shaped strings
+        entry: uv run --no-sync python scripts/check_secrets.py
+        language: system
+        exclude: ^targets/
       - id: ruff-check
         name: ruff check
         entry: uv run ruff check --fix

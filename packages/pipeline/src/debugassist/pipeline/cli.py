@@ -265,6 +265,24 @@ def run(
     _summary(asyncio.run(main()))
 
 
+def prune(
+    older_than: Annotated[int, typer.Option(help="days")] = 14,
+    apply: Annotated[bool, typer.Option(help="delete; without it, only list")] = False,
+) -> None:
+    """Free disk: delete the worktrees of runs older than N days (their state, nodes and agent logs stay)."""
+    from debugassist.pipeline import retention
+
+    items = retention.prunable(older_than)
+    total = sum(i.bytes for i in items)
+    for i in items:
+        typer.echo(f"{i.run.name}  {i.bytes / 1e6:,.0f} MB")
+    typer.echo(
+        f"{len(items)} worktree(s), {total / 1e9:.2f} GB{'' if apply else ' — dry run; add --apply to delete'}"
+    )
+    if apply:
+        retention.prune(items)
+
+
 def watch(
     run_id: Annotated[str, typer.Argument(help="run id of a run that opened a PR")],
     min_sessions: Annotated[int, typer.Option(help="sessions needed after the deploy before deciding")] = (

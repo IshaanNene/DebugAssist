@@ -8,6 +8,7 @@ every write goes through the policy gate.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -1456,6 +1457,16 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
     v = state.validation or Validation()
     record: dict[str, Any] = {"attempt": fa.n, "tier": fa.tier, "tiers_tried": fa.tiers_tried}
     base = f"v{issue.last_version}"
+    # What this proof ran and with which config (ROADMAP-100 015): a reviewer, or a later run, can tell whether
+    # two validations are comparable without re-reading the harness.
+    record["harness"] = {
+        "config_sha256": hashlib.sha256(
+            json.dumps(_pipeline_yaml(sb.worktree, issue), sort_keys=True, default=str).encode()
+        ).hexdigest()[:16],
+        "from": base,
+        "commands": {k: str(comp[k]) for k in ("setup", "test", "lint") if comp.get(k)}
+        | ({"reproduction": str(fa.repro_run["command"])} if (fa.repro_run or {}).get("command") else {}),
+    }
     src = [f for f in fa.files if not is_test_path(f)]
     if not fa.repro_verified or not fa.repro:
         record.update(result="no reproduction test that fails on the release", repro_run=fa.repro_run)

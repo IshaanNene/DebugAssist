@@ -79,9 +79,9 @@ run again by the poll. With the webhook connected, removing and re-adding the la
 queued once: a repeated delivery id or body is dropped); with the poll alone, `debugassist app rerun
 GHA:owner/repo#123` queues it again.
 
-A failed run is retried twice, 5 and then 10 minutes later; after the third failure the issue gets a comment
+A failed run is retried twice, 5 and then 10 minutes later (`RETRY_BASE` = 300 s, doubling; `MAX_ATTEMPTS` = 3); after the third failure the issue gets a comment
 saying the analysis could not finish. Comments and labeled issues are read across all pages, and the list of
-installed repositories is refreshed every 10 minutes.
+installed repositories is refreshed every 10 minutes (`REPOS_TTL` = 600 s).
 
 Pull requests on an installed repository are always drafts: the policy's own `repos` list is the only place a
 ready-for-review PR can open, whatever the ship decision proposes.
