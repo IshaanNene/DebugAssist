@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -117,6 +117,49 @@ def flag_crash_correlation(fingerprint: str, flag: str) -> dict[str, Any]:
             "significant": pval < 0.01 and x1 >= 3,
         },
     )
+
+
+BUGDROP = env("BUGDROP_URL", "http://localhost:8200")
+
+
+def binomial_tail(k: int, n: int, p0: float) -> float:
+    """P(X >= k) for X ~ Binomial(n, p0): how surprising k exposed reports out of n are at rollout share p0."""
+    if n == 0 or k <= 0:
+        return 1.0
+    p0 = min(max(p0, 1e-9), 1 - 1e-9)
+    return min(1.0, sum(math.comb(n, i) * p0**i * (1 - p0) ** (n - i) for i in range(k, n + 1)))
+
+
+def report_flag_exposure(flag: str, reports: list[dict[str, Any]], rollout_pct: float) -> dict[str, Any]:
+    """Whether bug reports come disproportionately from users exposed to `flag` (ROADMAP-100 020).
+
+    A rider report has no crash group to split by exposure, but each report carries the flags its session had: if
+    the flag reaches 5% of sessions and 8 of 9 reports had it, the reports are concentrated in exposed sessions far
+    beyond chance (one-sided exact binomial test against the rollout share)."""
+    flags_of: list[dict[str, Any]] = [cast(dict[str, Any], r.get("flags") or {}) for r in reports]
+    with_flag = [f for f in flags_of if flag in f]
+    exposed = sum(1 for f in with_flag if f.get(flag) not in (False, "false", "off", None))
+    n = len(with_flag)
+    p = binomial_tail(exposed, n, rollout_pct / 100)
+    return {
+        "flag": flag,
+        "reports": n,
+        "exposed_reports": exposed,
+        "rollout_pct": rollout_pct,
+        "share_exposed": round(exposed / n, 4) if n else None,
+        "p_value": p,
+        "significant": p < 0.01 and exposed >= 3,
+    }
+
+
+@mcp.tool()
+def flag_report_correlation(app: str, flag: str, since: str | None = None) -> dict[str, Any]:
+    """Share of recent BugDrop reports whose session had the flag, against the flag's rollout (exact test)."""
+    reports = httpx.get(
+        f"{BUGDROP}/api/reports", params={"app_name": app, "since": since, "limit": 200}, timeout=15
+    ).json()
+    current = _rollout(_strategies(flag)) or 0
+    return with_evidence("flags", "flag_report_correlation", report_flag_exposure(flag, reports, current))
 
 
 def apply_rollout(

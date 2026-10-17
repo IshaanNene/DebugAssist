@@ -205,3 +205,36 @@ def test_log_window_centred_on_an_event() -> None:
     start, end = logging_._window(10, around="2026-10-04T08:41:50.372000+00:00")  # pyright: ignore[reportPrivateUsage]
     mid = 1791103310372000000
     assert int(end) - int(start) == 10 * 60 * 10**9 and abs((int(start) + int(end)) // 2 - mid) < 10**6
+
+
+def test_the_investigator_starts_runs_and_reports_them(tmp_path: Any, monkeypatch: Any) -> None:
+    """ROADMAP-100 080: a coding agent's view of a run — start it, find it, read the proof."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    from debugassist.mcp_servers import investigator as inv
+
+    fixture = _Path(__file__).parents[2] / "pipeline" / "tests" / "fixtures" / "run_state.json"
+    run = tmp_path / "runs" / "20261005-095731-vit-1001"
+    run.mkdir(parents=True)
+    (run / "state.json").write_text(fixture.read_text())
+    monkeypatch.setattr(inv, "RUNS", tmp_path / "runs")
+    monkeypatch.setattr(inv, "JOBS", tmp_path / "jobs")
+    spawned: list[tuple[str, str]] = []
+
+    def spawn(issue: str, llm: str, log: Any) -> int:
+        spawned.append((issue, llm))
+        return 4242
+
+    monkeypatch.setattr(inv, "_spawn", spawn)
+    monkeypatch.setattr(inv, "ROOT", tmp_path)
+
+    started = inv.investigate("VIT-1001")
+    assert started["started"] and started["pid"] == 4242 and spawned == [("VIT-1001", "mock")]
+    assert "error" in inv.investigate("VIT-1001; rm -rf /")  # not an issue reference
+    [row] = inv.runs("VIT-1001")["runs"]
+    rep = inv.report(row["run_id"])
+    state = _json.loads(fixture.read_text())
+    assert rep["root_cause"]["summary"] == state["rca"]["output"]["summary"]
+    assert rep["validation"]["passed"] is True and rep["validation"]["fails_on_release"]["exit_code"] != 0
+    assert inv.report("../etc") == {"error": "no run ../etc"}

@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import IO, Annotated, Any
 
 import typer
+from pydantic import BaseModel
 
 from debugassist.core import logs
 from debugassist.core.files import write_atomic
@@ -37,6 +38,9 @@ QUEUE = ROOT / ".data" / "app" / "queue"
 SEEN = ROOT / ".data" / "app" / "seen.json"
 LOCK = ROOT / ".data" / "app" / "poll.lock"
 METRICS = ROOT / ".data" / "app" / "metrics.json"
+RUNS_DIR = ROOT / ".data" / "runs"
+REVIEWS = ROOT / ".data" / "app" / "reviews"  # `@debugassist …` comments on the app's PRs, for the diff fixer
+TRUSTED = {"OWNER", "MEMBER", "COLLABORATOR"}  # who may ask for a revision (it spends the operator's credit)
 REFRESH = "refresh-installations"  # touched by the webhook on installation events
 OUTCOMES = ROOT / ".data" / "app" / "outcomes.json"  # the last ALERT_WINDOW runs: 1 failed, 0 done
 CLI = Path(sys.executable).parent / "debugassist"
@@ -108,6 +112,115 @@ def record_outcome(code: int, gate: PolicyGate, chat: Chat | None = None) -> boo
                    detail={"to": msg.to, "title": msg.title})  # fmt: skip
         logs.event("app", "alert", failed=failed, window=len(recent))
     return alerted
+
+
+class _User(BaseModel):
+    login: str = ""
+    type: str = "User"
+
+
+class _Comment(BaseModel):
+    body: str = ""
+    author_association: str = ""
+    user: _User = _User()
+
+
+class _Issue(BaseModel):
+    number: int = 0
+    pull_request: Any = None  # present only when the issue is a pull request
+
+
+class _Repo(BaseModel):
+    full_name: str = ""
+
+
+class IssueCommentEvent(BaseModel):
+    """The parts of GitHub's `issue_comment` webhook payload a review request needs."""
+
+    action: str = ""
+    issue: _Issue = _Issue()
+    comment: _Comment = _Comment()
+    repository: _Repo = _Repo()
+
+
+class ReviewRequest(BaseModel):
+    repo: str
+    pr: int
+    instruction: str
+    by: str = ""
+
+
+def review_request(payload: Any) -> ReviewRequest | None:
+    """An `@debugassist <instruction>` comment on one of the app's PRs from someone the repository trusts, as a
+    queue item (ROADMAP-100 073); None for every other comment."""
+    e = IssueCommentEvent.model_validate(payload)
+    body = e.comment.body.strip()
+    if e.action != "created" or e.issue.pull_request is None or not body.lower().startswith("@debugassist"):
+        return None
+    if e.comment.author_association not in TRUSTED or e.comment.user.type == "Bot":
+        return None
+    instruction = body[len("@debugassist") :].strip(" :,\n")
+    if not instruction:
+        return None
+    return ReviewRequest(
+        repo=e.repository.full_name, pr=e.issue.number, instruction=instruction[:500], by=e.comment.user.login
+    )
+
+
+def run_for_pr(repo: str, pr: int, runs: Path | None = None) -> str | None:
+    """The newest run that opened this PR."""
+    root = runs or RUNS_DIR
+    for d in sorted((p for p in root.iterdir() if p.is_dir()), reverse=True) if root.is_dir() else []:
+        try:
+            s = RunRef.model_validate_json((d / "state.json").read_text())
+        except (OSError, ValueError):
+            continue
+        if s.pr is not None and s.pr.number == pr and s.issue is not None and s.issue.gh_repo == repo:
+            return d.name
+    return None
+
+
+class _PRRef(BaseModel):
+    number: int = 0
+
+
+class _IssueRefState(BaseModel):
+    gh_repo: str = ""
+
+
+class RunRef(BaseModel):
+    """Just enough of a run's state to find the run that opened a PR, without validating the whole state."""
+
+    pr: _PRRef | None = None
+    issue: _IssueRefState | None = None
+
+
+def _spawn_fix(run_id: str, instruction: str) -> int:
+    return subprocess.run(
+        [str(CLI), "fix-diff", run_id, instruction], env=os.environ.copy(), check=False
+    ).returncode
+
+
+def review_pass(gate: PolicyGate, dry: bool = False) -> list[str]:
+    """Hand each queued review request to the diff fixer (which re-validates, pushes and comments through the
+    gate); returns what it did."""
+    done: list[str] = []
+    for f in sorted(REVIEWS.glob("*.json")) if REVIEWS.is_dir() else []:
+        r = ReviewRequest.model_validate_json(f.read_text())
+        repo, pr = r.repo, r.pr
+        run = run_for_pr(repo, pr) if gate.allowed_repo(repo) else None
+        if run is None:
+            done.append(f"{repo}#{pr}: no run of this app opened it")
+        elif dry:
+            done.append(f"{repo}#{pr}: would revise run {run}")
+            continue
+        else:
+            code = _spawn_fix(run, r.instruction)
+            count(reviews=1, review_errors=1 if code else 0)
+            logs.event("app", "review", pr=f"{repo}#{pr}", run=run, by=r.by, exit_code=code)
+            done.append(f"{repo}#{pr}: revised by run {run} (exit {code})")
+        f.unlink()
+    return done
 
 
 def poll_lock() -> IO[str] | None:
@@ -303,6 +416,8 @@ def poll(
                 return
             time.sleep(min(exc.wait_s, MAX_RATE_WAIT) + 1)
             continue
+        for line in review_pass(gate, dry=dry):
+            typer.echo(line)
         for repo, number, why in work:
             typer.echo(f"{repo}#{number} ({why})")
             try:

@@ -204,3 +204,82 @@ def test_a_failure_ratio_alert_goes_through_the_gate_at_most_hourly(
     clock[0] += app_cli.ALERT_EVERY
     app_cli.record_outcome(1, deny, inbox)
     assert len(inbox.inbox()) == 2  # denied by policy: nothing sent
+
+
+def _comment_event(
+    body: str, association: str = "MEMBER", pr: bool = True, user_type: str = "User"
+) -> dict[str, Any]:
+    return {
+        "action": "created",
+        "issue": {"number": 3, **({"pull_request": {"url": "u"}} if pr else {})},
+        "comment": {
+            "body": body,
+            "author_association": association,
+            "user": {"login": "maya", "type": user_type},
+        },
+        "repository": {"full_name": "acme/widgets"},
+    }
+
+
+@pytest.mark.parametrize(
+    ("event", "ok"),
+    [
+        (_comment_event("@debugassist use the clamp helper"), True),
+        (_comment_event("@DebugAssist: use the clamp helper", association="OWNER"), True),
+        (
+            _comment_event("@debugassist use the clamp helper", association="NONE"),
+            False,
+        ),  # a stranger: no credit
+        (_comment_event("@debugassist use the clamp helper", user_type="Bot"), False),
+        (_comment_event("@debugassist use the clamp helper", pr=False), False),  # an issue, not a PR
+        (_comment_event("looks good"), False),
+        (_comment_event("@debugassist"), False),  # nothing asked
+    ],
+)
+def test_who_may_ask_for_a_revision(event: dict[str, Any], ok: bool) -> None:
+    """ROADMAP-100 073."""
+    r = app_cli.review_request(event)
+    assert (r is not None) is ok
+    if r is not None:
+        assert (r.repo, r.pr, r.instruction, r.by) == ("acme/widgets", 3, "use the clamp helper", "maya")
+
+
+def test_a_review_request_reaches_the_diff_fixer_of_the_run_that_opened_the_pr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runs = tmp_path / "runs"
+    for rid, number in (("20261016-000000-a", 3), ("20261017-000000-b", 9)):
+        (runs / rid).mkdir(parents=True)
+        (runs / rid / "state.json").write_text(
+            json.dumps({"pr": {"number": number}, "issue": {"gh_repo": "acme/widgets"}})
+        )
+    monkeypatch.setattr(app_cli, "RUNS_DIR", runs)
+    assert (
+        app_cli.run_for_pr("acme/widgets", 3) == "20261016-000000-a"
+        and app_cli.run_for_pr("acme/x", 3) is None
+    )
+    fixes: list[tuple[str, str]] = []
+
+    def spawn_fix(run_id: str, instruction: str) -> int:
+        fixes.append((run_id, instruction))
+        return 0
+
+    monkeypatch.setattr(app_cli, "_spawn_fix", spawn_fix)
+    for pr in (3, 4):
+        r = app_cli.review_request(
+            {
+                **_comment_event("@debugassist use the clamp helper"),
+                "issue": {"number": pr, "pull_request": {}},
+            }
+        )
+        assert r is not None
+        app_cli.REVIEWS.mkdir(parents=True, exist_ok=True)
+        (app_cli.REVIEWS / f"r{pr}.json").write_text(r.model_dump_json())
+    gate = PolicyGate(Policy(repos=["acme/widgets"]), tmp_path / "audit.jsonl")
+    done = app_cli.review_pass(gate)
+    assert fixes == [("20261016-000000-a", "use the clamp helper")]
+    assert done == [
+        "acme/widgets#3: revised by run 20261016-000000-a (exit 0)",
+        "acme/widgets#4: no run of this app opened it",
+    ]
+    assert not list(app_cli.REVIEWS.glob("*.json"))

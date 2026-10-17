@@ -253,20 +253,42 @@ def mcp_connections(names: list[str], env: dict[str, str]) -> dict[str, Any]:
 
 
 async def open_mcp_tools(stack: AsyncExitStack, connections: dict[str, Any]) -> list[BaseTool]:
-    """The tools of each server over one session kept open on `stack`. Sessions are entered one after another
-    in the caller's task (anyio scopes must close in the task that opened them)."""
+    """The tools of each server over one session kept open until `stack` closes, the servers started together.
+
+    Each session is entered and left by its own holder task (anyio scopes must close in the task that opened
+    them), so the servers start concurrently — one start's time per agent, not one per server (ROADMAP-100
+    043). If any server fails to start, every session is closed and the first error is raised."""
     if not connections:
         return []
     client = MultiServerMCPClient(connections)
-    tools: list[BaseTool] = []
-    try:
-        for name in connections:
-            session = await stack.enter_async_context(client.session(name))
-            tools += await load_mcp_tools(session, server_name=name)
-    except BaseException:
-        await stack.aclose()
-        raise
-    return tools
+    stop = asyncio.Event()
+    loaded: dict[str, asyncio.Future[list[BaseTool]]] = {
+        name: asyncio.get_running_loop().create_future() for name in connections
+    }
+
+    async def hold(name: str) -> None:
+        try:
+            async with client.session(name) as session:
+                loaded[name].set_result(await load_mcp_tools(session, server_name=name))
+                await stop.wait()
+        except BaseException as exc:
+            if not loaded[name].done():
+                loaded[name].set_exception(exc)
+            elif not isinstance(exc, asyncio.CancelledError):
+                raise
+
+    holders = [asyncio.create_task(hold(name)) for name in connections]
+
+    async def close() -> None:
+        stop.set()
+        await asyncio.gather(*holders, return_exceptions=True)
+
+    results = await asyncio.gather(*loaded.values(), return_exceptions=True)
+    if failed := [r for r in results if isinstance(r, BaseException)]:
+        await close()
+        raise failed[0]
+    stack.push_async_callback(close)
+    return [t for r in results if not isinstance(r, BaseException) for t in r]
 
 
 def _text(content: Any) -> str:

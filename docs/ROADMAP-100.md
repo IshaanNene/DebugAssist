@@ -48,7 +48,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   (test with the toy repo from `test_proof_path.py`).
 - [x] **019** Idempotent `pr_and_notify`: a resumed run does not commit twice, push twice or post a second comment
   (test with recording fakes).
-- [ ] **020** Mitigation for rider reports (D11 abstains outside crash rates): a report-based signal and tests.
+- [x] **020** Mitigation for rider reports (D11 abstains outside crash rates): a report-based signal and tests.
 
 ## C · Testing
 
@@ -78,7 +78,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   shared helpers in their own modules; public names unchanged.
 - [x] **032** Remove the hidden import cycle: `postmerge` and `feedback` stop importing `nodes._notify`; a shared
   `notify` module.
-- [ ] **033** Typed records for `FixPlan.location/strategy/tier` and `Validation.attempts` instead of dicts.
+- [x] **033** Typed records for `FixPlan.location/strategy/tier` and `Validation.attempts` instead of dicts.
 - [x] **034** Errors as typed records (`node`, `type`, `message`, `traceback`) instead of string pairs read by
   index (`graph.py` reads `[-2]`).
 - [x] **035** A CI check that the count of `dict[str, Any]` and `pyright: ignore` in `pipeline/` only falls.
@@ -97,7 +97,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **041** Per-node latency profile: p50/p95 per node from `timings_ms` across stored runs, as a CLI command and
   a report section.
 - [x] **042** Tool-call latency in the trace summary: time spent in MCP, sandbox and model per run.
-- [ ] **043** Start an agent's MCP servers in parallel (one task owns all sessions) instead of one after another.
+- [x] **043** Start an agent's MCP servers in parallel (one task owns all sessions) instead of one after another.
 - [x] **044** Cache the collector's evidence per (issue, release) so a resumed or re-run issue does not refetch.
 - [x] **045** `api/data.runs` reads an index file instead of parsing up to 500 `state.json` files per request.
 - [ ] **046** A worker pool for the App poller with one run per repository at a time and idempotent run keys.
@@ -139,14 +139,14 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 - [ ] **071** G Create the App and run it on one consenting repository; record the first run's outcome.
 - [x] **072** Installation webhooks (`installation`, `installation_repositories`) refresh the repo map immediately.
-- [ ] **073** A PR comment loop for App repositories (review comments → diff fixer), gated and draft-only.
+- [x] **073** A PR comment loop for App repositories (review comments → diff fixer), gated and draft-only.
 - [ ] **074** CI failures as input: a failed check run on a default branch becomes an issue-like input.
 - [x] **075** Per-repository budgets in `pipeline.yaml` (and a global cap), enforced before a run starts.
 - [x] **076** `debugassist app rerun GHA:owner/repo#n` that clears the seen entry and queues a run.
 - [x] **077** A team catalog for real repositories: CODEOWNERS-based owner instead of MiniRide teams.
 - [x] **078** Discord notifier tested against a recorded real webhook response (fixture), with rate-limit handling.
 - [x] **079** Jira client retries and idempotency keys for comment and transition (a resumed run does not double-post).
-- [ ] **080** DebugAssist as an MCP server for coding agents (`investigate VIT-1001` → RCA and proof), mock mode first.
+- [x] **080** DebugAssist as an MCP server for coding agents (`investigate VIT-1001` → RCA and proof), mock mode first.
 
 ## I · Evaluation and research
 
@@ -241,3 +241,9 @@ Tasks without a mark can be done and checked offline with `make check`.
   non-additive change gets its own step). Partly done: 093 (the quickstart now comes before the results; the
   README is not yet split into pages). 064 not started: generating the dashboard's types needs the Node toolchain,
   which hangs on this machine, so it could not be verified here.
+- 2026-10-17: 020 (rider reports: an exact binomial test of how many reports had the flag against its rollout share
+  feeds D11, e.g. 8 of 9 at 5%), 033 (`PlanDecision` for D12–D14 and `AttemptRecord` for validation attempts;
+  `dict[str, Any]` in `pipeline/` 233 → 222, the ratchet locked there), 043 (an agent's MCP servers start together:
+  6 servers in 0.48 s against 2.14 s one after another, measured here), 073 (`@debugassist …` on one of the app's
+  PRs from an owner, member or collaborator reaches the diff fixer of the run that opened it), 080 (the
+  `investigator` MCP server — `investigate`, `runs`, `report` — and `docs/coding-agents.md`).

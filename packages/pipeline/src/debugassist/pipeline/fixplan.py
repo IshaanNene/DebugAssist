@@ -26,7 +26,7 @@ from debugassist.integrations.sandbox import Sandbox
 from debugassist.llm.workspace_tools import is_test_path
 from debugassist.pipeline import collector, e2e
 from debugassist.pipeline.deps import Deps
-from debugassist.pipeline.state import TIERS, FixPlan, Issue, RunState, Tier
+from debugassist.pipeline.state import TIERS, FixPlan, Issue, PlanDecision, RunState, Tier
 
 MAX_CANDIDATES = 80
 SOURCE_EXT = {"typescript": (".ts", ".tsx"), "python": (".py",), "go": (".go",)}
@@ -321,11 +321,11 @@ async def plan(
     ledgers.append(l14 or "")
     p = FixPlan(
         candidates=n,
-        location=loc,
+        location=PlanDecision.model_validate(loc),
         focus=focus,
         suspect_commits=commits,
-        strategy=strategy,
-        tier=tier,
+        strategy=PlanDecision.model_validate(strategy),
+        tier=PlanDecision.model_validate(tier),
         ladder=kept,
         captured_env=env,
         skip=skip or skip_tier,
@@ -343,8 +343,8 @@ def prompt_section(p: FixPlan) -> str:
             "Commits that touched it in the release that introduced the bug: "
             + "; ".join(f"{c['sha']} {c['subject']}" for c in p.suspect_commits[:3])
         )
-    strategy = p.strategy.get("choice")
-    if strategy and p.strategy.get("action") == "apply_strategy":
+    strategy = p.strategy.choice
+    if strategy and p.strategy.action == "apply_strategy":
         lines.append(f"Fix strategy: {str(strategy).replace('_', ' ')}")
     return "\n".join(lines) + ("\n" if lines else "")
 

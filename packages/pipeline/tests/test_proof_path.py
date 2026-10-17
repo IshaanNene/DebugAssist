@@ -29,6 +29,7 @@ from debugassist.integrations.sandbox import CommandResult
 from debugassist.llm.spec import LLMResult
 from debugassist.pipeline import graph, nodes, release
 from debugassist.pipeline.state import (
+    AttemptRecord,
     FixAttempt,
     FixPlan,
     ReproOutput,
@@ -499,7 +500,9 @@ def test_validate_after_the_fix_was_committed(toy: Toy) -> None:
     assert v.passing_after and v.passing_after.exit_code == 0 and v.suite and v.suite.exit_code == 0
     assert v.changes == {"source": ["lib.py"], "new_test": ["tests/test_repro.py"]} and not v.protected
     assert hostgit.run(toy.wt, "status", "--porcelain").stdout == ""  # validation wrote nothing
-    harness = v.attempts[-1]["harness"]  # ROADMAP-100 015: what the proof ran, and with which config
+    harness = v.attempts[-1].model_dump()[
+        "harness"
+    ]  # ROADMAP-100 015: what the proof ran, and with which config
     assert harness["from"] == "v1.0.0" and len(harness["config_sha256"]) == 16
     assert set(harness["commands"]) >= {"test", "reproduction"}
 
@@ -517,7 +520,7 @@ def test_an_existing_test_edited_to_pass_fails_validation_and_is_flagged(toy: To
     v: Validation = out["validation"]
     assert not v.passed and v.suite and "FAILED tests/test_lib.py" in v.suite.output_tail
     assert v.protected == ["modified_test: tests/test_lib.py"]
-    assert out["validation"].attempts[-1]["protected"] == v.protected
+    assert out["validation"].attempts[-1].model_dump()["protected"] == v.protected
 
 
 def test_a_harness_change_is_not_part_of_the_proof(toy: Toy) -> None:
@@ -552,19 +555,22 @@ def test_classification() -> None:
 def test_validate_without_a_reproduction_or_a_source_change(toy: Toy) -> None:
     fa = FixAttempt(n=1, repro_verified=False, repro_run={"exit_code": 0})
     out = asyncio.run(nodes.validate(_apply(toy.state, {"fix_attempts": [fa]}), toy.d()))
-    assert out["validation"].attempts[-1]["result"].startswith("no reproduction test")
+    assert out["validation"].attempts[-1].model_dump()["result"].startswith("no reproduction test")
     fa = FixAttempt(
         n=1, repro=ReproOutput.model_validate(REPRO_OUT), repro_verified=True, files=["tests/test_repro.py"]
     )
     out = asyncio.run(nodes.validate(_apply(toy.state, {"fix_attempts": [fa]}), toy.d()))
-    assert out["validation"].attempts[-1]["result"] == "no source change" and not out["validation"].passed
+    assert (
+        out["validation"].attempts[-1].model_dump()["result"] == "no source change"
+        and not out["validation"].passed
+    )
 
 
 def test_validate_holds_the_fix_to_a_second_reproduction(toy: Toy, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DA_SECOND_REPRO", "1")
     state = _fixed_attempt(toy)
     out = asyncio.run(nodes.validate(state, toy.d()))
-    rec = out["validation"].attempts[-1]["second_reproduction"]
+    rec = out["validation"].attempts[-1].model_dump()["second_reproduction"]
     assert out["validation"].passed and rec["result"] == "passes with the fix"
     assert toy.deps.agent.feedback["reproduce_check"] is None
     assert not (toy.wt / "tests" / "test_check.py").exists()  # a check, never part of the fix
@@ -589,7 +595,7 @@ def test_decide_retry(toy: Toy) -> None:
     d.agent_type["validation"]["max_attempts"] = 3
     toy.deps.engine.actions["D15"] = "retry"
     assert asyncio.run(nodes.decide_retry(state, d)) and toy.deps.engine.calls[-1] == "D15"
-    state.validation.attempts.append({"result": "no source change"})
+    state.validation.attempts.append(AttemptRecord(result="no source change"))
     assert asyncio.run(nodes.decide_retry(state, d))  # always worth another attempt
     d.agent_type["validation"]["max_attempts"] = 1
     assert not asyncio.run(nodes.decide_retry(state, d))  # the cap
@@ -701,7 +707,7 @@ def test_graph_non_reproducing_test_is_rca_only(toy: Toy, monkeypatch: pytest.Mo
     toy.deps.agent.script["reproduce"] = writes("tests/test_repro.py", PASSING, **REPRO_OUT)
     s = _graph_run(toy, monkeypatch)
     assert s.ship and s.ship.outcome == "rca_only" and s.pr is None and not toy.deps.github.prs
-    assert s.validation and s.validation.attempts[-1]["result"].startswith("no reproduction test")
+    assert s.validation and (s.validation.attempts[-1].result or "").startswith("no reproduction test")
 
 
 def test_graph_weakened_test_is_rejected(toy: Toy, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -710,7 +716,7 @@ def test_graph_weakened_test_is_rejected(toy: Toy, monkeypatch: pytest.MonkeyPat
     )
     s = _graph_run(toy, monkeypatch)
     assert s.validation and not s.validation.passed
-    assert "failing_before_problem" in s.validation.attempts[-1]
+    assert "failing_before_problem" in s.validation.attempts[-1].model_dump()
     assert s.ship and s.ship.outcome == "draft_pr"  # never a ready PR without the proof
     assert toy.deps.github.prs and toy.deps.github.prs[-1]["draft"]
     assert "Validation did not pass" in toy.deps.github.prs[-1]["body"]

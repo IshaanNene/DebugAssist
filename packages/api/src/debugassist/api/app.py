@@ -84,35 +84,13 @@ def _state(run_id: str) -> dict[str, Any]:
     return s
 
 
-@app.post("/github/webhook", status_code=202)
-async def github_webhook(request: Request) -> dict[str, Any]:
-    """GitHub App deliveries. Signature-checked (X-Hub-Signature-256 with GITHUB_APP_WEBHOOK_SECRET); an issue
-    `labeled` with the app's label is queued for `debugassist app poll`, everything else is acknowledged."""
-    from debugassist.core.settings import get_settings
-    from debugassist.integrations.github_app import verify_signature
-    from debugassist.pipeline.app_cli import QUEUE, REFRESH
+def _seen_delivery(request: Request, body: bytes) -> dict[str, Any] | None:
+    """None for a new delivery (now remembered); the reply for a repeated one.
 
-    s = get_settings()
-    if s.github_app_webhook_secret is None:
-        raise HTTPException(503, "GITHUB_APP_WEBHOOK_SECRET is not set")
-    body = await request.body()
-    if not verify_signature(
-        s.github_app_webhook_secret.get_secret_value(), body, request.headers.get("x-hub-signature-256")
-    ):
-        raise HTTPException(401, "bad signature")
-    event = request.headers.get("x-github-event", "")
-    payload = json.loads(body or b"{}")
-    if event in ("installation", "installation_repositories"):  # installed, removed, repositories changed
-        QUEUE.parent.mkdir(parents=True, exist_ok=True)
-        (QUEUE.parent / REFRESH).touch()  # the poll re-reads the installations before its next pass
-        return {"queued": False, "refresh": True}
-    if event != "issues" or payload.get("action") != "labeled":
-        return {"queued": False, "event": event}
-    if obj(payload.get("label")).get("name") != s.github_app_label:
-        return {"queued": False, "reason": "another label"}
-    repo, number = payload["repository"]["full_name"], int(payload["issue"]["number"])
-    # The signature covers the body, not the headers: the delivery id names a file, so it must be a GUID, and
-    # a body seen before is a replay (a real re-label changes `updated_at` and so the body) whatever its id.
+    The signature covers the body, not the headers: the delivery id names a file, so it must be a GUID, and a body
+    seen before is a replay (a real re-label changes `updated_at` and so the body) whatever its id."""
+    from debugassist.pipeline.app_cli import QUEUE
+
     try:
         delivery = str(uuid.UUID(request.headers.get("x-github-delivery") or ""))
     except ValueError:
@@ -124,6 +102,48 @@ async def github_webhook(request: Request) -> dict[str, Any]:
         return {"queued": False, "reason": "duplicate delivery"}
     for m in marks:
         m.touch()
+    return None
+
+
+@app.post("/github/webhook", status_code=202)
+async def github_webhook(request: Request) -> dict[str, Any]:
+    """GitHub App deliveries. Signature-checked (X-Hub-Signature-256 with GITHUB_APP_WEBHOOK_SECRET); an issue
+    `labeled` with the app's label is queued for `debugassist app poll`, everything else is acknowledged."""
+    from debugassist.core.settings import get_settings
+    from debugassist.integrations.github_app import verify_signature
+    from debugassist.pipeline.app_cli import QUEUE, REFRESH, REVIEWS, review_request
+
+    s = get_settings()
+    if s.github_app_webhook_secret is None:
+        raise HTTPException(503, "GITHUB_APP_WEBHOOK_SECRET is not set")
+    body = await request.body()
+    if not verify_signature(
+        s.github_app_webhook_secret.get_secret_value(), body, request.headers.get("x-hub-signature-256")
+    ):
+        raise HTTPException(401, "bad signature")
+    event = request.headers.get("x-github-event", "")
+    payload = json.loads(body or b"{}")
+    if event == "issue_comment":
+        review = review_request(payload)
+        if review is None:
+            return {"queued": False, "reason": "not a review request"}
+        if (dup := _seen_delivery(request, body)) is not None:
+            return dup
+        REVIEWS.mkdir(parents=True, exist_ok=True)
+        (REVIEWS / f"{uuid.uuid4().hex}.json").write_text(review.model_dump_json())
+        return {"queued": True, "review": f"{review.repo}#{review.pr}"}
+    if event in ("installation", "installation_repositories"):  # installed, removed, repositories changed
+        QUEUE.parent.mkdir(parents=True, exist_ok=True)
+        (QUEUE.parent / REFRESH).touch()  # the poll re-reads the installations before its next pass
+        return {"queued": False, "refresh": True}
+    if event != "issues" or payload.get("action") != "labeled":
+        return {"queued": False, "event": event}
+    if obj(payload.get("label")).get("name") != s.github_app_label:
+        return {"queued": False, "reason": "another label"}
+    repo, number = payload["repository"]["full_name"], int(payload["issue"]["number"])
+    if (dup := _seen_delivery(request, body)) is not None:
+        return dup
+    delivery = str(uuid.UUID(request.headers.get("x-github-delivery") or ""))
     QUEUE.mkdir(parents=True, exist_ok=True)
     (QUEUE / f"{delivery}.json").write_text(json.dumps({"repo": repo, "number": number}))
     return {"queued": True, "issue": f"{repo}#{number}"}

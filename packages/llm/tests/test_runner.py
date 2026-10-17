@@ -388,3 +388,25 @@ async def test_an_mcp_server_that_dies_mid_call_fails_the_call_not_the_run(tmp_p
         with pytest.raises(McpError, match="Connection closed"):
             await asyncio.wait_for(tools["die"].ainvoke({}), timeout=20)
         assert time.perf_counter() - t0 < 5  # failed at once, did not hang until the timeout
+
+
+async def test_servers_start_together_and_one_that_fails_closes_the_rest(tmp_path: Path) -> None:
+    """ROADMAP-100 043: concurrent starts; a server that cannot start is an error, not a half-open agent."""
+    import sys
+    from contextlib import AsyncExitStack
+
+    from debugassist.llm.runner import mcp_connections, open_mcp_tools
+
+    broken = tmp_path / "broken.py"
+    broken.write_text("raise SystemExit(3)\n")
+    conns: dict[str, Any] = {
+        **mcp_connections(["code-search"], {}),
+        "broken": {"command": sys.executable, "args": [str(broken)], "transport": "stdio", "env": {}},
+    }
+    stack = AsyncExitStack()
+    with pytest.raises(BaseException):  # noqa: B017 - the transport's own error for a server that exits at start
+        await open_mcp_tools(stack, conns)
+    await stack.aclose()
+    async with AsyncExitStack() as ok:
+        tools = await open_mcp_tools(ok, mcp_connections(["code-search", "git-history"], {}))
+        assert {"list_repos", "list_tags"} <= {t.name for t in tools}

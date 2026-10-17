@@ -118,8 +118,8 @@ def _summary(s: RunState) -> None:
     if s.fix_plan:
         fp = s.fix_plan
         typer.echo(
-            f"  plan      D12 {fp.location.get('action')} → {', '.join(fp.focus) or '-'} ({fp.candidates} candidates)"
-            f" · D13 {fp.strategy.get('choice')} ({fp.strategy.get('action')}) · D14 {fp.tier.get('choice')} ({fp.tier.get('action')}) → ladder {' → '.join(fp.ladder) or '-'}"
+            f"  plan      D12 {fp.location.action} → {', '.join(fp.focus) or '-'} ({fp.candidates} candidates)"
+            f" · D13 {fp.strategy.choice} ({fp.strategy.action}) · D14 {fp.tier.choice} ({fp.tier.action}) → ladder {' → '.join(fp.ladder) or '-'}"
             + (f" · skip: {fp.skip}" if fp.skip else "")
         )
         if fp.suspect_commits:
