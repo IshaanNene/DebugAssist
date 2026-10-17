@@ -248,7 +248,7 @@ def test_health_lists_each_dependency_and_app_metrics(
     monkeypatch.setattr(app_cli, "METRICS", tmp_path / "metrics.json")
     h = client.get("/api/health/deps").json()
     assert h["status"] == "ok" and h["runs_dir"] == "ok" and h["app_queue"] == "ok"
-    assert client.get("/api/app/metrics").json() == {}
+    assert client.get("/api/app/metrics").json()["runs_started"] == 0
     app_cli.count(runs_started=2, runs_failed=1)
     m = client.get("/api/app/metrics").json()
     assert (m["runs_started"], m["runs_failed"]) == (2, 1)
@@ -383,3 +383,13 @@ def test_an_installation_webhook_makes_the_poll_refresh_installations(
 
     assert CliRunner().invoke(app_cli.app, ["poll", "--once"]).exit_code == 0
     assert refreshed == [True] and not (app_cli.QUEUE.parent / app_cli.REFRESH).exists()
+
+
+def test_the_openapi_schema_describes_the_typed_endpoints() -> None:
+    """ROADMAP-100 063."""
+    schema = TestClient(app_module.app).get("/openapi.json").json()
+    runs = schema["paths"]["/api/runs"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+    assert runs["items"]["$ref"].endswith("/RunSummary")
+    props = schema["components"]["schemas"]["RunSummary"]["properties"]
+    assert {"run_id", "status", "validated", "cost_usd", "pr"} <= set(props)
+    assert "HealthDeps" in schema["components"]["schemas"] and "AppMetrics" in schema["components"]["schemas"]

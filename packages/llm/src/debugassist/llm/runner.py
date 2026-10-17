@@ -340,6 +340,7 @@ class AgentRunner:
         validate_output: Any = None,
         monitor: Any = None,
     ) -> LLMResult:
+        started = time.perf_counter()
         submitted: dict[str, Any] = {}
         watch = Watchdog(
             node=spec.node,
@@ -573,6 +574,7 @@ class AgentRunner:
             mode="live",
             diff=diff_fn() if diff_fn else None,
             error=error,
+            wall_ms=int((time.perf_counter() - started) * 1000),
         )
         watch.finish(status, turns, result.cost_usd)
         if self.record_dir:

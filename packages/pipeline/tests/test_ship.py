@@ -313,3 +313,27 @@ async def test_a_fix_that_spreads_past_the_plan_is_a_draft(tmp_path: Path) -> No
     fa.files = [planned, "src/a.ts", "src/b.ts", "src/c.ts", "test/x.test.ts"]
     ship = (await nodes.ship_gate(s, d))["ship"]
     assert ship.outcome == "draft_pr" and "3 changed source file(s) outside" in ship.decision["scope"]
+
+
+async def test_the_ship_decision_is_labelled_with_what_became_of_the_pr(tmp_path: Path) -> None:
+    """ROADMAP-100 067."""
+    from debugassist.core.ledger import Ledger
+
+    ledger = await Ledger.open("sqlite+aiosqlite:///:memory:")
+    try:
+        from debugassist.decisions.backends.mock import MockDecider
+        from debugassist.decisions.engine import DecisionEngine, RunContext
+
+        engine = DecisionEngine(MockDecider(), ledger=ledger)
+        s = run_state()
+        await engine.decide("D16", {"x": 1}, ctx=RunContext(run_id=s.run_id, issue_id="i"))
+        await engine.decide("D05", {"x": 1}, ctx=RunContext(run_id=s.run_id, issue_id="i"))
+        assert await postmerge.label_ship(s, SimpleNamespace(engine=engine), {"pr_merged": True}) == 1  # pyright: ignore[reportArgumentType]
+        rows = {r.decision_id[:3]: r for r in await ledger.list(run_id=s.run_id)}
+        assert (
+            rows["D16"].outcome_label == {"pr_merged": True}
+            and rows["D16"].outcome_source == "post_merge_watch"
+        )
+        assert rows["D05"].outcome_label is None
+    finally:
+        await ledger.close()

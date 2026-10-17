@@ -90,6 +90,7 @@ def _llm_summary(r: LLMResult) -> dict[str, Any]:
         "input_tokens": r.input_tokens,
         "output_tokens": r.output_tokens,
         "error": r.error,
+        "wall_ms": r.wall_ms,
         "tool_calls": [c.model_dump() for c in r.tool_calls],
     }
 
@@ -1515,7 +1516,7 @@ def prove_culprit(state: RunState, sb: Sandbox, issue: Issue, test_file: str, cm
             f"v{issue.last_version}",
             test_file,
             cmd,
-            bisect.pytest_case_command(cmd, rel),
+            bisect.case_command(cmd, rel),
             unrelated,
             run,
         )

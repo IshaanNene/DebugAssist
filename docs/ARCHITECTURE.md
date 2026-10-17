@@ -67,3 +67,20 @@ Injection: `release/<version>` branch from the base tag in the target repo → `
 | BUG-006 database incident | postgres | infra (not our bug) | Toxiproxy 4 s latency + sev2 incident | gateway timeouts + BugDrop report → RCA-only, route to sre-infra |
 | BUG-007 gateway timeout config | gateway (TS) | config | commit → 1.6.5 | every booking fails; Vitals + BugDrop |
 | BUG-008 RTL locale blank screen | client (TS) | own code, locale-specific | commit → 1.6.6 | Vitals crash (100% bare `ar`/`he` locales) + "my screen is blank" report |
+
+## Packaging the evaluated path does not use
+
+The evaluations and the GitHub App run `debugassist run` as a plain process on the checkout. The harness also
+builds what a production deployment of the same pipeline would use; none of it is on that path, and each piece
+is optional (ROADMAP-100 039):
+
+| Piece | What it is for | Where | Needed by |
+|---|---|---|---|
+| PEX per agent type | One self-contained executable per agent type, so a worker image carries only that type's code and skills | `debugassist harness pex`, `harness/launcher.py` | `make runtime-image`, the worker |
+| MinIO | Object store for those PEX files (`pex/<type>/<sha>.pex`, and `latest.pex`) | `infra/docker-compose.yml` (`core` profile), `launcher.upload_pex` | `harness pex --upload` |
+| Runtime image per agent type | Python, git, the Docker CLI and the type's PEX; runs one issue against the mounted checkout | `infra/runtime/Dockerfile`, `launcher.container_command` | the worker |
+| Arq worker + Redis | A queue of issues, each run in its type's runtime container | `harness/worker.py` | `make worker`, `POST /api/runs` |
+
+Removing them would not change an evaluation result; keeping them costs a dependency (`arq`, `minio`) in the
+harness package and a compose profile. They stay because they are the deployment story for running many issues
+concurrently (ROADMAP-100 046), and they are kept honest by the same tests and CI as the rest.

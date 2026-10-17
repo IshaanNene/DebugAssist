@@ -49,3 +49,6 @@ class LLMResult(BaseModel):
     mode: Literal["live", "replay", "mock"]
     diff: str | None = None  # for nodes that edit the worktree
     error: str | None = None
+    wall_ms: int | None = (
+        None  # the agent's whole run (model, tools, waits); None for replays and older results
+    )

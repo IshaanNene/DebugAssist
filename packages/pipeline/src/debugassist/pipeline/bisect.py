@@ -195,19 +195,35 @@ def prove(
             _git(wt, "apply", "--binary", "-", stdin=saved)
 
 
-_FAILED = re.compile(r"^FAILED (\S+?)(?: - .*)?$", re.M)
+_FAILED = re.compile(r"^FAILED (\S+?)(?: - .*)?$", re.M)  # pytest: FAILED tests/test_x.py::test_y - …
+_VITEST = re.compile(
+    r"^\s*FAIL\s+\S+\.(?:test|spec)\.[cm]?[jt]sx?\s+>\s+(.+?)\s*$", re.M
+)  # FAIL file > suite > case
+_GO = re.compile(r"^\s*--- FAIL: (\S+)", re.M)  # --- FAIL: TestHead (0.00s)
 
 
 def failing_cases(output: str) -> list[str]:
-    """The test cases (pytest node ids) a run reports as failed."""
-    return list(dict.fromkeys(_FAILED.findall(output)))
+    """The test cases a run reports as failed: pytest node ids, vitest `suite > case` names, Go test names."""
+    found = _FAILED.findall(output) + _VITEST.findall(output) + _GO.findall(output)
+    return list(dict.fromkeys(found))
 
 
-def pytest_case_command(command: str, test_file: str) -> Callable[[str], str] | None:
-    """For a pytest command naming the test file: the command for one of its cases (node id), else None."""
-    if "pytest" not in command or test_file not in command:
+def case_command(command: str, test_file: str) -> Callable[[str], str] | None:
+    """The command for one failing case of `test_file`, for the runners whose output `failing_cases` reads
+    (ROADMAP-100 086); None when the command is none of them (bisect then works on the whole file only)."""
+    if test_file not in command:
         return None
-    return lambda case: command.replace(test_file, shlex.quote(case))
+    if "pytest" in command:
+        return lambda case: command.replace(test_file, shlex.quote(case))
+    if "vitest" in command:
+        # -t matches the full name ("suite case"); the last `>` segment is the case and is enough to select it.
+        return lambda case: f"{command} -t {shlex.quote(re.escape(case.split(' > ')[-1]))}"
+    if re.search(r"\bgo test\b", command):
+        return lambda case: f"{command} -run {shlex.quote('^' + re.escape(case.split('/')[0]) + '$')}"
+    return None
+
+
+pytest_case_command = case_command  # the name callers used before vitest and Go were supported
 
 
 def prove_by_case(

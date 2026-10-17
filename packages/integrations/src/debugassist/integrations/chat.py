@@ -10,6 +10,8 @@ Text is PII-redacted before it leaves the machine.
 from __future__ import annotations
 
 import json
+import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -66,10 +68,17 @@ class ChatMock:
 class DiscordWebhook:
     mode = "live"
 
-    def __init__(self, url: str, client: httpx.Client | None = None, username: str = "DebugAssist") -> None:
+    def __init__(
+        self,
+        url: str,
+        client: httpx.Client | None = None,
+        username: str = "DebugAssist",
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
         self.url = url
         self.client = client or httpx.Client(timeout=15)
         self.username = username
+        self.sleep = sleep
 
     def payload(self, msg: ChatMessage) -> dict[str, Any]:
         links = {k: v for k, v in msg.links.items() if v.startswith(("http://", "https://"))}
@@ -99,7 +108,13 @@ class DiscordWebhook:
         }
 
     def send(self, msg: ChatMessage) -> dict[str, Any]:
-        r = self.client.post(self.url, params={"wait": "true"}, json=self.payload(msg))
+        payload = self.payload(msg)
+        r = self.client.post(self.url, params={"wait": "true"}, json=payload)
+        if r.status_code == 429:  # Discord says how long to wait (seconds, in the body and Retry-After)
+            limited: dict[str, Any] = r.json() if r.content else {}
+            wait = float(limited.get("retry_after") or r.headers.get("retry-after") or 1)
+            self.sleep(min(wait, 10.0))
+            r = self.client.post(self.url, params={"wait": "true"}, json=payload)
         r.raise_for_status()
         body = r.json()
         return {"to": msg.to, "mode": self.mode, "message_id": str(body.get("id", ""))}

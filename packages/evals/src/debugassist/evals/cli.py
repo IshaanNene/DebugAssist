@@ -250,6 +250,16 @@ def latency(
     typer.echo(f"{'node':<20}{'runs':>6}{'p50 s':>9}{'p95 s':>9}{'max s':>9}")
     for r in rows:
         typer.echo(f"{r['node']:<20}{r['runs']:>6}{r['p50_s']:>9}{r['p95_s']:>9}{r['max_s']:>9}")
+    from debugassist.evals.latency import percentile, time_split
+
+    splits = [time_split(json.loads(f.read_text())) for f in files]
+    typer.echo(f"\n{'where agents spend it':<26}{'runs':>6}{'p50 s':>9}{'p95 s':>9}")
+    for key in ("model_s", "sandbox_s", "mcp_s", "workspace_s"):
+        vals = [v for sp in splits if (v := sp[key]) is not None]
+        if vals:
+            typer.echo(
+                f"{key.removesuffix('_s'):<26}{len(vals):>6}{percentile(vals, 50):>9.1f}{percentile(vals, 95):>9.1f}"
+            )
 
 
 @app.command()

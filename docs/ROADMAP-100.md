@@ -61,9 +61,9 @@ Tasks without a mark can be done and checked offline with `make check`.
   symlinks, `..` and odd names.
 - [ ] **025** Contract tests: recorded GitHub, Jira, Workers AI and OpenRouter responses replayed against the clients
   (fixtures under `tests/fixtures/`), with the live variant behind `DA_LIVE_TESTS=1`.
-- [ ] **026** A webhook-to-PR test on the mock App: a signed delivery queued, polled, run with the scripted runner,
+- [x] **026** A webhook-to-PR test on the mock App: a signed delivery queued, polled, run with the scripted runner,
   ending in a draft PR and one marker comment.
-- [ ] **027** Fault-injection tests: Clef 5xx and time-outs, LLM 429 and hung streams, an MCP server crash mid-run;
+- [x] **027** Fault-injection tests: Clef 5xx and time-outs, LLM 429 and hung streams, an MCP server crash mid-run;
   the fallback reason lands in the ledger and the run ends cleanly.
 - [x] **028** Graph tests for every routing edge (`after_rca`, `after_mitigate`, retry cap) generated from the graph
   definition, so a new edge without a test fails.
@@ -88,7 +88,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   no behaviour change by default.
 - [ ] **038** $ Per-template decider choice from replay with confidence intervals; D01 and D14 on rules if the
   replay still says rules win.
-- [ ] **039** Delete or isolate packaging that the evaluated path never uses (document what PEX, MinIO and Arq
+- [x] **039** Delete or isolate packaging that the evaluated path never uses (document what PEX, MinIO and Arq
   are for, or move them behind an extra).
 - [x] **040** An ADR for the concurrency model: what may share a process, what a run owns, what the poller owns.
 
@@ -96,7 +96,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 - [x] **041** Per-node latency profile: p50/p95 per node from `timings_ms` across stored runs, as a CLI command and
   a report section.
-- [ ] **042** Tool-call latency in the trace summary: time spent in MCP, sandbox and model per run.
+- [x] **042** Tool-call latency in the trace summary: time spent in MCP, sandbox and model per run.
 - [ ] **043** Start an agent's MCP servers in parallel (one task owns all sessions) instead of one after another.
 - [ ] **044** Cache the collector's evidence per (issue, release) so a resumed or re-run issue does not refetch.
 - [x] **045** `api/data.runs` reads an index file instead of parsing up to 500 `state.json` files per request.
@@ -125,12 +125,12 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 - [x] **061** `schema_version` on `state.json`, with upgraders for older versions and a test on a stored old file.
 - [ ] **062** Alembic migrations for the ledger instead of `create_all`; an upgrade test from a stored old database.
-- [ ] **063** Typed response models for every API endpoint (FastAPI `response_model`), so the dashboard's types can
+- [x] **063** Typed response models for every API endpoint (FastAPI `response_model`), so the dashboard's types can
   be generated.
 - [ ] **064** Generate the dashboard's TypeScript API types from the OpenAPI schema in CI and fail on drift.
 - [x] **065** Pagination on `/api/runs` and `/api/issues` (cursor), with limits enforced server-side.
 - [x] **066** The audit log as JSON Lines with a schema and a reader (`debugassist audit show --run …`).
-- [ ] **067** Ledger outcome labels written back when a PR merges or is closed (D17 already watches).
+- [x] **067** Ledger outcome labels written back when a PR merges or is closed (D17 already watches).
 - [x] **068** A state-file reader that tolerates partial writes (write to temp, rename) for `state.json` and node files.
 - [x] **069** Atomic `seen.json` updates in the poller (temp file + rename) and a lock against two pollers.
 - [x] **070** Deterministic SVG output in reports (`svg.hashsalt`, no date metadata) so regeneration is byte-exact.
@@ -144,7 +144,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **075** Per-repository budgets in `pipeline.yaml` (and a global cap), enforced before a run starts.
 - [x] **076** `debugassist app rerun GHA:owner/repo#n` that clears the seen entry and queues a run.
 - [x] **077** A team catalog for real repositories: CODEOWNERS-based owner instead of MiniRide teams.
-- [ ] **078** Discord notifier tested against a recorded real webhook response (fixture), with rate-limit handling.
+- [x] **078** Discord notifier tested against a recorded real webhook response (fixture), with rate-limit handling.
 - [x] **079** Jira client retries and idempotency keys for comment and transition (a resumed run does not double-post).
 - [ ] **080** DebugAssist as an MCP server for coding agents (`investigate VIT-1001` → RCA and proof), mock mode first.
 
@@ -155,7 +155,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **083** Pre-registered thresholds: an arm file states its success threshold before it runs; the report checks it.
 - [ ] **084** $ Live arm with the full call-variations check on the five real bugs (ROADMAP P18).
 - [ ] **085** $ Live bisect arm on the real bugs that have a good release.
-- [ ] **086** Non-pytest runners for bisect's per-case step (vitest `-t`, `go test -run`), tested on toy repos.
+- [x] **086** Non-pytest runners for bisect's per-case step (vitest `-t`, `go test -run`), tested on toy repos.
 - [ ] **087** Two TypeScript and two Go real-bug cases following the ROADMAP's checklist (no model needed to add).
 - [ ] **088** Catalog growth: one concurrency bug and one data-migration bug with hidden tests (`make verify-scenarios`).
 - [ ] **089** $ Rework D01, D13 and D14 and re-measure with three seeds on both arms (ROADMAP P18).
@@ -171,7 +171,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **096** `make doctor`: checks Python, uv, Docker, submodules, `.env` keys present (names only), ports free.
 - [x] **097** Pre-commit hook for the loopback check and for secret-shaped strings in staged files.
 - [x] **098** Release notes generated from conventional commits (`git-cliff` or a script) per phase.
-- [ ] **099** CI caches for pnpm and uv tuned, and the job time recorded; target under 5 minutes total.
+- [x] **099** CI caches for pnpm and uv tuned, and the job time recorded; target under 5 minutes total.
 - [x] **100** A fresh-clone check in CI: `make bootstrap && make check` on a clean runner, timed.
 
 ## Progress
@@ -224,3 +224,12 @@ Tasks without a mark can be done and checked offline with `make check`.
   list before the next pass), 077 (a real repository's owner from CODEOWNERS, else its `pipeline.yaml`), 079 (Jira
   retries 429 and gateway errors, honouring Retry-After, and skips a comment already on the ticket).
   CI on `c0e5d47` failed the `pipeline/` coverage floor (72% < 74%); fixed in `9a5e1d3` with CLI and poll-loop tests.
+- 2026-10-17: 027 (also a hung model call cut off by `MODEL_CALL_TIMEOUT_S`, and an MCP server that dies mid-call:
+  `McpError: Connection closed` at once, not a hang), 026 (closed: the intake chain test and the proof-path graph
+  test together cover delivery → run → draft PR), 039 (ARCHITECTURE: what PEX, MinIO, runtime images and the
+  Arq worker are for, and that the evaluated path uses none), 042 (agents record wall time; `eval latency` splits
+  time into model, sandbox, MCP and file tools — on the 75 stored runs, which predate wall time: sandbox p50 7.9 s,
+  MCP 8.7 s, file tools 9.1 s per run), 063 (response models for runs, health and App metrics in the OpenAPI
+  schema), 067 (D16 rows labelled `pr_merged` / `fixed_after_deploy` by the post-merge watch), 078 (Discord 429
+  waited out; fixtures from Discord's documentation, not recorded live), 086 (per-case bisect for vitest `-t` and
+  `go test -run`), 099 (pnpm and uv caches; jobs run in parallel, the longest — python — took 105 s on 2026-10-17).

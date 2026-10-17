@@ -61,3 +61,34 @@ def test_mock_inbox_keeps_messages_newest_first(tmp_path: Path) -> None:
     got = inbox.inbox()
     assert [m["title"] for m in got] == ["second", "Fix ready: crash for jo@example.com"]
     assert inbox.send(msg()) == {"to": "@priya.nair", "mode": "mock"}
+
+
+def test_discord_waits_out_a_rate_limit_and_reads_the_message_id() -> None:
+    """ROADMAP-100 078, against Discord's documented responses (fixtures/discord/README.md: not recorded live)."""
+    import json
+    from pathlib import Path
+
+    import httpx
+
+    fx = Path(__file__).parent / "fixtures" / "discord"
+    replies = [
+        httpx.Response(
+            429, json=json.loads((fx / "rate_limited.json").read_text()), headers={"retry-after": "1"}
+        ),
+        httpx.Response(200, json=json.loads((fx / "message.json").read_text())),
+    ]
+    seen: list[httpx.Request] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req)
+        return replies.pop(0)
+
+    waits: list[float] = []
+    hook = DiscordWebhook(
+        "https://discord.com/api/webhooks/1/x",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        sleep=waits.append,
+    )
+    out = hook.send(ChatMessage(to="@oncall", title="Fix ready for review", text="t"))
+    assert out == {"to": "@oncall", "mode": "live", "message_id": "1290000000000000001"}
+    assert waits == [0.25] and len(seen) == 2 and seen[0].url.params["wait"] == "true"

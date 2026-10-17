@@ -99,7 +99,7 @@ def replay(
                 return code != 0 and repro_problem(cmd, code, output, issue) is not None
 
             found = bisect.prove_by_case(
-                wt, tag, test_file, cmd, bisect.pytest_case_command(cmd, test_file), unrelated, run
+                wt, tag, test_file, cmd, bisect.case_command(cmd, test_file), unrelated, run
             )
             (wt / test_file).unlink(missing_ok=True)
             suspect = cast(str | None, _obj(_obj(state.get("rca")).get("output")).get("suspect_commit"))
