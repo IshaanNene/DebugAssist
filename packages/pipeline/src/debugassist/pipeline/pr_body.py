@@ -174,6 +174,12 @@ def sections(state: RunState, dashboard_url: str | None = None) -> dict[str, str
             proof.append(f"| {label} | `{_cell(run.command)}` | {run.exit_code} {'✓' if ok else '✗'} |")
         if not v.passed:
             proof.append("\n**Validation did not pass — this PR is a draft.**")
+        if v.protected:
+            proof.append(
+                "\n> [!WARNING]\n> **This fix changes files that decide what the proof means, so this PR is a "
+                "draft.** The checks above ran without these changes (pre-existing tests, harness and CI as in the "
+                "release); review them by hand:\n" + "\n".join(f"> - `{_cell(p)}`" for p in v.protected)
+            )
         if v.failing_before:
             proof += [
                 "",

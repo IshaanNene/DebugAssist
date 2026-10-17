@@ -30,8 +30,13 @@ def _git(repo: Path, *args: str) -> str:
 class FakeSandbox:
     """Runs `… <test file>` as a plain Python script in the worktree (exit code = test result)."""
 
-    def __init__(self, worktree: Path) -> None:
+    def __init__(self, worktree: Path, checkouts: list[Path] | None = None) -> None:
         self.worktree = worktree
+        self.checkouts = [] if checkouts is None else checkouts
+
+    def checkout(self, root: Path) -> FakeSandbox:
+        self.checkouts.append(root)
+        return FakeSandbox(root, self.checkouts)
 
     def run(
         self, command: str, *, workdir: str = ".", network: bool = False, timeout: int = 600
@@ -62,15 +67,15 @@ class Checker:
         return self
 
     async def run(self, spec: Any, prompt: str, schema: Any, **kw: Any) -> LLMResult:
-        wt = self.sb.worktree
+        wt = self.sb.checkouts[-1]  # where the checker works: a checkout of the release
         self.saw = {
             "lib": (wt / "lib.py").read_text(),
             "first_test": (wt / "tests" / "test_repro.py").exists(),
             "prompt": prompt,
         }
-        (wt / self.name).parent.mkdir(exist_ok=True)
-        (wt / self.name).write_text(self.test)
-        self.sb.diff("v1.0.0")  # as the real runner does: marks new files intent-to-add
+        tools = {t.name: t for t in kw["tools"]}
+        tools["write_file"].invoke({"path": self.name, "content": self.test})
+        kw["diff_fn"]()  # as the real runner does: marks new files intent-to-add
         out = {"test_file": self.name, "asserts": "head returns [] for n <= 0", "failure": "AssertionError"}
         self.feedback = kw["validate_output"](out)
         return LLMResult(
@@ -85,7 +90,7 @@ class Checker:
         )
 
 
-def _setup(tmp_path: Path, fix: str, second: str) -> tuple[RunState, Any, FakeSandbox, Checker, str]:
+def _setup(tmp_path: Path, fix: str, second: str) -> tuple[RunState, Any, FakeSandbox, Checker]:
     wt = tmp_path / "toy"
     wt.mkdir()
     (wt / "lib.py").write_text(RELEASE)
@@ -96,7 +101,6 @@ def _setup(tmp_path: Path, fix: str, second: str) -> tuple[RunState, Any, FakeSa
     (wt / "lib.py").write_text(fix)
     (wt / "tests").mkdir()
     (wt / "tests" / "test_repro.py").write_text(FIRST)
-    src_diff = _git(wt, "diff", "--", "lib.py")
     FakeSandbox(wt).diff("v1.0.0")  # the fix step's own diffs leave its new test intent-to-add
     data = json.loads(FIXTURE.read_text())
     data["issue"].update(
@@ -115,17 +119,17 @@ def _setup(tmp_path: Path, fix: str, second: str) -> tuple[RunState, Any, FakeSa
     checker = Checker(sb, second)
     deps = cast(Any, type("D", (), {"agent_type": {"nodes": {"fix": {"max_turns": 20}}}, "extra": {}})())
     deps.runner = checker
-    return state, deps, sb, checker, src_diff
+    return state, deps, sb, checker
 
 
-def _run(state: RunState, deps: Any, sb: FakeSandbox, src_diff: str) -> tuple[Any, dict[str, Any], float]:
+def _run(state: RunState, deps: Any, sb: FakeSandbox) -> tuple[Any, dict[str, Any], float]:
     comp = {"test": "python -m pytest", "test_file_glob": "tests/test_*.py"}
-    return asyncio.run(second_reproduction(state, deps, cast(Any, sb), comp, src_diff, "v1.0.0"))
+    return asyncio.run(second_reproduction(state, deps, cast(Any, sb), comp, "v1.0.0"))
 
 
 def test_checker_sees_the_release_only_and_catches_a_narrow_fix(tmp_path: Path) -> None:
-    state, deps, sb, checker, src_diff = _setup(tmp_path, NARROW, SECOND)
-    run, rec, cost = _run(state, deps, sb, src_diff)
+    state, deps, sb, checker = _setup(tmp_path, NARROW, SECOND)
+    run, rec, cost = _run(state, deps, sb)
     assert checker.saw["lib"] == RELEASE and not checker.saw["first_test"]
     assert "head([1, 2], 0) should return []" in checker.saw["prompt"]
     assert checker.feedback is None  # its test fails on the release
@@ -139,17 +143,17 @@ def test_checker_sees_the_release_only_and_catches_a_narrow_fix(tmp_path: Path) 
 
 
 def test_a_wide_fix_passes(tmp_path: Path) -> None:
-    state, deps, sb, _, src_diff = _setup(tmp_path, WIDE, SECOND)
-    run, rec, _ = _run(state, deps, sb, src_diff)
+    state, deps, sb, _ = _setup(tmp_path, WIDE, SECOND)
+    run, rec, _ = _run(state, deps, sb)
     assert run is not None and run.exit_code == 0 and rec["result"] == "passes with the fix"
     assert (sb.worktree / "lib.py").read_text() == WIDE
 
 
 def test_a_second_test_that_passes_on_the_release_checks_nothing(tmp_path: Path) -> None:
-    state, deps, sb, checker, src_diff = _setup(
+    state, deps, sb, checker = _setup(
         tmp_path, NARROW, "from lib import head\n\nassert head([1], 1) == [1]\n"
     )
-    run, rec, _ = _run(state, deps, sb, src_diff)
+    run, rec, _ = _run(state, deps, sb)
     assert checker.feedback and "passes on the current" in checker.feedback
     assert run is None and rec["result"].startswith("the second test does not reproduce")
     assert (sb.worktree / "lib.py").read_text() == NARROW
@@ -157,27 +161,29 @@ def test_a_second_test_that_passes_on_the_release_checks_nothing(tmp_path: Path)
 
 
 def test_the_fixing_agents_test_name_is_refused(tmp_path: Path) -> None:
-    state, deps, sb, checker, src_diff = _setup(tmp_path, NARROW, SECOND)
+    state, deps, sb, checker = _setup(tmp_path, NARROW, SECOND)
     checker.name = "tests/test_repro.py"
-    _run(state, deps, sb, src_diff)
+    _run(state, deps, sb)
     assert checker.feedback and "already taken" in checker.feedback
     assert (sb.worktree / "tests" / "test_repro.py").read_text() == FIRST
 
 
 def test_callers_mode_shows_the_checker_the_codes_other_uses(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.setenv("DA_SECOND_REPRO", "callers")
-    state, deps, sb, checker, src_diff = _setup(tmp_path, NARROW, SECOND)
+    state, deps, sb, checker = _setup(tmp_path, NARROW, SECOND)
     assert state.rca and state.rca.output
     state.rca.output.location.file, state.rca.output.location.function = "lib.py", "head"
     (sb.worktree / "README.md").write_text("Usage:\n\n    head(items, n=-1)  # nothing\n")
-    _git(sb.worktree, "add", "README.md")
-    _, rec, _ = _run(state, deps, sb, src_diff)
+    _git(sb.worktree, "add", "README.md")  # part of the release: the checker works on the release
+    _git(sb.worktree, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "docs", "--", "README.md")
+    _git(sb.worktree, "tag", "-f", "v1.0.0")
+    _, rec, _ = _run(state, deps, sb)
     assert "head(items, n=-1)" in checker.saw["prompt"] and "repository usages" in checker.saw["prompt"]
     assert rec["usages"]["names"][0] == "head"
 
 
 def test_report_mode_shows_no_usages(tmp_path: Path, monkeypatch: Any) -> None:
     monkeypatch.setenv("DA_SECOND_REPRO", "1")
-    state, deps, sb, checker, src_diff = _setup(tmp_path, NARROW, SECOND)
-    _run(state, deps, sb, src_diff)
+    state, deps, sb, checker = _setup(tmp_path, NARROW, SECOND)
+    _run(state, deps, sb)
     assert "repository usages" not in checker.saw["prompt"]

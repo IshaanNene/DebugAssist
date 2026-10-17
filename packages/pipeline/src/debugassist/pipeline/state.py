@@ -187,6 +187,10 @@ class Validation(BaseModel):
     independent: TestRun | None = (
         None  # DA_SECOND_REPRO: a second reproduction, written without seeing the fix
     )
+    changes: dict[str, list[str]] = Field(default_factory=dict[str, list[str]])  # path class → paths
+    protected: list[str] = Field(
+        default_factory=list[str]
+    )  # "class: path" changes that force a flagged draft
 
 
 ShipOutcome = Literal["open_pr", "draft_pr", "rca_only", "escalate"]

@@ -45,6 +45,7 @@ from debugassist.pipeline import (
     postmerge,
     pr_body,
     profile,
+    release,
     skills,
     usages,
 )
@@ -197,18 +198,15 @@ def _repro_problem(cmd: str, exit_code: int, output: str, issue: Issue) -> str |
 repro_problem = _repro_problem  # for the evaluation's replays (eval replay-bisect)
 
 
-def _run_on_release(sb: Sandbox, base: str, run: Callable[[], CommandResult]) -> CommandResult | None:
-    """Run with the source change reverted (tests kept), then re-apply it. None if no source change."""
-    src = [f for f in changed_files(sb.diff(base)) if not is_test_path(f)]
-    if not src:
+def _run_on_release(sb: Sandbox, base: str, run: Callable[[Sandbox], CommandResult]) -> CommandResult | None:
+    """Run in a disposable checkout of the release with the worktree's tests but not its source change (P3-16:
+    the worktree, and the fix in it, is never touched). Against the release, not HEAD: once a fix is committed
+    (diff fixer, a resumed run), HEAD already contains it. None if there is no source change."""
+    changed = release.changes(sb.worktree, base)
+    if all(is_test_path(p) for p in changed):
         return None
-    # Against the release, not HEAD: once a fix is committed (diff fixer), HEAD already contains it.
-    src_diff = hostgit.run(sb.worktree, "diff", base, "--", *src, check=True).stdout
-    hostgit.run(sb.worktree, "apply", "-R", "-", input=src_diff, check=True)
-    try:
-        return run()
-    finally:
-        hostgit.run(sb.worktree, "apply", "-", input=src_diff, check=True)
+    with release.release_checkout(sb, base, [p for p in changed if is_test_path(p)]) as rsb:
+        return run(rsb)
 
 
 def _component_cfg(state: RunState, worktree: Path) -> dict[str, Any]:
@@ -1008,7 +1006,7 @@ def fix_contract_problem(
     repository's CI checks pass. A test weakened to pass is therefore rejected."""
     if not (sb.worktree / test_file).is_file():
         return f"the reproduction test {test_file} is missing; restore it"
-    before = _run_on_release(sb, base, lambda: _run_test(sb, issue, cmd))
+    before = _run_on_release(sb, base, lambda rsb: _run_test(rsb, issue, cmd))
     if before is None:
         return "you have not changed any source file yet"
     if problem := _repro_problem(cmd, before.exit_code, before.output, issue):
@@ -1283,26 +1281,20 @@ def check_prompt(issue: Issue, comp: dict[str, Any], base: str, location: str, u
 
 
 async def second_reproduction(
-    state: RunState, deps: Deps, sb: Sandbox, comp: dict[str, Any], src_diff: str, base: str
+    state: RunState, deps: Deps, sb: Sandbox, comp: dict[str, Any], base: str
 ) -> tuple[TestRun | None, dict[str, Any], float]:
     """DA_SECOND_REPRO: a separate agent writes a test from the report alone, on the release, without the fix or
     any test the fixing agent wrote; the fix is then run against it. Returns (the run with the fix, or None when no
-    valid second reproduction was written; a record; cost). Leaves the worktree as it found it."""
+    valid second reproduction was written; a record; cost). Both runs happen in disposable checkouts of the
+    release: the run's worktree is only read."""
     issue, rca = state.issue, state.rca
     assert issue and rca and rca.output
     loc = f"{rca.output.location.file} → {rca.output.location.function}"
-    hidden = {f: (sb.worktree / f).read_text() for f in _new_test_files(sb)}  # the fixing agent's tests
-    hostgit.run(sb.worktree, "apply", "-R", "-", input=src_diff, check=True)
-    for f in hidden:
-        if (old := _at(sb, base, f)) is not None:
-            (sb.worktree / f).write_text(old)
-        else:
-            (sb.worktree / f).unlink(missing_ok=True)
+    classes = release.classify_changes(sb.worktree, base)
+    taken = {*classes.get("new_test", []), *classes.get("modified_test", [])}  # the fixing agent's tests
     rec: dict[str, Any] = {}
     cost = 0.0
-    path: str | None = None
-    cmd = ""
-    try:
+    with release.release_checkout(sb, base) as rsb:  # the release: no fix, none of the fixing agent's tests
         cfg = budget.cap(dict(deps.agent_type["nodes"]["fix"]), deps)
         check_cfg: dict[str, Any] = {**cfg, "max_turns": min(15, int(cfg["max_turns"]))}
         node = "reproduce_check" + (f"_{len(state.fix_attempts)}" if len(state.fix_attempts) > 1 else "")
@@ -1314,65 +1306,63 @@ async def second_reproduction(
         )
         tools = (
             build_workspace_tools(
-                sb, allow_edits=True, allow_commands=True, editable=is_test_path, workdir=issue.component
+                rsb, allow_edits=True, allow_commands=True, editable=is_test_path, workdir=issue.component
             )
             + skill_tools
         )
 
         def check(out: dict[str, Any]) -> str | None:
             p = str(out.get("test_file", ""))
-            if not is_test_path(p) or not (sb.worktree / p).is_file():
+            if not is_test_path(p) or not (rsb.worktree / p).is_file():
                 return f"{p} does not exist as a test file. Create it with write_file first."
-            if p in hidden or _at(sb, base, p) is not None:
+            if p in taken or _at(rsb, base, p) is not None:
                 return f"{p} is already taken; write your test in a new file with another name."
             cmd = _repro_cmd(issue, p)
-            res = _run_test(sb, issue, cmd)
+            res = _run_test(rsb, issue, cmd)
             return _repro_problem(cmd, res.exit_code, res.output, issue)
 
         uses = ""
         if second_repro_mode() == "callers":
             names = usages.names_for(
-                sb.worktree, rca.output.location.function, usages.report_text(issue.report)
+                rsb.worktree, rca.output.location.function, usages.report_text(issue.report)
             )
-            uses = usages.collect(sb.worktree, names, exclude={rca.output.location.file})
+            uses = usages.collect(rsb.worktree, names, exclude={rca.output.location.file})
             rec["usages"] = {"names": names, "chars": len(uses)}
-        r = await deps.runner(_apply_diff(sb)).run(
+        r = await deps.runner(_apply_diff(rsb)).run(
             spec,
             check_prompt(issue, comp, base, loc, uses),
             ReproOutput,
             tools=tools,
-            diff_fn=lambda: sb.diff(base),
+            diff_fn=lambda: rsb.diff(base),
             validate_output=check,
         )
         _stop_if_out_of_quota(r, state, "validate")
         cost = r.cost_usd
         rec["llm"] = _llm_summary(r)
-        _revert_non_tests(sb)  # source is read-only for the checker, whatever it ran
-        written = [f for f in _new_test_files(sb) if f not in hidden and _at(sb, base, f) is None]
+        _revert_non_tests(rsb)  # source is read-only for the checker, whatever it ran
+        written = [
+            f
+            for f in _new_test_files(rsb)
+            if f not in taken and _at(rsb, base, f) is None and not (rsb.worktree / f).is_symlink()
+        ]
         claimed = str((r.output or {}).get("test_file", ""))
         path = claimed if claimed in written else (written[-1] if written else None)
         if path is None:
             rec["result"] = "no second reproduction written; not checked"
             return None, rec, cost
         cmd = _repro_cmd(issue, path)
-        before = _run_test(sb, issue, cmd)
+        before = _run_test(rsb, issue, cmd)
         rec.update(test_file=path, command=cmd, before_exit=before.exit_code)
         if problem := _repro_problem(cmd, before.exit_code, before.output, issue):
             rec["result"] = (
                 f"the second test does not reproduce the bug on the release; not checked: {problem[:300]}"
             )
             return None, rec, cost
-        rec["test_source"] = (sb.worktree / path).read_text()[:2500]
-    finally:
-        hostgit.run(sb.worktree, "apply", "-", input=src_diff, check=True)
-        for f, text in hidden.items():
-            (sb.worktree / f).parent.mkdir(parents=True, exist_ok=True)
-            (sb.worktree / f).write_text(text)
-        if path is not None and "test_source" not in rec:
-            (sb.worktree / path).unlink(missing_ok=True)
-    assert path is not None
-    after = _run_test(sb, issue, cmd)
-    (sb.worktree / path).unlink(missing_ok=True)  # a check, not part of the fix
+        rec["test_source"] = (rsb.worktree / path).read_text()[:2500]
+        second = release.patch(rsb.worktree, base, [path])
+    # The fix's source change (not its tests) against the second test; a check, never part of the fix.
+    with release.release_checkout(sb, base, classes.get("source", []), extra=second) as fsb:
+        after = _run_test(fsb, issue, cmd)
     rec.update(after_exit=after.exit_code, after_tail=after.output[-1500:] if after.exit_code else "")
     rec["result"] = "passes with the fix" if after.exit_code == 0 else "fails with the fix"
     run = TestRun(
@@ -1458,6 +1448,7 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
     fa = state.fix_attempts[-1]
     v = state.validation or Validation()
     record: dict[str, Any] = {"attempt": fa.n, "tier": fa.tier, "tiers_tried": fa.tiers_tried}
+    base = f"v{issue.last_version}"
     src = [f for f in fa.files if not is_test_path(f)]
     if not fa.repro_verified or not fa.repro:
         record.update(result="no reproduction test that fails on the release", repro_run=fa.repro_run)
@@ -1465,20 +1456,27 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
         record.update(result="no source change")
     else:
         cmd = str(fa.repro_run["command"])
-        after = _run_test(sb, issue, cmd)
+        # Against the release tag in disposable checkouts (P3-16): the worktree keeps the fix whatever happens
+        # here, and a validate resumed after the fix was committed proves the same thing.
+        classes = release.classify_changes(sb.worktree, base)
+        v.changes, v.protected = classes, release.protected(classes)
+        record.update(changes=classes, **({"protected": v.protected} if v.protected else {}))
+        # Failing-before: the release with the reproduction test as written.
+        with release.release_checkout(sb, base, [fa.repro.test_file]) as rsb:
+            before = _run_test(rsb, issue, cmd)
+        # Passing-after and the suite: the source change and the new tests only; pre-existing tests, the
+        # harness and test-runner config, CI and lockfiles as in the release (P2-8), so a test edited to pass
+        # or a skipped suite proves nothing. The reproduction test is part of the proof wherever it lives.
+        proof = sorted({*release.proof_paths(classes), fa.repro.test_file})
+        with release.release_checkout(sb, base, proof) as psb:
+            after = _run_test(psb, issue, cmd)
+            suite = psb.run(str(comp["test"]), workdir=issue.component)
         v.passing_after = TestRun(
             label=f"reproduction test ({fa.tier}) with the fix",
             command=cmd,
             exit_code=after.exit_code,
             output_tail=after.output[-3000:],
         )
-        # Failing-before: reverse-apply only the source change, keep the test, run, re-apply.
-        src_diff = hostgit.run(sb.worktree, "diff", "--", *src, check=True).stdout
-        hostgit.run(sb.worktree, "apply", "-R", "-", input=src_diff, check=True)
-        try:
-            before = _run_test(sb, issue, cmd)
-        finally:
-            hostgit.run(sb.worktree, "apply", "-", input=src_diff, check=True)
         v.failing_before = TestRun(
             label=f"reproduction test ({fa.tier}) on the release (expected to fail)",
             command=cmd,
@@ -1487,9 +1485,8 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
         )
         if before_problem := _repro_problem(cmd, before.exit_code, before.output, issue):
             record.update(failing_before_problem=before_problem[:600])
-        suite = sb.run(str(comp["test"]), workdir=issue.component)
         v.suite = TestRun(
-            label="full component suite with the fix",
+            label="full component suite with the fix (pre-existing tests as in the release)",
             command=str(comp["test"]),
             exit_code=suite.exit_code,
             output_tail=suite.output[-3000:],
@@ -1526,8 +1523,7 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
     costs = dict(state.costs)
     v.independent = None
     if v.passed and second_repro() and fa.tier != "e2e_env":
-        src_diff = hostgit.run(sb.worktree, "diff", "--", *src, check=True).stdout
-        run, rec, cost = await second_reproduction(state, deps, sb, comp, src_diff, f"v{issue.last_version}")
+        run, rec, cost = await second_reproduction(state, deps, sb, comp, base)
         node = "reproduce_check" + (f"_{fa.n}" if fa.n > 1 else "")
         costs[node] = costs.get(node, 0.0) + cost
         record["second_reproduction"] = rec
@@ -1621,6 +1617,8 @@ async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
         outcome = "rca_only"  # no verified reproduction or no source change: nothing to put in a PR
     elif not (v and v.passed) and outcome == "open_pr":
         outcome = "draft_pr"  # never a ready PR without validation proof
+    elif outcome == "open_pr" and v and v.protected:
+        outcome = "draft_pr"  # a pre-existing test, harness, CI or lockfile changed: a flagged draft (P2-8)
     elif outcome == "open_pr" and not _ready_pr_allowed(state, deps):
         outcome = "draft_pr"  # a repository the app is installed on, not ours: draft PRs only (ADR 0008)
     return {
@@ -1664,6 +1662,14 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
     if ship.outcome in ("open_pr", "draft_pr") and state.fix_attempts:
         sb = _sandbox(state)
         fa = state.fix_attempts[-1]
+        # What is shipped, classified again (a resumed run may carry an older validation): a protected change
+        # makes the PR a draft with a warning, whatever the ship decision said.
+        flagged = release.protected(release.classify_changes(sb.worktree, f"v{issue.last_version}"))
+        v = state.validation
+        if v is not None and flagged != v.protected:
+            v = v.model_copy(update={"protected": flagged})
+            state = state.model_copy(update={"validation": v})
+            out["validation"] = v
         loc = rca.output.location if rca.output else None
         scope = (loc.file.split("/")[-2] if loc and "/" in loc.file else issue.component.strip("./")) or "app"
         title = (
@@ -1686,7 +1692,7 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
                 )
             deps.github.push(sb.worktree, branch)
             # Enforced here too, not only in the ship gate: a resumed run may carry an older ship decision.
-            draft = ship.outcome == "draft_pr" or not _ready_pr_allowed(state, deps)
+            draft = ship.outcome == "draft_pr" or not _ready_pr_allowed(state, deps) or bool(flagged)
             pr = deps.github.open_pr(issue.gh_repo, branch, base, title, pr_body.pr_body(state), draft=draft)
             out["pr"] = PRInfo(
                 url=pr.url, number=pr.number, branch=branch, base=base, draft=pr.draft, mode=pr.mode

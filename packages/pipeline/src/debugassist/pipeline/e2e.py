@@ -153,7 +153,7 @@ def _containers(e2e_cfg: dict[str, Any]) -> dict[str, str]:
 
 
 def _playwright_version(sb: Sandbox, component: str) -> str | None:
-    pkg = sb.worktree / component / "node_modules" / "@playwright" / "test" / "package.json"
+    pkg = sb.run_worktree / component / "node_modules" / "@playwright" / "test" / "package.json"
     return json.loads(pkg.read_text())["version"] if pkg.is_file() else None
 
 
@@ -250,7 +250,7 @@ def run(sb: Sandbox, pipeline: dict[str, Any], component: str, cmd: str, timeout
     env_args = [a for k, v in {**RUN_ENV, "CI": "1", "HOME": "/tmp"}.items() for a in ("-e", f"{k}={v}")]
     docker = [
         "docker", "run", "--rm", "--network", NETWORK, "--ipc=host", "--memory", "3g", "--cpus", "2",
-        "-v", f"{sb.worktree}:/work", "-w", f"/work/{component}".rstrip("/."), *env_args,
+        "-v", f"{sb.worktree}:/work", *sb.mounts(), "-w", f"/work/{component}".rstrip("/."), *env_args,
         img, "sh", "-c", script,
     ]  # fmt: skip
     try:

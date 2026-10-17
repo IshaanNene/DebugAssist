@@ -30,5 +30,7 @@ Everything the container can write is treated as hostile input by the host:
   step that needs root (an `apk add`) would now fail; none of the onboarded repositories has one.
 - The runtime image still trusts every directory (`safe.directory '*'`) for the main checkout, which no agent
   writes; worktree git calls do not depend on it.
-- Not done: running the suite with the release's own tests restored (a fix can still edit an existing test),
-  a prompt-injection red-team evaluation with canary secrets, and a per-run context instead of `os.environ`.
+- Checks "on the release" run in a disposable checkout of the release tag (`pipeline.release`), never by
+  reverting the fix in the worktree; the suite runs with the release's own tests, harness, CI and lockfiles,
+  and a fix that changes any of them is a flagged draft PR.
+- Not done: a prompt-injection red-team evaluation with canary secrets, and a per-run context instead of `os.environ`.
