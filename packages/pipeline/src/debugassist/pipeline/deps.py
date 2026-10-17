@@ -95,6 +95,13 @@ def build_app(s: Settings) -> GitHubApp | None:
     return None
 
 
+def build_chat(s: Settings) -> Chat:
+    """Discord when its webhook is set and chat is live; the mock inbox otherwise."""
+    if s.mode(Integration.CHAT) is Mode.LIVE and s.discord_webhook_url:
+        return DiscordWebhook(s.discord_webhook_url.get_secret_value())
+    return ChatMock()
+
+
 class GitHubRouter:
     """The pipeline's GitHub client: installed repositories go through the app (REST and pushes as the app);
     everything else through the token client or the mock, as before."""
@@ -168,11 +175,7 @@ async def build_deps(
         jira=jira,
         github=github,
         app=app,
-        chat=(
-            DiscordWebhook(s.discord_webhook_url.get_secret_value())
-            if s.mode(Integration.CHAT) is Mode.LIVE and s.discord_webhook_url
-            else ChatMock()
-        ),
+        chat=build_chat(s),
         agent_type=agent_type,
         catalog=catalog,
         llm_mode=llm_mode,

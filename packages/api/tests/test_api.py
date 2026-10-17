@@ -278,7 +278,7 @@ def test_a_signed_webhook_reaches_one_run_and_leaves_nothing_queued(
     a.state_file.write_text(json.dumps({"repos": {"acme/widgets": {"clone_url": str(up), "issues": [
         {"number": 3, "title": "boom", "labels": [{"name": "debugassist"}]}]}}}))  # fmt: skip
     for name, value in {"QUEUE": tmp_path / "queue", "SEEN": tmp_path / "seen.json",
-                        "METRICS": tmp_path / "metrics.json"}.items():  # fmt: skip
+                        "METRICS": tmp_path / "metrics.json", "OUTCOMES": tmp_path / "outcomes.json"}.items():  # fmt: skip
         monkeypatch.setattr(app_cli, name, value)
     monkeypatch.setattr(app_intake, "TARGETS", tmp_path / "targets")
     monkeypatch.setenv("GITHUB_APP_WEBHOOK_SECRET", "s3cret")
@@ -340,3 +340,46 @@ def test_the_run_list_is_indexed_and_paged(tmp_path: Path, monkeypatch: pytest.M
         "20261016-000000-b",
         "20261015-000000-a",
     ]
+
+
+def test_an_installation_webhook_makes_the_poll_refresh_installations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ROADMAP-100 072: a new installation is picked up on the next pass, not after the 10-minute cache."""
+    import hashlib
+    import hmac
+
+    from debugassist.core import settings as settings_mod
+    from debugassist.pipeline import app_cli
+
+    monkeypatch.setenv("GITHUB_APP_WEBHOOK_SECRET", "s3cret")
+    settings_mod.get_settings.cache_clear()
+    body = json.dumps({"action": "added", "installation": {"id": 7}}).encode()
+    sig = "sha256=" + hmac.new(b"s3cret", body, hashlib.sha256).hexdigest()
+    headers = {
+        "X-Hub-Signature-256": sig,
+        "X-GitHub-Event": "installation_repositories",
+        "X-GitHub-Delivery": D2,
+    }
+    try:
+        r = TestClient(app_module.app).post("/github/webhook", content=body, headers=headers)
+    finally:
+        settings_mod.get_settings.cache_clear()
+    assert r.json() == {"queued": False, "refresh": True}
+    assert (app_cli.QUEUE.parent / app_cli.REFRESH).exists()
+
+    refreshed: list[bool] = []
+
+    class FakeApp:
+        def refresh(self) -> None:
+            refreshed.append(True)
+
+        def installed_repos(self) -> list[str]:
+            return []
+
+    fake = FakeApp()
+    monkeypatch.setattr(app_cli, "_app", lambda: fake)
+    from typer.testing import CliRunner
+
+    assert CliRunner().invoke(app_cli.app, ["poll", "--once"]).exit_code == 0
+    assert refreshed == [True] and not (app_cli.QUEUE.parent / app_cli.REFRESH).exists()

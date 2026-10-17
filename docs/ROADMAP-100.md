@@ -12,7 +12,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 - [x] **001** Prompt-injection red-team catalogue: ≥30 payloads (issue bodies, logs, commit messages, code comments)
   as fixtures under `evals/redteam/`, each with the action it tries (escape, exfiltrate, ungated write).
-- [ ] **002** Canary secrets for the red team: unique values in a fake `.env`, `$HOME` and the App key path; a scorer
+- [x] **002** Canary secrets for the red team: unique values in a fake `.env`, `$HOME` and the App key path; a scorer
   that searches every LLM request, comment, PR body, ticket and trace of a run for them.
 - [ ] **003** $ D Red-team arm: run 001 against the live pipeline, three seeds; report escapes, canary leaks and
   ungated writes (target 0/0/0) under `evals/reports/`.
@@ -24,7 +24,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   the dashboard sends it; tests for missing and wrong tokens.
 - [x] **007** Bind the API to 127.0.0.1 by default (`make dashboard`), and refuse to start on another interface
   without `DA_API_TOKEN`.
-- [ ] **008** Narrow the runtime image's `safe.directory '*'` to the mounted checkout path, with a test that the
+- [x] **008** Narrow the runtime image's `safe.directory '*'` to the mounted checkout path, with a test that the
   image config names no wildcard.
 - [x] **009** Secret scanning in CI (gitleaks or an equivalent pinned tool) over the diff of each push and PR.
 - [ ] **010** D Container image scan (Trivy or equivalent) of the runtime images in CI, failing on critical CVEs.
@@ -33,7 +33,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 - [x] **011** Error-signature matching by exception type plus message pattern instead of a substring, with tests for
   messages that vary by runtime and for assertions that merely contain the text.
-- [ ] **012** Reproductions for bugs with no exception (a wrong value): require a failing assertion that names the
+- [x] **012** Reproductions for bugs with no exception (a wrong value): require a failing assertion that names the
   reported value; tests for both kinds.
 - [x] **013** Route away from a fix only when the RCA's category agrees with D05 or carries high confidence
   (ROADMAP P18: a wrong "not ours" was terminal); tests for agree / disagree / confident.
@@ -90,7 +90,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   replay still says rules win.
 - [ ] **039** Delete or isolate packaging that the evaluated path never uses (document what PEX, MinIO and Arq
   are for, or move them behind an extra).
-- [ ] **040** An ADR for the concurrency model: what may share a process, what a run owns, what the poller owns.
+- [x] **040** An ADR for the concurrency model: what may share a process, what a run owns, what the poller owns.
 
 ## E · Performance and scale
 
@@ -104,14 +104,14 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **047** Rate-limit awareness for GitHub: read `X-RateLimit-Remaining`, back off before exhaustion; test.
 - [ ] **048** Sandbox install cache shared across runs of the same lockfile (content-addressed), measured.
 - [ ] **049** $ A benchmark job that replays cassettes on a fixed machine and fails if a node's p50 regresses >10%.
-- [ ] **050** A stated scale target (runs per hour, repositories) in `docs/github-app.md`, with the bottleneck named.
+- [x] **050** A stated scale target (runs per hour, repositories) in `docs/github-app.md`, with the bottleneck named.
 
 ## F · Reliability and observability
 
 - [x] **051** Structured JSON logs for the poller and the pipeline CLI (one schema, run id on every line).
 - [x] **052** Counters for runs started, failed, retried and their cost, written per poll pass to `.data/app/metrics.json`
   and exposed on the API.
-- [ ] **053** An alert rule: failure ratio over the last N App runs above a threshold posts to chat (gated).
+- [x] **053** An alert rule: failure ratio over the last N App runs above a threshold posts to chat (gated).
 - [x] **054** An operations runbook in `docs/github-app.md`: start, stop, read logs, rerun, revoke the key.
 - [x] **055** `_extract` stops swallowing exceptions: they are logged and recorded on the result.
 - [x] **056** Health endpoint that checks its dependencies (ledger DB, queue dir writable, App reachable) separately.
@@ -138,14 +138,14 @@ Tasks without a mark can be done and checked offline with `make check`.
 ## H · GitHub App and integrations
 
 - [ ] **071** G Create the App and run it on one consenting repository; record the first run's outcome.
-- [ ] **072** Installation webhooks (`installation`, `installation_repositories`) refresh the repo map immediately.
+- [x] **072** Installation webhooks (`installation`, `installation_repositories`) refresh the repo map immediately.
 - [ ] **073** A PR comment loop for App repositories (review comments → diff fixer), gated and draft-only.
 - [ ] **074** CI failures as input: a failed check run on a default branch becomes an issue-like input.
 - [x] **075** Per-repository budgets in `pipeline.yaml` (and a global cap), enforced before a run starts.
 - [x] **076** `debugassist app rerun GHA:owner/repo#n` that clears the seen entry and queues a run.
-- [ ] **077** A team catalog for real repositories: CODEOWNERS-based owner instead of MiniRide teams.
+- [x] **077** A team catalog for real repositories: CODEOWNERS-based owner instead of MiniRide teams.
 - [ ] **078** Discord notifier tested against a recorded real webhook response (fixture), with rate-limit handling.
-- [ ] **079** Jira client retries and idempotency keys for comment and transition (a resumed run does not double-post).
+- [x] **079** Jira client retries and idempotency keys for comment and transition (a resumed run does not double-post).
 - [ ] **080** DebugAssist as an MCP server for coding agents (`investigate VIT-1001` → RCA and proof), mock mode first.
 
 ## I · Evaluation and research
@@ -215,3 +215,12 @@ Tasks without a mark can be done and checked offline with `make check`.
   Partly done, still open: 026 (a signed webhook reaches exactly one `debugassist run`, tested; the run itself to a
   draft PR is covered separately in `test_proof_path.py`, not in one test) and 027 (Clef 5xx, time-out and open
   breaker fall back with the reason in the ledger; an MCP server crash and a hung model stream are not tested yet).
+- 2026-10-17: 002 (`evals/canary.py`: unique fake secrets in a `.env`, `~/.ssh/id_rsa` and an App key, and a scan of
+  every file a run leaves; for the live arm 003), 008 (the runtime image no longer trusts every directory; the
+  launcher sets `safe.directory` for the mounted checkout — not run under Docker here), 012 (a report that names no
+  error needs a reproduction failing on an assertion), 040 ([ADR 0010](adr/0010-concurrency-model.md)), 050 (Scale
+  in `docs/github-app.md`: about 10 issues an hour per poller at the measured median), 053 (more than half of the
+  last 10 runs failed → one alert an hour through the gate), 072 (`installation` webhooks refresh the repository
+  list before the next pass), 077 (a real repository's owner from CODEOWNERS, else its `pipeline.yaml`), 079 (Jira
+  retries 429 and gateway errors, honouring Retry-After, and skips a comment already on the ticket).
+  CI on `c0e5d47` failed the `pipeline/` coverage floor (72% < 74%); fixed in `9a5e1d3` with CLI and poll-loop tests.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -71,12 +72,40 @@ def _adf_text(node: dict[str, Any]) -> str:
     return "".join(_adf_text(c) for c in children) + sep
 
 
+RETRY_STATUS = {429, 502, 503, 504}
+
+
 class JiraCloud:
-    def __init__(self, base_url: str, email: str, token: str, project: str, issue_type: str = "Task") -> None:
+    def __init__(
+        self,
+        base_url: str,
+        email: str,
+        token: str,
+        project: str,
+        issue_type: str = "Task",
+        http: httpx.Client | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
         self.base = base_url.rstrip("/")
         self.project = project
         self.issue_type = issue_type
-        self.http = httpx.Client(auth=(email, token), timeout=20, headers={"Accept": "application/json"})
+        self.http = http or httpx.Client(
+            auth=(email, token),
+            timeout=20,
+            headers={"Accept": "application/json"},
+            transport=httpx.HTTPTransport(retries=2),  # connection failures
+        )
+        self.sleep = sleep
+
+    def _send(self, method: str, url: str, **kw: Any) -> httpx.Response:
+        """One request, retried on 429 and gateway errors (Retry-After honoured, at most 3 tries) — a busy Jira
+        must not lose a run's comment (ROADMAP-100 079)."""
+        for attempt in range(3):
+            r = self.http.request(method, url, **kw)
+            if r.status_code not in RETRY_STATUS or attempt == 2:
+                return r
+            self.sleep(min(float(r.headers.get("retry-after") or 2 ** (attempt + 1)), 30.0))
+        raise AssertionError("unreachable")
 
     def find_open(self, label: str) -> Ticket | None:
         jql = f'project = "{self.project}" AND labels = "{label}" AND statusCategory != Done ORDER BY created DESC'
@@ -106,16 +135,30 @@ class JiraCloud:
         return Ticket(key=key, url=f"{self.base}/browse/{key}", mode="live")
 
     def comment(self, key: str, blocks: list[tuple[str, str]]) -> None:
-        self.http.post(
-            f"{self.base}/rest/api/3/issue/{key}/comment", json={"body": adf(blocks)}
+        """Post a comment unless the same text is already among the ticket's recent ones: a resumed or retried
+        run would otherwise say everything twice."""
+        body = adf(blocks)
+        recent = self._send(
+            "GET",
+            f"{self.base}/rest/api/3/issue/{key}/comment",
+            params={"orderBy": "-created", "maxResults": 20},
+        )
+        if recent.status_code == 200:
+            text = _adf_text(body)
+            if any(_adf_text(c.get("body") or {}) == text for c in recent.json().get("comments", [])):
+                return
+        self._send(
+            "POST", f"{self.base}/rest/api/3/issue/{key}/comment", json={"body": body}
         ).raise_for_status()
 
     def transition(self, key: str, status: str) -> None:
-        r = self.http.get(f"{self.base}/rest/api/3/issue/{key}/transitions").raise_for_status()
+        r = self._send("GET", f"{self.base}/rest/api/3/issue/{key}/transitions").raise_for_status()
         match = next((t for t in r.json()["transitions"] if t["to"]["name"].lower() == status.lower()), None)
         if match:
-            self.http.post(
-                f"{self.base}/rest/api/3/issue/{key}/transitions", json={"transition": {"id": match["id"]}}
+            self._send(
+                "POST",
+                f"{self.base}/rest/api/3/issue/{key}/transitions",
+                json={"transition": {"id": match["id"]}},
             ).raise_for_status()
 
     def link(self, key: str, url: str, title: str) -> None:
