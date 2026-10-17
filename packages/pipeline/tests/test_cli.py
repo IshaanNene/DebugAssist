@@ -283,3 +283,30 @@ def test_a_review_request_reaches_the_diff_fixer_of_the_run_that_opened_the_pr(
         "acme/widgets#4: no run of this app opened it",
     ]
     assert not list(app_cli.REVIEWS.glob("*.json"))
+
+
+def test_a_pass_runs_repositories_in_parallel_and_each_repository_in_order() -> None:
+    """ROADMAP-100 046."""
+    import threading
+    import time
+
+    order: dict[str, list[int]] = {}
+    active: set[str] = set()
+    overlap: list[bool] = []
+    lock = threading.Lock()
+
+    def one(repo: str, number: int, why: str) -> None:
+        with lock:
+            overlap.append(bool(active - {repo}))
+            active.add(repo)
+            order.setdefault(repo, []).append(number)
+        time.sleep(0.05)
+        with lock:
+            active.discard(repo)
+
+    work = [("a/x", 1, "w"), ("b/y", 1, "w"), ("a/x", 2, "w"), ("b/y", 2, "w")]
+    app_cli.run_work(work, one, workers=2)
+    assert order == {"a/x": [1, 2], "b/y": [1, 2]} and any(overlap)
+    order.clear()
+    app_cli.run_work(work, one, workers=1)
+    assert order == {"a/x": [1, 2], "b/y": [1, 2]}
