@@ -53,7 +53,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 ## C · Testing
 
 - [x] **021** Coverage gate in CI: `pytest-cov` with a floor on `pipeline/` (start at today's number, never lower).
-- [ ] **022** Mutation testing (`mutmut`) on `_repro_problem`, `fix_contract_problem`, `ship_gate`, the release
+- [x] **022** Mutation testing (`mutmut`) on `_repro_problem`, `fix_contract_problem`, `ship_gate`, the release
   checks; a make target and a recorded score; target ≥85% killed.
 - [x] **023** Property tests (Hypothesis) for `redact_secrets`/`redact_text`: no secret-shaped input survives, no
   plain diagnostic text is mangled.
@@ -140,7 +140,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **071** G Create the App and run it on one consenting repository; record the first run's outcome.
 - [x] **072** Installation webhooks (`installation`, `installation_repositories`) refresh the repo map immediately.
 - [x] **073** A PR comment loop for App repositories (review comments → diff fixer), gated and draft-only.
-- [ ] **074** CI failures as input: a failed check run on a default branch becomes an issue-like input.
+- [x] **074** CI failures as input: a failed check run on a default branch becomes an issue-like input.
 - [x] **075** Per-repository budgets in `pipeline.yaml` (and a global cap), enforced before a run starts.
 - [x] **076** `debugassist app rerun GHA:owner/repo#n` that clears the seen entry and queues a run.
 - [x] **077** A team catalog for real repositories: CODEOWNERS-based owner instead of MiniRide teams.
@@ -247,3 +247,8 @@ Tasks without a mark can be done and checked offline with `make check`.
   6 servers in 0.48 s against 2.14 s one after another, measured here), 073 (`@debugassist …` on one of the app's
   PRs from an owner, member or collaborator reaches the diff fixer of the run that opened it), 080 (the
   `investigator` MCP server — `investigate`, `runs`, `report` — and `docs/coding-agents.md`).
+- 2026-10-17: 022 (the reproduction rules moved to `pipeline/proof.py` — a first slice of 031 — with their own
+  tests; `scripts/mutate.py`, a dependency-free mutation tester, and `make mutate`: 62/74 mutants killed at first,
+  the survivors pointed at untested message details and a missing "raises"/"thrown" in the error-word pattern;
+  after those, 74/74), 074 (a failed check on an installed repository's default branch becomes
+  `GHCI:owner/repo@<id>`, run once from the poll as a draft-PR investigation).

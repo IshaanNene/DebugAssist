@@ -111,7 +111,7 @@ async def github_webhook(request: Request) -> dict[str, Any]:
     `labeled` with the app's label is queued for `debugassist app poll`, everything else is acknowledged."""
     from debugassist.core.settings import get_settings
     from debugassist.integrations.github_app import verify_signature
-    from debugassist.pipeline.app_cli import QUEUE, REFRESH, REVIEWS, review_request
+    from debugassist.pipeline.app_cli import CI_QUEUE, QUEUE, REFRESH, REVIEWS, ci_failure, review_request
 
     s = get_settings()
     if s.github_app_webhook_secret is None:
@@ -132,6 +132,15 @@ async def github_webhook(request: Request) -> dict[str, Any]:
         REVIEWS.mkdir(parents=True, exist_ok=True)
         (REVIEWS / f"{uuid.uuid4().hex}.json").write_text(review.model_dump_json())
         return {"queued": True, "review": f"{review.repo}#{review.pr}"}
+    if event == "check_run":
+        ci = ci_failure(payload)
+        if ci is None:
+            return {"queued": False, "reason": "not a failed check on the default branch"}
+        if (dup := _seen_delivery(request, body)) is not None:
+            return dup
+        CI_QUEUE.mkdir(parents=True, exist_ok=True)
+        (CI_QUEUE / f"{uuid.uuid4().hex}.json").write_text(json.dumps({"ref": ci}))
+        return {"queued": True, "ci": ci}
     if event in ("installation", "installation_repositories"):  # installed, removed, repositories changed
         QUEUE.parent.mkdir(parents=True, exist_ok=True)
         (QUEUE.parent / REFRESH).touch()  # the poll re-reads the installations before its next pass

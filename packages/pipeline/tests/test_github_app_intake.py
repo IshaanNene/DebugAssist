@@ -212,3 +212,58 @@ def test_rerun_clears_the_record_and_queues_the_issue(tmp_path: Path) -> None:
     app_cli.requeue("acme/widgets", 3)
     assert "GHA:acme/widgets#3" not in json.loads((tmp_path / "seen.json").read_text())
     assert app_cli.pending(a, gate, "debugassist") == [("acme/widgets", 3, "webhook")]
+
+
+def _check_event(
+    conclusion: str = "failure", branch: str = "main", action: str = "completed"
+) -> dict[str, Any]:
+    return {
+        "action": action,
+        "check_run": {"id": 77, "conclusion": conclusion, "check_suite": {"head_branch": branch}},
+        "repository": {"full_name": "acme/widgets", "default_branch": "main"},
+    }
+
+
+@pytest.mark.parametrize(
+    ("event", "ref"),
+    [
+        (_check_event(), "GHCI:acme/widgets@77"),
+        (_check_event("timed_out"), "GHCI:acme/widgets@77"),
+        (_check_event("success"), None),
+        (_check_event("cancelled"), None),
+        (_check_event(branch="debugassist/fix"), None),  # our own PR's branch: not an input
+        (_check_event(action="created"), None),
+    ],
+)
+def test_only_a_failed_check_on_the_default_branch_is_an_input(
+    event: dict[str, Any], ref: str | None
+) -> None:
+    """ROADMAP-100 074."""
+    assert app_cli.ci_failure(event) == ref
+
+
+def test_a_ci_failure_becomes_an_issue_and_runs_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    up = _upstream(tmp_path)
+    a = _app(tmp_path, up)
+    s = json.loads(a.state_file.read_text())
+    s["repos"]["acme/widgets"]["check_runs"] = {"77": {
+        "name": "tests", "conclusion": "failure", "head_sha": "abc123", "html_url": "https://ci/77",
+        "completed_at": "2026-10-17T10:00:00Z",
+        "output": {"title": "1 failed", "summary": "test_half failed", "text": "assert half(3) == 1.5"}}}  # fmt: skip
+    a.state_file.write_text(json.dumps(s))
+    issue = app_intake.ingest_ci("GHCI:acme/widgets@77", a)
+    assert issue.title == "CI failure: tests (failure)" and issue.platform == "ci" and issue.app_issue is None
+    assert "assert half(3) == 1.5" in issue.report["body"] and issue.base_branch == "main"
+    assert issue.id == "GHCI-acme-widgets-77" and issue.url == "https://ci/77"
+
+    monkeypatch.setattr(app_cli, "_spawn", lambda ref, llm: 0)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    gate = _gate(a, tmp_path)
+    for _ in range(2):
+        app_cli.CI_QUEUE.mkdir(parents=True, exist_ok=True)
+        (app_cli.CI_QUEUE / f"{_}.json").write_text(json.dumps({"ref": "GHCI:acme/widgets@77"}))
+    assert app_cli.ci_pass(gate, llm="mock") == [
+        "GHCI:acme/widgets@77: done",
+        "GHCI:acme/widgets@77: already run",
+    ]
+    with pytest.raises(ValueError, match="not a CI failure reference"):
+        app_intake.parse_ci_ref("GHA:acme/widgets#3")

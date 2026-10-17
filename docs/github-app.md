@@ -162,6 +162,13 @@ fixer, which revises the fix, re-validates it against the release, pushes and co
 policy gate. Comments from anyone else, from bots, or on issues are ignored: a revision spends the operator's
 credit.
 
+## CI failures
+
+With the `check_run` webhook event subscribed, a check that fails (or times out) on an installed repository's
+default branch is queued as `GHCI:owner/repo@<check run id>`; the next poll pass runs it once. The check's title,
+summary and text are the report; the fix is a draft PR against the default branch; there is no issue to comment
+on. Checks on other branches — including the app's own PR branches — are ignored.
+
 ## Scale
 
 The target today is a handful of repositories on one machine, not a fleet: one poller runs one issue at a time
@@ -174,5 +181,5 @@ well inside GitHub's 5,000 an hour per installation. Beyond that: the worker poo
 
 ## Not yet
 
-Measured only in mock mode and unit tests so far (no app has been created for this project yet). Open: running
-on a pull request's CI failure and a hosted worker instead of a laptop poll.
+Measured only in mock mode and unit tests so far (no app has been created for this project yet). Open: a hosted worker
+instead of a laptop poll, and CI failures on pull-request branches (only the default branch is an input).

@@ -39,6 +39,8 @@ SEEN = ROOT / ".data" / "app" / "seen.json"
 LOCK = ROOT / ".data" / "app" / "poll.lock"
 METRICS = ROOT / ".data" / "app" / "metrics.json"
 RUNS_DIR = ROOT / ".data" / "runs"
+CI_QUEUE = ROOT / ".data" / "app" / "ci"  # failed checks on default branches, from the webhook
+FAILED_CHECK = {"failure", "timed_out"}
 REVIEWS = ROOT / ".data" / "app" / "reviews"  # `@debugassist …` comments on the app's PRs, for the diff fixer
 TRUSTED = {"OWNER", "MEMBER", "COLLABORATOR"}  # who may ask for a revision (it spends the operator's credit)
 REFRESH = "refresh-installations"  # touched by the webhook on installation events
@@ -165,6 +167,61 @@ def review_request(payload: Any) -> ReviewRequest | None:
     return ReviewRequest(
         repo=e.repository.full_name, pr=e.issue.number, instruction=instruction[:500], by=e.comment.user.login
     )
+
+
+class _CheckSuite(BaseModel):
+    head_branch: str | None = None
+
+
+class _CheckRunPayload(BaseModel):
+    id: int = 0
+    conclusion: str | None = None
+    check_suite: _CheckSuite = _CheckSuite()
+
+
+class _RepoPayload(BaseModel):
+    full_name: str = ""
+    default_branch: str = "main"
+
+
+class CheckRunEvent(BaseModel):
+    action: str = ""
+    check_run: _CheckRunPayload = _CheckRunPayload()
+    repository: _RepoPayload = _RepoPayload()
+
+
+def ci_failure(payload: Any) -> str | None:
+    """A `check_run` webhook for a failed check on the repository's default branch, as a `GHCI:` reference
+    (ROADMAP-100 074); None for anything else (other branches, PRs, passing or cancelled checks)."""
+    e = CheckRunEvent.model_validate(payload)
+    if e.action != "completed" or e.check_run.conclusion not in FAILED_CHECK or not e.check_run.id:
+        return None
+    if e.check_run.check_suite.head_branch != e.repository.default_branch:
+        return None
+    return app_intake.ci_ref(e.repository.full_name, e.check_run.id)
+
+
+def ci_pass(gate: PolicyGate, llm: str = "live", dry: bool = False) -> list[str]:
+    """Run each queued CI failure once (a run per failed check; the poll remembers it in seen.json)."""
+    done: list[str] = []
+    for f in sorted(CI_QUEUE.glob("*.json")) if CI_QUEUE.is_dir() else []:
+        ref = str(json.loads(f.read_text())["ref"])
+        repo, _ = app_intake.parse_ci_ref(ref)
+        if not gate.allowed_repo(repo):
+            done.append(f"{ref}: not allowed by writes.yaml")
+        elif ref in _seen():
+            done.append(f"{ref}: already run")
+        elif dry:
+            done.append(f"would run {ref}")
+            continue
+        else:
+            _mark(ref, {"result": "running", "at": time.time(), "attempts": 1})
+            code = _spawn(ref, llm)
+            _mark(ref, {"result": "done" if code == 0 else f"exit {code}", "at": time.time(), "attempts": 1})
+            count(ci_runs=1, runs_failed=1 if code else 0)
+            done.append(f"{ref}: {'done' if code == 0 else f'exit {code}'}")
+        f.unlink()
+    return done
 
 
 def run_for_pr(repo: str, pr: int, runs: Path | None = None) -> str | None:
@@ -416,7 +473,7 @@ def poll(
                 return
             time.sleep(min(exc.wait_s, MAX_RATE_WAIT) + 1)
             continue
-        for line in review_pass(gate, dry=dry):
+        for line in [*review_pass(gate, dry=dry), *ci_pass(gate, llm=llm, dry=dry)]:
             typer.echo(line)
         for repo, number, why in work:
             typer.echo(f"{repo}#{number} ({why})")
