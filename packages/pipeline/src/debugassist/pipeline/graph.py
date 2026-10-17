@@ -20,7 +20,7 @@ from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
 
-from debugassist.core import runctx, tracing
+from debugassist.core import logs, runctx, tracing
 from debugassist.core.files import write_atomic
 from debugassist.core.redaction import redact, redact_secrets
 from debugassist.pipeline import budget, nodes
@@ -117,6 +117,9 @@ def wrap(
             update["traces"] = [*state.traces, trace_id]
         ms = int((time.perf_counter() - t0) * 1000)
         update["timings_ms"] = {**state.timings_ms, name: ms}
+        logs.event(
+            "pipeline", "node", run_id=state.run_id, node=name, ms=ms, status=update.get("status", "ok")
+        )
         if deps.extra.get("until") == name and update.get("status") not in ("failed", "duplicate"):
             update["status"] = "stopped"  # --until: end the run after this step
             update["stopped_after"] = name
@@ -131,10 +134,10 @@ async def _run_node(
 ) -> dict[str, Any]:
     if "llm" in kind:  # the global run budget: no new LLM work once it is spent
         spent = await budget.spent(state, deps)
-        left = budget.limit(deps) - spent["total"]
+        left = budget.limit(deps, state) - spent["total"]
         deps.extra["budget_remaining"] = left
         if left <= 0:
-            msg = f"{name}: run budget exhausted (${spent['total']:.4f} of ${budget.limit(deps):.2f})"
+            msg = f"{name}: run budget exhausted (${spent['total']:.4f} of ${budget.limit(deps, state):.2f})"
             log(f"  ✗ {msg}")
             return {"status": "failed", "errors": [*state.errors, msg, ""]}
     try:

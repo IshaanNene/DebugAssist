@@ -252,3 +252,91 @@ def test_health_lists_each_dependency_and_app_metrics(
     app_cli.count(runs_started=2, runs_failed=1)
     m = client.get("/api/app/metrics").json()
     assert (m["runs_started"], m["runs_failed"]) == (2, 1)
+
+
+def test_a_signed_webhook_reaches_one_run_and_leaves_nothing_queued(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ROADMAP-100 026: delivery → queue → poll → `debugassist run GHA:…` once → queue empty, poll record kept."""
+    import hashlib
+    import hmac
+    import subprocess
+
+    from debugassist.core import settings as settings_mod
+    from debugassist.core.policy import Policy, PolicyGate
+    from debugassist.integrations.github_app import GitHubAppMock
+    from debugassist.pipeline import app_cli, app_intake
+
+    up = tmp_path / "upstream"
+    (up / ".DebugAssist").mkdir(parents=True)
+    (up / ".DebugAssist" / "pipeline.yaml").write_text(
+        "version: 1\ncomponents:\n  .:\n    language: python\n"
+    )
+    for args in (["init", "-q", "-b", "main"], ["add", "."], ["commit", "-qm", "init"]):
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=up, check=True)
+    a = GitHubAppMock(tmp_path / "mock")
+    a.state_file.write_text(json.dumps({"repos": {"acme/widgets": {"clone_url": str(up), "issues": [
+        {"number": 3, "title": "boom", "labels": [{"name": "debugassist"}]}]}}}))  # fmt: skip
+    for name, value in {"QUEUE": tmp_path / "queue", "SEEN": tmp_path / "seen.json",
+                        "METRICS": tmp_path / "metrics.json"}.items():  # fmt: skip
+        monkeypatch.setattr(app_cli, name, value)
+    monkeypatch.setattr(app_intake, "TARGETS", tmp_path / "targets")
+    monkeypatch.setenv("GITHUB_APP_WEBHOOK_SECRET", "s3cret")
+    settings_mod.get_settings.cache_clear()
+    spawned: list[tuple[str, str]] = []
+    monkeypatch.setattr(app_cli, "_spawn", lambda ref, llm: spawned.append((ref, llm)) or 0)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+
+    body = json.dumps({"action": "labeled", "label": {"name": "debugassist"},
+                       "repository": {"full_name": "acme/widgets"}, "issue": {"number": 3}}).encode()  # fmt: skip
+    sig = "sha256=" + hmac.new(b"s3cret", body, hashlib.sha256).hexdigest()
+    headers = {"X-Hub-Signature-256": sig, "X-GitHub-Event": "issues", "X-GitHub-Delivery": D1}
+    try:
+        assert (
+            TestClient(app_module.app).post("/github/webhook", content=body, headers=headers).json()["queued"]
+        )
+    finally:
+        settings_mod.get_settings.cache_clear()
+    gate = PolicyGate(Policy.model_validate({"actions": {"github.comment": "live"}, "app_installations": True}),
+                      tmp_path / "audit.jsonl", installed=a.installed_repos)  # fmt: skip
+    work = app_cli.pending(a, gate, "debugassist")
+    assert work == [("acme/widgets", 3, "webhook")]  # the labeled issue is not listed twice
+    for repo, number, _ in work:
+        app_cli.run_one(a, repo, number, llm="mock", gate=gate)
+        app_cli.done_delivery(repo, number)
+    assert spawned == [("GHA:acme/widgets#3", "mock")]
+    assert not list((tmp_path / "queue").rglob("*.json"))
+    assert json.loads((tmp_path / "seen.json").read_text())["GHA:acme/widgets#3"]["result"] == "done"
+    assert app_cli.pending(a, gate, "debugassist") == []  # the poll remembers it: no second run
+
+
+def test_the_run_list_is_indexed_and_paged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """ROADMAP-100 045, 065: state files are parsed once until they change; `before` pages through."""
+    from debugassist.api import data
+    from debugassist.api.data import Paths
+
+    p = Paths(data=tmp_path)
+    for rid in ("20261015-000000-a", "20261016-000000-b", "20261017-000000-c"):
+        (p.runs / rid).mkdir(parents=True)
+        (p.runs / rid / "state.json").write_text(
+            json.dumps({"run_id": rid, "issue_ref": rid[-1], "status": "done"})
+        )
+    reads: list[str] = []
+    real = data.load_state
+    monkeypatch.setattr(data, "load_state", lambda p_, rid: reads.append(rid) or real(p_, rid))  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    assert [r["run_id"] for r in data.runs(p)] == [
+        "20261017-000000-c",
+        "20261016-000000-b",
+        "20261015-000000-a",
+    ]
+    assert len(reads) == 3 and (p.runs / ".index.json").is_file()
+    data.runs(p)
+    assert len(reads) == 3  # unchanged files: served from the index
+    (p.runs / "20261016-000000-b" / "state.json").write_text(
+        json.dumps({"run_id": "20261016-000000-b", "issue_ref": "b", "status": "failed"})
+    )
+    assert data.runs(p, issue="b")[0]["status"] == "failed" and reads[-1] == "20261016-000000-b"
+    page = data.runs(p, limit=1)
+    assert [r["run_id"] for r in data.runs(p, limit=5, before=page[-1]["run_id"])] == [
+        "20261016-000000-b",
+        "20261015-000000-a",
+    ]

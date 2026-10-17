@@ -47,5 +47,8 @@ def _no_ambient_credentials(request: pytest.FixtureRequest, monkeypatch: pytest.
     from debugassist.core import policy
 
     monkeypatch.setattr(policy, "DEFAULT_AUDIT", request.getfixturevalue("tmp_path") / "audit.jsonl")
+    from debugassist.core import logs
+
+    monkeypatch.setattr(logs, "LOGS", request.getfixturevalue("tmp_path") / "logs")
     get_settings.cache_clear()
     request.addfinalizer(get_settings.cache_clear)

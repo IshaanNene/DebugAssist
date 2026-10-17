@@ -21,6 +21,7 @@ from typing import IO, Annotated, Any
 
 import typer
 
+from debugassist.core import logs
 from debugassist.core.files import write_atomic
 from debugassist.core.policy import ROOT, PolicyGate
 from debugassist.core.redaction import redact_secrets
@@ -69,6 +70,7 @@ def count(**increments: int) -> dict[str, float]:
     for k, v in increments.items():
         m[k] = int(m.get(k) or 0) + v
     m["updated_at"] = time.time()
+    logs.event("app", "count", **increments)
     write_atomic(METRICS, json.dumps(m, indent=2, sort_keys=True))
     return m
 
@@ -187,6 +189,7 @@ def run_one(
     count(runs_done=1 if code == 0 else 0, runs_failed=1 if code else 0)
     _mark(ref, {"result": "done" if code == 0 else f"exit {code}", "at": time.time(), "attempts": attempts})
     typer.echo(f"{ref}: {'done' if code == 0 else f'exit {code} (attempt {attempts} of {MAX_ATTEMPTS})'}")
+    logs.event("app", "run", issue=ref, exit_code=code, attempt=attempts)
     if code and attempts >= MAX_ATTEMPTS:
         count(runs_given_up=1)
         _comment(
@@ -250,6 +253,7 @@ def poll(
             work = pending(a, gate, label)
         except RateLimited as exc:  # wait it out instead of hammering the API every interval
             typer.echo(str(exc), err=True)
+            logs.event("app", "rate_limited", wait_s=exc.wait_s)
             count(rate_limited=1)
             if once:
                 return
@@ -260,6 +264,9 @@ def poll(
             try:
                 run_one(a, repo, number, llm=llm, dry=dry, gate=gate)
             except Exception as exc:  # one repository's API error must not stop the poll
+                logs.event(
+                    "app", "error", issue=f"{repo}#{number}", error=f"{type(exc).__name__}: {exc}"[:300]
+                )
                 count(errors=1)
                 typer.echo(
                     f"{repo}#{number}: {type(exc).__name__}: {redact_secrets(str(exc))[:300]}", err=True

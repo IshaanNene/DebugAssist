@@ -172,8 +172,9 @@ def app_metrics() -> dict[str, Any]:
 
 
 @app.get("/api/runs")
-def list_runs(issue: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
-    return data.runs(PATHS, issue, limit)
+def list_runs(issue: str | None = None, limit: int = 100, before: str | None = None) -> list[dict[str, Any]]:
+    """Newest first; pass the last run id of a page as `before` for the next one (at most 500 per page)."""
+    return data.runs(PATHS, issue, limit, before)
 
 
 @app.get("/api/runs/{run_id}")

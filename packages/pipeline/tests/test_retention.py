@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from debugassist.pipeline import retention
 
@@ -48,3 +49,37 @@ def test_audit_rows_filter_by_run_and_action(tmp_path: Path) -> None:
     assert [e.run_id for e in read_audit(log, action="github.")] == ["r1", "r2"]
     assert [e.applied for e in read_audit(log)] == [True, False, None]
     assert len(read_audit(log, last=1)) == 1 and read_audit(tmp_path / "none.jsonl") == []
+
+
+def test_the_health_verdict_names_what_went_off_design() -> None:
+    """ROADMAP-100 059."""
+    from debugassist.pipeline.cli import health_verdict
+    from debugassist.pipeline.state import RunState
+
+    s = RunState(run_id="r", issue_ref="x")
+    assert health_verdict(s, 0, 0) == "healthy"
+    s.errors = ["classify_rca: run budget exhausted ($0.5000 of $0.50)", ""]
+    assert health_verdict(s, 2, 1) == (
+        "⚠ 2 decision(s) fell back · 1 agent(s) stopped by budget · 1 write(s) denied by policy"
+    )
+
+
+def test_a_run_budget_is_the_lowest_of_agent_type_repository_and_global_cap(monkeypatch: Any) -> None:
+    """ROADMAP-100 075."""
+    from types import SimpleNamespace
+
+    from debugassist.pipeline import budget
+    from debugassist.pipeline.state import RunState
+
+    deps: Any = SimpleNamespace(agent_type={"run_budget_usd": 3.0})
+    s = RunState.model_validate(
+        json.loads((Path(__file__).parent / "fixtures" / "run_state.json").read_text())
+    )
+    assert s.issue
+    assert budget.limit(deps, s) == 3.0
+    s.issue.run_budget_usd = 0.75  # the repository's pipeline.yaml says so
+    assert budget.limit(deps, s) == 0.75
+    monkeypatch.setenv("DA_RUN_BUDGET_CAP_USD", "0.5")
+    assert budget.limit(deps, s) == 0.5
+    monkeypatch.delenv("DA_RUN_BUDGET_CAP_USD")
+    assert budget.limit(SimpleNamespace(agent_type={"run_budget_usd": 50.0}), None) == budget.HARD_CAP_USD  # pyright: ignore[reportArgumentType]

@@ -1659,6 +1659,7 @@ async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
     outcome: ShipOutcome = (
         d16.action if d16.action in ("open_pr", "draft_pr", "rca_only", "escalate") else "draft_pr"
     )
+    scope_note = ""
     has_fix = fa.repro_verified and any(not is_test_path(f) for f in fa.files)
     if not has_fix:
         outcome = "rca_only"  # no verified reproduction or no source change: nothing to put in a PR
@@ -1666,16 +1667,43 @@ async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
         outcome = "draft_pr"  # never a ready PR without validation proof
     elif outcome == "open_pr" and v and v.protected:
         outcome = "draft_pr"  # a pre-existing test, harness, CI or lockfile changed: a flagged draft (P2-8)
+    elif outcome == "open_pr" and (outside := _outside_plan(state)):
+        outcome = (
+            "draft_pr"  # the fix spread well past where the plan and the RCA put the defect (ROADMAP-100 017)
+        )
+        scope_note = (
+            f"{len(outside)} changed source file(s) outside the planned location: {', '.join(outside[:5])}"
+        )
     elif outcome == "open_pr" and not _ready_pr_allowed(state, deps):
         outcome = "draft_pr"  # a repository the app is installed on, not ours: draft PRs only (ADR 0008)
     return {
         "ship": Ship(
             outcome=outcome,
             risk=float(d16.chosen.get("risk", 0)),
-            decision={"p": d16.p, "band": d16.band, "chosen": d16.chosen},
+            decision={
+                "p": d16.p,
+                "band": d16.band,
+                "chosen": d16.chosen,
+                **({"scope": scope_note} if scope_note else {}),
+            },
         ),  # pyright: ignore[reportArgumentType]
         "decisions": [*state.decisions, d16.ledger_id or ""],
     }
+
+
+SCOPE_SLACK = 2  # changed source files allowed beyond the planned ones (a helper, a sibling module)
+
+
+def _outside_plan(state: RunState) -> list[str]:
+    """Changed source files beyond the fix plan's focus and the RCA's location, when more than SCOPE_SLACK."""
+    fa, rca, plan = state.fix_attempts[-1], state.rca, state.fix_plan
+    planned = {f.split("::")[0].removeprefix("./") for f in (plan.focus if plan else [])}
+    if rca and rca.output:
+        planned.add(rca.output.location.file.removeprefix("./"))
+    if not planned:
+        return []
+    outside = sorted(f for f in fa.files if not is_test_path(f) and f.removeprefix("./") not in planned)
+    return outside if len(outside) > SCOPE_SLACK else []
 
 
 def _commit_trailer(issue: Issue) -> str:

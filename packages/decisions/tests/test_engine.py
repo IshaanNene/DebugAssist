@@ -155,3 +155,40 @@ async def test_pii_is_redacted_before_clef_sees_the_state() -> None:
     sent = str(rec.requests[0].state)
     assert "jane.doe@example.com" not in sent and "415-555-0134" not in sent and "37.774929" not in sent
     assert "[email]" in sent and "[phone]" in sent
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [  # ROADMAP-100 027: Clef answers 5xx, times out, or its breaker is already open
+        "ClefTransientError: Workers AI 503",
+        "ClefTransientError: read timeout after 30 s",
+    ],
+)
+async def test_clef_faults_fall_back_and_the_ledger_says_why(ledger: Ledger, fault: str) -> None:
+    from debugassist.core.settings import Mode as M
+    from debugassist.decisions.resilience import CircuitBreaker, FallbackBackend
+    from debugassist.decisions.schema import ClefTransientError
+
+    class Down:
+        name, mode = "workers_ai", M.LIVE
+
+        async def run(self, request: ClefRequest) -> ClefResponse:
+            raise ClefTransientError(fault.split(": ", 1)[1])
+
+        def cost_usd(self, response: ClefResponse) -> float:
+            return 0.0
+
+        async def aclose(self) -> None:
+            return None
+
+    engine = DecisionEngine(
+        FallbackBackend(Down(), MockDecider(), CircuitBreaker(threshold=1)), ledger=ledger
+    )
+    first = await engine.decide("D05", STATE, ctx=RunContext(run_id="r1", issue_id="i1"))
+    second = await engine.decide("D05", STATE, ctx=RunContext(run_id="r1", issue_id="i1"))  # breaker open now
+    assert first.backend == "mock" and fault.split(": ", 1)[1] in (first.fallback_reason or "")
+    assert second.fallback_reason == "circuit open"
+    rows = await ledger.list(run_id="r1")
+    assert [r.fallback_reason is not None for r in rows] == [True, True] and {r.backend for r in rows} == {
+        "mock"
+    }

@@ -1,0 +1,32 @@
+name: weekly
+# Checks too slow or too noisy for every push (ROADMAP-100 029, 100).
+on:
+  schedule:
+    - cron: "17 4 * * 1"  # Mondays 04:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flaky:
+    # The suite three times; a test whose outcome changes between runs is flaky and fails the job by name.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv sync --locked
+      - run: for i in 1 2 3; do uv run pytest -q -p no:cacheprovider --junitxml=run-$i.xml || true; done
+      - run: uv run python scripts/flaky.py run-1.xml run-2.xml run-3.xml
+
+  fresh-clone:
+    # What a new contributor does, on a clean runner, timed: the README's quickstart must keep working.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: make bootstrap && make check
+        run: |
+          start=$(date +%s)
+          make bootstrap && make check
+          echo "fresh clone to green: $(( $(date +%s) - start )) s" | tee -a "$GITHUB_STEP_SUMMARY"

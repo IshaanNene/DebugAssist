@@ -295,3 +295,21 @@ def test_a_resumed_run_does_not_comment_on_the_issue_twice(tmp_path: Path) -> No
     assert (
         len(posted) == 1 and first[0]["result"] == "commented" and again[0]["result"] == "already commented"
     )
+
+
+async def test_a_fix_that_spreads_past_the_plan_is_a_draft(tmp_path: Path) -> None:
+    """ROADMAP-100 017: a ready PR only when the change stays near where the plan and the RCA put the defect."""
+    from debugassist.core.policy import Policy
+
+    s = run_state()
+    assert s.rca and s.rca.output and s.issue
+    planned = s.rca.output.location.file
+    fa = s.fix_attempts[-1]
+    d: Any = SimpleNamespace(
+        engine=D16(), gate=PolicyGate(Policy(repos=[s.issue.gh_repo]), tmp_path / "a.jsonl")
+    )
+    fa.files = [planned, "src/a.ts", "src/b.ts", "test/x.test.ts"]  # two extra: within the slack
+    assert (await nodes.ship_gate(s, d))["ship"].outcome == "open_pr"
+    fa.files = [planned, "src/a.ts", "src/b.ts", "src/c.ts", "test/x.test.ts"]
+    ship = (await nodes.ship_gate(s, d))["ship"]
+    assert ship.outcome == "draft_pr" and "3 changed source file(s) outside" in ship.decision["scope"]
