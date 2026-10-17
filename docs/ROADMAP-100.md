@@ -100,7 +100,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **043** Start an agent's MCP servers in parallel (one task owns all sessions) instead of one after another.
 - [x] **044** Cache the collector's evidence per (issue, release) so a resumed or re-run issue does not refetch.
 - [x] **045** `api/data.runs` reads an index file instead of parsing up to 500 `state.json` files per request.
-- [ ] **046** A worker pool for the App poller with one run per repository at a time and idempotent run keys.
+- [x] **046** A worker pool for the App poller with one run per repository at a time and idempotent run keys.
 - [x] **047** Rate-limit awareness for GitHub: read `X-RateLimit-Remaining`, back off before exhaustion; test.
 - [ ] **048** Sandbox install cache shared across runs of the same lockfile (content-addressed), measured.
 - [ ] **049** $ A benchmark job that replays cassettes on a fixed machine and fails if a node's p50 regresses >10%.
@@ -252,3 +252,5 @@ Tasks without a mark can be done and checked offline with `make check`.
   the survivors pointed at untested message details and a missing "raises"/"thrown" in the error-word pattern;
   after those, 74/74), 074 (a failed check on an installed repository's default branch becomes
   `GHCI:owner/repo@<id>`, run once from the poll as a draft-PR investigation).
+- 2026-10-17: 046 (`debugassist app poll --workers N`: different repositories in parallel, one repository's issues in
+  order; the poller's state files are written under a lock). Next up: 037, 025 (GitHub half), 093, then 031.

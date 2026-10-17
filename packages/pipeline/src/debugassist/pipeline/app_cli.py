@@ -15,7 +15,10 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import IO, Annotated, Any
 
@@ -67,21 +70,26 @@ def _seen() -> dict[str, Any]:
     return json.loads(SEEN.read_text()) if SEEN.is_file() else {}
 
 
+_STATE_LOCK = threading.RLock()  # seen.json, metrics and outcomes are read-modify-written by parallel workers
+
+
 def _mark(key: str, value: dict[str, Any]) -> None:
-    s = _seen()
-    s[key] = value
-    write_atomic(SEEN, json.dumps(s, indent=2))
+    with _STATE_LOCK:
+        s = _seen()
+        s[key] = value
+        write_atomic(SEEN, json.dumps(s, indent=2))
 
 
 def count(**increments: int) -> dict[str, float]:
     """Running totals of what the poll did (ROADMAP-100 052), in `.data/app/metrics.json` and on the API."""
-    m: dict[str, float] = json.loads(METRICS.read_text()) if METRICS.is_file() else {}
-    for k, v in increments.items():
-        m[k] = int(m.get(k) or 0) + v
-    m["updated_at"] = time.time()
-    logs.event("app", "count", **increments)
-    write_atomic(METRICS, json.dumps(m, indent=2, sort_keys=True))
-    return m
+    with _STATE_LOCK:
+        m: dict[str, float] = json.loads(METRICS.read_text()) if METRICS.is_file() else {}
+        for k, v in increments.items():
+            m[k] = int(m.get(k) or 0) + v
+        m["updated_at"] = time.time()
+        logs.event("app", "count", **increments)
+        write_atomic(METRICS, json.dumps(m, indent=2, sort_keys=True))
+        return m
 
 
 ALERT_WINDOW = 10  # last N finished runs
@@ -92,28 +100,29 @@ ALERT_EVERY = 3600.0  # at most one alert an hour
 def record_outcome(code: int, gate: PolicyGate, chat: Chat | None = None) -> bool:
     """Keep the last ALERT_WINDOW run outcomes; when more than ALERT_RATIO of them failed, page the operator once
     an hour through the write gate (ROADMAP-100 053). Returns whether it alerted."""
-    m: dict[str, float] = json.loads(METRICS.read_text()) if METRICS.is_file() else {}
-    recent: list[int] = json.loads(OUTCOMES.read_text()) if OUTCOMES.is_file() else []
-    recent = [*recent, 1 if code else 0][-ALERT_WINDOW:]
-    write_atomic(OUTCOMES, json.dumps(recent))
-    failed, now = sum(recent), time.time()
-    due = len(recent) >= ALERT_WINDOW // 2 and failed / len(recent) > ALERT_RATIO
-    alerted = due and now - float(m.get("alerted_at") or 0) >= ALERT_EVERY
-    if alerted:
-        m["alerted_at"] = now
-    write_atomic(METRICS, json.dumps(m, indent=2, sort_keys=True))
-    if alerted:
-        msg = ChatMessage(
-            to="#debugassist-ops",
-            title=f"GitHub App: {failed} of the last {len(recent)} runs failed",
-            text="Read the failed runs' errors (`debugassist audit`, `.data/logs/app.jsonl`), fix the cause, then "
-            "`debugassist app rerun GHA:owner/repo#n`.",
-            level="alert",
-        )
-        gate.gated("chat.message", lambda: (chat or build_chat(get_settings())).send(msg), run_id=None,
-                   detail={"to": msg.to, "title": msg.title})  # fmt: skip
-        logs.event("app", "alert", failed=failed, window=len(recent))
-    return alerted
+    with _STATE_LOCK:
+        m: dict[str, float] = json.loads(METRICS.read_text()) if METRICS.is_file() else {}
+        recent: list[int] = json.loads(OUTCOMES.read_text()) if OUTCOMES.is_file() else []
+        recent = [*recent, 1 if code else 0][-ALERT_WINDOW:]
+        write_atomic(OUTCOMES, json.dumps(recent))
+        failed, now = sum(recent), time.time()
+        due = len(recent) >= ALERT_WINDOW // 2 and failed / len(recent) > ALERT_RATIO
+        alerted = due and now - float(m.get("alerted_at") or 0) >= ALERT_EVERY
+        if alerted:
+            m["alerted_at"] = now
+        write_atomic(METRICS, json.dumps(m, indent=2, sort_keys=True))
+        if alerted:
+            msg = ChatMessage(
+                to="#debugassist-ops",
+                title=f"GitHub App: {failed} of the last {len(recent)} runs failed",
+                text="Read the failed runs' errors (`debugassist audit`, `.data/logs/app.jsonl`), fix the cause, then "
+                "`debugassist app rerun GHA:owner/repo#n`.",
+                level="alert",
+            )
+            gate.gated("chat.message", lambda: (chat or build_chat(get_settings())).send(msg), run_id=None,
+                       detail={"to": msg.to, "title": msg.title})  # fmt: skip
+            logs.event("app", "alert", failed=failed, window=len(recent))
+        return alerted
 
 
 class _User(BaseModel):
@@ -440,14 +449,40 @@ def status() -> None:
         typer.echo(f"{repo}: {'allowed' if gate.allowed_repo(repo) else 'not allowed by writes.yaml'}")
 
 
+def run_work(
+    work: list[tuple[str, int, str]],
+    one: Callable[[str, int, str], None],
+    workers: int = 1,
+) -> None:
+    """Run a pass's issues: different repositories in parallel (up to `workers`), one repository's issues in
+    order — they share its checkout (ROADMAP-100 046). `one` handles one issue and never raises."""
+    by_repo: dict[str, list[tuple[str, int, str]]] = {}
+    for item in work:
+        by_repo.setdefault(item[0], []).append(item)
+
+    def repo_queue(items: list[tuple[str, int, str]]) -> None:
+        for repo, number, why in items:
+            one(repo, number, why)
+
+    if workers <= 1 or len(by_repo) <= 1:
+        for items in by_repo.values():
+            repo_queue(items)
+        return
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="poll") as pool:
+        list(pool.map(repo_queue, by_repo.values()))
+
+
 @app.command()
 def poll(
     once: Annotated[bool, typer.Option(help="one pass, then exit")] = False,
     interval: Annotated[int, typer.Option(help="seconds between passes")] = 60,
     llm: Annotated[str, typer.Option(help="live | mock")] = "live",
     dry: Annotated[bool, typer.Option(help="list what would run, run nothing")] = False,
+    workers: Annotated[
+        int, typer.Option(help="repositories run in parallel (one issue at a time per repository)")
+    ] = 1,
 ) -> None:
-    """Run every labeled issue (and webhook delivery) once, one at a time."""
+    """Run every labeled issue (and webhook delivery) once."""
     a = _app()
     label = get_settings().github_app_label
     gate = PolicyGate(installed=a.installed_repos)
@@ -475,7 +510,8 @@ def poll(
             continue
         for line in [*review_pass(gate, dry=dry), *ci_pass(gate, llm=llm, dry=dry)]:
             typer.echo(line)
-        for repo, number, why in work:
+
+        def one(repo: str, number: int, why: str) -> None:
             typer.echo(f"{repo}#{number} ({why})")
             try:
                 run_one(a, repo, number, llm=llm, dry=dry, gate=gate)
@@ -489,7 +525,10 @@ def poll(
                 )
             finally:
                 if not dry:
-                    done_delivery(repo, number)
+                    with _STATE_LOCK:
+                        done_delivery(repo, number)
+
+        run_work(work, one, workers)
         if once:
             return
         time.sleep(interval)
