@@ -256,3 +256,64 @@ def test_mcp_servers_start_through_the_pex_when_packaged(monkeypatch: pytest.Mon
         and packed["env"]["PEX_MODULE"] == MCP_MODULES["code-search"]
     )
     assert packed["env"]["A"] == "1"
+
+
+async def test_mcp_tools_share_one_session_per_server() -> None:
+    """Audit P2-11: every MCP call started a server process (~0.35–0.95 s); one session per agent run instead."""
+    import time
+    from contextlib import AsyncExitStack
+
+    from debugassist.llm.runner import mcp_connections, open_mcp_tools
+
+    async with AsyncExitStack() as stack:
+        tools = await open_mcp_tools(stack, mcp_connections(["code-search"], {}))
+        list_repos = next(t for t in tools if t.name == "list_repos")
+        await list_repos.ainvoke({})
+        t0 = time.perf_counter()
+        for _ in range(10):
+            assert "repos" in str(await list_repos.ainvoke({}))
+        assert time.perf_counter() - t0 < 2.0  # ten new processes take well over 3 s
+    assert await open_mcp_tools(AsyncExitStack(), {}) == []
+
+
+async def test_an_agent_stops_before_the_model_call_that_would_exceed_its_budget(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Audit P3-20: the cap was only compared after the run; an expensive agent kept calling the model."""
+    from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
+    from langchain_core.messages import AIMessage, BaseMessage
+    from langchain_core.tools import tool
+
+    from debugassist.llm import runner as runner_mod
+
+    calls: list[int] = []
+
+    class ScriptedModel(FakeMessagesListChatModel):
+        def bind_tools(self, tools: Any, **kwargs: Any) -> Any:
+            return self
+
+        def _generate(self, messages: list[BaseMessage], *args: Any, **kwargs: Any) -> Any:
+            calls.append(len(messages))
+            return super()._generate(messages, *args, **kwargs)
+
+    usage = {"input_tokens": 1_000_000, "output_tokens": 0, "total_tokens": 1_000_000}
+    turns: list[BaseMessage] = [
+        AIMessage("", tool_calls=[{"name": "noop", "args": {"i": i}, "id": f"c{i}"}], usage_metadata=usage)  # pyright: ignore[reportArgumentType]
+        for i in range(6)
+    ]
+    monkeypatch.setattr(runner_mod, "chat_model", lambda *_a, **_k: ScriptedModel(responses=turns))  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr(runner_mod, "cost_usd", lambda t_in, t_out, **_: t_in / 1_000_000 * 0.25)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+
+    @tool
+    def noop(i: int) -> str:
+        """Do nothing."""
+        return f"step {i}"
+
+    async def no_extract(*_: Any) -> tuple[None, int, int]:
+        return None, 0, 0
+
+    monkeypatch.setattr(runner_mod.AgentRunner, "_extract", lambda self, *a: no_extract(*a))  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    spec = LLMNodeSpec(node="t", system_prompt="s", model="m", max_turns=6, max_budget_usd=0.5)
+    r = await runner_mod.AgentRunner(record_dir=tmp_path).run(spec, "task", Out, tools=[noop])
+    assert len(calls) == 2  # $0.25 per turn: the third call would start at the $0.50 cap
+    assert r.status == "max_budget" and "max_budget" in (r.error or "")

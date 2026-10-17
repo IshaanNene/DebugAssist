@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     # No secrets: every integration resolves to mock mode.
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
       - run: uv sync --locked
@@ -21,6 +21,21 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pyright
       - run: uv run pytest
+
+  audit:
+    runs-on: ubuntu-latest
+    # Known-vulnerable dependencies fail the build: every locked Python package, and the dashboard's and SDKs'
+    # production dependencies.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - run: uv export --locked --format requirements-txt --no-emit-workspace --no-hashes -q > requirements.txt
+      - run: uvx pip-audit@2.9.0 --disable-pip --no-deps -r requirements.txt
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with: { package_json_file: "apps/dashboard/package.json" }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with: { node-version: 22 }
+      - run: for d in apps/dashboard sources/vitals/sdk-js sources/bugdrop/sdk-js; do (cd "$d" && pnpm audit --prod) || exit 1; done
 
   sdks:
     runs-on: ubuntu-latest
@@ -31,10 +46,10 @@ jobs:
       run:
         working-directory: ${{ matrix.sdk }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with: { package_json_file: "${{ matrix.sdk }}/package.json" }
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with: { node-version: 22 }
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
@@ -46,10 +61,10 @@ jobs:
       run:
         working-directory: apps/dashboard
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with: { package_json_file: "apps/dashboard/package.json" }
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with: { node-version: 22 }
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
@@ -59,7 +74,7 @@ jobs:
   compose:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: docker compose -f infra/docker-compose.yml --profile '*' config -q
       - name: every published port is loopback-only
         run: |
