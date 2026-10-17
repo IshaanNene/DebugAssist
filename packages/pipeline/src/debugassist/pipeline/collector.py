@@ -10,16 +10,23 @@
 
 from __future__ import annotations
 
+import contextlib
+import hashlib
 import json
 import logging
+import os
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import httpx
 
 from debugassist.core.ablation import ablated
 from debugassist.core.evidence import EvidenceItem, Source
+from debugassist.core.files import write_atomic
+from debugassist.core.policy import ROOT
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
 from debugassist.pipeline.deps import APPS, Deps
@@ -531,11 +538,46 @@ async def score_and_fit(
     return kept, pruned, d.ledger_id
 
 
+CACHE = ROOT / ".data" / "cache" / "evidence"
+
+
+def _cache_file(issue: Issue) -> Path:
+    key = hashlib.sha256(f"{issue.source}|{issue.id}|{issue.last_version}".encode()).hexdigest()[:24]
+    return CACHE / f"{key}.json"
+
+
+def _cached(issue: Issue) -> tuple[list[EvidenceItem], list[EvidenceItem], list[str]] | None:
+    """The telemetry fetched for this issue at this release by an earlier run, when DA_EVIDENCE_CACHE_S allows
+    (ROADMAP-100 044; off by default: a re-run sees the telemetry as it is now). Decisions over it (D3, D4)
+    are always taken again, so the ledger stays per run."""
+    ttl = float(os.environ.get("DA_EVIDENCE_CACHE_S") or 0)
+    f = _cache_file(issue)
+    if ttl <= 0 or not f.is_file() or time.time() - f.stat().st_mtime > ttl:
+        return None
+    try:
+        raw: Any = json.loads(f.read_text())
+        notes: list[Any] = raw.get("notes") or []
+        core = [EvidenceItem.model_validate(i) for i in raw["core"]]
+        return core, [EvidenceItem.model_validate(i) for i in raw["optional"]], [str(n) for n in notes]
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def _store(issue: Issue, core: list[EvidenceItem], optional: list[EvidenceItem], notes: list[str]) -> None:
+    if float(os.environ.get("DA_EVIDENCE_CACHE_S") or 0) <= 0:
+        return
+    body = {"core": [i.model_dump(mode="json") for i in core], "optional": [i.model_dump(mode="json") for i in optional], "notes": notes}  # fmt: skip
+    with contextlib.suppress(OSError):
+        write_atomic(_cache_file(issue), json.dumps(body))
+
+
 async def collect(state: RunState, deps: Deps) -> dict[str, Any]:
     issue = state.issue
     assert issue
     ctx = RunContext(run_id=state.run_id, issue_id=issue.id)
     notes: list[str] = []
+    hit: tuple[list[EvidenceItem], list[EvidenceItem], list[str]] | None = None
+    cached_optional: list[EvidenceItem] = []
     if issue.source == "github":
         # A real repository: the report as filed is the evidence; the agents read code and history with tools.
         core = [
@@ -543,6 +585,9 @@ async def collect(state: RunState, deps: Deps) -> dict[str, Any]:
                 "github", "issue", f'The GitHub issue as filed: "{issue.title[:80]}"', issue.report
             )
         ]
+    elif (hit := _cached(issue)) is not None:
+        core, cached_optional, cached_notes = hit
+        notes += cached_notes
     else:
         core = vitals_core(issue, notes) if issue.source == "vitals" else bugdrop_core(issue, notes)
     decisions = list(state.decisions)
@@ -553,7 +598,13 @@ async def collect(state: RunState, deps: Deps) -> dict[str, Any]:
             core.append(shot_item)
             shots = shot_item.data
             decisions.append(shot_ledger or "")
-    optional = optional_windows(issue, notes) if issue.source != "github" else []  # no MiniRide telemetry
+    if issue.source == "github":
+        optional: list[EvidenceItem] = []  # no MiniRide telemetry
+    elif hit is not None:
+        optional = cached_optional
+    else:
+        optional = optional_windows(issue, notes)
+        _store(issue, core, optional, notes)
     kept, pruned, d3 = await score_and_fit(issue, core, optional, deps, ctx)
     if d3:
         decisions.append(d3)

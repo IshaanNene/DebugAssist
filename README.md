@@ -31,6 +31,53 @@ The plan is a fixed <b>LangGraph</b> graph; models never choose the next step. A
 </tr>
 </table>
 
+## 🚀 Quickstart
+
+**Anyone — no Docker, no keys, a few minutes.** Clone, run every test, and regenerate the evaluation report from the committed runs: the numbers [below](#-results) come out identical (checked on an anonymous clone).
+
+```bash
+git clone --recurse-submodules https://github.com/IshaanNene/DebugAssist && cd DebugAssist
+make bootstrap                                      # uv workspace (Python 3.13) + git hooks
+make doctor                                         # what this machine has: Docker, submodules, keys (names only)
+make check                                          # ruff + pyright strict + every test (what CI runs)
+uv run debugassist eval report --notes evals/notes/2026-10-11.md   # rebuild the report from evals/runs/
+```
+
+<sub>The clone checks out the public client repo and skips the private services repo (<code>miniride-services</code>) instead of failing. The per-run evidence lives in <code>evals/runs/</code> and the labelled decisions in <code>evals/ledger/decisions.jsonl</code>, so the report needs neither the stack nor the local ledger database.</sub>
+
+**The live stack and the demo — needs access to `miniride-services`.** The gateway, dispatch and payments services are built from it, so the stack, the scenarios and the keyless demo run only with access (`make targets` fetches it when you have it), Docker, and about 10 GB of RAM:
+
+```bash
+make targets                                        # fetch the target repos you can access
+make up PROFILES="core obs flags faults target sources" && make flags
+make demo-push-crash                                # keyless: scripted LLM, mock Clef/GitHub/Jira/chat
+make dashboard                                      # http://localhost:3000
+```
+
+To go live, add keys to `.env` (see [`.env.example`](.env.example)); each integration switches to live when its credentials are present (GitHub only when its token is in `.env`, not merely exported), or force one with `DA_MODE_<LLM|CLEF|GITHUB|GITHUB_APP|JIRA|CHAT>=live|mock`:
+
+```bash
+uv run debugassist run latest --llm live            # real agents, Clef, GitHub PR and Jira ticket
+make trigger BUG=009 && uv run debugassist run latest --llm live
+uv run debugassist app poll                         # GitHub App: labeled issues on installed repos (docs/github-app.md)
+```
+
+<details>
+<summary><b>More commands</b></summary>
+<br>
+
+| Command | |
+|---|---|
+| `make scenarios` / `make trigger BUG=002` / `make reset-scenario` | list the catalog / inject a bug and drive riders into it / back to main |
+| `debugassist eval estimate\|run\|replay\|report` | price, run, replay and report an evaluation (refuses runs over `--max-usd`) |
+| `make traffic` / `make load` | normal rider traffic (Playwright) / backend load (Locust) |
+| `make check` / `make coverage` | ruff + pyright strict + pytest / the same tests with CI's coverage floors |
+| `debugassist audit` / `debugassist prune` / `debugassist eval latency` | what was written outside the sandbox / free old runs' worktrees / where a run's time goes |
+| `make lint-skills` / `make pex AGENT_TYPE=…` / `make worker` | marketplace lint / package an agent type / queue worker |
+| `make readme-assets` / `make screenshots` | rebuild README visuals from the latest report / proof screenshots of the stack |
+| `uv run debugassist decide …` | ask Clef a single decision from a template (D01–D18) |
+</details>
+
 ## 📊 Results
 
 <div align="center">
@@ -264,51 +311,6 @@ Eleven [Model Context Protocol](https://modelcontextprotocol.io) servers with 55
 | **jira** | Jira Cloud (or mock) | `get_issue` `find_open_issue` `create_issue` `add_comment` `link_pr` `transition` | pipeline nodes only, never agents |
 
 The one write tool an agent can reach, `rollback_flag`, asks the policy gate first ([`writes.yaml`](configs/policies/writes.yaml) says *approval*), so from an agent it is always a dry run, and it is audited either way. Ticket writes happen only in deterministic pipeline steps. Tool reference: [docs/mcp.md](docs/mcp.md).
-
-## 🚀 Quickstart
-
-**Anyone — no Docker, no keys, a few minutes.** Clone, run every test, and regenerate the evaluation report from the committed runs: the numbers above come out identical (checked on an anonymous clone).
-
-```bash
-git clone --recurse-submodules https://github.com/IshaanNene/DebugAssist && cd DebugAssist
-make bootstrap                                      # uv workspace (Python 3.13) + git hooks
-make check                                          # ruff + pyright strict + every test (what CI runs)
-uv run debugassist eval report --notes evals/notes/2026-10-11.md   # rebuild the report from evals/runs/
-```
-
-<sub>The clone checks out the public client repo and skips the private services repo (<code>miniride-services</code>) instead of failing. The per-run evidence lives in <code>evals/runs/</code> and the labelled decisions in <code>evals/ledger/decisions.jsonl</code>, so the report needs neither the stack nor the local ledger database.</sub>
-
-**The live stack and the demo — needs access to `miniride-services`.** The gateway, dispatch and payments services are built from it, so the stack, the scenarios and the keyless demo run only with access (`make targets` fetches it when you have it), Docker, and about 10 GB of RAM:
-
-```bash
-make targets                                        # fetch the target repos you can access
-make up PROFILES="core obs flags faults target sources" && make flags
-make demo-push-crash                                # keyless: scripted LLM, mock Clef/GitHub/Jira/chat
-make dashboard                                      # http://localhost:3000
-```
-
-To go live, add keys to `.env` (see [`.env.example`](.env.example)); each integration switches to live when its credentials are present, or force one with `DA_MODE_<LLM|CLEF|GITHUB|GITHUB_APP|JIRA|CHAT>=live|mock`:
-
-```bash
-uv run debugassist run latest --llm live            # real agents, Clef, GitHub PR and Jira ticket
-make trigger BUG=009 && uv run debugassist run latest --llm live
-uv run debugassist app poll                         # GitHub App: labeled issues on installed repos (docs/github-app.md)
-```
-
-<details>
-<summary><b>More commands</b></summary>
-<br>
-
-| Command | |
-|---|---|
-| `make scenarios` / `make trigger BUG=002` / `make reset-scenario` | list the catalog / inject a bug and drive riders into it / back to main |
-| `debugassist eval estimate\|run\|replay\|report` | price, run, replay and report an evaluation (refuses runs over `--max-usd`) |
-| `make traffic` / `make load` | normal rider traffic (Playwright) / backend load (Locust) |
-| `make check` | ruff + pyright strict + pytest — everything CI runs |
-| `make lint-skills` / `make pex AGENT_TYPE=…` / `make worker` | marketplace lint / package an agent type / queue worker |
-| `make readme-assets` / `make screenshots` | rebuild README visuals from the latest report / proof screenshots of the stack |
-| `uv run debugassist decide …` | ask Clef a single decision from a template (D01–D18) |
-</details>
 
 ## 🧠 LLM providers
 

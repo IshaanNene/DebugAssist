@@ -25,7 +25,7 @@ from debugassist.core.files import write_atomic
 from debugassist.core.redaction import redact, redact_secrets
 from debugassist.pipeline import budget, nodes
 from debugassist.pipeline.deps import Deps
-from debugassist.pipeline.state import NODE_KIND, RunState
+from debugassist.pipeline.state import NODE_KIND, NodeFailure, RunState
 
 Node = Callable[[RunState, Deps], Awaitable[dict[str, Any]]]
 
@@ -110,7 +110,9 @@ def wrap(
             tracing.set_attributes(
                 sp,
                 status=update.get("status", "ok"),
-                error=(update.get("errors") or [None])[-2] if update.get("status") == "failed" else None,
+                error=update["failures"][-1].message
+                if update.get("status") == "failed" and update.get("failures")
+                else None,
             )
         trace_id = deps.extra.get("trace_id")
         if trace_id and trace_id not in state.traces:
@@ -139,7 +141,12 @@ async def _run_node(
         if left <= 0:
             msg = f"{name}: run budget exhausted (${spent['total']:.4f} of ${budget.limit(deps, state):.2f})"
             log(f"  ✗ {msg}")
-            return {"status": "failed", "errors": [*state.errors, msg, ""]}
+            failure = NodeFailure(node=name, type="BudgetExhausted", message=msg)
+            return {
+                "status": "failed",
+                "errors": [*state.errors, msg, ""],
+                "failures": [*state.failures, failure],
+            }
     try:
         update = await fn(state, deps)
     except Exception as exc:
@@ -147,13 +154,16 @@ async def _run_node(
             raise
         # Errors are persisted (state.json, node files), traced and served by the API: a credential in an
         # exception (a token in a failed command's argv) must not survive into any of them.
+        failure = NodeFailure(
+            node=name,
+            type=type(exc).__name__,
+            message=redact_secrets(str(exc)),
+            traceback=redact_secrets(traceback.format_exc()[-2000:]),
+        )
         update: dict[str, Any] = {
             "status": "failed",
-            "errors": [
-                *state.errors,
-                redact_secrets(f"{name}: {type(exc).__name__}: {exc}"),
-                redact_secrets(traceback.format_exc()[-2000:]),
-            ],
+            "errors": [*state.errors, f"{name}: {failure.type}: {failure.message}", failure.traceback],
+            "failures": [*state.failures, failure],
         }
         log(f"  ✗ {name}: {redact_secrets(str(exc))}")
     return update

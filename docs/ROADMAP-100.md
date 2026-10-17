@@ -44,7 +44,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   tests for each marker in Python, TypeScript and Go.
 - [x] **017** The ship gate refuses `open_pr` when the diff touches more files than the fix plan's location set
   allows (a configurable slack); tests.
-- [ ] **018** Crash safety of `fix`: kill between phase one and phase two, resume, and the worktree is consistent
+- [x] **018** Crash safety of `fix`: kill between phase one and phase two, resume, and the worktree is consistent
   (test with the toy repo from `test_proof_path.py`).
 - [x] **019** Idempotent `pr_and_notify`: a resumed run does not commit twice, push twice or post a second comment
   (test with recording fakes).
@@ -79,7 +79,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **032** Remove the hidden import cycle: `postmerge` and `feedback` stop importing `nodes._notify`; a shared
   `notify` module.
 - [ ] **033** Typed records for `FixPlan.location/strategy/tier` and `Validation.attempts` instead of dicts.
-- [ ] **034** Errors as typed records (`node`, `type`, `message`, `traceback`) instead of string pairs read by
+- [x] **034** Errors as typed records (`node`, `type`, `message`, `traceback`) instead of string pairs read by
   index (`graph.py` reads `[-2]`).
 - [x] **035** A CI check that the count of `dict[str, Any]` and `pyright: ignore` in `pipeline/` only falls.
 - [ ] **036** One `Workspace` object for all host access to a run's worktree (git, reads, walks), replacing the
@@ -98,7 +98,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   a report section.
 - [x] **042** Tool-call latency in the trace summary: time spent in MCP, sandbox and model per run.
 - [ ] **043** Start an agent's MCP servers in parallel (one task owns all sessions) instead of one after another.
-- [ ] **044** Cache the collector's evidence per (issue, release) so a resumed or re-run issue does not refetch.
+- [x] **044** Cache the collector's evidence per (issue, release) so a resumed or re-run issue does not refetch.
 - [x] **045** `api/data.runs` reads an index file instead of parsing up to 500 `state.json` files per request.
 - [ ] **046** A worker pool for the App poller with one run per repository at a time and idempotent run keys.
 - [x] **047** Rate-limit awareness for GitHub: read `X-RateLimit-Remaining`, back off before exhaustion; test.
@@ -124,7 +124,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 ## G · API, data and schema
 
 - [x] **061** `schema_version` on `state.json`, with upgraders for older versions and a test on a stored old file.
-- [ ] **062** Alembic migrations for the ledger instead of `create_all`; an upgrade test from a stored old database.
+- [x] **062** Alembic migrations for the ledger instead of `create_all`; an upgrade test from a stored old database.
 - [x] **063** Typed response models for every API endpoint (FastAPI `response_model`), so the dashboard's types can
   be generated.
 - [ ] **064** Generate the dashboard's TypeScript API types from the OpenAPI schema in CI and fail on drift.
@@ -233,3 +233,11 @@ Tasks without a mark can be done and checked offline with `make check`.
   schema), 067 (D16 rows labelled `pr_merged` / `fixed_after_deploy` by the post-merge watch), 078 (Discord 429
   waited out; fixtures from Discord's documentation, not recorded live), 086 (per-case bisect for vitest `-t` and
   `go test -run`), 099 (pnpm and uv caches; jobs run in parallel, the longest — python — took 105 s on 2026-10-17).
+- 2026-10-17: 018 (a run killed mid-fix, with half a change and a stray file, resumes from the release tag; tested),
+  034 (`RunState.failures`: typed `NodeFailure` records; state schema 3 converts older `errors` pairs), 044
+  (`DA_EVIDENCE_CACHE_S`: re-runs of an issue at the same release reuse its fetched telemetry; off by default, and
+  D3/D4 still decide per run), 062 (`ledger.migrate` on open adds the columns an older ledger lacks and records a
+  schema version; an in-house step rather than Alembic, since every change so far is an added column — a
+  non-additive change gets its own step). Partly done: 093 (the quickstart now comes before the results; the
+  README is not yet split into pages). 064 not started: generating the dashboard's types needs the Node toolchain,
+  which hangs on this machine, so it could not be verified here.

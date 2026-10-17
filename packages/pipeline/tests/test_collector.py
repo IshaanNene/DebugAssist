@@ -160,3 +160,45 @@ async def test_leftover_budget_goes_to_background_windows_not_irrelevant_ones() 
             "reason": "not relevant",
         }
     ]
+
+
+async def test_telemetry_is_reused_only_when_the_cache_is_on(tmp_path: Any, monkeypatch: Any) -> None:
+    """ROADMAP-100 044: off by default; with DA_EVIDENCE_CACHE_S, a re-run of the same issue at the same release
+    reuses the fetched telemetry, and D3 still decides for this run."""
+    import json as _json
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from debugassist.core.evidence import EvidenceItem
+    from debugassist.pipeline import collector
+    from debugassist.pipeline.state import RunState
+
+    fixture = Path(__file__).parent / "fixtures" / "run_state.json"
+    state = RunState.model_validate(_json.loads(fixture.read_text()))
+    assert state.issue
+    state.issue.source = "vitals"
+    monkeypatch.setattr(collector, "CACHE", tmp_path / "cache")
+    fetches: list[str] = []
+
+    def core(issue: Any, notes: list[str]) -> list[EvidenceItem]:
+        fetches.append("core")
+        return [EvidenceItem.make("vitals", "crash", "the crash", {"n": len(fetches)})]
+
+    def optional(issue: Any, notes: list[str]) -> list[EvidenceItem]:
+        fetches.append("optional")
+        return []
+
+    async def fit(issue: Any, core: Any, optional: Any, deps: Any, ctx: Any) -> tuple[Any, list[Any], None]:
+        return core, [], None
+
+    monkeypatch.setattr(collector, "vitals_core", core)
+    monkeypatch.setattr(collector, "optional_windows", optional)
+    monkeypatch.setattr(collector, "score_and_fit", fit)
+    deps: Any = SimpleNamespace()
+    await collector.collect(state, deps)
+    await collector.collect(state, deps)
+    assert fetches == ["core", "optional", "core", "optional"]  # off: fetched every time
+    monkeypatch.setenv("DA_EVIDENCE_CACHE_S", "3600")
+    first = await collector.collect(state, deps)
+    again = await collector.collect(state, deps)
+    assert fetches[4:] == ["core", "optional"] and again["evidence"] == first["evidence"]
