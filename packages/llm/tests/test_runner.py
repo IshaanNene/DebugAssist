@@ -312,8 +312,33 @@ async def test_an_agent_stops_before_the_model_call_that_would_exceed_its_budget
     async def no_extract(*_: Any) -> tuple[None, int, int]:
         return None, 0, 0
 
-    monkeypatch.setattr(runner_mod.AgentRunner, "_extract", lambda self, *a: no_extract(*a))  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr(runner_mod.AgentRunner, "_extract", lambda self, *a, **_k: no_extract(*a))  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     spec = LLMNodeSpec(node="t", system_prompt="s", model="m", max_turns=6, max_budget_usd=0.5)
     r = await runner_mod.AgentRunner(record_dir=tmp_path).run(spec, "task", Out, tools=[noop])
     assert len(calls) == 2  # $0.25 per turn: the third call would start at the $0.50 cap
     assert r.status == "max_budget" and "max_budget" in (r.error or "")
+
+
+async def test_a_failed_extraction_is_reported_not_swallowed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Roadmap 055: `_extract` swallowed its exceptions, so a run ended "no_output" with no reason."""
+    from langchain_core.messages import AIMessage
+
+    from debugassist.llm import runner as runner_mod
+
+    class Broken:
+        def with_structured_output(self, *_: Any, **__: Any) -> Any:
+            return self
+
+        async def ainvoke(self, *_: Any) -> Any:
+            raise RuntimeError("host overloaded, key sk-or-v1-0123456789abcdef")
+
+    monkeypatch.setattr(runner_mod, "chat_model", lambda *_a, **_k: Broken())  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    seen: list[str] = []
+    spec = LLMNodeSpec(node="t", system_prompt="s", model="m")
+    out = await runner_mod.AgentRunner(record_dir=tmp_path)._extract(  # pyright: ignore[reportPrivateUsage]
+        spec, Out, "task", [AIMessage("notes")], on_error=seen.append
+    )
+    assert out == (None, 0, 0)
+    assert len(seen) == 1 and "host overloaded" in seen[0] and "0123456789abcdef" not in seen[0]

@@ -158,3 +158,14 @@ def test_a_webhook_delivery_survives_until_its_run_ends(tmp_path: Path) -> None:
     assert ("acme/widgets", 9, "webhook") in app_cli.pending(a, gate, "debugassist")
     app_cli.done_delivery("acme/widgets", 9)
     assert ("acme/widgets", 9, "webhook") not in app_cli.pending(a, gate, "debugassist")
+
+
+def test_only_one_poller_runs_at_a_time(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Roadmap 069: two pollers would run every labeled issue twice."""
+    monkeypatch.setattr(app_cli, "LOCK", tmp_path / "poll.lock")
+    first = app_cli.poll_lock()
+    assert first is not None and app_cli.poll_lock() is None
+    first.close()
+    again = app_cli.poll_lock()
+    assert again is not None
+    again.close()

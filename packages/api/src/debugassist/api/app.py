@@ -6,19 +6,20 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import json
 import os
 import subprocess
 import sys
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Any, Literal
 
 import httpx
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from debugassist.api import data
@@ -35,9 +36,44 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=os.environ.get("DASHBOARD_ORIGINS", "http://localhost:3000").split(","),
     allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_headers=["content-type", "x-debugassist-token"],
 )
 PATHS = Paths()
+ORIGINS = set(os.environ.get("DASHBOARD_ORIGINS", "http://localhost:3000").split(","))
+LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
+def write_problem(headers: Mapping[str, str]) -> tuple[int, str] | None:
+    """Why a POST that starts agent work or writes state is refused (None = allowed).
+
+    With DA_API_TOKEN set, every such request must carry it (X-DebugAssist-Token). Without it the API serves
+    localhost only, and a browser request must come from the dashboard: a cross-site page cannot make the
+    browser spend LLM credit here (the Origin header is set by the browser, not the page)."""
+    token = os.environ.get("DA_API_TOKEN")
+    if token:
+        given = headers.get("x-debugassist-token") or ""
+        return (
+            None
+            if hmac.compare_digest(given.encode(), token.encode())
+            else (401, "missing or wrong API token")
+        )
+    origin = headers.get("origin")
+    if origin is not None and origin not in ORIGINS:
+        return 403, f"origin {origin} is not the dashboard (DASHBOARD_ORIGINS)"
+    return None
+
+
+@app.middleware("http")
+async def guard_writes(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    # The GitHub webhook authenticates with its own HMAC signature.
+    problem = (
+        write_problem(request.headers)
+        if request.method == "POST" and request.url.path != "/github/webhook"
+        else None
+    )
+    if problem:
+        return JSONResponse({"detail": problem[1]}, status_code=problem[0])
+    return await call_next(request)
 
 
 def _state(run_id: str) -> dict[str, Any]:
@@ -414,4 +450,9 @@ def marketplace() -> dict[str, Any]:
 def main() -> None:
     import uvicorn
 
-    uvicorn.run("debugassist.api.app:app", host="127.0.0.1", port=int(os.environ.get("API_PORT", "8400")))
+    host = os.environ.get("API_HOST", "127.0.0.1")
+    if host not in LOOPBACK and not os.environ.get("DA_API_TOKEN"):
+        raise SystemExit(
+            f"API_HOST={host} serves other machines: set DA_API_TOKEN first (its POSTs spend money)"
+        )
+    uvicorn.run("debugassist.api.app:app", host=host, port=int(os.environ.get("API_PORT", "8400")))

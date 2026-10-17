@@ -215,3 +215,24 @@ def test_github_webhook_queues_a_labeled_issue_and_rejects_bad_signatures(
         assert post({"zen": "hi"}, event="ping").json()["queued"] is False
     finally:
         settings_mod.get_settings.cache_clear()
+
+
+def test_posts_need_the_dashboard_origin_or_the_api_token(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Roadmap 006: the API's POSTs start agents and spend money; a cross-site page must not trigger them."""
+    url, body = f"/api/runs/{RUN}/feedback", {"target": "claim:2", "reaction": "up", "comment": ""}
+    assert client.post(url, json=body, headers={"origin": "https://evil.example"}).status_code == 403
+    assert client.post(url, json=body, headers={"origin": "http://localhost:3000"}).status_code == 201
+    assert client.post(url, json=body).status_code == 201  # a local script: no Origin header
+    monkeypatch.setenv("DA_API_TOKEN", "t0ken")
+    assert client.post(url, json=body, headers={"origin": "http://localhost:3000"}).status_code == 401
+    assert client.post(url, json=body, headers={"x-debugassist-token": "wrong"}).status_code == 401
+    assert client.post(url, json=body, headers={"x-debugassist-token": "t0ken"}).status_code == 201
+    assert client.get(f"/api/runs/{RUN}/feedback").status_code == 200  # reads stay open on localhost
+
+
+def test_the_api_refuses_another_interface_without_a_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_HOST", "0.0.0.0")
+    with pytest.raises(SystemExit, match="DA_API_TOKEN"):
+        app_module.main()

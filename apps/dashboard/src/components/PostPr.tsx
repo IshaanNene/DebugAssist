@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { PUBLIC_API_URL } from "@/lib/api";
+import { postHeaders, PUBLIC_API_URL } from "@/lib/api";
 import { Badge } from "./ui";
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${PUBLIC_API_URL}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: postHeaders(),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = (await res.json()) as T & { detail?: string };

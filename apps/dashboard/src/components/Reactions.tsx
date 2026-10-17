@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PUBLIC_API_URL } from "@/lib/api";
+import { postHeaders, PUBLIC_API_URL } from "@/lib/api";
 
 // 👍/👎 + comment on the RCA or one claim; stored as feedback for D18 (P10) and evaluation.
 export function Reactions({ runId, target, compact = false }: { runId: string; target: string; compact?: boolean }) {
@@ -15,7 +15,7 @@ export function Reactions({ runId, target, compact = false }: { runId: string; t
     try {
       const res = await fetch(`${PUBLIC_API_URL}/api/runs/${runId}/feedback`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: postHeaders(),
         body: JSON.stringify({ target, reaction, comment }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

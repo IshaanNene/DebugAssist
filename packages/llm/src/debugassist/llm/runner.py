@@ -17,6 +17,7 @@ import os
 import re
 import sys
 import time
+from collections.abc import Callable
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -537,7 +538,13 @@ class AgentRunner:
         ):
             if status == "ok":
                 status = "max_turns" if turns >= spec.max_turns else "no_output"
-            extracted, e_in, e_out = await self._extract(spec, output_schema, prompt, messages)
+            failures: list[str] = []
+            extracted, e_in, e_out = await self._extract(
+                spec, output_schema, prompt, messages, on_error=failures.append
+            )
+            for f in failures:
+                watch.note(f)
+                error = error or f
             t_in, t_out = t_in + e_in, t_out + e_out
             # An extracted result skipped the in-loop check the agent would have had to pass: apply it now.
             rejected = (
@@ -595,8 +602,12 @@ class AgentRunner:
         schema: type[BaseModel],
         prompt: str,
         messages: list[BaseMessage],
+        on_error: Callable[[str], None] | None = None,
     ) -> tuple[dict[str, Any] | None, int, int]:
-        """The agent ended without calling submit_result: extract the result from its transcript."""
+        """The agent ended without calling submit_result: extract the result from its transcript.
+
+        A failed extraction is not an exception for the run (the agent's own status stands), but it is
+        reported through `on_error`, never swallowed."""
         if not messages:
             return None, 0, 0
         # Newest notes first until the request budget (if any) is used; the task is capped at 4000 chars.
@@ -627,7 +638,9 @@ class AgentRunner:
                 ),
                 timeout=MODEL_CALL_TIMEOUT_S,
             )
-        except Exception:
+        except Exception as exc:
+            if on_error is not None:
+                on_error(redact_text(f"result extraction failed: {type(exc).__name__}: {exc}")[:400])
             return None, 0, 0
         raw = out.get("raw")
         usage: dict[str, int] = getattr(raw, "usage_metadata", None) or {}
