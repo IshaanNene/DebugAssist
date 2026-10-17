@@ -20,7 +20,7 @@ from typing import Any, cast
 
 from langgraph.graph import END, START, StateGraph
 
-from debugassist.core import tracing
+from debugassist.core import runctx, tracing
 from debugassist.core.files import write_atomic
 from debugassist.core.redaction import redact_secrets
 from debugassist.pipeline import budget, nodes
@@ -81,7 +81,10 @@ def wrap(
             deps.agent_type = agent_types.load(state.agent_type).model_dump()
         t0 = time.perf_counter()
         kind = NODE_KIND.get(name, "deterministic")
-        with tracing.span(name, kind="agent" if "llm" in kind else "chain", node=name, node_kind=kind) as sp:
+        with (
+            runctx.use(**nodes.run_values(state)),
+            tracing.span(name, kind="agent" if "llm" in kind else "chain", node=name, node_kind=kind) as sp,
+        ):
             update = await _run_node(name, kind, fn, state, deps, log)
             tracing.set_attributes(
                 sp,

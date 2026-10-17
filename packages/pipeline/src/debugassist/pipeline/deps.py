@@ -160,8 +160,6 @@ async def build_deps(
     )
     agent_type = agent_types.load(agent_types.DEFAULT).model_dump()  # re-resolved per issue at ingest
     catalog = yaml.safe_load((ROOT / "configs" / "catalog.yaml").read_text())
-    os.environ["DEBUGASSIST_RUN_ID"] = run_id
-    os.environ["DEBUGASSIST_MODE"] = mode
     return Deps(
         run_id=run_id,
         settings=s,

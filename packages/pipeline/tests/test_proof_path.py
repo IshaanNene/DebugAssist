@@ -695,3 +695,14 @@ def test_graph_routed_category_is_rca_only(toy: Toy, monkeypatch: pytest.MonkeyP
     assert s.ship and s.ship.outcome == "rca_only" and "infra" in s.ship.decision["reason"]
     assert not s.fix_attempts and s.validation is None and not toy.deps.agent.feedback
     assert "fix" not in s.timings_ms and not toy.deps.github.prs
+
+
+def test_a_resumed_pr_step_neither_fails_nor_double_posts(toy: Toy) -> None:
+    """ROADMAP-100 019: a run resumed at pr_and_notify after it committed failed on an empty commit."""
+    state = _validated(toy)
+    state = _apply(state, {"ship": Ship(outcome="open_pr")})
+    asyncio.run(nodes.pr_and_notify(state, toy.d()))
+    head = git(toy.wt, "rev-parse", "HEAD")
+    out = asyncio.run(nodes.pr_and_notify(state, toy.d()))  # resumed at the same node
+    assert git(toy.wt, "rev-parse", "HEAD") == head  # no second commit
+    assert out["pr"].number == 7 and toy.deps.github.pushed == [BRANCH, BRANCH]

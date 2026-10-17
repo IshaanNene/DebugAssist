@@ -27,7 +27,7 @@ import jwt
 
 from debugassist.core import hostgit
 from debugassist.core.policy import ROOT
-from debugassist.integrations.github import GitHubLive
+from debugassist.integrations.github import GitHubLive, check_rate_limit
 
 API = "https://api.github.com"
 MAX_PAGES = 50
@@ -99,6 +99,7 @@ class GitHubAppLive:
         self.app_id = app_id
         self.key = private_key
         self.http = http or httpx.Client(base_url=API, timeout=30)
+        self.http.event_hooks["response"] = [*self.http.event_hooks["response"], check_rate_limit]
         self._tokens: dict[int, tuple[str, float]] = {}  # installation id → (token, expires at)
         self._repos: dict[str, int] | None = None  # owner/name → installation id
         self._repos_at = 0.0  # refreshed every REPOS_TTL: installs and uninstalls show up without a restart

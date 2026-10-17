@@ -8,6 +8,7 @@ import os
 from collections.abc import Callable
 from typing import Any
 
+from debugassist.core import runctx
 from debugassist.core.evidence import evidence_id
 from debugassist.core.policy import PolicyGate, Verdict
 from debugassist.core.redaction import redact
@@ -59,14 +60,14 @@ def gated_write(
 
     Every call, applied or not, lands in the audit log (configs/policies/writes.yaml, .data/audit.jsonl).
     """
-    gate = PolicyGate(mode=os.environ.get("DEBUGASSIST_MODE", "autonomous"))
+    gate = PolicyGate(mode=runctx.get("DEBUGASSIST_MODE", "autonomous") or "autonomous")
     verdict = gate.verdict(action)
     live = not dry_run and verdict is Verdict.LIVE
     result = perform() if live else None
     gate.record(
         action,
         Verdict.LIVE if live else Verdict.DRY_RUN,
-        run_id=os.environ.get("DEBUGASSIST_RUN_ID"),
+        run_id=runctx.get("DEBUGASSIST_RUN_ID"),
         detail=detail,
         result=result,
     )

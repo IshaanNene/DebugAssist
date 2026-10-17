@@ -100,6 +100,15 @@ def _sandbox(state: RunState) -> Sandbox:
     )
 
 
+def run_values(state: RunState) -> dict[str, str]:
+    """The run's values for in-process code tools (`core.runctx`), set around every node by the graph."""
+    values = {"DEBUGASSIST_RUN_ID": state.run_id, "DEBUGASSIST_MODE": state.mode}
+    if state.issue:
+        sb = _sandbox(state)
+        values["CODE_REPOS"] = json.dumps(crossrepo.code_repos(state.run_id, state.issue, sb.worktree))
+    return values
+
+
 def _code_repos_env(state: RunState) -> dict[str, str]:
     assert state.issue
     sb = _sandbox(state)
@@ -338,12 +347,18 @@ def _comment_app_issue(
         return []
     verdict = deps.gate.verdict("github.comment", repo=issue.gh_repo)
     result: Any = "dry_run"
+    marker = f"<!-- debugassist:run {state.run_id} -->"
     if verdict is Verdict.LIVE:
         try:
-            deps.app.comment(
-                issue.gh_repo, issue.app_issue, app_comment(state, pr_info.url if pr_info else None, outcome)
-            )
-            result = "commented"
+            if any(c.lstrip().startswith(marker) for c in deps.app.comments(issue.gh_repo, issue.app_issue)):
+                result = "already commented"  # a resumed run: this run's comment is there (ROADMAP-100 019)
+            else:
+                deps.app.comment(
+                    issue.gh_repo,
+                    issue.app_issue,
+                    app_comment(state, pr_info.url if pr_info else None, outcome),
+                )
+                result = "commented"
         except (httpx.HTTPError, PermissionError, KeyError) as exc:
             result = f"failed: {type(exc).__name__}"
     deps.gate.record(
@@ -598,7 +613,6 @@ async def context_collector(state: RunState, deps: Deps) -> dict[str, Any]:
     # The sandbox worktree at the shipped release: code search and the fix both work on it.
     sb = _sandbox(state)
     sb.create(f"v{issue.last_version}", _bot_branch(issue, deps))
-    os.environ["CODE_REPOS"] = json.dumps(crossrepo.code_repos(state.run_id, issue, sb.worktree))
     return await collector.collect(state, deps)
 
 
@@ -953,8 +967,12 @@ def _repro_cmd(issue: Issue, test_file: str) -> str:
     rel = test_file if issue.component == "." else test_file.removeprefix(f"{issue.component}/")
     if rel.startswith("e2e/"):
         return e2e.e2e_cmd(test_file, issue.component)
-    pipeline = ROOT / "targets" / issue.repo / ".DebugAssist" / "pipeline.yaml"
-    cfg: dict[str, Any] = (yaml.safe_load(pipeline.read_text()) or {}) if pipeline.is_file() else {}
+    # The same source as `test`, `lint` and `setup` (ROADMAP-100 014): the release's own config, read through the
+    # target's main checkout (no agent writes there), not that checkout's working copy, which may have moved on.
+    try:
+        cfg: dict[str, Any] = _pipeline_yaml(ROOT / "targets" / issue.repo, issue) or {}
+    except (OSError, RuntimeError):  # no checkout or no config: the language's default runner
+        cfg = {}
     comps = cast(dict[str, dict[str, Any]], cfg.get("components") or {})
     template = cast(str | None, (comps.get(issue.component) or {}).get("test_one"))
     return _test_cmd(issue.language, test_file, issue.component, template)
@@ -1667,10 +1685,12 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
             if fa.output and fa.output.commit_title.startswith(("fix", "perf", "refactor"))
             else f"fix({scope}): {issue.title[:70]}"
         )[:100]
-        sb.commit(
-            f"{title}\n\n{rca.output.root_cause if rca.output else ''}\n\n{_commit_trailer(issue)}"
-            + (f"\nJira: {tr.jira_key}" if tr and tr.jira_key else "")
-        )
+        # A run resumed after this step committed has nothing left to commit: push what is there (ROADMAP-100 019).
+        if hostgit.run(sb.worktree, "status", "--porcelain", check=True).stdout.strip():
+            sb.commit(
+                f"{title}\n\n{rca.output.root_cause if rca.output else ''}\n\n{_commit_trailer(issue)}"
+                + (f"\nJira: {tr.jira_key}" if tr and tr.jira_key else "")
+            )
         branch = hostgit.run(sb.worktree, "branch", "--show-current", check=True).stdout.strip()
         base = issue.base_branch or f"release/{issue.last_version}"
         push_v = deps.gate.verdict("github.push_branch", repo=issue.gh_repo, branch=branch)

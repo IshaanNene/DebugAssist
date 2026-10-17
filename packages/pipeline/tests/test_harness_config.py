@@ -107,3 +107,23 @@ def test_a_new_test_or_source_change_that_skips_tests_is_flagged(tmp_path: Path)
     assert "harness: pyproject.toml" in flagged
     assert any(f.startswith("skips_tests: src/lib.py") for f in flagged)
     assert any(f.startswith("skips_tests: tests/test_new.py") and "xfail" in f for f in flagged)
+
+
+def test_test_one_comes_from_the_release_too(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """ROADMAP-100 014: `test_one` came from the main checkout's working copy, everything else from the release."""
+    repo = tmp_path / "targets" / "lib"
+    (repo / ".DebugAssist").mkdir(parents=True)
+    cfg = CFG.replace("    test: pytest -q\n", "    test: pytest -q\n    test_one: pytest -q {file}\n")
+    (repo / ".DebugAssist" / "pipeline.yaml").write_text(cfg)
+    _git(repo, "init", "-q")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "init")
+    _git(repo, "tag", "v1.0.0")
+    (repo / ".DebugAssist" / "pipeline.yaml").write_text(cfg.replace("pytest -q {file}", "true"))  # moved on
+    monkeypatch.setattr(nodes, "ROOT", tmp_path)
+    s = RunState.model_validate(json.loads(FIXTURE.read_text()))
+    assert s.issue
+    s.issue.repo, s.issue.last_version, s.issue.component, s.issue.language = "lib", "1.0.0", ".", "python"
+    assert nodes._repro_cmd(s.issue, "tests/test_x.py") == "pytest -q tests/test_x.py"  # pyright: ignore[reportPrivateUsage]
+    s.issue.repo = "absent"
+    assert "tests/test_x.py" in nodes._repro_cmd(s.issue, "tests/test_x.py")  # pyright: ignore[reportPrivateUsage]

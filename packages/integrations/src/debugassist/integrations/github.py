@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
@@ -23,6 +24,26 @@ class PullRequest(BaseModel):
     mode: str
 
 
+class RateLimited(RuntimeError):
+    """GitHub said to stop: wait `wait_s` seconds before the next call."""
+
+    def __init__(self, wait_s: float, why: str) -> None:
+        super().__init__(f"GitHub rate limit ({why}): retry in {wait_s:.0f} s")
+        self.wait_s = wait_s
+
+
+def check_rate_limit(r: httpx.Response, now: float | None = None) -> None:
+    """An httpx response hook: a primary (`X-RateLimit-Remaining: 0`) or secondary (`Retry-After`) limit becomes
+    RateLimited with how long to wait, instead of an HTTP error the caller would retry at once and make worse."""
+    if r.status_code not in (403, 429):
+        return
+    if (after := r.headers.get("retry-after")) is not None:
+        raise RateLimited(float(after), "secondary")
+    if r.headers.get("x-ratelimit-remaining") == "0":
+        reset = float(r.headers.get("x-ratelimit-reset") or 0)
+        raise RateLimited(max(0.0, reset - (time.time() if now is None else now)), "primary")
+
+
 class GitHub(Protocol):
     def remote_branch_exists(self, repo: str, branch: str) -> bool: ...
     def push(self, worktree: Path, branch: str) -> None: ...
@@ -41,6 +62,7 @@ class GitHubLive:
                 "Accept": "application/vnd.github+json",
                 "X-GitHub-Api-Version": "2022-11-28",
             },
+            event_hooks={"response": [check_rate_limit]},
         )
 
     def remote_branch_exists(self, repo: str, branch: str) -> bool:
