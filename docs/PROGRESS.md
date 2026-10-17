@@ -729,4 +729,18 @@ exported.
   suite passes) and `miniride-client` v1.6.1 after `pnpm install` (vitest and `pnpm test` run in the checkout
   with the mounted `node_modules`); the fix stays in the worktree and no checkout is left. Not run: an E2E spec
   built in a checkout, and a full `make demo-push-crash` (it writes into the shared running stack).
-- Open from the audit: P2-11 persistent MCP sessions, P3-15 per-run context, P3-17, P3-18 migrations, P3-20, P3-23; supply-chain CI jobs and SHA-pinned actions; the red-team evaluation.
+- Open from the audit: P3-15 per-run context, P3-18 migrations, P3-23; secret scanning in CI (pre-commit's
+  private-key check only); the red-team evaluation.
+
+**Follow-up (2026-10-17)**
+- **P2-11 MCP sessions**: an agent run keeps one stdio session per server (`runner.open_mcp_tools`), closed when
+  it ends. Measured with the runner's client config, `code-search` `list_repos`, 20 calls after a warm-up on
+  this machine: p50 352.5 ms, p95 384.6 ms per call before; p50 1.3 ms, p95 1.5 ms after. Servers now start
+  one after another (anyio scopes must close in the task that opened them): about one start per server per
+  agent, against one per call.
+- **P3-17**: `FallbackBackend.serve` returns the backend that answered and its fallback reason with each
+  response; the engine attributes the ledger row and the cost to it, not to `last_backend`.
+- **P3-20**: an agent stops before the model call that would start at or above its `max_budget_usd`
+  (status `max_budget`), instead of the cap being compared only after the run.
+- **CI**: every action pinned by commit SHA (Dependabot keeps them current); an `audit` job runs `pip-audit`
+  over the locked Python packages and `pnpm audit --prod` for the dashboard and both SDKs (all clean today).

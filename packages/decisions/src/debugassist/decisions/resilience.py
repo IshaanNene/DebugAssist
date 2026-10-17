@@ -79,6 +79,14 @@ class FallbackBackend:
         self.last_fallback_reason: str | None = None
 
     async def run(self, request: ClefRequest) -> ClefResponse:
+        response, _, _ = await self.serve(request)
+        return response
+
+    async def serve(self, request: ClefRequest) -> tuple[ClefResponse, DecisionBackend, str | None]:
+        """The response with the backend that produced it and why it fell back, for this call alone.
+
+        Concurrent calls (a decision's chunks, decisions run in parallel) share this instance, so the
+        `last_*` attributes may already describe another call by the time a caller reads them (audit P3-17)."""
         if self.breaker.is_open:
             return await self._fall_back(request, "circuit open")
         try:
@@ -88,11 +96,13 @@ class FallbackBackend:
             return await self._fall_back(request, f"{type(exc).__name__}: {exc}"[:500])
         self.breaker.record_success()
         self.last_backend, self.last_fallback_reason = self.primary, None
-        return response
+        return response, self.primary, None
 
-    async def _fall_back(self, request: ClefRequest, reason: str) -> ClefResponse:
+    async def _fall_back(
+        self, request: ClefRequest, reason: str
+    ) -> tuple[ClefResponse, DecisionBackend, str | None]:
         self.last_backend, self.last_fallback_reason = self.fallback, reason
-        return await self.fallback.run(request)
+        return await self.fallback.run(request), self.fallback, reason
 
     def cost_usd(self, response: ClefResponse) -> float:
         return self.last_backend.cost_usd(response)

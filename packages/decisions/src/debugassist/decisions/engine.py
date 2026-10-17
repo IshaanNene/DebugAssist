@@ -173,12 +173,12 @@ class DecisionEngine:
         images: list[str] | None,
         questions: dict[str, Question],
         backend: DecisionBackend,
-    ) -> tuple[dict[str, Answer], int, int, int, float, str | None, str]:
+    ) -> tuple[dict[str, Answer], int, int, int, float, str | None, str, DecisionBackend]:
         """Send ≤64 questions per call (concurrently); merge answers and usage."""
         ids = list(questions)
         chunks = [ids[i : i + MAX_QUESTIONS] for i in range(0, len(ids), MAX_QUESTIONS)]
 
-        async def one(chunk: list[str]) -> tuple[ClefResponse, float, str | None]:
+        async def one(chunk: list[str]) -> tuple[ClefResponse, float, str | None, DecisionBackend]:
             req = ClefRequest(
                 model=model,
                 state=state,
@@ -186,27 +186,35 @@ class DecisionEngine:
                 images=cast(list[ImagePayload] | None, images),
             )
             async with self._sem:
-                resp = await backend.run(req)
-                reason = backend.last_fallback_reason if isinstance(backend, FallbackBackend) else None
-                return resp, backend.cost_usd(resp), reason
+                if isinstance(backend, FallbackBackend):
+                    resp, served, reason = await backend.serve(req)
+                else:
+                    resp, served, reason = await backend.run(req), backend, None
+                return resp, served.cost_usd(resp), reason, served
 
         results = await asyncio.gather(*(one(c) for c in chunks))
         answers: dict[str, Answer] = {}
         tokens_in = tokens_out = 0
         cost = 0.0
-        reasons = [r for _, _, r in results if r]
-        for resp, c, _ in results:
+        reasons = [r for _, _, r, _ in results if r]
+        # Attributed to the fallback when any chunk fell back, as the ledger's fallback reason is.
+        served = next((b for _, _, r, b in results if r), results[0][3])
+        for resp, c, _, _ in results:
             answers.update(resp.answers)
             tokens_in += resp.usage.input_tokens
             tokens_out += resp.usage.output_tokens
             cost += c
         served_by = results[0][0].model
-        return answers, len(chunks), tokens_in, tokens_out, cost, (reasons[0] if reasons else None), served_by
-
-    def _backend_name(self, backend: DecisionBackend) -> tuple[str, Mode]:
-        if isinstance(backend, FallbackBackend):
-            return backend.last_backend.name, backend.last_backend.mode
-        return backend.name, backend.mode
+        return (
+            answers,
+            len(chunks),
+            tokens_in,
+            tokens_out,
+            cost,
+            (reasons[0] if reasons else None),
+            served_by,
+            served,
+        )
 
     async def _run(
         self,
@@ -223,7 +231,7 @@ class DecisionEngine:
     ) -> Decision:
         backend = backend or self.backend
         t0 = time.perf_counter()
-        answers, n_calls, t_in, t_out, cost, fallback, served_by = await self._call_chunks(
+        answers, n_calls, t_in, t_out, cost, fallback, served_by, served = await self._call_chunks(
             model, state, images, questions, backend
         )
         latency_ms = int((time.perf_counter() - t0) * 1000)
@@ -235,8 +243,8 @@ class DecisionEngine:
             cost += extra[4]
         all_questions = questions
         decision = self._verdict(template, answers, all_questions)
-        backend_name, mode = self._backend_name(backend)
-        note = getattr(getattr(backend, "last_backend", backend), "last_note", None)
+        backend_name, mode = served.name, served.mode
+        note = getattr(served, "last_note", None)
         d = Decision(
             decision_id=template.id,
             template_version=template.version,
@@ -321,7 +329,7 @@ class DecisionEngine:
         extra = None
         if len(candidates) > ts.max_direct:
             stage1 = template.render({item_spec.foreach: candidates}, only={ts.item_question})
-            answers, n, t_in, t_out, cost, _, _ = await self._call_chunks(
+            answers, n, t_in, t_out, cost, _, _, _ = await self._call_chunks(
                 model, state, images, stage1, self.backend
             )
             prefix = ts.item_question + "."

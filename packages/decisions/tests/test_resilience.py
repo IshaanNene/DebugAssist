@@ -54,3 +54,33 @@ async def test_fallback_on_failure_then_circuit_open(req: ClefRequest) -> None:
     assert primary.calls == 2
     assert fb.last_fallback_reason == "circuit open"
     assert fb.cost_usd(await fb.run(req)) == 0.0
+
+
+async def test_concurrent_calls_are_attributed_to_the_backend_that_served_each(req: ClefRequest) -> None:
+    """Audit P3-17: `last_backend` was read after concurrent awaits, so a ledger row could name another call's
+    backend. `serve` returns the attribution with the response."""
+    import asyncio
+
+    class Slow:
+        name, mode = "workers_ai", Mode.LIVE
+
+        def __init__(self) -> None:
+            self.n = 0
+
+        async def run(self, request: ClefRequest) -> ClefResponse:
+            self.n += 1
+            if self.n == 1:  # the first call fails late, after the second has succeeded
+                await asyncio.sleep(0.05)
+                raise ClefTransientError("down")
+            return await MockDecider().run(request)
+
+        def cost_usd(self, response: ClefResponse) -> float:
+            return 1.0
+
+        async def aclose(self) -> None:
+            return None
+
+    fb = FallbackBackend(Slow(), MockDecider(), CircuitBreaker(threshold=5))
+    (_, first, why1), (_, second, why2) = await asyncio.gather(fb.serve(req), fb.serve(req))
+    assert (first.name, second.name) == ("mock", "workers_ai")
+    assert "down" in (why1 or "") and why2 is None

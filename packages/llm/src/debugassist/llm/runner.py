@@ -17,6 +17,7 @@ import os
 import re
 import sys
 import time
+from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any, Protocol, cast
 
@@ -34,6 +35,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.tools import BaseTool, StructuredTool
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_mcp_adapters.tools import load_mcp_tools
 from pydantic import BaseModel
 
 from debugassist.core import ablation, untrusted
@@ -249,6 +251,23 @@ def mcp_connections(names: list[str], env: dict[str, str]) -> dict[str, Any]:
     }
 
 
+async def open_mcp_tools(stack: AsyncExitStack, connections: dict[str, Any]) -> list[BaseTool]:
+    """The tools of each server over one session kept open on `stack`. Sessions are entered one after another
+    in the caller's task (anyio scopes must close in the task that opened them)."""
+    if not connections:
+        return []
+    client = MultiServerMCPClient(connections)
+    tools: list[BaseTool] = []
+    try:
+        for name in connections:
+            session = await stack.enter_async_context(client.session(name))
+            tools += await load_mcp_tools(session, server_name=name)
+    except BaseException:
+        await stack.aclose()
+        raise
+    return tools
+
+
 def _text(content: Any) -> str:
     """Tool output as text: a string, or the text of LangChain content blocks."""
     if isinstance(content, str):
@@ -262,6 +281,14 @@ def _text(content: Any) -> str:
 def _preview(content: Any, n: int = 600) -> str:
     text = content if isinstance(content, str) else json.dumps(content, default=str)
     return text[:n]
+
+
+def spent_usd(messages: list[BaseMessage], model: str | None = None) -> float:
+    """What the model turns in `messages` cost so far."""
+    turns = [m for m in messages if isinstance(m, AIMessage)]
+    t_in = sum((m.usage_metadata or {}).get("input_tokens", 0) for m in turns)
+    t_out = sum((m.usage_metadata or {}).get("output_tokens", 0) for m in turns)
+    return cost_usd(t_in, t_out, model=model, cached_tokens=sum(_cached(m) for m in turns))
 
 
 def _cached(m: AIMessage) -> int:
@@ -339,6 +366,11 @@ class AgentRunner:
         def stop_when_submitted(state: Any, runtime: Any) -> dict[str, Any] | None:
             if submitted or watch.check():
                 return {"jump_to": "end"}
+            # The agent's cap is enforced before each model call, not only reported after the run (P3-20).
+            spent = spent_usd(list(state["messages"]), spec.model)
+            if spent >= spec.max_budget_usd:
+                watch.stop(f"max_budget: ${spent:.4f} spent of ${spec.max_budget_usd:.2f}")
+                return {"jump_to": "end"}
             # Agents tend to keep polishing until the cap instead of submitting: warn two turns ahead.
             if not nudged and watch.turn >= spec.max_turns - 2:
                 nudged.append(True)
@@ -411,10 +443,6 @@ class AgentRunner:
             )
             return out
 
-        mcp_tools: list[BaseTool] = []
-        if spec.mcp_servers:
-            client = MultiServerMCPClient(mcp_connections(spec.mcp_servers, mcp_env or {}))
-            mcp_tools = await client.get_tools()
         llm = chat_model(spec.reasoning_effort, model=spec.model)
         compaction = Compaction()
         last = {"in": 0, "out": 0, "cached": 0}
@@ -451,15 +479,23 @@ class AgentRunner:
             *([trajectory_monitor] if monitor is not None else []),
             record,
         ]
-        agent: Any = create_agent(
-            llm,
-            [*(tools or []), *mcp_tools, submit],
-            # The agent runs inside a pipeline node: without this it inherits the pipeline's checkpointer and
-            # thread, so a resumed run or a retry attempt would reload a previous agent's half-finished state.
-            checkpointer=False,
-            system_prompt=f"{spec.system_prompt}\n\n{UNTRUSTED_NOTE}\nWhen you are done, call submit_result.",
-            middleware=middleware,
-        )
+        # One stdio session per server for the whole agent run, closed when it ends (below). The adapter's
+        # get_tools() starts a new server process for every call: ~0.35–0.95 s each, measured (audit P2-11).
+        sessions = AsyncExitStack()
+        mcp_tools = await open_mcp_tools(sessions, mcp_connections(spec.mcp_servers, mcp_env or {}))
+        try:
+            agent: Any = create_agent(
+                llm,
+                [*(tools or []), *mcp_tools, submit],
+                # The agent runs inside a pipeline node: without this it inherits the pipeline's checkpointer and
+                # thread, so a resumed run or a retry attempt would reload a previous agent's half-finished state.
+                checkpointer=False,
+                system_prompt=f"{spec.system_prompt}\n\n{UNTRUSTED_NOTE}\nWhen you are done, call submit_result.",
+                middleware=middleware,
+            )
+        except BaseException:
+            await sessions.aclose()
+            raise
         status = "ok"
         error = None
         messages: list[BaseMessage] = []
@@ -474,6 +510,8 @@ class AgentRunner:
                 messages = list(chunk["messages"])
         except Exception as exc:
             status, error = "error", f"{type(exc).__name__}: {exc}"
+        finally:
+            await sessions.aclose()
         turns = sum(isinstance(m, AIMessage) for m in messages)
         t_in = sum(
             (m.usage_metadata or {}).get("input_tokens", 0) for m in messages if isinstance(m, AIMessage)
@@ -486,7 +524,13 @@ class AgentRunner:
         t_in, t_out = t_in + compaction.input_tokens, t_out + compaction.output_tokens
         t_cached += compaction.cached_tokens
         if watch.stop_reason and status == "ok" and not submitted:
-            status = "stalled" if watch.stop_reason.startswith("stalled") else "timeout"
+            status = (
+                "stalled"
+                if watch.stop_reason.startswith("stalled")
+                else "max_budget"
+                if watch.stop_reason.startswith("max_budget")
+                else "timeout"
+            )
             error = watch.stop_reason
         if not submitted and (
             status in ("ok", "stalled", "timeout") or (messages and not is_daily_quota(error))

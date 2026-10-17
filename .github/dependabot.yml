@@ -1,0 +1,6 @@
+# Actions are pinned by commit SHA; this keeps the pins (and their tag comments) current.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
