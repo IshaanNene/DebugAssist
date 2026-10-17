@@ -51,6 +51,7 @@ from debugassist.pipeline import (
 )
 from debugassist.pipeline import rca as rca_mod
 from debugassist.pipeline.deps import APPS, Deps
+from debugassist.pipeline.notify import notify
 from debugassist.pipeline.state import (
     RCA,
     FixAttempt,
@@ -293,19 +294,7 @@ def _source_label(issue: Issue) -> str:
     return {"bugdrop": "BugDrop report", "github": "GitHub issue"}.get(issue.source, "Vitals issue")
 
 
-def _notify(deps: Deps, run_id: str, msg: ChatMessage) -> dict[str, Any]:
-    """Every chat message goes through the write gate and the audit log (dry-run → not sent)."""
-    verdict = deps.gate.verdict("chat.message")
-    result: dict[str, Any] = {"to": msg.to, "mode": "dry_run"}
-    if verdict is Verdict.LIVE:
-        try:
-            result = deps.chat.send(msg)
-        except httpx.HTTPError as exc:  # a chat outage never fails the run
-            result = {"to": msg.to, "mode": deps.chat.mode, "error": f"{type(exc).__name__}: {exc}"[:200]}
-    deps.gate.record(
-        "chat.message", verdict, run_id=run_id, detail={"to": msg.to, "title": msg.title}, result=result
-    )
-    return {"kind": "chat", "title": msg.title, **result}
+_notify = notify  # the name nodes have always used
 
 
 def app_comment(state: RunState, pr_url: str | None, outcome: str) -> str:
@@ -1459,7 +1448,7 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
         # Against the release tag in disposable checkouts (P3-16): the worktree keeps the fix whatever happens
         # here, and a validate resumed after the fix was committed proves the same thing.
         classes = release.classify_changes(sb.worktree, base)
-        v.changes, v.protected = classes, release.protected(classes)
+        v.changes, v.protected = classes, release.flagged(sb.worktree, base, classes)
         record.update(changes=classes, **({"protected": v.protected} if v.protected else {}))
         # Failing-before: the release with the reproduction test as written.
         with release.release_checkout(sb, base, [fa.repro.test_file]) as rsb:
@@ -1664,7 +1653,8 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
         fa = state.fix_attempts[-1]
         # What is shipped, classified again (a resumed run may carry an older validation): a protected change
         # makes the PR a draft with a warning, whatever the ship decision said.
-        flagged = release.protected(release.classify_changes(sb.worktree, f"v{issue.last_version}"))
+        shipped = f"v{issue.last_version}"
+        flagged = release.flagged(sb.worktree, shipped, release.classify_changes(sb.worktree, shipped))
         v = state.validation
         if v is not None and flagged != v.protected:
             v = v.model_copy(update={"protected": flagged})

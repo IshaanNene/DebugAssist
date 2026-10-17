@@ -76,8 +76,8 @@ debugassist app poll            # every 60 s: run each labeled issue once, one a
 
 An issue that already has the app's comment, or that the poll has already run (`.data/app/seen.json`), is not
 run again by the poll. With the webhook connected, removing and re-adding the label reruns it (each delivery is
-queued once: a repeated delivery id or body is dropped); with the poll alone, delete the app's comment and the
-issue's entry in `seen.json`.
+queued once: a repeated delivery id or body is dropped); with the poll alone, `debugassist app rerun
+GHA:owner/repo#123` queues it again.
 
 A failed run is retried twice, 5 and then 10 minutes later; after the third failure the issue gets a comment
 saying the analysis could not finish. Comments and labeled issues are read across all pages, and the list of
@@ -116,6 +116,41 @@ The API (`make dashboard`, port 8400) accepts deliveries at `POST /github/webhoo
 the app's label for the poll (which still does the work). On a laptop, relay with
 [smee.io](https://smee.io): `npx smee-client --url https://smee.io/your-channel --target http://localhost:8400/github/webhook`,
 and set that URL as the app's webhook URL.
+
+## Operations
+
+Everything the app does on this machine lives under `.data/`:
+
+| What | Where |
+|---|---|
+| The poll's memory (one entry per issue: result, attempts, time) | `.data/app/seen.json` |
+| Webhook deliveries waiting, and the ones being run | `.data/app/queue/`, `.data/app/queue/processing/` |
+| Delivery ids and bodies already seen (replay guard) | `.data/app/deliveries/` |
+| One poller at a time | `.data/app/poll.lock` |
+| A run's state, node files, worktree and trace id | `.data/runs/<run id>/` |
+| Every write the app asked to make, and what happened | `.data/audit.jsonl` |
+| The checkout of an installed repository | `targets/gh--<owner>--<repo>/` |
+
+**Start and stop.** `debugassist app poll` runs in the foreground; stop it with Ctrl-C. A second `poll` refuses to
+start while one holds the lock. A run in progress is its own `debugassist run GHA:…` process: stopping the poll
+does not stop it, and a webhook delivery stays in `queue/processing/` until its run ends, so nothing is lost.
+
+**Read what happened.** `debugassist app poll` prints one line per issue and its exit code. For a run, the CLI
+summary and `.data/runs/<id>/state.json`; the dashboard (`make dashboard`) shows the same; the trace id in the
+state opens the run in Phoenix or Langfuse. `grep '"github.comment"' .data/audit.jsonl` lists every comment the app
+asked to post, with the policy's verdict and whether it was applied.
+
+**A run failed.** It is retried at 5 and 10 minutes; after the third failure the issue gets a comment saying so.
+Read the run's `errors` in `state.json` (credentials are redacted before they are stored), fix the cause, then
+`debugassist app rerun GHA:owner/repo#123`.
+
+**Stop the app acting on one repository.** Uninstall the app there (it drops off within 10 minutes), or set
+`app_installations: false` in `configs/policies/writes.yaml` to stop it on all of them at once. Each run reads the
+policy when it starts and the poll when it starts, so restart the poll for its own comments to follow the change.
+
+**The private key leaked.** In the app's settings on GitHub, generate a new private key and delete the old one
+(installation tokens made from it expire within the hour), point `GITHUB_APP_PRIVATE_KEY_PATH` at the new file,
+and restart the poll. Rotate `GITHUB_APP_WEBHOOK_SECRET` the same way if the relay URL was shared.
 
 ## Not yet
 

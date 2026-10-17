@@ -82,3 +82,28 @@ def test_commit_trailers_name_the_issue_source() -> None:
     assert nodes._commit_trailer(s.issue) == f"Vitals: {s.issue.id}"  # pyright: ignore[reportPrivateUsage]
     s.issue.app_issue, s.issue.url = 5, "https://github.com/acme/widgets/issues/5"
     assert nodes._commit_trailer(s.issue) == "Fixes: https://github.com/acme/widgets/issues/5"  # pyright: ignore[reportPrivateUsage]
+
+
+def test_a_new_test_or_source_change_that_skips_tests_is_flagged(tmp_path: Path) -> None:
+    """ROADMAP-100 016: a skip marker in a new test or the source change can hide a failing case."""
+    from debugassist.pipeline import release
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "lib.py").write_text("def f():\n    return 1\n")
+    _git(tmp_path, "init", "-q")
+    _git(tmp_path, "add", ".")
+    _git(tmp_path, "commit", "-qm", "init")
+    _git(tmp_path, "tag", "v1")
+    (tmp_path / "src" / "lib.py").write_text(
+        "import pytest\n\ndef f():\n    pytest.skip('flaky')\n    return 2\n"
+    )
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_new.py").write_text(
+        "import pytest\n\n@pytest.mark.xfail\ndef test_f(): ...\n"
+    )
+    (tmp_path / "pyproject.toml").write_text("[tool.pytest.ini_options]\naddopts = '-k not slow'\n")
+    classes = release.classify_changes(tmp_path, "v1")
+    flagged = release.flagged(tmp_path, "v1", classes)
+    assert "harness: pyproject.toml" in flagged
+    assert any(f.startswith("skips_tests: src/lib.py") for f in flagged)
+    assert any(f.startswith("skips_tests: tests/test_new.py") and "xfail" in f for f in flagged)

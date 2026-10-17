@@ -50,6 +50,16 @@ def _app(tmp: Path, up: Path, issues: list[dict[str, Any]] | None = None) -> Git
     return a
 
 
+def _gate(a: GitHubAppMock, tmp: Path) -> PolicyGate:
+    return PolicyGate(
+        Policy.model_validate(
+            {"actions": {"github.comment": "live"}, "repos": [], "app_installations": True}
+        ),
+        tmp / "audit.jsonl",
+        installed=a.installed_repos,
+    )
+
+
 @pytest.fixture(autouse=True)
 def _paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_intake, "TARGETS", tmp_path / "targets")
@@ -83,8 +93,9 @@ def test_a_repo_without_a_pipeline_config_gets_one_comment_and_no_run(tmp_path: 
     a = _app(tmp_path, _upstream(tmp_path, onboarded=False))
     with pytest.raises(app_intake.NotOnboarded):
         app_intake.ensure_checkout(a, "acme/widgets")
-    assert app_cli.run_one(a, "acme/widgets", 3) == 0
-    assert app_cli.run_one(a, "acme/widgets", 3) == 0  # again: still one comment
+    gate = _gate(a, tmp_path)
+    assert app_cli.run_one(a, "acme/widgets", 3, gate=gate) == 0
+    assert app_cli.run_one(a, "acme/widgets", 3, gate=gate) == 0  # again: still one comment
     [c] = a.comments("acme/widgets", 3)
     assert c.startswith(app_cli.NOT_ONBOARDED) and ".DebugAssist/pipeline.yaml" in c
 
@@ -130,15 +141,13 @@ def test_a_failed_run_is_retried_with_backoff_then_reported(
 ) -> None:
     """Audit P2-12: a failed run was marked `exit N` and never retried or reported."""
     a = _app(tmp_path, _upstream(tmp_path))
-    gate = PolicyGate(
-        Policy.model_validate({"repos": [], "app_installations": True}), installed=a.installed_repos
-    )
+    gate = _gate(a, tmp_path)
     monkeypatch.setattr(app_cli, "_spawn", lambda ref, llm: 2)  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     clock = [1_000_000.0]
     monkeypatch.setattr(app_cli.time, "time", lambda: clock[0])
     for attempt in range(1, app_cli.MAX_ATTEMPTS + 1):
         assert app_cli.pending(a, gate, "debugassist") == [("acme/widgets", 3, "labeled")]
-        assert app_cli.run_one(a, "acme/widgets", 3) == 2
+        assert app_cli.run_one(a, "acme/widgets", 3, gate=gate) == 2
         assert app_cli.pending(a, gate, "debugassist") == []  # backing off
         clock[0] += app_cli.RETRY_BASE * 2**attempt
     [c] = a.comments("acme/widgets", 3)
@@ -169,3 +178,33 @@ def test_only_one_poller_runs_at_a_time(tmp_path: Path, monkeypatch: pytest.Monk
     again = app_cli.poll_lock()
     assert again is not None
     again.close()
+
+
+def test_the_pollers_own_comments_ask_the_gate(tmp_path: Path) -> None:
+    """ROADMAP-100 030: the "not onboarded" comment was posted without asking the write policy."""
+    a = _app(tmp_path, _upstream(tmp_path, onboarded=False))
+    deny = PolicyGate(
+        Policy.model_validate({"actions": {"github.comment": "deny"}, "app_installations": True}),
+        tmp_path / "audit.jsonl",
+        installed=a.installed_repos,
+    )
+    assert app_cli.run_one(a, "acme/widgets", 3, gate=deny) == 0
+    assert a.comments("acme/widgets", 3) == []
+    [entry] = [json.loads(line) for line in (tmp_path / "audit.jsonl").read_text().splitlines()]
+    assert (entry["action"], entry["verdict"], entry["detail"]["kind"]) == (
+        "github.comment",
+        "deny",
+        "not_onboarded",
+    )
+
+
+def test_rerun_clears_the_record_and_queues_the_issue(tmp_path: Path) -> None:
+    """ROADMAP-100 076: with the poll alone there was no way to run an issue again but editing seen.json."""
+    a = _app(tmp_path, _upstream(tmp_path))
+    gate = _gate(a, tmp_path)
+    app_cli._mark("GHA:acme/widgets#3", {"result": "done"})  # pyright: ignore[reportPrivateUsage]
+    a.comment("acme/widgets", 3, "<!-- debugassist:run r1 -->\ndone")
+    assert app_cli.pending(a, gate, "debugassist") == []
+    app_cli.requeue("acme/widgets", 3)
+    assert "GHA:acme/widgets#3" not in json.loads((tmp_path / "seen.json").read_text())
+    assert app_cli.pending(a, gate, "debugassist") == [("acme/widgets", 3, "webhook")]

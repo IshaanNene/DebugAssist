@@ -124,16 +124,39 @@ def _spawn(ref: str, llm: str) -> int:
     return subprocess.run([str(CLI), "run", ref, "--llm", llm], env=os.environ.copy(), check=False).returncode
 
 
-def run_one(a: GitHubApp, repo: str, number: int, *, llm: str = "live", dry: bool = False) -> int:
+def _comment(a: GitHubApp, gate: PolicyGate, repo: str, number: int, kind: str, body: str) -> None:
+    """The poller's own comments (not onboarded, failed) go through the write gate like the pipeline's."""
+    gate.gated(
+        "github.comment",
+        lambda: a.comment(repo, number, body),
+        run_id=None,
+        detail={"repo": repo, "issue": number, "kind": kind},
+        repo=repo,
+    )
+
+
+def run_one(
+    a: GitHubApp,
+    repo: str,
+    number: int,
+    *,
+    llm: str = "live",
+    dry: bool = False,
+    gate: PolicyGate | None = None,
+) -> int:
     """One labeled issue through the pipeline (its own process); returns the exit code."""
+    gate = gate or PolicyGate(installed=a.installed_repos)
     ref = app_intake.ref(repo, number)
     try:
         app_intake.ensure_checkout(a, repo)
     except app_intake.NotOnboarded as exc:
         if not any(c.lstrip().startswith(NOT_ONBOARDED) for c in a.comments(repo, number)):
-            a.comment(
+            _comment(
+                a,
+                gate,
                 repo,
                 number,
+                "not_onboarded",
                 f"{NOT_ONBOARDED}\nDebugAssist can't run here yet: this repository has no "
                 "`.DebugAssist/pipeline.yaml` saying how to build and test it. See "
                 "https://github.com/IshaanNene/DebugAssist/blob/main/docs/github-app.md#onboarding-a-repository.",
@@ -149,14 +172,37 @@ def run_one(a: GitHubApp, repo: str, number: int, *, llm: str = "live", dry: boo
     _mark(ref, {"result": "done" if code == 0 else f"exit {code}", "at": time.time(), "attempts": attempts})
     typer.echo(f"{ref}: {'done' if code == 0 else f'exit {code} (attempt {attempts} of {MAX_ATTEMPTS})'}")
     if code and attempts >= MAX_ATTEMPTS:
-        a.comment(
+        _comment(
+            a,
+            gate,
             repo,
             number,
+            "failed",
             f"{FAILED}\nDebugAssist could not finish an analysis of this issue ({attempts} attempts, last exit "
             f"code {code}). The maintainers of this DebugAssist installation can see the run logs; remove and "
             "re-add the label to try again.",
         )
     return code
+
+
+def requeue(repo: str, number: int) -> Path:
+    """Forget the poll's record of an issue and queue it as if a webhook had delivered it."""
+    ref = app_intake.ref(repo, number)
+    seen = _seen()
+    if seen.pop(ref, None) is not None:
+        write_atomic(SEEN, json.dumps(seen, indent=2))
+    QUEUE.mkdir(parents=True, exist_ok=True)
+    f = QUEUE / f"rerun-{repo.replace('/', '--')}-{number}.json"
+    write_atomic(f, json.dumps({"repo": repo, "number": number}))
+    return f
+
+
+@app.command()
+def rerun(ref: Annotated[str, typer.Argument(help="GHA:owner/repo#123")]) -> None:
+    """Run an issue again on the next poll (clears what the poll remembers about it; the app's comment stays)."""
+    repo, number = app_intake.parse_ref(ref)
+    f = requeue(repo, number)
+    typer.echo(f"queued {ref} ({f.name}); `debugassist app poll` runs it next")
 
 
 @app.command()
@@ -186,7 +232,7 @@ def poll(
         for repo, number, why in pending(a, gate, label):
             typer.echo(f"{repo}#{number} ({why})")
             try:
-                run_one(a, repo, number, llm=llm, dry=dry)
+                run_one(a, repo, number, llm=llm, dry=dry, gate=gate)
             except Exception as exc:  # one repository's API error must not stop the poll
                 typer.echo(
                     f"{repo}#{number}: {type(exc).__name__}: {redact_secrets(str(exc))[:300]}", err=True
