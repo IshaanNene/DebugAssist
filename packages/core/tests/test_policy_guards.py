@@ -92,3 +92,26 @@ def test_evidence_ids_are_stable() -> None:
     a = EvidenceItem.make("vitals", "crash", "x", {"b": 1, "a": 2})
     b = EvidenceItem.make("vitals", "crash", "y", {"a": 2, "b": 1})
     assert a.id == b.id and a.id.startswith("ev_vitals_")
+
+
+def test_every_gate_record_is_a_guardrail_span(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """ROADMAP-100 060."""
+    from contextlib import contextmanager
+    from typing import Any
+
+    from debugassist.core import tracing
+    from debugassist.core.policy import Policy, PolicyGate, Verdict
+
+    spans: list[tuple[str, str, dict[str, Any]]] = []
+
+    @contextmanager
+    def fake_span(name: str, kind: str = "chain", **attrs: Any) -> Any:
+        spans.append((name, kind, attrs))
+        yield None
+
+    monkeypatch.setattr(tracing, "span", fake_span)
+    gate = PolicyGate(Policy(actions={"jira.comment": Verdict.DENY}), tmp_path / "audit.jsonl")
+    gate.gated("jira.comment", lambda: None, run_id="r1", detail={})
+    [(name, kind, attrs)] = spans
+    assert (name, kind) == ("gate jira.comment", "guardrail")
+    assert attrs == {"gate.action": "jira.comment", "gate.verdict": "deny", "gate.applied": False}

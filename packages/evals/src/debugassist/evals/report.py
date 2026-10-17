@@ -174,6 +174,17 @@ def paired_comparisons(rows: list[dict[str, Any]], alpha: float = 0.05) -> list[
     return out
 
 
+def _prereg_section(rows: list[dict[str, Any]]) -> str:
+    """Thresholds the arms registered before they ran (evals/arms/), checked against their runs."""
+    from debugassist.evals import prereg
+
+    checked = prereg.evaluate(prereg.load(), rows)
+    if not checked:
+        return ""
+    cols = ["arm", "metric", "threshold", "observed", "verdict", "pre_registered"]
+    return "### Pre-registered checks\n\n" + _md_table(checked, cols)
+
+
 def e1_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for r in rows:
@@ -512,6 +523,7 @@ Paired comparisons: each pair of configurations on the same bugs and seeds; `onl
 one got right and the other did not, and the exact McNemar test says whether that split is more than chance.
 
 {_md_table(paired_comparisons(rows), ["metric", "a", "b", "pairs", "only_a", "only_b", "p", "verdict"])}
+{_prereg_section(rows)}
 ![RCA accuracy by configuration](rca_by_config.svg)
 
 Definitions: **exact** = file and function match ground truth; **directional** = right file or module; for

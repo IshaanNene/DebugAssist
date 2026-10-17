@@ -329,6 +329,25 @@ Agents and the LLM decider use any OpenAI-compatible API; two providers are inte
 - **Untrusted input stays data** — bug reports, logs and commit messages are fenced as data, never followed as instructions (with injection fixtures in the tests); ground truth never reaches the agent.
 - **Mock mode everywhere** — every integration has a mock; CI runs with no secrets.
 
+Each promise and the test that fails if it stops being true (the full threat model is in
+[docs/THREAT-MODEL.md](docs/THREAT-MODEL.md)):
+
+| Promise | Enforced by |
+|---|---|
+| A planted `.git` never runs a command in host git | [`test_hostgit.py`](packages/core/tests/test_hostgit.py) |
+| Host-side `grep` and code search never follow a symlink out of the worktree | [`test_workspace_tools.py`](packages/llm/tests/test_workspace_tools.py), [`test_properties.py`](packages/core/tests/test_properties.py) |
+| Containers run with no network, no capabilities and a read-only `.git` | [`test_hostgit.py`](packages/core/tests/test_hostgit.py) (container flags) |
+| Every external write asks the policy gate | [`test_gated_writes.py`](packages/pipeline/tests/test_gated_writes.py) |
+| PRs outside the policy's own repositories are drafts | [`test_ship.py`](packages/pipeline/tests/test_ship.py) |
+| No PR without a reproduction that fails on the release; no ready PR without validation | [`test_proof_path.py`](packages/pipeline/tests/test_proof_path.py), [`test_ship_and_report.py`](packages/pipeline/tests/test_ship_and_report.py) |
+| Edited tests, harness config or added skips cannot make a fix "validated" | [`test_proof_path.py`](packages/pipeline/tests/test_proof_path.py), [`test_harness_config.py`](packages/pipeline/tests/test_harness_config.py) |
+| No credential in run state, node files, traces or a failed push's error | [`test_graph_errors.py`](packages/pipeline/tests/test_graph_errors.py), [`test_github_app.py`](packages/integrations/tests/test_github_app.py), [`test_redaction.py`](packages/core/tests/test_redaction.py) |
+| Injected instructions are stopped by a named control | [`test_redteam.py`](packages/evals/tests/test_redteam.py) (32 payloads), [`test_injection.py`](packages/pipeline/tests/test_injection.py) |
+| Webhook deliveries are signed, GUID-named and never replayed | [`test_api.py`](packages/api/tests/test_api.py) |
+| The API's paid POSTs need the dashboard's origin or a token | [`test_api.py`](packages/api/tests/test_api.py) |
+| The dev stack listens on 127.0.0.1 only; queue jobs are JSON, never pickle | CI `compose` job, [`test_harness.py`](packages/harness/tests/test_harness.py) |
+| An exported `GITHUB_TOKEN` never makes pushes live | [`test_settings.py`](packages/core/tests/test_settings.py) |
+
 ## 🗂️ Repository map
 
 | Path | |

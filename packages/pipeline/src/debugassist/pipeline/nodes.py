@@ -184,6 +184,30 @@ def _error_signature(issue: Issue) -> str | None:
     return msg or None
 
 
+def _error_type(issue: Issue) -> str | None:
+    """The reported exception's class name ("TypeError", "KeyError"), last component only."""
+    m = re.match(r"^([A-Za-z_][\w.]*(?:Error|Exception))\b", issue.title)
+    return m.group(1).split(".")[-1] if m and issue.kind == "crash" else None
+
+
+def error_pattern(issue: Issue) -> re.Pattern[str] | None:
+    """What the reproduction's output must contain to show the reported error (ROADMAP-100 011).
+
+    Not the message as a substring: numbers and addresses vary between runs (`index 7`, `0x7f3a…`), whitespace
+    between runtimes, and a test that only *asserts* the message text ("expected … to throw 'Cannot read …'")
+    contains it without raising it. So: the exception type immediately before the message, as a runtime prints a
+    raised error, with numbers and hex addresses free and runs of whitespace equal."""
+    sig = _error_signature(issue)
+    if not sig:
+        return None
+    parts = re.split(r"(0x[0-9a-fA-F]+|\d+(?:\.\d+)?)", sig)
+    body = "".join(
+        r"\S+" if i % 2 else re.sub(r"(\\\s)+", r"\\s+", re.escape(p)) for i, p in enumerate(parts)
+    )
+    kind = _error_type(issue)
+    return re.compile((rf"(?<!\w){re.escape(kind)}:\s*" if kind else "") + body)
+
+
 def _repro_problem(cmd: str, exit_code: int, output: str, issue: Issue) -> str | None:
     """Why a test run on the buggy release does not count as a reproduction (None = it does).
 
@@ -200,9 +224,14 @@ def _repro_problem(cmd: str, exit_code: int, output: str, issue: Issue) -> str |
             f"`{cmd}` fails only by timing out, which happens with or without a fix (fake timers never "
             f"advanced? an awaited promise that never settles?). Make it fail with the production error.\n{output[-600:]}"
         )
-    sig = _error_signature(issue)
-    if sig and sig not in output:
-        return f"`{cmd}` fails, but not with the reported error `{sig}`; reproduce that failure.\n{output[-600:]}"
+    pattern = error_pattern(issue)
+    if pattern is not None and not pattern.search(output):
+        kind, sig = _error_type(issue), _error_signature(issue)
+        shown = f"{kind}: {sig}" if kind else sig
+        return (
+            f"`{cmd}` fails, but not with the reported error `{shown}` raised by the code under test (a test "
+            f"that only asserts the message does not count); reproduce that failure.\n{output[-600:]}"
+        )
     return None
 
 

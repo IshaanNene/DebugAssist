@@ -31,7 +31,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## B · Correctness and validation
 
-- [ ] **011** Error-signature matching by exception type plus message pattern instead of a substring, with tests for
+- [x] **011** Error-signature matching by exception type plus message pattern instead of a substring, with tests for
   messages that vary by runtime and for assertions that merely contain the text.
 - [ ] **012** Reproductions for bugs with no exception (a wrong value): require a failing assertion that names the
   reported value; tests for both kinds.
@@ -65,7 +65,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   ending in a draft PR and one marker comment.
 - [ ] **027** Fault-injection tests: Clef 5xx and time-outs, LLM 429 and hung streams, an MCP server crash mid-run;
   the fallback reason lands in the ledger and the run ends cleanly.
-- [ ] **028** Graph tests for every routing edge (`after_rca`, `after_mitigate`, retry cap) generated from the graph
+- [x] **028** Graph tests for every routing edge (`after_rca`, `after_mitigate`, retry cap) generated from the graph
   definition, so a new edge without a test fails.
 - [ ] **029** Flakiness guard: the suite runs three times in CI weekly with random order (`pytest-randomly`) and
   reports any test whose result changes.
@@ -109,17 +109,17 @@ Tasks without a mark can be done and checked offline with `make check`.
 ## F · Reliability and observability
 
 - [ ] **051** Structured JSON logs for the poller and the pipeline CLI (one schema, run id on every line).
-- [ ] **052** Counters for runs started, failed, retried and their cost, written per poll pass to `.data/app/metrics.json`
+- [x] **052** Counters for runs started, failed, retried and their cost, written per poll pass to `.data/app/metrics.json`
   and exposed on the API.
 - [ ] **053** An alert rule: failure ratio over the last N App runs above a threshold posts to chat (gated).
 - [x] **054** An operations runbook in `docs/github-app.md`: start, stop, read logs, rerun, revoke the key.
 - [x] **055** `_extract` stops swallowing exceptions: they are logged and recorded on the result.
-- [ ] **056** Health endpoint that checks its dependencies (ledger DB, queue dir writable, App reachable) separately.
+- [x] **056** Health endpoint that checks its dependencies (ledger DB, queue dir writable, App reachable) separately.
 - [x] **057** Retention: run directories older than N days are pruned (state kept, worktrees and logs removed).
 - [x] **058** Every persisted file under `.data/` passes `redact_secrets` on write (a single writer helper), with a test
   that scans a run directory for credential shapes.
 - [ ] **059** The CLI summary prints fallbacks, budget stops and gate denials as a one-line health verdict.
-- [ ] **060** Trace attributes for the gate: every `PolicyGate.gated` call becomes a span with verdict and outcome.
+- [x] **060** Trace attributes for the gate: every `PolicyGate.gated` call becomes a span with verdict and outcome.
 
 ## G · API, data and schema
 
@@ -129,7 +129,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   be generated.
 - [ ] **064** Generate the dashboard's TypeScript API types from the OpenAPI schema in CI and fail on drift.
 - [ ] **065** Pagination on `/api/runs` and `/api/issues` (cursor), with limits enforced server-side.
-- [ ] **066** The audit log as JSON Lines with a schema and a reader (`debugassist audit show --run …`).
+- [x] **066** The audit log as JSON Lines with a schema and a reader (`debugassist audit show --run …`).
 - [ ] **067** Ledger outcome labels written back when a PR merges or is closed (D17 already watches).
 - [x] **068** A state-file reader that tolerates partial writes (write to temp, rename) for `state.json` and node files.
 - [x] **069** Atomic `seen.json` updates in the poller (temp file + rename) and a lock against two pollers.
@@ -152,7 +152,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 - [x] **081** Wilson 95% intervals on every rate in the generated report.
 - [x] **082** McNemar tests for paired arms in the report, and a rule: a difference is claimed only when supported.
-- [ ] **083** Pre-registered thresholds: an arm file states its success threshold before it runs; the report checks it.
+- [x] **083** Pre-registered thresholds: an arm file states its success threshold before it runs; the report checks it.
 - [ ] **084** $ Live arm with the full call-variations check on the five real bugs (ROADMAP P18).
 - [ ] **085** $ Live bisect arm on the real bugs that have a good release.
 - [ ] **086** Non-pytest runners for bisect's per-case step (vitest `-t`, `go test -run`), tested on toy repos.
@@ -163,11 +163,11 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## J · Documentation, developer experience and CI
 
-- [ ] **091** A guarantees table in the README: each promise links to the test that enforces it.
+- [x] **091** A guarantees table in the README: each promise links to the test that enforces it.
 - [x] **092** A doc check in CI: stated limits in docs (timeouts, caps) are compared with the constants in code.
 - [ ] **093** Move the quickstart above the results in the README and split the 41 KB README into linked pages.
 - [x] **094** `docs/THREAT-MODEL.md`: assets, actors (reporter, maintainer, model), trust boundaries, controls, tests.
-- [ ] **095** A contributor guide: workspace layout, adding a package, adding an MCP tool, adding a decision.
+- [x] **095** A contributor guide: workspace layout, adding a package, adding an MCP tool, adding a decision.
 - [x] **096** `make doctor`: checks Python, uv, Docker, submodules, `.env` keys present (names only), ports free.
 - [x] **097** Pre-commit hook for the loopback check and for secret-shaped strings in staged files.
 - [ ] **098** Release notes generated from conventional commits (`git-cliff` or a script) per phase.
@@ -199,3 +199,9 @@ Tasks without a mark can be done and checked offline with `make check`.
   run 347 s / 656 s), 057 (`debugassist prune`, dry run unless `--apply`; 35 old worktrees, 8.96 GB here, not
   deleted), 058 (every string in node files and `state.json` is redacted on write), 092 (docs cite limits as
   `` `NAME` = value ``; a test compares them with the code), 096 (`make doctor`).
+- 2026-10-17: 011 (the reported error must appear as `Type: message` with numbers and addresses free; a test that
+  only asserts the text no longer counts; the bisect replay is unchanged: semver#484 → `d8813b67a2`, 3/3), 028
+  (`test_graph_edges.py`, 38 cases read from the built graph), 052 (`.data/app/metrics.json`, `GET
+  /api/app/metrics`), 056 (`GET /api/health/deps`), 060 (a guardrail span per gate record), 066 (`debugassist
+  audit`; tests no longer write to the real audit log), 083 (`evals/arms/*.yaml`, checked in the report), 091 (a
+  guarantees table in the README), 095 (`docs/CONTRIBUTING.md`).

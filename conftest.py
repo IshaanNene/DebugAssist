@@ -43,5 +43,9 @@ def _no_ambient_credentials(request: pytest.FixtureRequest, monkeypatch: pytest.
     for i in Integration:
         monkeypatch.delenv(f"DA_MODE_{i.name}", raising=False)
     monkeypatch.setitem(Settings.model_config, "env_file", None)
+    # Gates made without an explicit audit path write to a per-test file, never the developer's .data/audit.jsonl.
+    from debugassist.core import policy
+
+    monkeypatch.setattr(policy, "DEFAULT_AUDIT", request.getfixturevalue("tmp_path") / "audit.jsonl")
     get_settings.cache_clear()
     request.addfinalizer(get_settings.cache_clear)

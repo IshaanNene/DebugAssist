@@ -236,3 +236,19 @@ def test_the_api_refuses_another_interface_without_a_token(monkeypatch: pytest.M
     monkeypatch.setenv("API_HOST", "0.0.0.0")
     with pytest.raises(SystemExit, match="DA_API_TOKEN"):
         app_module.main()
+
+
+def test_health_lists_each_dependency_and_app_metrics(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ROADMAP-100 052, 056."""
+    from debugassist.pipeline import app_cli
+
+    monkeypatch.setattr(app_cli, "QUEUE", tmp_path / "queue")
+    monkeypatch.setattr(app_cli, "METRICS", tmp_path / "metrics.json")
+    h = client.get("/api/health/deps").json()
+    assert h["status"] == "ok" and h["runs_dir"] == "ok" and h["app_queue"] == "ok"
+    assert client.get("/api/app/metrics").json() == {}
+    app_cli.count(runs_started=2, runs_failed=1)
+    m = client.get("/api/app/metrics").json()
+    assert (m["runs_started"], m["runs_failed"]) == (2, 1)
