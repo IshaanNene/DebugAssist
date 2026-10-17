@@ -21,6 +21,7 @@ from typing import Any, cast
 from langgraph.graph import END, START, StateGraph
 
 from debugassist.core import tracing
+from debugassist.core.files import write_atomic
 from debugassist.core.redaction import redact_secrets
 from debugassist.pipeline import budget, nodes
 from debugassist.pipeline.deps import Deps
@@ -57,15 +58,16 @@ def after_mitigate(s: RunState) -> str:
 def _persist(deps: Deps, state: RunState, node: str, update: dict[str, Any], ms: int) -> None:
     d = deps.run_dir
     (d / "nodes").mkdir(parents=True, exist_ok=True)
-    (d / "nodes" / f"{len(list((d / 'nodes').glob('*.json'))):02d}-{node}.json").write_text(
+    write_atomic(
+        d / "nodes" / f"{len(list((d / 'nodes').glob('*.json'))):02d}-{node}.json",
         json.dumps(
             {"node": node, "kind": NODE_KIND.get(node), "ms": ms, "update": update},
             indent=2,
             default=lambda o: o.model_dump(mode="json") if hasattr(o, "model_dump") else str(o),
-        )
+        ),
     )
     merged = state.model_copy(update=update)
-    (d / "state.json").write_text(merged.model_dump_json(indent=2))
+    write_atomic(d / "state.json", merged.model_dump_json(indent=2))
 
 
 def wrap(

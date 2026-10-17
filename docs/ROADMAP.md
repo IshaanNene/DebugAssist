@@ -2,7 +2,8 @@
 
 Where DebugAssist goes after P13. Everything here is measured the same way the first evaluation was: a switch,
 an eval run on the catalog, and a report under `evals/reports/` — no feature ships on a blog post's numbers.
-Problems already solved are in [LESSONS.md](LESSONS.md).
+Problems already solved are in [LESSONS.md](LESSONS.md). The engineering backlog (security, tests, code health,
+operations) is a separate list of 100 tasks: [ROADMAP-100.md](ROADMAP-100.md).
 
 Baseline to beat (`evals/reports/2026-10-15`, gpt-6-luna, 25 bugs, each bug's latest three-seed run — 17 on
 `d7cf020`, 8 re-run on `becdbde` after the fix round; 75 runs): root cause right or close 80%, exact 65%, category

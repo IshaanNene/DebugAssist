@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from collections.abc import Callable
+from typing import Any, Literal, cast
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from debugassist.core.evidence import EvidenceItem
 
@@ -229,7 +230,24 @@ class Watch(BaseModel):
     last_checked: str | None = None
 
 
+# Version of the persisted run state (`state.json`, checkpoints). Bump it with an upgrader in UPGRADES when a
+# change would make an older file mean something else; additive fields with defaults need no bump.
+SCHEMA_VERSION = 2
+
+
+def _v1_to_v2(d: dict[str, Any]) -> dict[str, Any]:
+    """v1 (before 2026-10-17) had no `schema_version` and no `stopped_after` on runs stopped with --until."""
+    if d.get("status") == "stopped" and not d.get("stopped_after"):
+        timings = list(d.get("timings_ms") or {})
+        d["stopped_after"] = timings[-1] if timings else None
+    return d
+
+
+UPGRADES: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {1: _v1_to_v2}
+
+
 class RunState(BaseModel):
+    schema_version: int = SCHEMA_VERSION
     run_id: str
     issue_ref: str
     mode: Literal["autonomous", "supervised"] = "autonomous"
@@ -262,6 +280,22 @@ class RunState(BaseModel):
     )  # Phoenix trace ids, one per invocation  # the node --until stopped after (a resume continues from it)
     evidence_pruned: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # dropped by D3
     screenshots: dict[str, Any] | None = None  # D4 findings
+
+    @model_validator(mode="before")
+    @classmethod
+    def _upgrade(cls, data: Any) -> Any:
+        """Older state files are upgraded step by step on load; a newer one than this code is refused."""
+        if not isinstance(data, dict):
+            return data
+        d = dict(cast(dict[str, Any], data))
+        version = int(d.get("schema_version") or 1)
+        if version > SCHEMA_VERSION:
+            raise ValueError(f"run state schema {version} is newer than this DebugAssist ({SCHEMA_VERSION})")
+        while version < SCHEMA_VERSION:
+            d = UPGRADES[version](d)
+            version += 1
+        d["schema_version"] = SCHEMA_VERSION
+        return d
 
 
 # The fixed plan, in order (the run view colours: deterministic gray, LLM blue, Clef amber).

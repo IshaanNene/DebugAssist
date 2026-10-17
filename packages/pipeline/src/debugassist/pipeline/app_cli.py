@@ -10,16 +10,18 @@ saying so; a webhook delivery stays queued (in `queue/processing/`) until its ru
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Annotated, Any
+from typing import IO, Annotated, Any
 
 import typer
 
+from debugassist.core.files import write_atomic
 from debugassist.core.policy import ROOT, PolicyGate
 from debugassist.core.redaction import redact_secrets
 from debugassist.core.settings import get_settings
@@ -30,6 +32,7 @@ from debugassist.pipeline.deps import build_app
 app = typer.Typer(no_args_is_help=True, help="The GitHub App: installed repositories and the issue poll")
 QUEUE = ROOT / ".data" / "app" / "queue"
 SEEN = ROOT / ".data" / "app" / "seen.json"
+LOCK = ROOT / ".data" / "app" / "poll.lock"
 CLI = Path(sys.executable).parent / "debugassist"
 NOT_ONBOARDED = f"{MARKER}not-onboarded -->"
 FAILED = f"{MARKER}failed -->"
@@ -54,8 +57,19 @@ def _seen() -> dict[str, Any]:
 def _mark(key: str, value: dict[str, Any]) -> None:
     s = _seen()
     s[key] = value
-    SEEN.parent.mkdir(parents=True, exist_ok=True)
-    SEEN.write_text(json.dumps(s, indent=2))
+    write_atomic(SEEN, json.dumps(s, indent=2))
+
+
+def poll_lock() -> IO[str] | None:
+    """An exclusive lock on LOCK, or None when another poller holds it: two pollers would run every issue twice."""
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    f = LOCK.open("w")
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        f.close()
+        return None
+    return f
 
 
 def _due(entry: dict[str, Any] | None, now: float) -> bool:
@@ -165,6 +179,9 @@ def poll(
     a = _app()
     label = get_settings().github_app_label
     gate = PolicyGate(installed=a.installed_repos)
+    lock = poll_lock()  # held until the process exits
+    if lock is None:
+        raise typer.BadParameter(f"another `debugassist app poll` is running ({LOCK})")
     while True:
         for repo, number, why in pending(a, gate, label):
             typer.echo(f"{repo}#{number} ({why})")

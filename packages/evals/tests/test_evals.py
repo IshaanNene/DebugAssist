@@ -190,3 +190,25 @@ def test_context_anatomy_splits_input_into_prefix_tools_and_model(tmp_path: Path
     assert a.tools_added == {"read_file": 500}  # turn 1 added 550: 50 own output + 500 tool result
     assert a.tools_total == {"read_file": 1000}  # re-sent on turns 2 and 3
     assert a.prefix_total + a.model_total + sum(a.tools_total.values()) == a.input_tokens
+
+
+def test_wilson_intervals_match_known_values() -> None:
+    """Roadmap 081: e.g. 49/75 → 0.541–0.751; k = 0 and k = n stay inside [0, 1]."""
+    from debugassist.evals.stats import rate_with_interval, wilson
+
+    lo, hi = wilson(49, 75)
+    assert round(lo, 3) == 0.541 and round(hi, 3) == 0.751
+    assert wilson(0, 10)[0] == 0.0 and wilson(10, 10)[1] == 1.0
+    assert wilson(0, 0) == (0.0, 1.0)
+    assert rate_with_interval(49, 75) == "0.65 [0.54–0.75] (49/75)"
+
+
+def test_charts_render_byte_identical(tmp_path: Path) -> None:
+    """Roadmap 070: the same data renders the same SVG bytes (no date, no random ids)."""
+    from debugassist.evals import report
+
+    rows = [{"config": "routed", "rca": "exact"}, {"config": "routed", "rca": "directional"}]
+    report._chart_configs(rows, tmp_path / "a.svg")  # pyright: ignore[reportPrivateUsage]
+    report._chart_configs(rows, tmp_path / "b.svg")  # pyright: ignore[reportPrivateUsage]
+    assert (tmp_path / "a.svg").read_bytes() == (tmp_path / "b.svg").read_bytes()
+    assert b"<dc:date>" not in (tmp_path / "a.svg").read_bytes()

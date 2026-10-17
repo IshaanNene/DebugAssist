@@ -23,6 +23,9 @@ import matplotlib.pyplot as plt
 
 from debugassist.core.policy import ROOT
 from debugassist.evals import metrics
+from debugassist.evals.stats import rate_with_interval
+
+matplotlib.rcParams["svg.hashsalt"] = "debugassist"  # stable ids instead of random ones per render
 
 REPORTS = ROOT / "evals" / "reports"
 
@@ -101,6 +104,32 @@ def by_config(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def intervals_by_config(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Per configuration: each rate pooled over all its runs, with a 95% Wilson interval."""
+    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for r in rows:
+        if "rca" in r:
+            groups[r["config"]].append(r)
+
+    def ci(rs: list[dict[str, Any]], pred: Callable[[dict[str, Any]], bool]) -> str:
+        return rate_with_interval(sum(1 for r in rs if pred(r)), len(rs))
+
+    out: list[dict[str, Any]] = []
+    for config, rs in sorted(groups.items()):
+        hidden = [r for r in rs if r.get("hidden_tests") is not None]
+        out.append(
+            {
+                "config": config,
+                "rca_exact": ci(rs, lambda r: r["rca"] == "exact"),
+                "rca_exact_or_directional": ci(rs, lambda r: r["rca"] in ("exact", "directional")),
+                "category_ok": ci(rs, lambda r: bool(r["category_ok"])),
+                "validated": ci(rs, lambda r: bool(r["validated"])),
+                "hidden_tests_pass": ci(hidden, lambda r: bool(r["hidden_tests"])),
+            }
+        )
+    return out
+
+
 def e1_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for r in rows:
@@ -154,6 +183,11 @@ def _md_table(rows: list[dict[str, Any]], cols: list[str]) -> str:
     return head + "".join("| " + " | ".join(str(r.get(c, "–")) for c in cols) + " |\n" for r in rows)
 
 
+def _save(fig: Any, path: Path) -> None:
+    """SVGs without a date and with fixed element ids, so regenerating a report from the same data is byte-exact."""
+    fig.savefig(path, metadata={"Date": None})
+
+
 def _chart_configs(rows: list[dict[str, Any]], path: Path) -> None:
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for r in rows:
@@ -173,7 +207,7 @@ def _chart_configs(rows: list[dict[str, Any]], path: Path) -> None:
     ax.legend(frameon=False)
     plt.xticks(rotation=30, ha="right")
     fig.tight_layout()
-    fig.savefig(path)
+    _save(fig, path)
     plt.close(fig)
 
 
@@ -196,7 +230,7 @@ def _chart_reliability(points: list[metrics.Point], path: Path) -> None:
     ax.set_ylabel("accuracy")
     ax.set_title("Reliability (labelled decisions)")
     fig.tight_layout()
-    fig.savefig(path)
+    _save(fig, path)
     plt.close(fig)
 
 
@@ -219,7 +253,7 @@ def _chart_e1(e1: list[dict[str, Any]], path: Path) -> None:
     ax.set_title("Decision accuracy by decider (E1)")
     ax.legend(frameon=False, fontsize=7)
     fig.tight_layout()
-    fig.savefig(path)
+    _save(fig, path)
     plt.close(fig)
 
 
@@ -426,6 +460,10 @@ runs between configurations are noise. "± x" is the standard deviation across s
 ## Pipeline, by configuration
 
 {_md_table(cfg, ["config", "runs", "bugs", "seeds", "rca_exact", "rca_exact_or_directional", "category_ok", "outcome_ok", "validated", "hidden_tests_pass", "diff_similarity", "unsupported_claims", "turns", "usd", "time_to_rca_s"])}
+The same rates pooled over every run of a configuration, with 95% Wilson intervals: two configurations differ only
+where their intervals leave room for it.
+
+{_md_table(intervals_by_config(rows), ["config", "rca_exact", "rca_exact_or_directional", "category_ok", "validated", "hidden_tests_pass"])}
 ![RCA accuracy by configuration](rca_by_config.svg)
 
 Definitions: **exact** = file and function match ground truth; **directional** = right file or module; for
