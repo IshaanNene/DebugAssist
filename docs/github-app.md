@@ -95,6 +95,7 @@ version: 1
 repo: widgets
 default_agent_type: github-issue
 bot_branch_prefix: debugassist/
+run_budget_usd: 1.00   # optional: what one run on this repository may spend (never above the global $5 cap)
 components:
   .:
     path: .

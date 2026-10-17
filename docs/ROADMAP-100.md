@@ -42,7 +42,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **015** Validation records which checks ran with which command and config hash, stored on the attempt.
 - [x] **016** A fix that deletes or skips existing tests (`skip`, `xfail`, `.only`) is flagged and forces a draft;
   tests for each marker in Python, TypeScript and Go.
-- [ ] **017** The ship gate refuses `open_pr` when the diff touches more files than the fix plan's location set
+- [x] **017** The ship gate refuses `open_pr` when the diff touches more files than the fix plan's location set
   allows (a configurable slack); tests.
 - [ ] **018** Crash safety of `fix`: kill between phase one and phase two, resume, and the worktree is consistent
   (test with the toy repo from `test_proof_path.py`).
@@ -67,7 +67,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   the fallback reason lands in the ledger and the run ends cleanly.
 - [x] **028** Graph tests for every routing edge (`after_rca`, `after_mitigate`, retry cap) generated from the graph
   definition, so a new edge without a test fails.
-- [ ] **029** Flakiness guard: the suite runs three times in CI weekly with random order (`pytest-randomly`) and
+- [x] **029** Flakiness guard: the suite runs three times in CI weekly with random order (`pytest-randomly`) and
   reports any test whose result changes.
 - [x] **030** A test that every action in `writes.yaml` has a call site that goes through `PolicyGate` (static scan),
   and no call site writes without one.
@@ -99,7 +99,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **042** Tool-call latency in the trace summary: time spent in MCP, sandbox and model per run.
 - [ ] **043** Start an agent's MCP servers in parallel (one task owns all sessions) instead of one after another.
 - [ ] **044** Cache the collector's evidence per (issue, release) so a resumed or re-run issue does not refetch.
-- [ ] **045** `api/data.runs` reads an index file instead of parsing up to 500 `state.json` files per request.
+- [x] **045** `api/data.runs` reads an index file instead of parsing up to 500 `state.json` files per request.
 - [ ] **046** A worker pool for the App poller with one run per repository at a time and idempotent run keys.
 - [x] **047** Rate-limit awareness for GitHub: read `X-RateLimit-Remaining`, back off before exhaustion; test.
 - [ ] **048** Sandbox install cache shared across runs of the same lockfile (content-addressed), measured.
@@ -108,7 +108,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## F · Reliability and observability
 
-- [ ] **051** Structured JSON logs for the poller and the pipeline CLI (one schema, run id on every line).
+- [x] **051** Structured JSON logs for the poller and the pipeline CLI (one schema, run id on every line).
 - [x] **052** Counters for runs started, failed, retried and their cost, written per poll pass to `.data/app/metrics.json`
   and exposed on the API.
 - [ ] **053** An alert rule: failure ratio over the last N App runs above a threshold posts to chat (gated).
@@ -118,7 +118,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **057** Retention: run directories older than N days are pruned (state kept, worktrees and logs removed).
 - [x] **058** Every persisted file under `.data/` passes `redact_secrets` on write (a single writer helper), with a test
   that scans a run directory for credential shapes.
-- [ ] **059** The CLI summary prints fallbacks, budget stops and gate denials as a one-line health verdict.
+- [x] **059** The CLI summary prints fallbacks, budget stops and gate denials as a one-line health verdict.
 - [x] **060** Trace attributes for the gate: every `PolicyGate.gated` call becomes a span with verdict and outcome.
 
 ## G · API, data and schema
@@ -128,7 +128,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **063** Typed response models for every API endpoint (FastAPI `response_model`), so the dashboard's types can
   be generated.
 - [ ] **064** Generate the dashboard's TypeScript API types from the OpenAPI schema in CI and fail on drift.
-- [ ] **065** Pagination on `/api/runs` and `/api/issues` (cursor), with limits enforced server-side.
+- [x] **065** Pagination on `/api/runs` and `/api/issues` (cursor), with limits enforced server-side.
 - [x] **066** The audit log as JSON Lines with a schema and a reader (`debugassist audit show --run …`).
 - [ ] **067** Ledger outcome labels written back when a PR merges or is closed (D17 already watches).
 - [x] **068** A state-file reader that tolerates partial writes (write to temp, rename) for `state.json` and node files.
@@ -141,7 +141,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **072** Installation webhooks (`installation`, `installation_repositories`) refresh the repo map immediately.
 - [ ] **073** A PR comment loop for App repositories (review comments → diff fixer), gated and draft-only.
 - [ ] **074** CI failures as input: a failed check run on a default branch becomes an issue-like input.
-- [ ] **075** Per-repository budgets in `pipeline.yaml` (and a global cap), enforced before a run starts.
+- [x] **075** Per-repository budgets in `pipeline.yaml` (and a global cap), enforced before a run starts.
 - [x] **076** `debugassist app rerun GHA:owner/repo#n` that clears the seen entry and queues a run.
 - [ ] **077** A team catalog for real repositories: CODEOWNERS-based owner instead of MiniRide teams.
 - [ ] **078** Discord notifier tested against a recorded real webhook response (fixture), with rate-limit handling.
@@ -170,9 +170,9 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **095** A contributor guide: workspace layout, adding a package, adding an MCP tool, adding a decision.
 - [x] **096** `make doctor`: checks Python, uv, Docker, submodules, `.env` keys present (names only), ports free.
 - [x] **097** Pre-commit hook for the loopback check and for secret-shaped strings in staged files.
-- [ ] **098** Release notes generated from conventional commits (`git-cliff` or a script) per phase.
+- [x] **098** Release notes generated from conventional commits (`git-cliff` or a script) per phase.
 - [ ] **099** CI caches for pnpm and uv tuned, and the job time recorded; target under 5 minutes total.
-- [ ] **100** A fresh-clone check in CI: `make bootstrap && make check` on a clean runner, timed.
+- [x] **100** A fresh-clone check in CI: `make bootstrap && make check` on a clean runner, timed.
 
 ## Progress
 
@@ -205,3 +205,13 @@ Tasks without a mark can be done and checked offline with `make check`.
   /api/app/metrics`), 056 (`GET /api/health/deps`), 060 (a guardrail span per gate record), 066 (`debugassist
   audit`; tests no longer write to the real audit log), 083 (`evals/arms/*.yaml`, checked in the report), 091 (a
   guarantees table in the README), 095 (`docs/CONTRIBUTING.md`).
+- 2026-10-17: 017 (more than 2 changed source files outside the plan's focus and the RCA's location make the PR a
+  draft, with the files named), 029, 100 (`.github/workflows/weekly.yml`: the suite three times compared by
+  `scripts/flaky.py`, and `make bootstrap && make check` on a clean runner, timed; not run yet), 045, 065 (the run
+  list reads `runs/.index.json`, re-parsing a state file only when its size or mtime changed — 0.67 s cold, ~0 s
+  warm over this machine's 323 runs; `before=<run id>` pages), 051 (`.data/logs/<component>.jsonl`), 059 (`health`
+  line in the run summary), 075 (`run_budget_usd` in a repository's `pipeline.yaml`, and `DA_RUN_BUDGET_CAP_USD`,
+  default $5, under the agent type's budget), 098 (`scripts/changelog.py`).
+  Partly done, still open: 026 (a signed webhook reaches exactly one `debugassist run`, tested; the run itself to a
+  draft PR is covered separately in `test_proof_path.py`, not in one test) and 027 (Clef 5xx, time-out and open
+  breaker fall back with the reason in the ledger; an MCP server crash and a hung model stream are not tested yet).

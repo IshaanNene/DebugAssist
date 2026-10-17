@@ -37,6 +37,8 @@ class Issue(BaseModel):
     about: str | None = None  # GitHub: what the repository is (real repos are not MiniRide)
     base_branch: str | None = None  # GitHub App issues: the default branch the draft PR targets
     app_issue: int | None = None  # GitHub App issues: the issue number the run comments on
+    # The repository's own cap on one run's spend (`run_budget_usd` in its .DebugAssist/pipeline.yaml).
+    run_budget_usd: float | None = None
 
 
 class Triage(BaseModel):

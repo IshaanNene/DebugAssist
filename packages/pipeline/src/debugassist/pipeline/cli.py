@@ -31,6 +31,21 @@ from debugassist.pipeline.graph import build_graph
 from debugassist.pipeline.state import RunState
 
 
+def _fallback_count(run_id: str) -> int:
+    db = ROOT / ".data" / "debugassist.db"
+    if not db.is_file():
+        return 0
+    try:
+        with sqlite3.connect(db) as con:
+            row = con.execute(
+                "select count(*) from decision_ledger where run_id = ? and fallback_reason is not null",
+                (run_id,),
+            ).fetchone()
+    except sqlite3.Error:
+        return 0
+    return int(row[0]) if row else 0
+
+
 def _decision_backends(run_id: str) -> str | None:
     """Which backend made this run's decisions — and why any fell back (a silent fallback looks normal)."""
     db = ROOT / ".data" / "debugassist.db"
@@ -48,6 +63,23 @@ def _decision_backends(run_id: str) -> str | None:
     if reasons:
         line += f"  ⚠ fell back: {reasons[0][:110]}"
     return line
+
+
+def health_verdict(s: RunState, fallbacks: int, denials: int) -> str:
+    """One line on whether the run went as designed (ROADMAP-100 059): decisions that fell back, agents stopped by
+    their budget, writes the policy refused. A run can end "done" with all three; this says so."""
+    dump = s.model_dump_json()
+    budget_stops = dump.count('"status":"max_budget"') + sum("budget exhausted" in e for e in s.errors)
+    problems = [
+        f"{n} {what}"
+        for n, what in (
+            (fallbacks, "decision(s) fell back"),
+            (budget_stops, "agent(s) stopped by budget"),
+            (denials, "write(s) denied by policy"),
+        )
+        if n
+    ]
+    return "healthy" if not problems else "⚠ " + " · ".join(problems)
 
 
 def _summary(s: RunState) -> None:
@@ -125,6 +157,8 @@ def _summary(s: RunState) -> None:
             f"  watch     {s.watch.status} — after merge + `make deploy`: debugassist watch {s.run_id}"
         )
     typer.echo(f"  cost      ${sum(s.costs.values()):.4f} LLM · {sum(s.timings_ms.values()) / 1000:.0f}s")
+    denials = sum(e.verdict == "deny" for e in read_audit(None, run=s.run_id, last=10_000))
+    typer.echo(f"  health    {health_verdict(s, _fallback_count(s.run_id), denials)}")
     for e in s.errors[:1]:
         typer.echo(f"  error     {e}")
 

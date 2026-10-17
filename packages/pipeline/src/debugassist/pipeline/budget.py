@@ -4,6 +4,7 @@ cap (`max_budget_usd`) is lowered to what is left."""
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from debugassist.pipeline.deps import Deps
@@ -18,8 +19,21 @@ async def spent(state: RunState, deps: Deps) -> dict[str, float]:
     return {"llm": round(llm, 6), "clef": round(clef, 6), "total": round(llm + clef, 6)}
 
 
-def limit(deps: Deps) -> float:
-    return float(deps.agent_type.get("run_budget_usd", 3.0))
+HARD_CAP_USD = (
+    5.0  # no single run spends more without someone raising DA_RUN_BUDGET_CAP_USD (CLAUDE.md: ask above $5)
+)
+
+
+def limit(deps: Deps, state: RunState | None = None) -> float:
+    """The run's budget: the agent type's, lowered by the repository's own `run_budget_usd` (ROADMAP-100 075) and
+    by the global cap `DA_RUN_BUDGET_CAP_USD` (default $5)."""
+    caps = [
+        float(deps.agent_type.get("run_budget_usd", 3.0)),
+        float(os.environ.get("DA_RUN_BUDGET_CAP_USD") or HARD_CAP_USD),
+    ]
+    if state is not None and state.issue is not None and state.issue.run_budget_usd is not None:
+        caps.append(float(state.issue.run_budget_usd))
+    return min(caps)
 
 
 def cap(cfg: dict[str, Any], deps: Deps) -> dict[str, Any]:

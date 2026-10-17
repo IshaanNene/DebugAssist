@@ -102,4 +102,5 @@ def ingest(ref_: str, app: GitHubApp) -> Issue:
         about=f"{repo}{f', {about}' if about else ''} (the default branch, {branch}, at {sha})",
         base_branch=branch,
         app_issue=number,
+        run_budget_usd=float(cfg["run_budget_usd"]) if cfg.get("run_budget_usd") is not None else None,
     )

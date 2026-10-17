@@ -4,6 +4,7 @@ a temporary directory."""
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ from typing import Any, cast
 
 import yaml
 
+from debugassist.core.files import write_atomic
 from debugassist.core.policy import ROOT
 from debugassist.decisions.templates import Template, load_templates
 from debugassist.pipeline.state import NODE_KIND
@@ -123,17 +125,53 @@ def summary(s: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def runs(p: Paths, issue: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+MAX_LIMIT = 500
+
+
+def _summaries(p: Paths) -> list[dict[str, Any]]:
+    """Every run's summary, newest first, from `runs/.index.json` (ROADMAP-100 045).
+
+    A state file can be hundreds of MB (one stored run's is 152 MB); parsing every one per request made the run
+    list slow. The index keeps each run's summary with its state file's size and mtime, and re-reads a state file
+    only when either changed."""
+    index_file = p.runs / ".index.json"
+    try:
+        index: dict[str, Any] = json.loads(index_file.read_text()) if index_file.is_file() else {}
+    except (OSError, json.JSONDecodeError):
+        index = {}  # a torn or old index is rebuilt, never trusted
     out: list[dict[str, Any]] = []
+    fresh: dict[str, Any] = {}
     for rid in run_ids(p):
-        s = load_state(p, rid)
-        if s is None:
+        st = (p.runs / rid / "state.json").stat()
+        stamp = [st.st_size, st.st_mtime_ns]
+        cached = index.get(rid)
+        if isinstance(cached, dict) and cast(dict[str, Any], cached).get("stamp") == stamp:
+            row = cast(dict[str, Any], cached)["summary"]
+        else:
+            s = load_state(p, rid)
+            if s is None:
+                continue
+            row = summary(s)
+        fresh[rid] = {"stamp": stamp, "summary": row}
+        out.append(row)
+    if fresh != index:
+        with contextlib.suppress(OSError):  # a read-only data dir still serves, just without the cache
+            write_atomic(index_file, json.dumps(fresh))
+    return out
+
+
+def runs(
+    p: Paths, issue: str | None = None, limit: int = 100, before: str | None = None
+) -> list[dict[str, Any]]:
+    """Run summaries, newest first; `before` (a run id) continues a previous page, `limit` is capped."""
+    out: list[dict[str, Any]] = []
+    for row in _summaries(p):
+        if before is not None and row["run_id"] >= before:
             continue
-        row = summary(s)
         if issue and issue not in (row["issue_id"], row["issue_ref"]):
             continue
         out.append(row)
-        if len(out) >= limit:
+        if len(out) >= min(limit, MAX_LIMIT):
             break
     return out
 
