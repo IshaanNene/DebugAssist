@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 
 from debugassist.core.policy import ROOT
 from debugassist.evals import metrics
-from debugassist.evals.stats import rate_with_interval
+from debugassist.evals.stats import mcnemar, rate_with_interval
 
 matplotlib.rcParams["svg.hashsalt"] = "debugassist"  # stable ids instead of random ones per render
 
@@ -127,6 +127,50 @@ def intervals_by_config(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "hidden_tests_pass": ci(hidden, lambda r: bool(r["hidden_tests"])),
             }
         )
+    return out
+
+
+def paired_comparisons(rows: list[dict[str, Any]], alpha: float = 0.05) -> list[dict[str, Any]]:
+    """Every pair of configurations on the (bug, seed) runs both have: discordant pairs and an exact McNemar test.
+
+    A difference is reported only when the test supports it at `alpha`; otherwise the row says there is no
+    evidence, however different the two rates look."""
+    by: dict[str, dict[tuple[str, int], dict[str, Any]]] = defaultdict(dict)
+    for r in rows:
+        if "rca" in r:
+            by[r["config"]][(str(r["bug"]), int(r["seed"]))] = r
+    metrics_: dict[str, Callable[[dict[str, Any]], bool]] = {
+        "rca_exact": lambda r: r["rca"] == "exact",
+        "validated": lambda r: bool(r["validated"]),
+    }
+    out: list[dict[str, Any]] = []
+    names = sorted(by)
+    for i, a in enumerate(names):
+        for b_name in names[i + 1 :]:
+            keys = sorted(set(by[a]) & set(by[b_name]))
+            if not keys:
+                continue
+            for metric, pred in metrics_.items():
+                only_a = sum(1 for k in keys if pred(by[a][k]) and not pred(by[b_name][k]))
+                only_b = sum(1 for k in keys if pred(by[b_name][k]) and not pred(by[a][k]))
+                p = mcnemar(only_a, only_b)
+                verdict = (
+                    f"{a if only_a > only_b else b_name} better"
+                    if p < alpha
+                    else "no evidence of a difference"
+                )
+                out.append(
+                    {
+                        "metric": metric,
+                        "a": a,
+                        "b": b_name,
+                        "pairs": len(keys),
+                        "only_a": only_a,
+                        "only_b": only_b,
+                        "p": f"{p:.3f}",
+                        "verdict": verdict,
+                    }
+                )
     return out
 
 
@@ -464,6 +508,10 @@ The same rates pooled over every run of a configuration, with 95% Wilson interva
 where their intervals leave room for it.
 
 {_md_table(intervals_by_config(rows), ["config", "rca_exact", "rca_exact_or_directional", "category_ok", "validated", "hidden_tests_pass"])}
+Paired comparisons: each pair of configurations on the same bugs and seeds; `only_a` / `only_b` count the runs
+one got right and the other did not, and the exact McNemar test says whether that split is more than chance.
+
+{_md_table(paired_comparisons(rows), ["metric", "a", "b", "pairs", "only_a", "only_b", "p", "verdict"])}
 ![RCA accuracy by configuration](rca_by_config.svg)
 
 Definitions: **exact** = file and function match ground truth; **directional** = right file or module; for

@@ -212,3 +212,28 @@ def test_charts_render_byte_identical(tmp_path: Path) -> None:
     report._chart_configs(rows, tmp_path / "b.svg")  # pyright: ignore[reportPrivateUsage]
     assert (tmp_path / "a.svg").read_bytes() == (tmp_path / "b.svg").read_bytes()
     assert b"<dc:date>" not in (tmp_path / "a.svg").read_bytes()
+
+
+def test_mcnemar_and_paired_comparisons() -> None:
+    """ROADMAP-100 082: a difference between paired arms is claimed only when the exact test supports it."""
+    from debugassist.evals import report
+    from debugassist.evals.stats import mcnemar
+
+    assert mcnemar(0, 0) == 1.0
+    assert round(mcnemar(1, 4), 3) == 0.375  # 2 * P(X <= 1), X ~ Bin(5, 1/2)
+    assert mcnemar(10, 0) < 0.01
+
+    def run(config: str, bug: str, exact: bool) -> dict[str, object]:
+        return {
+            "config": config,
+            "bug": bug,
+            "seed": 1,
+            "rca": "exact" if exact else "wrong",
+            "validated": exact,
+        }
+
+    close = [run("a", f"B{i}", i < 6) for i in range(10)] + [run("b", f"B{i}", i < 5) for i in range(10)]
+    [row, _] = report.paired_comparisons(close)
+    assert (row["only_a"], row["only_b"], row["verdict"]) == (1, 0, "no evidence of a difference")
+    far = [run("a", f"B{i}", True) for i in range(12)] + [run("b", f"B{i}", False) for i in range(12)]
+    assert report.paired_comparisons(far)[0]["verdict"] == "a better"

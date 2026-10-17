@@ -25,6 +25,7 @@ from debugassist.core.files import write_atomic
 from debugassist.core.policy import ROOT, PolicyGate
 from debugassist.core.redaction import redact_secrets
 from debugassist.core.settings import get_settings
+from debugassist.integrations.github import RateLimited
 from debugassist.integrations.github_app import MARKER, GitHubApp, comment_has_marker
 from debugassist.pipeline import app_intake
 from debugassist.pipeline.deps import build_app
@@ -39,6 +40,7 @@ FAILED = f"{MARKER}failed -->"
 MAX_ATTEMPTS = 3
 RETRY_BASE = 300.0  # seconds before the first retry; doubles after each failure
 STALE_RUNNING = 4 * 3600.0
+MAX_RATE_WAIT = 3600.0
 
 
 def _app() -> GitHubApp:
@@ -229,7 +231,15 @@ def poll(
     if lock is None:
         raise typer.BadParameter(f"another `debugassist app poll` is running ({LOCK})")
     while True:
-        for repo, number, why in pending(a, gate, label):
+        try:
+            work = pending(a, gate, label)
+        except RateLimited as exc:  # wait it out instead of hammering the API every interval
+            typer.echo(str(exc), err=True)
+            if once:
+                return
+            time.sleep(min(exc.wait_s, MAX_RATE_WAIT) + 1)
+            continue
+        for repo, number, why in work:
             typer.echo(f"{repo}#{number} ({why})")
             try:
                 run_one(a, repo, number, llm=llm, dry=dry, gate=gate)

@@ -182,3 +182,31 @@ def test_comments_and_labeled_issues_are_read_across_pages() -> None:
     got = a.comments("acme/widgets", 3)
     assert len(got) == 150 and comment_has_marker(got)
     assert len(a.labeled_issues("acme/widgets", "debugassist")) == 45
+
+
+def test_rate_limits_become_a_wait_not_an_error_to_retry() -> None:
+    """ROADMAP-100 047: primary and secondary limits say how long to wait."""
+    from debugassist.integrations.github import RateLimited, check_rate_limit
+
+    def resp(status: int, **headers: str) -> httpx.Response:
+        return httpx.Response(status, headers=headers)
+
+    check_rate_limit(resp(200, **{"x-ratelimit-remaining": "0"}))  # a success is never an error
+    check_rate_limit(resp(403))  # a plain permission error stays one
+    with pytest.raises(RateLimited) as primary:
+        check_rate_limit(resp(403, **{"x-ratelimit-remaining": "0", "x-ratelimit-reset": "1060"}), now=1000)
+    assert primary.value.wait_s == 60
+    with pytest.raises(RateLimited) as secondary:
+        check_rate_limit(resp(429, **{"retry-after": "30"}))
+    assert secondary.value.wait_s == 30
+
+    pem, _ = _key()
+
+    def limited(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, headers={"x-ratelimit-remaining": "0", "x-ratelimit-reset": "0"}, json={})
+
+    a = GitHubAppLive(
+        "1", pem, http=httpx.Client(base_url="https://api.github.com", transport=httpx.MockTransport(limited))
+    )
+    with pytest.raises(RateLimited):
+        a.installed_repos()

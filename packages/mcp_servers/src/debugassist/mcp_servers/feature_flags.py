@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import math
-import os
 from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
 
+from debugassist.core import runctx
 from debugassist.core.policy import PolicyGate, Verdict
 from debugassist.mcp_servers.common import env, with_evidence
 
@@ -134,7 +134,7 @@ def apply_rollout(
 
     The pipeline asks the gate once, in the node, where a human approval is visible; a second gate in here
     could not see that approval and turned every approved rollback into a dry run (audit P2-6)."""
-    gate = gate or PolicyGate(mode=os.environ.get("DEBUGASSIST_MODE", "autonomous"))
+    gate = gate or PolicyGate(mode=runctx.get("DEBUGASSIST_MODE", "autonomous") or "autonomous")
     strategies = _strategies(flag)
     current = _rollout(strategies)
     result: dict[str, Any] = {
@@ -155,7 +155,7 @@ def apply_rollout(
     gate.record(
         action,
         Verdict.LIVE if result["applied"] else Verdict.DRY_RUN,
-        run_id=run_id or os.environ.get("DEBUGASSIST_RUN_ID"),
+        run_id=run_id or runctx.get("DEBUGASSIST_RUN_ID"),
         detail={"flag": flag, "to": to_percent, "reason": reason},
         result=result,
     )
@@ -165,7 +165,7 @@ def apply_rollout(
 @mcp.tool()
 def rollback_flag(flag: str, to_percent: int = 0, reason: str = "", dry_run: bool = True) -> dict[str, Any]:
     """Roll a flag's gradual rollout back (write; policy-gated, dry-run by default)."""
-    gate = PolicyGate(mode=os.environ.get("DEBUGASSIST_MODE", "autonomous"))
+    gate = PolicyGate(mode=runctx.get("DEBUGASSIST_MODE", "autonomous") or "autonomous")
     verdict = gate.verdict("flags.rollback")
     # An agent's call never carries a human approval: only a policy that says live applies it.
     result = apply_rollout(

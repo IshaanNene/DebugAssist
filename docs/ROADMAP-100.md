@@ -18,7 +18,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   ungated writes (target 0/0/0) under `evals/reports/`.
 - [x] **004** Offline red-team checks that need no model: every payload's commands go through `check_command`, its
   paths through `confine`/`walk_files`, its text through the untrusted fence — a test per payload.
-- [ ] **005** Per-run context instead of `os.environ` (audit P3-15): run id, mode and code repos passed explicitly
+- [x] **005** Per-run context instead of `os.environ` (audit P3-15): run id, mode and code repos passed explicitly
   to tools and MCP processes; two runs built in one process keep separate values (test).
 - [x] **006** Authentication on the API's mutating endpoints: a token (`DA_API_TOKEN`) required on every POST;
   the dashboard sends it; tests for missing and wrong tokens.
@@ -37,7 +37,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   reported value; tests for both kinds.
 - [ ] **013** Route away from a fix only when the RCA's category agrees with D05 or carries high confidence
   (ROADMAP P18: a wrong "not ours" was terminal); tests for agree / disagree / confident.
-- [ ] **014** `test_one` reads its harness config from the release like `test`/`lint`/`setup` (audit: two sources);
+- [x] **014** `test_one` reads its harness config from the release like `test`/`lint`/`setup` (audit: two sources);
   one reader for all of them.
 - [ ] **015** Validation records which checks ran with which command and config hash, stored on the attempt.
 - [x] **016** A fix that deletes or skips existing tests (`skip`, `xfail`, `.only`) is flagged and forces a draft;
@@ -46,7 +46,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   allows (a configurable slack); tests.
 - [ ] **018** Crash safety of `fix`: kill between phase one and phase two, resume, and the worktree is consistent
   (test with the toy repo from `test_proof_path.py`).
-- [ ] **019** Idempotent `pr_and_notify`: a resumed run does not commit twice, push twice or post a second comment
+- [x] **019** Idempotent `pr_and_notify`: a resumed run does not commit twice, push twice or post a second comment
   (test with recording fakes).
 - [ ] **020** Mitigation for rider reports (D11 abstains outside crash rates): a report-based signal and tests.
 
@@ -55,9 +55,9 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **021** Coverage gate in CI: `pytest-cov` with a floor on `pipeline/` (start at today's number, never lower).
 - [ ] **022** Mutation testing (`mutmut`) on `_repro_problem`, `fix_contract_problem`, `ship_gate`, the release
   checks; a make target and a recorded score; target ≥85% killed.
-- [ ] **023** Property tests (Hypothesis) for `redact_secrets`/`redact_text`: no secret-shaped input survives, no
+- [x] **023** Property tests (Hypothesis) for `redact_secrets`/`redact_text`: no secret-shaped input survives, no
   plain diagnostic text is mangled.
-- [ ] **024** Property tests for `confine`, `walk_files` and `hostgit.trusted_gitdir` over generated trees with
+- [x] **024** Property tests for `confine`, `walk_files` and `hostgit.trusted_gitdir` over generated trees with
   symlinks, `..` and odd names.
 - [ ] **025** Contract tests: recorded GitHub, Jira, Workers AI and OpenRouter responses replayed against the clients
   (fixtures under `tests/fixtures/`), with the live variant behind `DA_LIVE_TESTS=1`.
@@ -101,7 +101,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **044** Cache the collector's evidence per (issue, release) so a resumed or re-run issue does not refetch.
 - [ ] **045** `api/data.runs` reads an index file instead of parsing up to 500 `state.json` files per request.
 - [ ] **046** A worker pool for the App poller with one run per repository at a time and idempotent run keys.
-- [ ] **047** Rate-limit awareness for GitHub: read `X-RateLimit-Remaining`, back off before exhaustion; test.
+- [x] **047** Rate-limit awareness for GitHub: read `X-RateLimit-Remaining`, back off before exhaustion; test.
 - [ ] **048** Sandbox install cache shared across runs of the same lockfile (content-addressed), measured.
 - [ ] **049** $ A benchmark job that replays cassettes on a fixed machine and fails if a node's p50 regresses >10%.
 - [ ] **050** A stated scale target (runs per hour, repositories) in `docs/github-app.md`, with the bottleneck named.
@@ -151,7 +151,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 ## I · Evaluation and research
 
 - [x] **081** Wilson 95% intervals on every rate in the generated report.
-- [ ] **082** McNemar tests for paired arms in the report, and a rule: a difference is claimed only when supported.
+- [x] **082** McNemar tests for paired arms in the report, and a rule: a difference is claimed only when supported.
 - [ ] **083** Pre-registered thresholds: an arm file states its success threshold before it runs; the report checks it.
 - [ ] **084** $ Live arm with the full call-variations check on the five real bugs (ROADMAP P18).
 - [ ] **085** $ Live bisect arm on the real bugs that have a good release.
@@ -186,3 +186,8 @@ Tasks without a mark can be done and checked offline with `make check`.
   poller's "not onboarded" and "failed" comments posted without the gate, now gated, and the diff fixer's comment
   not audited, now audited), 032 (`pipeline/notify.py`), 054 (Operations in `docs/github-app.md`), 076
   (`debugassist app rerun`), 094 (`docs/THREAT-MODEL.md`).
+- 2026-10-17: 005 (`core.runctx`: run id, mode and code repos per asyncio task; nothing in `pipeline/` writes
+  `os.environ`), 014 (`test_one` read from the release like the other commands), 019 (a resumed PR step makes no
+  empty commit and posts no second issue comment), 023, 024 (Hypothesis property tests for redaction, `confine`,
+  `walk_files` and the git-dir check), 047 (GitHub rate limits raise `RateLimited` with the wait; the poll waits it
+  out), 082 (exact McNemar test per pair of configurations in the report).

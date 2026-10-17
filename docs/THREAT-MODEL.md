@@ -44,6 +44,7 @@ protects, from whom, where the trust boundaries are, and which test holds each c
 | GitHub → webhook | Forged or replayed deliveries | HMAC over the body; delivery id must be a GUID; repeated ids and bodies dropped | `test_api.py` |
 | Browser → API | A web page making the browser start paid runs | POSTs need the dashboard's Origin or `DA_API_TOKEN`; the API listens on 127.0.0.1 and refuses another interface without a token | `test_api.py` |
 | Network → dev stack | Redis feeding the worker; services with default credentials | Every port on 127.0.0.1 (checked in CI); Redis password; jobs as JSON, never pickle | CI `compose` job, `test_harness.py` |
+| Run → run (one process) | One run's code search reading another run's worktree | Run id, mode and code repos are per asyncio task (`core.runctx`), never written to `os.environ` | `test_runctx.py` |
 | Developer shell → live writes | An exported `GITHUB_TOKEN` turning pushes live | GitHub goes live only when its token is in this project's `.env` or `DA_MODE_GITHUB=live` | `test_settings.py` |
 | Ground truth → agent | Evaluation leaks | Nothing under `groundtruth/` is mounted into a sandbox or referenced from target repos; hidden tests run in a copy | `test_catalog.py` (regression commits name no ground truth); that only the worktree is mounted is in `test_hostgit.py`'s container check |
 
@@ -58,5 +59,3 @@ protects, from whom, where the trust boundaries are, and which test holds each c
 - **The model can still be wrong in good faith.** A plausible fix with a narrow test passes validation; reviewers
   see a flagged draft only when protected paths or skips change. Fix width is a research problem
   ([ROADMAP.md](ROADMAP.md), P18).
-- **Per-run state in environment variables** (ROADMAP-100 005): two runs in one process could see each other's
-  run id and repositories. The CLI and the poller run one per process today.

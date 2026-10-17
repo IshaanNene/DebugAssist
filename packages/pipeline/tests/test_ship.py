@@ -272,3 +272,26 @@ def test_every_jira_write_asks_the_gate(tmp_path: Path) -> None:
         ("jira.comment", "deny"),
         ("jira.transition", "deny"),
     ]
+
+
+def test_a_resumed_run_does_not_comment_on_the_issue_twice(tmp_path: Path) -> None:
+    """ROADMAP-100 019: the App comment is posted once per run, even when the PR step runs again."""
+    from debugassist.core.policy import Policy, Verdict
+
+    s = run_state()
+    assert s.issue
+    s.issue.app_issue, s.issue.gh_repo = 5, "acme/widgets"
+    posted: list[str] = []
+    app = SimpleNamespace(
+        comments=lambda repo, n: list(posted), comment=lambda repo, n, body: posted.append(body)
+    )
+    d = deps(tmp_path)
+    d.app = app
+    d.gate = PolicyGate(
+        Policy(actions={"github.comment": Verdict.LIVE}, repos=["acme/widgets"]), tmp_path / "a.jsonl"
+    )
+    first = nodes._comment_app_issue(d, s, None, "rca_only")
+    again = nodes._comment_app_issue(d, s, None, "rca_only")
+    assert (
+        len(posted) == 1 and first[0]["result"] == "commented" and again[0]["result"] == "already commented"
+    )

@@ -7,14 +7,14 @@ default is the MiniRide submodules for interactive use.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
+from debugassist.core import runctx
 from debugassist.core.policy import ROOT
 
 
 def repo_roots() -> dict[str, Path]:
-    raw = os.environ.get("CODE_REPOS")
+    raw = runctx.get("CODE_REPOS")
     if raw:
         return {k: Path(v) for k, v in json.loads(raw).items()}
     return {p.name: p for p in sorted((ROOT / "targets").glob("miniride-*")) if (p / ".git").exists()}

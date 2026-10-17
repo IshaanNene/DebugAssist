@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from math import sqrt
+from math import comb, sqrt
 
 
 def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
@@ -24,3 +24,16 @@ def rate_with_interval(k: int, n: int) -> str:
         return "–"
     lo, hi = wilson(k, n)
     return f"{k / n:.2f} [{lo:.2f}–{hi:.2f}] ({k}/{n})"
+
+
+def mcnemar(b: int, c: int) -> float:
+    """Two-sided exact McNemar p-value for paired outcomes: b = pairs only arm A got right, c = only arm B.
+
+    Pairs both arms got right or both wrong carry no information about which arm is better; with few discordant
+    pairs (as in tens of eval runs) the exact binomial form is the right one."""
+    n = b + c
+    if n == 0:
+        return 1.0
+    k = min(b, c)
+    tail = sum(comb(n, i) for i in range(k + 1)) / 2**n
+    return min(1.0, 2 * tail)
