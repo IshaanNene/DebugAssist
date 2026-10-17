@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from debugassist.pipeline import bisect
 
 TEST = "tests/test_repro.py"
@@ -167,3 +169,26 @@ def test_a_test_that_asserts_more_than_the_old_behaviour_is_bisected_by_case(tmp
     res = bisect.prove_by_case(wt, "v1.1.0", TEST, cmd, bisect.pytest_case_command(cmd, TEST), unrelated, run)
     assert res["result"] == "found" and res["first_bad"] == shas["culprit"][:10]
     assert res["case"] == f"{TEST}::test_old_behaviour" and res["whole_file"] == "no_good_release"
+
+
+@pytest.mark.parametrize(
+    ("command", "output", "case", "expected"),
+    [  # ROADMAP-100 086: one failing case at a time for vitest and Go, as for pytest
+        ("uv run pytest -q tests/test_x.py",
+         "FAILED tests/test_x.py::test_zero - assert 1 == 0\n", "tests/test_x.py::test_zero",
+         "uv run pytest -q tests/test_x.py::test_zero"),
+        ("pnpm exec vitest run test/eta.test.ts",
+         " FAIL  test/eta.test.ts > eta poller > keeps a 5 s interval\nAssertionError: expected 2 to be 1\n",
+         "eta poller > keeps a 5 s interval",
+         "pnpm exec vitest run test/eta.test.ts -t 'keeps\\ a\\ 5\\ s\\ interval'"),
+        ("go test ./payments/fare_test.go",
+         "--- FAIL: TestAirportFare (0.00s)\n    fare_test.go:12: got 0, want 40\n", "TestAirportFare",
+         "go test ./payments/fare_test.go -run '^TestAirportFare$'"),
+    ],
+)  # fmt: skip
+def test_failing_cases_and_one_case_commands(command: str, output: str, case: str, expected: str) -> None:
+    file = next(w for w in command.split() if "test" in w and ("." in w or "/" in w))
+    assert bisect.failing_cases(output) == [case]
+    make = bisect.case_command(command, file)
+    assert make is not None and make(case) == expected
+    assert bisect.case_command("make test", file) is None

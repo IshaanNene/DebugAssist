@@ -288,3 +288,24 @@ def test_pre_registered_checks(tmp_path: Path) -> None:
     late = prereg.Arm.model_validate({"arm": "variants", "registered": "2026-10-17T00:00:00Z", "hypothesis": "h",
                                       "checks": [{"metric": "validated", "at_least": 0.1}]})  # fmt: skip
     assert prereg.evaluate([late], rows)[0]["pre_registered"] == "no"
+
+
+def test_time_split_between_model_sandbox_mcp_and_file_tools() -> None:
+    """ROADMAP-100 042."""
+    from debugassist.evals.latency import time_split
+
+    state = {
+        "rca": {
+            "llm": {
+                "turns": 3,
+                "wall_ms": 10_000,
+                "tool_calls": [{"name": "query_logs", "ms": 2_000}, {"name": "read_file", "ms": 500}],
+            }
+        },
+        "fix_attempts": [
+            {"llm": {"turns": 2, "wall_ms": 8_000, "tool_calls": [{"name": "run_command", "ms": 3_000}]}}
+        ],
+    }
+    assert time_split(state) == {"model_s": 12.5, "sandbox_s": 3.0, "mcp_s": 2.0, "workspace_s": 0.5}
+    older = {"rca": {"llm": {"turns": 1, "tool_calls": [{"name": "grep", "ms": 100}]}}}
+    assert time_split(older)["model_s"] is None and time_split({})["model_s"] is None

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from debugassist.pipeline.state import NODE_KIND
 
@@ -42,4 +42,51 @@ def _row(name: str, values: list[float]) -> dict[str, Any]:
         "p50_s": round(percentile(values, 50), 1),
         "p95_s": round(percentile(values, 95), 1),
         "max_s": round(max(values), 1),
+    }
+
+
+SANDBOX_TOOLS = {"run_command", "run_e2e"}
+WORKSPACE_TOOLS = {"list_dir", "read_file", "grep", "outline_file", "edit_file", "write_file", "read_log",
+                   "submit_result"}  # fmt: skip
+
+
+def time_split(state: dict[str, Any]) -> dict[str, float | None]:
+    """Seconds an agent spent in the model, the sandbox, MCP tools and its own file tools, over every agent of a
+    run (ROADMAP-100 042). Model time is each agent's wall time minus its tool time; None when the run predates
+    wall-time recording."""
+    agents: list[dict[str, Any]] = []
+
+    def walk(v: Any) -> None:
+        if isinstance(v, dict):
+            d = cast(dict[str, Any], v)
+            if "tool_calls" in d and "turns" in d:
+                agents.append(d)
+            for x in d.values():
+                walk(x)
+        elif isinstance(v, list):
+            for x in cast(list[Any], v):
+                walk(x)
+
+    walk(state)
+    split: dict[str, float] = {"sandbox_s": 0.0, "mcp_s": 0.0, "workspace_s": 0.0}
+    model: float | None = 0.0 if agents else None
+    for a in agents:
+        tool_ms = 0.0
+        for c in cast(list[dict[str, Any]], a.get("tool_calls") or []):
+            ms = float(c.get("ms") or 0)
+            tool_ms += ms
+            name = str(c.get("name", ""))
+            key = (
+                "sandbox_s"
+                if name in SANDBOX_TOOLS
+                else "workspace_s"
+                if name in WORKSPACE_TOOLS
+                else "mcp_s"
+            )
+            split[key] += ms / 1000
+        wall = a.get("wall_ms")
+        model = None if model is None or wall is None else model + max(0.0, float(wall) - tool_ms) / 1000
+    return {
+        "model_s": None if model is None else round(model, 1),
+        **{k: round(v, 1) for k, v in split.items()},
     }

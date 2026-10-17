@@ -97,10 +97,13 @@ async def check(
         and issue.gh_repo
         and (merged := deps.github.merged(issue.gh_repo, w.pr_number)) is not None
     ):
+        first_seen = merged and not w.merged
         w.merged = merged
         if not merged:
             w.reason = "PR not merged yet"
             return w
+        if first_seen:
+            await label_ship(state, deps, {"pr_merged": True})
     deploy = _deploy_after(issue.repo, w.started_at)
     if deploy is None:
         w.reason = "not deployed yet (make deploy REF=<merged branch>)"
@@ -127,12 +130,27 @@ async def check(
     if d.action == "close_issue":
         w.status = "resolved"
         w.actions = _resolve(state, deps, approve_flag_restore)
+        await label_ship(state, deps, {"pr_merged": True, "fixed_after_deploy": True})
     elif d.action == "reopen_issue":
         w.status = "reopened"
         w.actions = _reopen(state, deps)
+        await label_ship(state, deps, {"pr_merged": True, "fixed_after_deploy": False})
     else:
         w.status = "watching"
     return w
+
+
+async def label_ship(state: RunState, deps: Deps, outcome: dict[str, bool]) -> int:
+    """Write what became of the PR onto the run's ship decision (D16) in the ledger (ROADMAP-100 067): merged,
+    and whether the deploy fixed the issue. Replays then score D16 against outcomes, not only the catalog.
+    Returns the number of rows labelled."""
+    ledger = getattr(deps.engine, "ledger", None)  # an engine without a ledger (tests, replays) keeps nothing
+    if ledger is None:
+        return 0
+    rows = [r for r in await ledger.list(run_id=state.run_id) if str(r.decision_id).startswith("D16")]
+    for r in rows:
+        await ledger.label(r.id, outcome, source="post_merge_watch")
+    return len(rows)
 
 
 def _post(deps: Deps, state: RunState, action: str, url: str, body: dict[str, Any] | None = None) -> str:

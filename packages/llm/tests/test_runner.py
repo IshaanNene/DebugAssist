@@ -342,3 +342,49 @@ async def test_a_failed_extraction_is_reported_not_swallowed(
     )
     assert out == (None, 0, 0)
     assert len(seen) == 1 and "host overloaded" in seen[0] and "0123456789abcdef" not in seen[0]
+
+
+async def test_a_hung_model_stream_is_cut_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ROADMAP-100 027: a host that keeps the connection open without answering (OpenRouter keep-alives) is
+    bounded by MODEL_CALL_TIMEOUT_S, so the retry middleware can try again instead of the run hanging."""
+    import asyncio
+
+    from debugassist.llm import runner as runner_mod
+
+    monkeypatch.setattr(runner_mod, "MODEL_CALL_TIMEOUT_S", 0.05)
+
+    async def never(_: Any) -> Any:
+        await asyncio.sleep(30)
+
+    with pytest.raises(TimeoutError):
+        await runner_mod.bounded_model_call.awrap_model_call(object(), never)  # pyright: ignore[reportArgumentType]
+
+
+async def test_an_mcp_server_that_dies_mid_call_fails_the_call_not_the_run(tmp_path: Path) -> None:
+    """ROADMAP-100 027: the tool call errors (and goes back to the model as an error) within seconds."""
+    import asyncio
+    import sys
+    import time
+    from contextlib import AsyncExitStack
+
+    from mcp.shared.exceptions import McpError
+
+    from debugassist.llm.runner import open_mcp_tools
+
+    server = tmp_path / "dying.py"
+    server.write_text(
+        "import os\nfrom mcp.server.fastmcp import FastMCP\nmcp = FastMCP('dying')\n\n"
+        "@mcp.tool()\ndef ping() -> str:\n    return 'pong'\n\n"
+        "@mcp.tool()\ndef die() -> str:\n    os._exit(1)\n\n"
+        "mcp.run()\n"
+    )
+    conn: dict[str, Any] = {
+        "dying": {"command": sys.executable, "args": [str(server)], "transport": "stdio", "env": {}}
+    }
+    async with AsyncExitStack() as stack:
+        tools = {t.name: t for t in await open_mcp_tools(stack, conn)}
+        assert "pong" in str(await tools["ping"].ainvoke({}))
+        t0 = time.perf_counter()
+        with pytest.raises(McpError, match="Connection closed"):
+            await asyncio.wait_for(tools["die"].ainvoke({}), timeout=20)
+        assert time.perf_counter() - t0 < 5  # failed at once, did not hang until the timeout

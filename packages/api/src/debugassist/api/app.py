@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from debugassist.api import data
 from debugassist.api.data import Paths, arr, obj
+from debugassist.api.models import AppMetrics, Health, HealthDeps, RunSummary
 from debugassist.core import tracing
 
 VITALS = os.environ.get("VITALS_URL", "http://localhost:8100")
@@ -128,12 +129,12 @@ async def github_webhook(request: Request) -> dict[str, Any]:
     return {"queued": True, "issue": f"{repo}#{number}"}
 
 
-@app.get("/api/health")
+@app.get("/api/health", response_model=Health)
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/api/health/deps")
+@app.get("/api/health/deps", response_model=HealthDeps)
 def health_deps() -> dict[str, Any]:
     """Each dependency on its own (ROADMAP-100 056): a run needs the runs dir, the App its queue, decisions the
     ledger; "ok" only when all of them are."""
@@ -167,7 +168,7 @@ def health_deps() -> dict[str, Any]:
     }
 
 
-@app.get("/api/app/metrics")
+@app.get("/api/app/metrics", response_model=AppMetrics)
 def app_metrics() -> dict[str, Any]:
     """What the GitHub App's poll has done: runs started, done, failed, retried, given up, rate limits, errors."""
     from debugassist.pipeline.app_cli import METRICS
@@ -175,7 +176,7 @@ def app_metrics() -> dict[str, Any]:
     return json.loads(METRICS.read_text()) if METRICS.is_file() else {}
 
 
-@app.get("/api/runs")
+@app.get("/api/runs", response_model=list[RunSummary])
 def list_runs(issue: str | None = None, limit: int = 100, before: str | None = None) -> list[dict[str, Any]]:
     """Newest first; pass the last run id of a page as `before` for the next one (at most 500 per page)."""
     return data.runs(PATHS, issue, limit, before)
