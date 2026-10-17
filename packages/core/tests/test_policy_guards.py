@@ -115,3 +115,37 @@ def test_every_gate_record_is_a_guardrail_span(tmp_path: Path, monkeypatch: pyte
     [(name, kind, attrs)] = spans
     assert (name, kind) == ("gate jira.comment", "guardrail")
     assert attrs == {"gate.action": "jira.comment", "gate.verdict": "deny", "gate.applied": False}
+
+
+async def test_an_old_ledger_is_migrated_on_open(tmp_path: Path) -> None:
+    """ROADMAP-100 062: a ledger made before columns were added gains them; create_all alone never altered it."""
+    import sqlite3
+
+    from debugassist.core.ledger import SCHEMA_VERSION, DecisionRow, Ledger
+
+    db = tmp_path / "old.db"
+    with sqlite3.connect(db) as con:  # the first ledger's shape: no n_calls, fallback or outcome columns
+        con.execute(
+            "create table decision_ledger (id varchar(36) primary key, created_at datetime, run_id varchar(64), "
+            "issue_id varchar(64), parent_id varchar(36), decision_id varchar(64), template_version integer, "
+            "backend varchar(32), model varchar(64), mode varchar(8), state json, state_hash varchar(64), "
+            "questions json, n_images integer, answers json, chosen json, confidence float, band varchar(16), "
+            "action varchar(64), latency_ms integer, input_tokens integer, output_tokens integer, cost_usd float)"
+        )
+    ledger = await Ledger.open(f"sqlite+aiosqlite:///{db}")
+    try:
+        row = DecisionRow(
+            run_id="r1", decision_id="D05", template_version=1, backend="mock", model="clef", mode="mock",
+            state={}, state_hash="h", questions={}, answers={}, chosen={}, confidence=0.5, band="act",
+            action="investigate", latency_ms=1, input_tokens=1, cost_usd=0.0, fallback_reason="circuit open",
+        )  # fmt: skip
+        rid = await ledger.record(row)
+        await ledger.label(rid, {"ok": True}, source="test")
+        got = await ledger.get(rid)
+        assert got is not None and got.fallback_reason == "circuit open" and got.outcome_label == {"ok": True}
+    finally:
+        await ledger.close()
+    with sqlite3.connect(db) as con:
+        assert con.execute("select version from ledger_schema").fetchone() == (SCHEMA_VERSION,)
+        cols = {r[1] for r in con.execute("pragma table_info(decision_ledger)")}
+    assert {"n_calls", "fallback_reason", "outcome_label", "outcome_source", "labeled_at"} <= cols

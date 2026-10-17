@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Float, Integer, String, Text, select, update
+from sqlalchemy import JSON, Connection, DateTime, Float, Integer, String, Text, inspect, select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -65,6 +65,31 @@ class DecisionRow(Base):
     labeled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+SCHEMA_VERSION = 2  # 1: create_all only; 2: migrated on open
+
+
+def migrate(conn: Connection) -> list[str]:
+    """Bring the ledger's tables up to the model (ROADMAP-100 062); returns what it changed.
+
+    `create_all` makes missing tables but never alters existing ones, so a ledger from an older checkout lacked
+    every column added since. Each change so far has been an added, nullable column: those are added here (on
+    SQLite and Postgres alike). A change that is not additive gets its own step keyed by `SCHEMA_VERSION`."""
+    changed: list[str] = []
+    inspector = inspect(conn)
+    if inspector.has_table(DecisionRow.__tablename__):
+        have = {c["name"] for c in inspector.get_columns(DecisionRow.__tablename__)}
+        for col in DecisionRow.__table__.columns:
+            if col.name not in have:
+                kind = col.type.compile(dialect=conn.dialect)
+                conn.execute(text(f"ALTER TABLE {DecisionRow.__tablename__} ADD COLUMN {col.name} {kind}"))
+                changed.append(f"added {col.name}")
+    Base.metadata.create_all(conn)  # new tables and indexes
+    conn.execute(text("CREATE TABLE IF NOT EXISTS ledger_schema (version INTEGER NOT NULL)"))
+    conn.execute(text("DELETE FROM ledger_schema"))
+    conn.execute(text("INSERT INTO ledger_schema (version) VALUES (:v)"), {"v": SCHEMA_VERSION})
+    return changed
+
+
 class Ledger:
     """Async writer/reader for the decision ledger."""
 
@@ -78,7 +103,7 @@ class Ledger:
             Path(url.split(":///", 1)[1]).parent.mkdir(parents=True, exist_ok=True)
         ledger = cls(create_async_engine(url))
         async with ledger._engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(migrate)
         return ledger
 
     async def close(self) -> None:

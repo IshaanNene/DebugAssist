@@ -353,6 +353,27 @@ def test_fix_reproduces_then_fixes(toy: Toy) -> None:
     assert not list(toy.wt.parent.glob(f"{release.PREFIX}*"))  # every check's checkout is gone
 
 
+def test_a_run_that_dies_mid_fix_resumes_from_the_release(toy: Toy) -> None:
+    """ROADMAP-100 018: the process dies after the fix agent wrote half a change and a stray file; the resumed
+    `fix` starts again from the release tag, so nothing from the dead attempt reaches the proof or the PR."""
+
+    def crash(tools: dict[str, BaseTool]) -> dict[str, Any]:
+        tools["write_file"].invoke({"path": "lib.py", "content": "def head(xs, n=1):\n    return  # half\n"})
+        tools["write_file"].invoke({"path": "scratch.py", "content": "x = 1\n"})
+        raise KeyboardInterrupt  # the process is killed here: nothing after this line runs
+
+    toy.deps.agent.script["fix"] = crash
+    with pytest.raises(KeyboardInterrupt):
+        asyncio.run(nodes.fix(toy.state, toy.d()))
+    assert (toy.wt / "scratch.py").exists()  # the dead attempt's leftovers are in the worktree
+
+    toy.deps.agent.script["fix"] = writes("lib.py", FIXED, **FIX_OUT)  # the resumed run's agent
+    out = asyncio.run(nodes.fix(toy.state, toy.d()))
+    fa: FixAttempt = out["fix_attempts"][-1]
+    assert fa.repro_verified and fa.files == ["lib.py", "tests/test_repro.py"]
+    assert not (toy.wt / "scratch.py").exists() and (toy.wt / "lib.py").read_text() == FIXED
+
+
 def test_fix_keeps_no_source_written_while_reproducing(toy: Toy) -> None:
     toy.deps.agent.script["reproduce"] = does(
         lambda t: {"r": t["write_file"].invoke({"path": "lib.py", "content": FIXED})},

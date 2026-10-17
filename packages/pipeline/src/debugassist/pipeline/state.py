@@ -234,10 +234,23 @@ class Watch(BaseModel):
 
 # Version of the persisted run state (`state.json`, checkpoints). Bump it with an upgrader in UPGRADES when a
 # change would make an older file mean something else; additive fields with defaults need no bump.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
-def _v1_to_v2(d: dict[str, Any]) -> dict[str, Any]:
+class NodeFailure(BaseModel):
+    """Why a node failed, as a record (ROADMAP-100 034); `errors` keeps the message / traceback pairs for readers
+    that predate it."""
+
+    node: str
+    type: str
+    message: str
+    traceback: str = ""
+
+
+RawState = dict[str, Any]  # a state file as JSON, before validation: what the upgraders work on
+
+
+def _v1_to_v2(d: RawState) -> RawState:
     """v1 (before 2026-10-17) had no `schema_version` and no `stopped_after` on runs stopped with --until."""
     if d.get("status") == "stopped" and not d.get("stopped_after"):
         timings = list(d.get("timings_ms") or {})
@@ -245,7 +258,21 @@ def _v1_to_v2(d: dict[str, Any]) -> dict[str, Any]:
     return d
 
 
-UPGRADES: dict[int, Callable[[dict[str, Any]], dict[str, Any]]] = {1: _v1_to_v2}
+def _v2_to_v3(d: RawState) -> RawState:
+    """v2 kept failures only as `errors`: "node: Type: message" followed by its traceback."""
+    errs = [str(e) for e in cast(list[Any], d.get("errors") or [])]
+    failures: list[dict[str, str]] = []
+    for msg, tb in zip(errs[0::2], errs[1::2], strict=False):
+        node, _, rest = msg.partition(": ")
+        kind, _, text = rest.partition(": ")
+        failures.append(
+            {"node": node, "type": kind if text else "", "message": text or rest, "traceback": tb}
+        )
+    d.setdefault("failures", failures)
+    return d
+
+
+UPGRADES: dict[int, Callable[[RawState], RawState]] = {1: _v1_to_v2, 2: _v2_to_v3}
 
 
 class RunState(BaseModel):
@@ -275,6 +302,7 @@ class RunState(BaseModel):
     costs: dict[str, float] = Field(default_factory=dict[str, float])
     timings_ms: dict[str, int] = Field(default_factory=dict[str, int])
     errors: list[str] = Field(default_factory=list[str])
+    failures: list[NodeFailure] = Field(default_factory=list[NodeFailure])
     status: Literal["running", "done", "failed", "stopped", "duplicate", "watching"] = "running"
     stopped_after: str | None = None
     traces: list[str] = Field(
