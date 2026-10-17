@@ -255,3 +255,36 @@ def test_latency_profile_per_node(tmp_path: Path) -> None:
     assert (rows["fix"]["runs"], rows["fix"]["p50_s"], rows["fix"]["max_s"]) == (5, 30.0, 400.0)
     assert rows["fix"]["p95_s"] == 400.0 and rows["run"]["p50_s"] == 30.1
     assert percentile([1, 2, 3, 4], 50) == 2
+
+
+def test_pre_registered_checks(tmp_path: Path) -> None:
+    """ROADMAP-100 083: a threshold stated before the arm ran is checked, and a late one is called out."""
+    from debugassist.evals import prereg
+
+    (tmp_path / "v.yaml").write_text(
+        "arm: variants\nregistered: 2026-10-15T00:00:00Z\nhypothesis: h\n"
+        "checks:\n  - {metric: validated, at_least: 0.5}\n  - {metric: hidden_tests_pass, at_least: 0.9}\n"
+    )
+    rows = [
+        {
+            "arm": "variants-4b1",
+            "run_id": "20261016-043900-x",
+            "rca": "exact",
+            "validated": True,
+            "hidden_tests": True,
+        },
+        {
+            "arm": "variants-4b1",
+            "run_id": "20261016-050000-x",
+            "rca": "exact",
+            "validated": False,
+            "hidden_tests": False,
+        },
+        {"arm": "other", "run_id": "20261014-000000-x", "rca": "exact", "validated": False},
+    ]
+    [validated, hidden] = prereg.evaluate(prereg.load(tmp_path), rows)
+    assert (validated["verdict"], validated["pre_registered"]) == ("met", "yes")
+    assert validated["observed"].startswith("0.50 [") and hidden["verdict"] == "not met"
+    late = prereg.Arm.model_validate({"arm": "variants", "registered": "2026-10-17T00:00:00Z", "hypothesis": "h",
+                                      "checks": [{"metric": "validated", "at_least": 0.1}]})  # fmt: skip
+    assert prereg.evaluate([late], rows)[0]["pre_registered"] == "no"

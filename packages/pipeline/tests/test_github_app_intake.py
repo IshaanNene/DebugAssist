@@ -65,6 +65,7 @@ def _paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_intake, "TARGETS", tmp_path / "targets")
     monkeypatch.setattr(app_cli, "QUEUE", tmp_path / "queue")
     monkeypatch.setattr(app_cli, "SEEN", tmp_path / "seen.json")
+    monkeypatch.setattr(app_cli, "METRICS", tmp_path / "metrics.json")
 
 
 def test_ref_parsing() -> None:
@@ -152,6 +153,8 @@ def test_a_failed_run_is_retried_with_backoff_then_reported(
         clock[0] += app_cli.RETRY_BASE * 2**attempt
     [c] = a.comments("acme/widgets", 3)
     assert c.startswith(app_cli.FAILED)
+    m = json.loads((tmp_path / "metrics.json").read_text())  # ROADMAP-100 052
+    assert (m["runs_started"], m["runs_failed"], m["retries"], m["runs_given_up"]) == (3, 3, 2, 1)
     assert app_cli.pending(a, gate, "debugassist") == []  # reported: not run again
 
 

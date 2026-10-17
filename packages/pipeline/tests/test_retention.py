@@ -31,3 +31,20 @@ def test_prune_removes_old_worktrees_only(tmp_path: Path) -> None:
     retention.prune(items, targets=tmp_path / "no-targets")
     assert not (old / "repo").exists() and (old / "state.json").exists() and (old / "nodes").exists()
     assert (watched / "repo").exists() and (recent / "repo").exists()
+
+
+def test_audit_rows_filter_by_run_and_action(tmp_path: Path) -> None:
+    """ROADMAP-100 066."""
+    from debugassist.core.policy import read_audit
+
+    log = tmp_path / "audit.jsonl"
+    entries = [
+        {"run_id": "r1", "action": "github.open_pr", "verdict": "live", "result": {"applied": True}},
+        {"run_id": "r1", "action": "jira.comment", "verdict": "deny", "result": {"applied": False}},
+        {"run_id": "r2", "action": "github.comment", "verdict": "live"},
+    ]
+    log.write_text("\n".join(json.dumps(e) for e in entries) + "\n{cut off")
+    assert [e.action for e in read_audit(log, run="r1")] == ["github.open_pr", "jira.comment"]
+    assert [e.run_id for e in read_audit(log, action="github.")] == ["r1", "r2"]
+    assert [e.applied for e in read_audit(log)] == [True, False, None]
+    assert len(read_audit(log, last=1)) == 1 and read_audit(tmp_path / "none.jsonl") == []

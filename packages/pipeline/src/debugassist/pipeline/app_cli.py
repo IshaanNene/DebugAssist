@@ -34,6 +34,7 @@ app = typer.Typer(no_args_is_help=True, help="The GitHub App: installed reposito
 QUEUE = ROOT / ".data" / "app" / "queue"
 SEEN = ROOT / ".data" / "app" / "seen.json"
 LOCK = ROOT / ".data" / "app" / "poll.lock"
+METRICS = ROOT / ".data" / "app" / "metrics.json"
 CLI = Path(sys.executable).parent / "debugassist"
 NOT_ONBOARDED = f"{MARKER}not-onboarded -->"
 FAILED = f"{MARKER}failed -->"
@@ -60,6 +61,16 @@ def _mark(key: str, value: dict[str, Any]) -> None:
     s = _seen()
     s[key] = value
     write_atomic(SEEN, json.dumps(s, indent=2))
+
+
+def count(**increments: int) -> dict[str, float]:
+    """Running totals of what the poll did (ROADMAP-100 052), in `.data/app/metrics.json` and on the API."""
+    m: dict[str, float] = json.loads(METRICS.read_text()) if METRICS.is_file() else {}
+    for k, v in increments.items():
+        m[k] = int(m.get(k) or 0) + v
+    m["updated_at"] = time.time()
+    write_atomic(METRICS, json.dumps(m, indent=2, sort_keys=True))
+    return m
 
 
 def poll_lock() -> IO[str] | None:
@@ -164,16 +175,20 @@ def run_one(
                 "https://github.com/IshaanNene/DebugAssist/blob/main/docs/github-app.md#onboarding-a-repository.",
             )
         _mark(ref, {"result": "not_onboarded", "why": str(exc)})
+        count(not_onboarded=1)
         return 0
     if dry:
         typer.echo(f"would run {ref}")
         return 0
     attempts = int(_seen().get(ref, {}).get("attempts") or 0) + 1
     _mark(ref, {"result": "running", "at": time.time(), "attempts": attempts})
+    count(runs_started=1, retries=1 if attempts > 1 else 0)
     code = _spawn(ref, llm)
+    count(runs_done=1 if code == 0 else 0, runs_failed=1 if code else 0)
     _mark(ref, {"result": "done" if code == 0 else f"exit {code}", "at": time.time(), "attempts": attempts})
     typer.echo(f"{ref}: {'done' if code == 0 else f'exit {code} (attempt {attempts} of {MAX_ATTEMPTS})'}")
     if code and attempts >= MAX_ATTEMPTS:
+        count(runs_given_up=1)
         _comment(
             a,
             gate,
@@ -235,6 +250,7 @@ def poll(
             work = pending(a, gate, label)
         except RateLimited as exc:  # wait it out instead of hammering the API every interval
             typer.echo(str(exc), err=True)
+            count(rate_limited=1)
             if once:
                 return
             time.sleep(min(exc.wait_s, MAX_RATE_WAIT) + 1)
@@ -244,6 +260,7 @@ def poll(
             try:
                 run_one(a, repo, number, llm=llm, dry=dry, gate=gate)
             except Exception as exc:  # one repository's API error must not stop the poll
+                count(errors=1)
                 typer.echo(
                     f"{repo}#{number}: {type(exc).__name__}: {redact_secrets(str(exc))[:300]}", err=True
                 )

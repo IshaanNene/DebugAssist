@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from debugassist.core import tracing
 from debugassist.core.evidence import EvidenceItem
-from debugassist.core.policy import ROOT
+from debugassist.core.policy import ROOT, read_audit
 from debugassist.decisions.policy import Band
 from debugassist.integrations.github import GitHubMock
 from debugassist.integrations.jira import JiraMock
@@ -263,6 +263,17 @@ def run(
         return result
 
     _summary(asyncio.run(main()))
+
+
+def audit(
+    run: Annotated[str | None, typer.Option(help="only this run id")] = None,
+    action: Annotated[str | None, typer.Option(help="action or prefix, e.g. github. or jira.comment")] = None,
+    last: Annotated[int, typer.Option(help="newest N entries")] = 50,
+) -> None:
+    """What DebugAssist asked to do outside its sandbox, the policy's verdict and whether it was applied."""
+    for e in read_audit(None, run, action, last):
+        mark = {True: "applied", False: "not applied", None: ""}[e.applied]
+        typer.echo(f"{e.at[:19]}  {e.run_id or '-':<28} {e.action:<20} {e.verdict:<8} {mark}")
 
 
 def prune(

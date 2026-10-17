@@ -158,3 +158,28 @@ def test_reproduction_must_fail_with_the_production_error() -> None:
     assert "reported error" in (nodes._repro_problem(cmd, 1, other, issue) or "")  # pyright: ignore[reportPrivateUsage]
     assert "passes" in (nodes._repro_problem(cmd, 0, real, issue) or "")  # pyright: ignore[reportPrivateUsage]
     assert nodes._error_signature(issue) == "Cannot read properties of undefined (reading 'riderId')"  # pyright: ignore[reportPrivateUsage]
+
+
+@pytest.mark.parametrize(
+    ("title", "output", "ok"),
+    [  # ROADMAP-100 011: the type before the message, as a runtime prints a raised error
+        ("TypeError: Cannot read properties of undefined (reading 'riderId')",
+         "Uncaught TypeError: Cannot read properties of undefined (reading 'riderId')\n  at route", True),
+        ("TypeError: Cannot read properties of undefined (reading 'riderId')",
+         "AssertionError: expected [Function] to throw 'Cannot read properties of undefined (reading 'riderId')'",
+         False),  # the test only asserts the text
+        ("IndexError: list index out of range at 3", "E   IndexError: list index out of range at 7", True),
+        ("KeyError: 'city'", "E       KeyError: 'city'", True),
+        ("KeyError: 'city'", "E       KeyError: 'zone'", False),
+        ("RangeError: Invalid time value", "RangeError:   Invalid  time value", True),  # whitespace differs
+        ("requests.exceptions.HTTPError: 503 Server Error",
+         "requests.exceptions.HTTPError: 502 Server Error", True),  # numbers vary, qualified name
+        ("MyTypeError: boom", "TypeError: boom", False),
+    ],
+)  # fmt: skip
+def test_the_reported_error_is_matched_by_type_and_pattern(title: str, output: str, ok: bool) -> None:
+    issue = _state().issue
+    assert issue
+    issue.kind, issue.title = "crash", title
+    problem = nodes._repro_problem("pytest -q t.py", 1, output, issue)  # pyright: ignore[reportPrivateUsage]
+    assert (problem is None) is ok, problem

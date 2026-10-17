@@ -129,6 +129,48 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/health/deps")
+def health_deps() -> dict[str, Any]:
+    """Each dependency on its own (ROADMAP-100 056): a run needs the runs dir, the App its queue, decisions the
+    ledger; "ok" only when all of them are."""
+    from debugassist.pipeline.app_cli import QUEUE
+
+    def writable(d: Path) -> str:
+        try:
+            d.mkdir(parents=True, exist_ok=True)
+            probe = d / ".health"
+            probe.write_text("ok")
+            probe.unlink()
+            return "ok"
+        except OSError as exc:
+            return f"error: {type(exc).__name__}"
+
+    from debugassist.core.settings import get_settings
+
+    db = get_settings().database_url
+    checks = {
+        "runs_dir": writable(PATHS.runs),
+        "app_queue": writable(QUEUE),
+        "ledger": writable(PATHS.data)
+        if db.startswith("sqlite")
+        else "not checked (" + db.split(":")[0] + ")",
+    }
+    return {
+        "status": "ok"
+        if all(v == "ok" or v.startswith("not checked") for v in checks.values())
+        else "degraded",
+        **checks,
+    }
+
+
+@app.get("/api/app/metrics")
+def app_metrics() -> dict[str, Any]:
+    """What the GitHub App's poll has done: runs started, done, failed, retried, given up, rate limits, errors."""
+    from debugassist.pipeline.app_cli import METRICS
+
+    return json.loads(METRICS.read_text()) if METRICS.is_file() else {}
+
+
 @app.get("/api/runs")
 def list_runs(issue: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
     return data.runs(PATHS, issue, limit)
