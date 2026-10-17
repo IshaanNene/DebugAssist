@@ -26,7 +26,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   without `DA_API_TOKEN`.
 - [ ] **008** Narrow the runtime image's `safe.directory '*'` to the mounted checkout path, with a test that the
   image config names no wildcard.
-- [ ] **009** Secret scanning in CI (gitleaks or an equivalent pinned tool) over the diff of each push and PR.
+- [x] **009** Secret scanning in CI (gitleaks or an equivalent pinned tool) over the diff of each push and PR.
 - [ ] **010** D Container image scan (Trivy or equivalent) of the runtime images in CI, failing on critical CVEs.
 
 ## B · Correctness and validation
@@ -35,11 +35,11 @@ Tasks without a mark can be done and checked offline with `make check`.
   messages that vary by runtime and for assertions that merely contain the text.
 - [ ] **012** Reproductions for bugs with no exception (a wrong value): require a failing assertion that names the
   reported value; tests for both kinds.
-- [ ] **013** Route away from a fix only when the RCA's category agrees with D05 or carries high confidence
+- [x] **013** Route away from a fix only when the RCA's category agrees with D05 or carries high confidence
   (ROADMAP P18: a wrong "not ours" was terminal); tests for agree / disagree / confident.
 - [x] **014** `test_one` reads its harness config from the release like `test`/`lint`/`setup` (audit: two sources);
   one reader for all of them.
-- [ ] **015** Validation records which checks ran with which command and config hash, stored on the attempt.
+- [x] **015** Validation records which checks ran with which command and config hash, stored on the attempt.
 - [x] **016** A fix that deletes or skips existing tests (`skip`, `xfail`, `.only`) is flagged and forces a draft;
   tests for each marker in Python, TypeScript and Go.
 - [ ] **017** The ship gate refuses `open_pr` when the diff touches more files than the fix plan's location set
@@ -81,7 +81,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **033** Typed records for `FixPlan.location/strategy/tier` and `Validation.attempts` instead of dicts.
 - [ ] **034** Errors as typed records (`node`, `type`, `message`, `traceback`) instead of string pairs read by
   index (`graph.py` reads `[-2]`).
-- [ ] **035** A CI check that the count of `dict[str, Any]` and `pyright: ignore` in `pipeline/` only falls.
+- [x] **035** A CI check that the count of `dict[str, Any]` and `pyright: ignore` in `pipeline/` only falls.
 - [ ] **036** One `Workspace` object for all host access to a run's worktree (git, reads, walks), replacing the
   helpers spread across modules.
 - [ ] **037** Decision layer behind one interface with deciders chosen per template from config (rules, LLM, Clef);
@@ -94,7 +94,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## E · Performance and scale
 
-- [ ] **041** Per-node latency profile: p50/p95 per node from `timings_ms` across stored runs, as a CLI command and
+- [x] **041** Per-node latency profile: p50/p95 per node from `timings_ms` across stored runs, as a CLI command and
   a report section.
 - [ ] **042** Tool-call latency in the trace summary: time spent in MCP, sandbox and model per run.
 - [ ] **043** Start an agent's MCP servers in parallel (one task owns all sessions) instead of one after another.
@@ -115,8 +115,8 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **054** An operations runbook in `docs/github-app.md`: start, stop, read logs, rerun, revoke the key.
 - [x] **055** `_extract` stops swallowing exceptions: they are logged and recorded on the result.
 - [ ] **056** Health endpoint that checks its dependencies (ledger DB, queue dir writable, App reachable) separately.
-- [ ] **057** Retention: run directories older than N days are pruned (state kept, worktrees and logs removed).
-- [ ] **058** Every persisted file under `.data/` passes `redact_secrets` on write (a single writer helper), with a test
+- [x] **057** Retention: run directories older than N days are pruned (state kept, worktrees and logs removed).
+- [x] **058** Every persisted file under `.data/` passes `redact_secrets` on write (a single writer helper), with a test
   that scans a run directory for credential shapes.
 - [ ] **059** The CLI summary prints fallbacks, budget stops and gate denials as a one-line health verdict.
 - [ ] **060** Trace attributes for the gate: every `PolicyGate.gated` call becomes a span with verdict and outcome.
@@ -164,12 +164,12 @@ Tasks without a mark can be done and checked offline with `make check`.
 ## J · Documentation, developer experience and CI
 
 - [ ] **091** A guarantees table in the README: each promise links to the test that enforces it.
-- [ ] **092** A doc check in CI: stated limits in docs (timeouts, caps) are compared with the constants in code.
+- [x] **092** A doc check in CI: stated limits in docs (timeouts, caps) are compared with the constants in code.
 - [ ] **093** Move the quickstart above the results in the README and split the 41 KB README into linked pages.
 - [x] **094** `docs/THREAT-MODEL.md`: assets, actors (reporter, maintainer, model), trust boundaries, controls, tests.
 - [ ] **095** A contributor guide: workspace layout, adding a package, adding an MCP tool, adding a decision.
-- [ ] **096** `make doctor`: checks Python, uv, Docker, submodules, `.env` keys present (names only), ports free.
-- [ ] **097** Pre-commit hook for the loopback check and for secret-shaped strings in staged files.
+- [x] **096** `make doctor`: checks Python, uv, Docker, submodules, `.env` keys present (names only), ports free.
+- [x] **097** Pre-commit hook for the loopback check and for secret-shaped strings in staged files.
 - [ ] **098** Release notes generated from conventional commits (`git-cliff` or a script) per phase.
 - [ ] **099** CI caches for pnpm and uv tuned, and the job time recorded; target under 5 minutes total.
 - [ ] **100** A fresh-clone check in CI: `make bootstrap && make check` on a clean runner, timed.
@@ -191,3 +191,11 @@ Tasks without a mark can be done and checked offline with `make check`.
   empty commit and posts no second issue comment), 023, 024 (Hypothesis property tests for redaction, `confine`,
   `walk_files` and the git-dir check), 047 (GitHub rate limits raise `RateLimited` with the wait; the poll waits it
   out), 082 (exact McNemar test per pair of configurations in the report).
+- 2026-10-17: 009, 097 (`scripts/check_secrets.py`, the redaction patterns as a pre-commit hook and a CI step over
+  tracked files), 013 (a "not ours" RCA ends the run only when D05 picked the same category), 015 (each validation
+  attempt records its commands and a hash of the release's harness config), 035 (`test_typing_ratchet.py`:
+  233 `dict[str, Any]`, 9 `pyright: ignore` in `pipeline/`, may only fall), 041 (`debugassist eval latency`; on
+  this machine's 75 stored runs since 2026-10-14: `classify_rca` p50 135 s / p95 214 s, `fix` 159 s / 449 s, whole
+  run 347 s / 656 s), 057 (`debugassist prune`, dry run unless `--apply`; 35 old worktrees, 8.96 GB here, not
+  deleted), 058 (every string in node files and `state.json` is redacted on write), 092 (docs cite limits as
+  `` `NAME` = value ``; a test compares them with the code), 096 (`make doctor`).

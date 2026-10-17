@@ -22,7 +22,7 @@ from langgraph.graph import END, START, StateGraph
 
 from debugassist.core import runctx, tracing
 from debugassist.core.files import write_atomic
-from debugassist.core.redaction import redact_secrets
+from debugassist.core.redaction import redact, redact_secrets
 from debugassist.pipeline import budget, nodes
 from debugassist.pipeline.deps import Deps
 from debugassist.pipeline.state import NODE_KIND, RunState
@@ -38,10 +38,24 @@ def rca_category(s: RunState) -> str | None:
     return s.rca.output.category if s.rca and s.rca.output else None
 
 
+def routed_away(s: RunState) -> bool:
+    """Whether the RCA's "not a code change in our repos" stands on its own.
+
+    A wrong "not ours" was terminal (BUG-011 in the no-Clef arm): the RCA's category alone ends the run before any
+    fix is tried. It ends it only when D05, asked before the RCA, picked the same category; when the two disagree
+    the run goes on and the fix plan decides (ROADMAP-100 013). Runs without a D05 answer keep the old rule."""
+    category = rca_category(s)
+    if category not in ROUTED or s.rca is None:
+        return False
+    chosen: Any = s.rca.category_decision.get("chosen")
+    d05 = cast(dict[str, Any], chosen).get("category") if isinstance(chosen, dict) else None
+    return d05 is None or str(d05) == category
+
+
 def after_rca(s: RunState) -> str:
     if s.status in ("failed", "stopped"):
         return END
-    if not (s.rca and s.rca.actionable) or rca_category(s) in ROUTED:
+    if not (s.rca and s.rca.actionable) or routed_away(s):
         return "ship_gate"
     return "mitigate"
 
@@ -56,18 +70,25 @@ def after_mitigate(s: RunState) -> str:
 
 
 def _persist(deps: Deps, state: RunState, node: str, update: dict[str, Any], ms: int) -> None:
+    """Node file and state.json, written atomically and with credentials masked in every string (ROADMAP-100 058):
+    whatever a tool, a model or an exception put in the state, these files are what the API serves."""
     d = deps.run_dir
     (d / "nodes").mkdir(parents=True, exist_ok=True)
+
+    def plain(o: Any) -> Any:
+        return o.model_dump(mode="json") if hasattr(o, "model_dump") else str(o)
+
+    record = json.loads(
+        json.dumps({"node": node, "kind": NODE_KIND.get(node), "ms": ms, "update": update}, default=plain)
+    )
     write_atomic(
         d / "nodes" / f"{len(list((d / 'nodes').glob('*.json'))):02d}-{node}.json",
-        json.dumps(
-            {"node": node, "kind": NODE_KIND.get(node), "ms": ms, "update": update},
-            indent=2,
-            default=lambda o: o.model_dump(mode="json") if hasattr(o, "model_dump") else str(o),
-        ),
+        json.dumps(redact(record, text=redact_secrets), indent=2),
     )
     merged = state.model_copy(update=update)
-    write_atomic(d / "state.json", merged.model_dump_json(indent=2))
+    write_atomic(
+        d / "state.json", json.dumps(redact(merged.model_dump(mode="json"), text=redact_secrets), indent=2)
+    )
 
 
 def wrap(

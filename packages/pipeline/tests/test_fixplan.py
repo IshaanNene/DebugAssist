@@ -355,20 +355,24 @@ async def test_llm_nodes_do_not_start_once_the_run_budget_is_spent(tmp_path: Pat
 
 
 @pytest.mark.parametrize(
-    ("category", "actionable", "route"),
+    ("category", "actionable", "d05", "route"),
     [
-        ("own_code", True, "mitigate"),
-        ("network", True, "mitigate"),  # a too-short timeout in our code is fixed by a PR
-        ("flag_config", True, "mitigate"),  # a config value in our code too; the rollback step decides
-        ("infra", True, "ship_gate"),
-        ("device_os", True, "ship_gate"),
-        ("not_a_bug", True, "ship_gate"),
-        ("third_party_lib", True, "ship_gate"),
-        ("own_code", False, "ship_gate"),  # D05 said route before the RCA
+        ("own_code", True, "own_code", "mitigate"),
+        ("network", True, "network", "mitigate"),  # a too-short timeout in our code is fixed by a PR
+        ("flag_config", True, "flag_config", "mitigate"),  # a config value in our code too; rollback decides
+        ("infra", True, "infra", "ship_gate"),
+        ("device_os", True, "device_os", "ship_gate"),
+        ("not_a_bug", True, "not_a_bug", "ship_gate"),
+        ("third_party_lib", True, "third_party_lib", "ship_gate"),
+        ("third_party_lib", True, None, "ship_gate"),  # no D05 answer recorded: the RCA's category decides
+        # ROADMAP-100 013: the RCA says "not ours", D05 said our code — not terminal; the fix plan decides
+        ("not_a_bug", True, "own_code", "mitigate"),
+        ("infra", True, "flag_config", "mitigate"),
+        ("own_code", False, "infra", "ship_gate"),  # D05 said route before the RCA
     ],
 )
 def test_routing_reads_the_rca_category_not_only_the_pre_rca_decision(
-    category: str, actionable: bool, route: str
+    category: str, actionable: bool, d05: str | None, route: str
 ) -> None:
     from debugassist.pipeline.graph import after_rca
 
@@ -376,6 +380,7 @@ def test_routing_reads_the_rca_category_not_only_the_pre_rca_decision(
     assert st.rca and st.rca.output
     st.rca.output.category = category  # pyright: ignore[reportAttributeAccessIssue]
     st.rca.actionable = actionable
+    st.rca.category_decision = {"chosen": {"category": d05}} if d05 else {}
     assert after_rca(st) == route
 
 

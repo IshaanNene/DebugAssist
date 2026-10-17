@@ -478,6 +478,9 @@ def test_validate_after_the_fix_was_committed(toy: Toy) -> None:
     assert v.passing_after and v.passing_after.exit_code == 0 and v.suite and v.suite.exit_code == 0
     assert v.changes == {"source": ["lib.py"], "new_test": ["tests/test_repro.py"]} and not v.protected
     assert hostgit.run(toy.wt, "status", "--porcelain").stdout == ""  # validation wrote nothing
+    harness = v.attempts[-1]["harness"]  # ROADMAP-100 015: what the proof ran, and with which config
+    assert harness["from"] == "v1.0.0" and len(harness["config_sha256"]) == 16
+    assert set(harness["commands"]) >= {"test", "reproduction"}
 
 
 # ---- validate: the suite as the release has it (P2-8) -----------------------------------------------------
@@ -632,16 +635,18 @@ def test_rca_only_opens_no_pr(toy: Toy) -> None:
 # ---- the graph --------------------------------------------------------------------------------------------
 
 
-def _graph_run(toy: Toy, monkeypatch: pytest.MonkeyPatch, category: str = "own_code") -> RunState:
+def _graph_run(
+    toy: Toy, monkeypatch: pytest.MonkeyPatch, category: str = "own_code", d05: str | None = None
+) -> RunState:
     async def nothing(state: RunState, deps: Any) -> dict[str, Any]:
         return {}
 
     async def classify(state: RunState, deps: Any) -> dict[str, Any]:
         rca = state.rca
         assert rca and rca.output
-        return {
-            "rca": rca.model_copy(update={"output": rca.output.model_copy(update={"category": category})})
-        }
+        decision = {**rca.category_decision, "chosen": {"category": d05 or category}}
+        output = rca.output.model_copy(update={"category": category})
+        return {"rca": rca.model_copy(update={"output": output, "category_decision": decision})}
 
     for name in ("ingest", "auto_triage", "context_collector", "mitigate"):
         monkeypatch.setattr(nodes, name, nothing)
@@ -695,6 +700,14 @@ def test_graph_routed_category_is_rca_only(toy: Toy, monkeypatch: pytest.MonkeyP
     assert s.ship and s.ship.outcome == "rca_only" and "infra" in s.ship.decision["reason"]
     assert not s.fix_attempts and s.validation is None and not toy.deps.agent.feedback
     assert "fix" not in s.timings_ms and not toy.deps.github.prs
+
+
+def test_graph_a_not_ours_rca_that_d05_disputes_still_tries_a_fix(
+    toy: Toy, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ROADMAP-100 013: a wrong "not ours" RCA ended the run; with D05 saying our code, the fix runs."""
+    s = _graph_run(toy, monkeypatch, category="not_a_bug", d05="own_code")
+    assert "fix" in s.timings_ms and s.fix_attempts
 
 
 def test_a_resumed_pr_step_neither_fails_nor_double_posts(toy: Toy) -> None:

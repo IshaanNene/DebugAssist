@@ -237,3 +237,21 @@ def test_mcnemar_and_paired_comparisons() -> None:
     assert (row["only_a"], row["only_b"], row["verdict"]) == (1, 0, "no evidence of a difference")
     far = [run("a", f"B{i}", True) for i in range(12)] + [run("b", f"B{i}", False) for i in range(12)]
     assert report.paired_comparisons(far)[0]["verdict"] == "a better"
+
+
+def test_latency_profile_per_node(tmp_path: Path) -> None:
+    """ROADMAP-100 041."""
+    from debugassist.evals.latency import percentile, profile
+
+    files: list[Path] = []
+    for i, fix_ms in enumerate([10_000, 20_000, 30_000, 40_000, 400_000]):
+        d = tmp_path / f"2026101{i}-run"
+        d.mkdir()
+        (d / "state.json").write_text(json.dumps({"timings_ms": {"ingest": 100, "fix": fix_ms}}))
+        files.append(d / "state.json")
+    (tmp_path / "broken.json").write_text("{")
+    rows = {r["node"]: r for r in profile([*files, tmp_path / "broken.json"])}
+    assert list(rows) == ["ingest", "fix", "run"]
+    assert (rows["fix"]["runs"], rows["fix"]["p50_s"], rows["fix"]["max_s"]) == (5, 30.0, 400.0)
+    assert rows["fix"]["p95_s"] == 400.0 and rows["run"]["p50_s"] == 30.1
+    assert percentile([1, 2, 3, 4], 50) == 2
