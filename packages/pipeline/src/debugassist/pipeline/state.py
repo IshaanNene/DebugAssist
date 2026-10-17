@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Literal, cast
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from debugassist.core.evidence import EvidenceItem
 
@@ -144,17 +144,36 @@ Tier = Literal["unit", "integration", "e2e_env"]
 TIERS: tuple[Tier, ...] = ("unit", "integration", "e2e_env")  # the validation ladder, cheapest first
 
 
+class PlanDecision(BaseModel):
+    """What one planning decision (D12, D13, D14) chose; decision-specific extras are kept as extra fields."""
+
+    model_config = ConfigDict(extra="allow")
+    choice: str | None = None
+    p: float | None = None
+    band: str | None = None
+    action: str | None = None
+
+
+class AttemptRecord(BaseModel):
+    """One validation attempt as `validate` records it (ROADMAP-100 033); its checks' details are extra fields."""
+
+    model_config = ConfigDict(extra="allow")
+    attempt: int = 0
+    tier: str | None = None
+    result: str | None = None
+
+
 class FixPlan(BaseModel):
     """Decided once before the first attempt: where to fix (D12), how (D13), at which test tier (D14)."""
 
     candidates: int = 0
-    location: dict[str, Any] = Field(default_factory=dict[str, Any])  # D12 choice, p, band, action
+    location: PlanDecision = Field(default_factory=PlanDecision)  # D12
     focus: list[str] = Field(default_factory=list[str])  # "path::function" the fix agent should start from
     suspect_commits: list[dict[str, str]] = Field(
         default_factory=list[dict[str, str]]
     )  # in the release window
-    strategy: dict[str, Any] = Field(default_factory=dict[str, Any])  # D13
-    tier: dict[str, Any] = Field(default_factory=dict[str, Any])  # D14
+    strategy: PlanDecision = Field(default_factory=PlanDecision)  # D13
+    tier: PlanDecision = Field(default_factory=PlanDecision)  # D14
     ladder: list[Tier] = Field(default_factory=list[Tier])  # tiers to try, in order
     captured_env: dict[str, Any] = Field(default_factory=dict[str, Any])  # the user's env, for E2E
     skip: str | None = None  # why no fix is attempted (needs a human, flag only, cannot reproduce)
@@ -181,7 +200,7 @@ class TestRun(BaseModel):
 
 
 class Validation(BaseModel):
-    attempts: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])
+    attempts: list[AttemptRecord] = Field(default_factory=list[AttemptRecord])
     passed: bool = False
     failing_before: TestRun | None = None
     passing_after: TestRun | None = None

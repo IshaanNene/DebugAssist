@@ -393,3 +393,34 @@ def test_the_openapi_schema_describes_the_typed_endpoints() -> None:
     props = schema["components"]["schemas"]["RunSummary"]["properties"]
     assert {"run_id", "status", "validated", "cost_usd", "pr"} <= set(props)
     assert "HealthDeps" in schema["components"]["schemas"] and "AppMetrics" in schema["components"]["schemas"]
+
+
+def test_a_trusted_review_comment_is_queued_and_a_strangers_is_not(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ROADMAP-100 073, at the webhook."""
+    import hashlib
+    import hmac
+
+    from debugassist.core import settings as settings_mod
+    from debugassist.pipeline import app_cli
+
+    monkeypatch.setenv("GITHUB_APP_WEBHOOK_SECRET", "s3cret")
+    settings_mod.get_settings.cache_clear()
+
+    def post(association: str, delivery: str) -> Any:
+        body = json.dumps({"action": "created", "issue": {"number": 3, "pull_request": {}},
+                           "comment": {"body": "@debugassist keep the old signature", "author_association": association,
+                                       "user": {"login": "maya", "type": "User"}},
+                           "repository": {"full_name": "acme/widgets"}}).encode()  # fmt: skip
+        sig = "sha256=" + hmac.new(b"s3cret", body, hashlib.sha256).hexdigest()
+        h = {"X-Hub-Signature-256": sig, "X-GitHub-Event": "issue_comment", "X-GitHub-Delivery": delivery}
+        return TestClient(app_module.app).post("/github/webhook", content=body, headers=h).json()
+
+    try:
+        assert post("NONE", D1) == {"queued": False, "reason": "not a review request"}
+        assert post("COLLABORATOR", D2) == {"queued": True, "review": "acme/widgets#3"}
+    finally:
+        settings_mod.get_settings.cache_clear()
+    [f] = list(app_cli.REVIEWS.glob("*.json"))
+    assert json.loads(f.read_text())["instruction"] == "keep the old signature"

@@ -153,6 +153,15 @@ policy when it starts and the poll when it starts, so restart the poll for its o
 (installation tokens made from it expire within the hour), point `GITHUB_APP_PRIVATE_KEY_PATH` at the new file,
 and restart the poll. Rotate `GITHUB_APP_WEBHOOK_SECRET` the same way if the relay URL was shared.
 
+## Review comments
+
+On a pull request the app opened, a comment that starts with `@debugassist` from the repository's owner, a member
+or a collaborator asks for a revision: `@debugassist keep the old signature`. The webhook queues it
+(`.data/app/reviews/`), the next poll pass finds the run that opened the PR and hands the instruction to the diff
+fixer, which revises the fix, re-validates it against the release, pushes and comments — each write through the
+policy gate. Comments from anyone else, from bots, or on issues are ignored: a revision spends the operator's
+credit.
+
 ## Scale
 
 The target today is a handful of repositories on one machine, not a fleet: one poller runs one issue at a time
@@ -166,5 +175,4 @@ well inside GitHub's 5,000 an hour per installation. Beyond that: the worker poo
 ## Not yet
 
 Measured only in mock mode and unit tests so far (no app has been created for this project yet). Open: running
-on a pull request's CI failure, a hosted worker instead of a laptop poll, per-repository LLM budgets, and the PR
-comment loop (`@debugassist fix the diff`) for app repositories.
+on a pull request's CI failure and a hosted worker instead of a laptop poll.

@@ -415,7 +415,12 @@ def test_a_flag_misconfiguration_with_a_rollback_skips_the_code_fix(
             "→ 0%",
         ),
         ("flag_config", [], "none", "no rollback"),  # nothing changed recently: no evidence for a rollback
-        ("own_code", [{"at": "t"}], "none", "rollback not considered"),  # no crash group and not the flag
+        (
+            "own_code",
+            [{"at": "t"}],
+            "none",
+            "no reports with flag data",
+        ),  # not the flag's config, no report data
     ],
 )
 async def test_a_report_without_a_crash_group_can_still_roll_back_a_misconfigured_flag(
@@ -426,6 +431,7 @@ async def test_a_report_without_a_crash_group_can_still_roll_back_a_misconfigure
 
     monkeypatch.setattr(ff, "get_flag", lambda flag: {"rollout_pct": 100})  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     monkeypatch.setattr(ff, "rollout_history", lambda flag, limit: {"events": events})  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
+    monkeypatch.setattr(ff, "flag_report_correlation", lambda app, flag: {"reports": 0})  # pyright: ignore[reportUnknownLambdaType, reportUnknownArgumentType]
     monkeypatch.setattr(
         ff,
         "apply_rollout",
@@ -441,3 +447,22 @@ async def test_a_report_without_a_crash_group_can_still_roll_back_a_misconfigure
     )
     m = (await nodes.mitigate(st, deps))["mitigation"]
     assert m.action == action and detail in m.detail
+
+
+def test_reports_concentrated_among_exposed_sessions_support_a_rollback() -> None:
+    """ROADMAP-100 020: 8 of 9 reports exposed at a 5% rollout is far beyond chance; 1 of 9 is not."""
+    from debugassist.mcp_servers.feature_flags import binomial_tail, report_flag_exposure
+
+    reports = [{"flags": {"notif_router_v2": True}}] * 8 + [
+        {"flags": {"notif_router_v2": False}},
+        {"flags": {}},
+    ]
+    hot = report_flag_exposure("notif_router_v2", reports, 5)
+    assert (hot["reports"], hot["exposed_reports"], hot["significant"]) == (9, 8, True) and hot[
+        "p_value"
+    ] < 1e-8
+    cold = report_flag_exposure(
+        "notif_router_v2", [{"flags": {"notif_router_v2": i == 0}} for i in range(9)], 5
+    )
+    assert cold["significant"] is False
+    assert binomial_tail(0, 5, 0.5) == 1.0 and round(binomial_tail(5, 5, 0.5), 5) == 0.03125

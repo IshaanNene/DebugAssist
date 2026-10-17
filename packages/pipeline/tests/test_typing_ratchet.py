@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 
 SRC = Path(__file__).parents[1] / "src" / "debugassist" / "pipeline"
-CEILING = {"dict[str, Any]": 230, "pyright: ignore": 9}
+CEILING = {"dict[str, Any]": 222, "pyright: ignore": 9}
 
 
 def counts() -> dict[str, int]:

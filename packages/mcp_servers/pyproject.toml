@@ -17,6 +17,7 @@ debugassist-mcp-logging = "debugassist.mcp_servers.logging_:main"
 debugassist-mcp-incidents = "debugassist.mcp_servers.incidents:main"
 debugassist-mcp-releases = "debugassist.mcp_servers.releases:main"
 debugassist-mcp-metrics-profiles = "debugassist.mcp_servers.metrics_profiles:main"
+debugassist-mcp-investigator = "debugassist.mcp_servers.investigator:main"
 
 [tool.uv.sources]
 debugassist-core = { workspace = true }

@@ -55,6 +55,7 @@ from debugassist.pipeline.deps import APPS, Deps
 from debugassist.pipeline.notify import notify
 from debugassist.pipeline.state import (
     RCA,
+    AttemptRecord,
     FixAttempt,
     FixOutput,
     Issue,
@@ -932,6 +933,23 @@ async def mitigate(state: RunState, deps: Deps) -> dict[str, Any]:
         signal = {"source": "rca: flag configuration is the defect", "recent_changes": events}
         supported = bool(events) and bool(current["rollout_pct"])
         cs.add("recent_changes", events, priority=0)
+    elif issue.source == "bugdrop":
+        # Rider reports instead of a crash group: do the reports come from sessions exposed to the flag far more
+        # often than its rollout share would give? (ROADMAP-100 020; D11 was calibrated on crash rates only.)
+        try:
+            corr = ff.flag_report_correlation(issue.app, flag)
+        except httpx.HTTPError:
+            corr = None
+        if not corr or not corr.get("reports"):
+            return {
+                "mitigation": Mitigation(flag=flag, detail=f"{flag}: no reports with flag data to compare")
+            }
+        signal = {
+            k: corr[k]
+            for k in ("reports", "exposed_reports", "rollout_pct", "share_exposed", "p_value", "significant")
+        }
+        supported = bool(corr["significant"])
+        cs.add("report_exposure", {k: v for k, v in signal.items() if k != "significant"}, priority=0)
     else:
         return {
             "mitigation": Mitigation(
@@ -1156,7 +1174,8 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
         context += (
             "\nThe previous attempt failed validation:\n"
             + untrusted.fence(
-                "validation output", json.dumps(state.validation.attempts[-1], default=str)[:3000]
+                "validation output",
+                json.dumps(state.validation.attempts[-1].model_dump(exclude_none=True), default=str)[:3000],
             )
             + "\nTry a different approach.\n"
         )
@@ -1632,7 +1651,7 @@ async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
     if v.passed and call_variants():
         record["call_variants"] = call_variants_check(sb, issue, comp)
         v.passed = record["call_variants"]["result"] != "fail"
-    v.attempts.append(record)
+    v.attempts.append(AttemptRecord.model_validate(record))
     out: dict[str, Any] = {"validation": v, "costs": costs}
     if v.passed and bisect_enabled() and fa.tier != "e2e_env" and fa.repro:
         out["bisect"] = prove_culprit(state, sb, issue, fa.repro.test_file, str(fa.repro_run["command"]))
@@ -1647,12 +1666,12 @@ async def decide_retry(state: RunState, deps: Deps) -> bool:
     if v is None or v.passed or len(state.fix_attempts) >= cap:
         return False
     if (
-        "result" in v.attempts[-1]
+        v.attempts[-1].result is not None
     ):  # no reproduction or no change: always worth another attempt within the cap
         return True
     cs = (
         CompactState()
-        .add("last_attempt", v.attempts[-1], priority=0)
+        .add("last_attempt", v.attempts[-1].model_dump(exclude_none=True), priority=0)
         .add("attempts_so_far", len(state.fix_attempts), priority=1)
     )
     d15 = await deps.engine.decide("D15", cs, ctx=RunContext(run_id=state.run_id, issue_id=state.issue_ref))
