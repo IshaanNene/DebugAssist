@@ -153,6 +153,16 @@ policy when it starts and the poll when it starts, so restart the poll for its o
 (installation tokens made from it expire within the hour), point `GITHUB_APP_PRIVATE_KEY_PATH` at the new file,
 and restart the poll. Rotate `GITHUB_APP_WEBHOOK_SECRET` the same way if the relay URL was shared.
 
+## Scale
+
+The target today is a handful of repositories on one machine, not a fleet: one poller runs one issue at a time
+([ADR 0010](adr/0010-concurrency-model.md)). Measured on this project's stored runs (`debugassist eval latency`,
+75 runs, 2026-10-14 → 17): a run takes 347 s at the median and 656 s at p95, so one poller finishes about 10
+issues an hour, fewer when fixes retry. The bottleneck is the model time in `classify_rca` (p50 135 s) and `fix`
+(p50 159 s); polling itself makes about one API call per installed repository per pass plus one per labeled issue not yet run,
+well inside GitHub's 5,000 an hour per installation. Beyond that: the worker pool with one run per repository
+(ROADMAP-100 046) and webhooks as the primary path.
+
 ## Not yet
 
 Measured only in mock mode and unit tests so far (no app has been created for this project yet). Open: running

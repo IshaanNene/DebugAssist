@@ -469,6 +469,27 @@ def _jira_label(issue_id: str) -> str:
     return f"{'bugdrop' if issue_id.upper().startswith('BD-') else 'vitals'}-{issue_id.lower()}"
 
 
+def _repo_owner(issue: Issue) -> tuple[str, str]:
+    """(owner, where it came from) for a repository outside the MiniRide catalog."""
+    from debugassist.mcp_servers import code_search
+
+    try:
+        rule = code_search.codeowners_for(issue.repo, "README.md")  # the rule covering the repository root
+        owners = cast(list[str], rule.get("owners") or [])
+        owner = rule.get("team") or (owners[0] if owners else None)
+    except (OSError, ValueError):
+        owner = None
+    if owner:
+        return str(owner), "codeowners"
+    try:
+        comps: Any = _pipeline_yaml(ROOT / "targets" / issue.repo, issue).get("components") or {}
+        comp: Any = comps.get(issue.component) or next(iter(comps.values()), None)
+        declared = comp.get("owner") if comp else None
+    except (OSError, RuntimeError, StopIteration, AttributeError):
+        declared = None
+    return (str(declared), "pipeline.yaml") if declared else ("maintainers", "default")
+
+
 def _oncall(catalog: dict[str, Any], team: str) -> str:
     people = catalog["teams"].get(team, {}).get("oncall") or ["unassigned"]
     return str(people[datetime.now(UTC).isocalendar().week % len(people)])
@@ -486,6 +507,11 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
         owners = code_search.codeowners_for(issue.repo, str(top["file"]))
         owner_team = owners.get("team")
         owner_source = "codeowners" if owner_team else "clef"
+    real_repo = issue.source == "github"
+    if real_repo and owner_team is None:
+        # A real repository has its own maintainers, not a MiniRide team (ROADMAP-100 077): its CODEOWNERS
+        # default rule, else the owner its pipeline.yaml names, else "maintainers".
+        owner_team, owner_source = _repo_owner(issue)
     flags: list[dict[str, Any]] = []
     versions: dict[str, Any] = {}
     if issue.fingerprint:
@@ -548,7 +574,7 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
         priority=priority,
         severity=severity,
         owner_team=team,
-        oncall=_oncall(deps.catalog, team),
+        oncall=team if real_repo else _oncall(deps.catalog, team),
         owner_source=owner_source,
         customer_impacting=float(d.probabilities["customer_impacting"]["true"]),
         worth_agent_run=float(d.probabilities["worth_agent_run"]["true"]),

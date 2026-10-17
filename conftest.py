@@ -50,5 +50,11 @@ def _no_ambient_credentials(request: pytest.FixtureRequest, monkeypatch: pytest.
     from debugassist.core import logs
 
     monkeypatch.setattr(logs, "LOGS", request.getfixturevalue("tmp_path") / "logs")
+    # The GitHub App poller's state likewise (a test that forgets one path must not touch the real one).
+    from debugassist.pipeline import app_cli
+
+    app_dir = request.getfixturevalue("tmp_path") / "app"
+    for name in ("QUEUE", "SEEN", "LOCK", "METRICS", "OUTCOMES"):
+        monkeypatch.setattr(app_cli, name, app_dir / getattr(app_cli, name).name)
     get_settings.cache_clear()
     request.addfinalizer(get_settings.cache_clear)

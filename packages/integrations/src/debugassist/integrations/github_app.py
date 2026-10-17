@@ -145,6 +145,10 @@ class GitHubAppLive:
             self._repos, self._repos_at = repos, time.time()
         return self._repos
 
+    def refresh(self) -> None:
+        """Forget the installation map: an `installation` webhook said it changed."""
+        self._repos = None
+
     def _token(self, repo: str) -> str:
         if repo not in self._map():
             raise PermissionError(f"the app is not installed on {repo}")

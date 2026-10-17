@@ -66,7 +66,7 @@ def test_app_status_and_one_poll_pass(monkeypatch: pytest.MonkeyPatch, tmp_path:
     a = GitHubAppMock(tmp_path / "mock")
     a.state_file.write_text(json.dumps({"repos": {"acme/widgets": {"issues": []}}}))
     monkeypatch.setattr(app_cli, "_app", lambda: a)
-    for name in ("QUEUE", "SEEN", "LOCK", "METRICS"):
+    for name in ("QUEUE", "SEEN", "LOCK", "METRICS", "OUTCOMES"):
         monkeypatch.setattr(app_cli, name, tmp_path / name.lower())
     out = runner.invoke(app_cli.app, ["status"]).output
     assert "acme/widgets" in out
@@ -113,7 +113,7 @@ def test_a_poll_pass_runs_queued_work_and_survives_errors(
     a = GitHubAppMock(tmp_path / "mock")
     a.state_file.write_text(json.dumps({"repos": {"acme/widgets": {"issues": []}}}))
     monkeypatch.setattr(app_cli, "_app", lambda: a)
-    for name in ("QUEUE", "SEEN", "LOCK", "METRICS"):
+    for name in ("QUEUE", "SEEN", "LOCK", "METRICS", "OUTCOMES"):
         monkeypatch.setattr(app_cli, name, tmp_path / name.lower())
     app_cli.requeue("acme/widgets", 1)
     app_cli.requeue("acme/widgets", 2)
@@ -178,3 +178,29 @@ def test_the_github_router_sends_installed_repositories_through_the_app(tmp_path
         ("token", "merged"),
         ("app", "push"),
     ]
+
+
+def test_a_failure_ratio_alert_goes_through_the_gate_at_most_hourly(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """ROADMAP-100 053."""
+    from debugassist.core.policy import Verdict
+    from debugassist.integrations.chat import ChatMock
+
+    monkeypatch.setattr(app_cli, "METRICS", tmp_path / "metrics.json")
+    monkeypatch.setattr(app_cli, "OUTCOMES", tmp_path / "outcomes.json")
+    inbox = ChatMock(tmp_path / "inbox.jsonl")
+    gate = PolicyGate(Policy(actions={"chat.message": Verdict.LIVE}), tmp_path / "audit.jsonl")
+    clock = [1_000_000.0]
+    monkeypatch.setattr(app_cli.time, "time", lambda: clock[0])
+    outcomes = [0, 1, 1, 1, 1]  # 4 of 5 failed: more than half, and enough runs to judge
+    assert [app_cli.record_outcome(c, gate, inbox) for c in outcomes] == [False, False, False, False, True]
+    assert app_cli.record_outcome(1, gate, inbox) is False  # within the hour: no second page
+    clock[0] += app_cli.ALERT_EVERY
+    assert app_cli.record_outcome(1, gate, inbox) is True
+    titles = sorted(m["title"] for m in inbox.inbox())
+    assert titles == ["GitHub App: 4 of the last 5 runs failed", "GitHub App: 6 of the last 7 runs failed"]
+    deny = PolicyGate(Policy(actions={"chat.message": Verdict.DENY}), tmp_path / "audit2.jsonl")
+    clock[0] += app_cli.ALERT_EVERY
+    app_cli.record_outcome(1, deny, inbox)
+    assert len(inbox.inbox()) == 2  # denied by policy: nothing sent

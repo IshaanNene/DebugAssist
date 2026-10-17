@@ -89,7 +89,7 @@ async def github_webhook(request: Request) -> dict[str, Any]:
     `labeled` with the app's label is queued for `debugassist app poll`, everything else is acknowledged."""
     from debugassist.core.settings import get_settings
     from debugassist.integrations.github_app import verify_signature
-    from debugassist.pipeline.app_cli import QUEUE
+    from debugassist.pipeline.app_cli import QUEUE, REFRESH
 
     s = get_settings()
     if s.github_app_webhook_secret is None:
@@ -101,6 +101,10 @@ async def github_webhook(request: Request) -> dict[str, Any]:
         raise HTTPException(401, "bad signature")
     event = request.headers.get("x-github-event", "")
     payload = json.loads(body or b"{}")
+    if event in ("installation", "installation_repositories"):  # installed, removed, repositories changed
+        QUEUE.parent.mkdir(parents=True, exist_ok=True)
+        (QUEUE.parent / REFRESH).touch()  # the poll re-reads the installations before its next pass
+        return {"queued": False, "refresh": True}
     if event != "issues" or payload.get("action") != "labeled":
         return {"queued": False, "event": event}
     if obj(payload.get("label")).get("name") != s.github_app_label:

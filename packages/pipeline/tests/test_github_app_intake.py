@@ -66,6 +66,7 @@ def _paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_cli, "QUEUE", tmp_path / "queue")
     monkeypatch.setattr(app_cli, "SEEN", tmp_path / "seen.json")
     monkeypatch.setattr(app_cli, "METRICS", tmp_path / "metrics.json")
+    monkeypatch.setattr(app_cli, "OUTCOMES", tmp_path / "outcomes.json")
 
 
 def test_ref_parsing() -> None:

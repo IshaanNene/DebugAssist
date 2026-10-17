@@ -127,3 +127,39 @@ def test_test_one_comes_from_the_release_too(tmp_path: Path, monkeypatch: pytest
     assert nodes._repro_cmd(s.issue, "tests/test_x.py") == "pytest -q tests/test_x.py"  # pyright: ignore[reportPrivateUsage]
     s.issue.repo = "absent"
     assert "tests/test_x.py" in nodes._repro_cmd(s.issue, "tests/test_x.py")  # pyright: ignore[reportPrivateUsage]
+
+
+@pytest.mark.parametrize(
+    ("codeowners", "owner", "source"),
+    [
+        ("* @acme/maintainers\n", "@acme/maintainers", "codeowners"),
+        (None, "widget-team", "pipeline.yaml"),
+    ],
+)
+def test_a_real_repository_is_owned_by_its_own_maintainers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, codeowners: str | None, owner: str, source: str
+) -> None:
+    """ROADMAP-100 077: not a MiniRide team chosen by D01."""
+    repo = tmp_path / "targets" / "gh--acme--widgets"
+    (repo / ".DebugAssist").mkdir(parents=True)
+    (repo / ".DebugAssist" / "pipeline.yaml").write_text(
+        CFG.replace("language: python", "language: python\n    owner: widget-team")
+    )
+    if codeowners:
+        (repo / ".github").mkdir()
+        (repo / ".github" / "CODEOWNERS").write_text(codeowners)
+    _git(repo, "init", "-q")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "init")
+    _git(repo, "tag", "v1.0.0")
+    monkeypatch.setattr(nodes, "ROOT", tmp_path)
+    monkeypatch.setenv("CODE_REPOS", json.dumps({"gh--acme--widgets": str(repo)}))
+    s = RunState.model_validate(json.loads(FIXTURE.read_text()))
+    assert s.issue
+    s.issue.repo, s.issue.source, s.issue.last_version, s.issue.component = (
+        "gh--acme--widgets",
+        "github",
+        "1.0.0",
+        ".",
+    )
+    assert nodes._repo_owner(s.issue) == (owner, source)  # pyright: ignore[reportPrivateUsage]

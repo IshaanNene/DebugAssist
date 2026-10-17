@@ -26,16 +26,19 @@ from debugassist.core.files import write_atomic
 from debugassist.core.policy import ROOT, PolicyGate
 from debugassist.core.redaction import redact_secrets
 from debugassist.core.settings import get_settings
+from debugassist.integrations.chat import Chat, ChatMessage
 from debugassist.integrations.github import RateLimited
 from debugassist.integrations.github_app import MARKER, GitHubApp, comment_has_marker
 from debugassist.pipeline import app_intake
-from debugassist.pipeline.deps import build_app
+from debugassist.pipeline.deps import build_app, build_chat
 
 app = typer.Typer(no_args_is_help=True, help="The GitHub App: installed repositories and the issue poll")
 QUEUE = ROOT / ".data" / "app" / "queue"
 SEEN = ROOT / ".data" / "app" / "seen.json"
 LOCK = ROOT / ".data" / "app" / "poll.lock"
 METRICS = ROOT / ".data" / "app" / "metrics.json"
+REFRESH = "refresh-installations"  # touched by the webhook on installation events
+OUTCOMES = ROOT / ".data" / "app" / "outcomes.json"  # the last ALERT_WINDOW runs: 1 failed, 0 done
 CLI = Path(sys.executable).parent / "debugassist"
 NOT_ONBOARDED = f"{MARKER}not-onboarded -->"
 FAILED = f"{MARKER}failed -->"
@@ -73,6 +76,38 @@ def count(**increments: int) -> dict[str, float]:
     logs.event("app", "count", **increments)
     write_atomic(METRICS, json.dumps(m, indent=2, sort_keys=True))
     return m
+
+
+ALERT_WINDOW = 10  # last N finished runs
+ALERT_RATIO = 0.5  # alert when more than this share of them failed
+ALERT_EVERY = 3600.0  # at most one alert an hour
+
+
+def record_outcome(code: int, gate: PolicyGate, chat: Chat | None = None) -> bool:
+    """Keep the last ALERT_WINDOW run outcomes; when more than ALERT_RATIO of them failed, page the operator once
+    an hour through the write gate (ROADMAP-100 053). Returns whether it alerted."""
+    m: dict[str, float] = json.loads(METRICS.read_text()) if METRICS.is_file() else {}
+    recent: list[int] = json.loads(OUTCOMES.read_text()) if OUTCOMES.is_file() else []
+    recent = [*recent, 1 if code else 0][-ALERT_WINDOW:]
+    write_atomic(OUTCOMES, json.dumps(recent))
+    failed, now = sum(recent), time.time()
+    due = len(recent) >= ALERT_WINDOW // 2 and failed / len(recent) > ALERT_RATIO
+    alerted = due and now - float(m.get("alerted_at") or 0) >= ALERT_EVERY
+    if alerted:
+        m["alerted_at"] = now
+    write_atomic(METRICS, json.dumps(m, indent=2, sort_keys=True))
+    if alerted:
+        msg = ChatMessage(
+            to="#debugassist-ops",
+            title=f"GitHub App: {failed} of the last {len(recent)} runs failed",
+            text="Read the failed runs' errors (`debugassist audit`, `.data/logs/app.jsonl`), fix the cause, then "
+            "`debugassist app rerun GHA:owner/repo#n`.",
+            level="alert",
+        )
+        gate.gated("chat.message", lambda: (chat or build_chat(get_settings())).send(msg), run_id=None,
+                   detail={"to": msg.to, "title": msg.title})  # fmt: skip
+        logs.event("app", "alert", failed=failed, window=len(recent))
+    return alerted
 
 
 def poll_lock() -> IO[str] | None:
@@ -187,6 +222,7 @@ def run_one(
     count(runs_started=1, retries=1 if attempts > 1 else 0)
     code = _spawn(ref, llm)
     count(runs_done=1 if code == 0 else 0, runs_failed=1 if code else 0)
+    record_outcome(code, gate)
     _mark(ref, {"result": "done" if code == 0 else f"exit {code}", "at": time.time(), "attempts": attempts})
     typer.echo(f"{ref}: {'done' if code == 0 else f'exit {code} (attempt {attempts} of {MAX_ATTEMPTS})'}")
     logs.event("app", "run", issue=ref, exit_code=code, attempt=attempts)
@@ -249,6 +285,14 @@ def poll(
     if lock is None:
         raise typer.BadParameter(f"another `debugassist app poll` is running ({LOCK})")
     while True:
+        marker = QUEUE.parent / REFRESH
+        if (
+            marker.exists()
+        ):  # installed on, or removed from, a repository since the last pass (ROADMAP-100 072)
+            marker.unlink(missing_ok=True)
+            if (refresh := getattr(a, "refresh", None)) is not None:
+                refresh()
+            logs.event("app", "installations_refreshed")
         try:
             work = pending(a, gate, label)
         except RateLimited as exc:  # wait it out instead of hammering the API every interval

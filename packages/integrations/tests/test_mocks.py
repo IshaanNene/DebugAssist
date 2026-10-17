@@ -40,3 +40,41 @@ def test_github_mock_writes_patch_and_pr(tmp_path: Path) -> None:
     pr = gh.open_pr("o/r", "debugassist/vit-1", "release/1.6.1", "fix: a", "body", draft=True)
     assert pr.mode == "mock" and pr.draft and pr.url == "mock://github/o/r/pull/1"
     assert "fix: a" in (tmp_path / "gh" / "debugassist__vit-1.patch").read_text()
+
+
+def test_jira_retries_busy_responses_and_never_posts_a_comment_twice() -> None:
+    """ROADMAP-100 079."""
+    import json
+
+    import httpx
+
+    from debugassist.integrations.jira import JiraCloud, adf
+
+    comments: list[dict[str, object]] = []
+    posts = {"n": 0}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/comment") and req.method == "GET":
+            return httpx.Response(200, json={"comments": [{"body": c} for c in comments]})
+        if req.url.path.endswith("/comment") and req.method == "POST":
+            posts["n"] += 1
+            if posts["n"] == 1:
+                return httpx.Response(503, headers={"retry-after": "1"})
+            comments.append(json.loads(req.content)["body"])
+            return httpx.Response(201, json={})
+        return httpx.Response(404)
+
+    waits: list[float] = []
+    j = JiraCloud(
+        "https://x.atlassian.net",
+        "e",
+        "t",
+        "SCRUM",
+        http=httpx.Client(transport=httpx.MockTransport(handler)),
+        sleep=waits.append,
+    )
+    j.comment("SCRUM-1", [("para", "Root cause: off by one")])
+    j.comment("SCRUM-1", [("para", "Root cause: off by one")])  # a resumed run says the same thing
+    j.comment("SCRUM-1", [("para", "Fixed in PR #3")])
+    assert waits == [1.0] and posts["n"] == 3 and len(comments) == 2
+    assert comments[0] == adf([("para", "Root cause: off by one")])
