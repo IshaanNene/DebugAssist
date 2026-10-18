@@ -114,3 +114,13 @@ class MockDecider:
 
     async def aclose(self) -> None:
         return None
+
+
+class RulesDecider(MockDecider):
+    """A fixed answer per question, from `configs/deciders.yaml` (ROADMAP-100 037): what a hard-coded rule decides,
+    as a decider the engine can route a template to. No model call; the ledger names it "rules"."""
+
+    name = "rules"
+
+    def __init__(self, answers: dict[str, Override]) -> None:
+        super().__init__(answers, model_label="rules")

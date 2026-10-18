@@ -192,3 +192,29 @@ async def test_clef_faults_fall_back_and_the_ledger_says_why(ledger: Ledger, fau
     assert [r.fallback_reason is not None for r in rows] == [True, True] and {r.backend for r in rows} == {
         "mock"
     }
+
+
+async def test_a_template_can_be_routed_to_rules(tmp_path: Any, ledger: Ledger) -> None:
+    """ROADMAP-100 037: per-template deciders from configs/deciders.yaml; unrouted templates keep the default."""
+    from debugassist.core.settings import Settings
+    from debugassist.decisions.factory import deciders
+
+    cfg = tmp_path / "deciders.yaml"
+    cfg.write_text("templates: {D01: rules, D05: mock}\nrules:\n  D01: {priority: 2}\n")
+    routes = deciders(Settings(_env_file=None), cfg)  # type: ignore[call-arg]
+    assert set(routes) == {"D01", "D05"} and routes["D01"].name == "rules"
+    default = Recording()
+    engine = DecisionEngine(default, ledger=ledger, routes=routes)
+    d01 = await engine.decide("D01", STATE, params={"teams": TEAMS}, ctx=RunContext(run_id="r9"))
+    assert d01.backend == "rules" and round(float(d01.chosen["priority"])) == 2
+    await engine.decide("D16", {"x": 1}, ctx=RunContext(run_id="r9"))
+    assert len(default.requests) == 1  # only D16 reached the default decider
+    assert [r.backend for r in await ledger.list(run_id="r9")] == ["rules", "mock"]
+    assert deciders(Settings(_env_file=None), tmp_path / "absent.yaml") == {}  # type: ignore[call-arg]
+
+
+def test_the_shipped_deciders_config_routes_nothing() -> None:
+    from debugassist.core.settings import Settings
+    from debugassist.decisions.factory import deciders
+
+    assert deciders(Settings(_env_file=None)) == {}  # type: ignore[call-arg]

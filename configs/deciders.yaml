@@ -1,0 +1,15 @@
+# Which decider answers each decision template (ROADMAP-100 037). Unlisted templates use the default: Clef, with
+# the LLM decider as its fallback (or the mock without keys).
+#
+#   templates:          D-number → rules | llm | mock
+#   rules:              the fixed answer per question for templates routed to `rules`
+#
+# Nothing is routed yet. The decision replay (`debugassist eval replay`, evals/reports/) found rules ahead of Clef
+# on D01 and D14; routing them here is a pipeline change to measure with a live arm first (ROADMAP-100 038):
+#
+#   templates: {D01: rules, D14: rules}
+#   rules:
+#     D01: {priority: 2}       # everything is P2
+#     D14: {tier: unit}        # always a unit test first
+templates: {}
+rules: {}

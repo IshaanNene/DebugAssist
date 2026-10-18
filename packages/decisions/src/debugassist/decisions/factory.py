@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
+import yaml
+from pydantic import BaseModel, Field
+
 from debugassist.core.ledger import Ledger
+from debugassist.core.policy import ROOT
 from debugassist.core.settings import Integration, Mode, Settings
 from debugassist.decisions.backends.base import DecisionBackend
 from debugassist.decisions.backends.llm import LLMDecider
 from debugassist.decisions.backends.local import LocalClef
-from debugassist.decisions.backends.mock import MockDecider, Override
+from debugassist.decisions.backends.mock import MockDecider, Override, RulesDecider
 from debugassist.decisions.backends.workers_ai import WorkersAIClef
 from debugassist.decisions.engine import DecisionEngine
 from debugassist.decisions.resilience import FallbackBackend
@@ -57,4 +62,42 @@ async def build_engine(
     if second_opinion and backend in ("auto", "clef") and settings.mode(Integration.LLM) is Mode.LIVE:
         second = LLMDecider.from_settings(settings)
     ledger = await Ledger.open(settings.database_url) if with_ledger else None
-    return DecisionEngine(primary, ledger=ledger, second_opinion=second, model_override=model_override)
+    routes = deciders(settings, mock_overrides=mock_overrides) if backend in ("auto", "clef") else {}
+    return DecisionEngine(
+        primary, ledger=ledger, second_opinion=second, model_override=model_override, routes=routes
+    )
+
+
+DECIDERS = ROOT / "configs" / "deciders.yaml"
+
+
+class DecidersConfig(BaseModel):
+    templates: dict[str, Literal["rules", "llm", "mock"]] = Field(
+        default_factory=dict[str, Literal["rules", "llm", "mock"]]
+    )
+    rules: dict[str, dict[str, float | int | str | dict[str, float]]] = Field(
+        default_factory=dict[str, dict[str, float | int | str | dict[str, float]]]
+    )
+
+
+def deciders(
+    settings: Settings, path: Path | None = None, *, mock_overrides: dict[str, Override] | None = None
+) -> dict[str, DecisionBackend]:
+    """Templates routed to another decider than the default, from `configs/deciders.yaml` (ROADMAP-100 037):
+    `rules` (the fixed answers in the file's `rules:` section), `llm`, or `mock`. A route to `llm` without a live
+    LLM falls back to the mock, as the default decider does."""
+    f = path or DECIDERS
+    cfg = (
+        DecidersConfig.model_validate(yaml.safe_load(f.read_text()) or {})
+        if f.is_file()
+        else DecidersConfig()
+    )
+    routes: dict[str, DecisionBackend] = {}
+    for template, name in cfg.templates.items():
+        if name == "rules":
+            routes[template] = RulesDecider(cfg.rules.get(template, {}))
+        elif name == "llm" and settings.mode(Integration.LLM) is Mode.LIVE:
+            routes[template] = LLMDecider.from_settings(settings)
+        else:  # llm without a live key, or mock
+            routes[template] = MockDecider(mock_overrides)
+    return routes

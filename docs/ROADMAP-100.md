@@ -84,7 +84,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **035** A CI check that the count of `dict[str, Any]` and `pyright: ignore` in `pipeline/` only falls.
 - [ ] **036** One `Workspace` object for all host access to a run's worktree (git, reads, walks), replacing the
   helpers spread across modules.
-- [ ] **037** Decision layer behind one interface with deciders chosen per template from config (rules, LLM, Clef);
+- [x] **037** Decision layer behind one interface with deciders chosen per template from config (rules, LLM, Clef);
   no behaviour change by default.
 - [ ] **038** $ Per-template decider choice from replay with confidence intervals; D01 and D14 on rules if the
   replay still says rules win.
@@ -165,7 +165,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 - [x] **091** A guarantees table in the README: each promise links to the test that enforces it.
 - [x] **092** A doc check in CI: stated limits in docs (timeouts, caps) are compared with the constants in code.
-- [ ] **093** Move the quickstart above the results in the README and split the 41 KB README into linked pages.
+- [x] **093** Move the quickstart above the results in the README and split the 41 KB README into linked pages.
 - [x] **094** `docs/THREAT-MODEL.md`: assets, actors (reporter, maintainer, model), trust boundaries, controls, tests.
 - [x] **095** A contributor guide: workspace layout, adding a package, adding an MCP tool, adding a decision.
 - [x] **096** `make doctor`: checks Python, uv, Docker, submodules, `.env` keys present (names only), ports free.
@@ -260,3 +260,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   `GHCI:owner/repo@<id>`, run once from the poll as a draft-PR investigation).
 - 2026-10-17: 046 (`debugassist app poll --workers N`: different repositories in parallel, one repository's issues in
   order; the poller's state files are written under a lock). Next up: 037, 025 (GitHub half), 093, then 031.
+- 2026-10-18: 037 (`configs/deciders.yaml` routes a template to `rules`, `llm` or `mock`; a `RulesDecider` gives the
+  configured fixed answers; nothing is routed by default, so behaviour is unchanged until a live arm justifies D01
+  and D14 on rules), 093 (the reference sections moved to `docs/REFERENCE.md`; the README went from 44 KB to 39 KB,
+  quickstart first).

@@ -108,8 +108,11 @@ class DecisionEngine:
         second_opinion: DecisionBackend | None = None,
         model_override: ClefModel | None = None,
         max_concurrency: int = 4,
+        routes: dict[str, DecisionBackend] | None = None,
     ) -> None:
         self.backend = backend
+        # Per template (by its D-number, "D01"), a decider other than the default (ROADMAP-100 037).
+        self.routes: dict[str, DecisionBackend] = routes or {}
         self.ledger = ledger
         self.second_opinion = second_opinion
         self.model_override: ClefModel | None = model_override
@@ -143,11 +146,14 @@ class DecisionEngine:
         image_urls = prepare_images(images) if images else None
 
         with tracing.span(template.id, kind="decision", **{"input.value": fitted}) as sp:
+            routed = self.routes.get(template.id.split("_", 1)[0])
             if template.two_stage is not None:
-                d = await self._two_stage(template, fitted, image_urls, params, ctx, chosen_model)
+                d = await self._two_stage(template, fitted, image_urls, params, ctx, chosen_model, routed)
             else:
                 questions = template.render(params)
-                d = await self._run(template, fitted, image_urls, questions, ctx, chosen_model)
+                d = await self._run(
+                    template, fitted, image_urls, questions, ctx, chosen_model, backend=routed
+                )
             tracing.set_attributes(
                 sp,
                 **{"output.value": d.chosen},
@@ -319,6 +325,7 @@ class DecisionEngine:
         params: dict[str, Any],
         ctx: RunContext,
         model: ClefModel,
+        backend: DecisionBackend | None = None,
     ) -> Decision:
         assert template.two_stage is not None
         ts = template.two_stage
@@ -330,7 +337,7 @@ class DecisionEngine:
         if len(candidates) > ts.max_direct:
             stage1 = template.render({item_spec.foreach: candidates}, only={ts.item_question})
             answers, n, t_in, t_out, cost, _, _, _ = await self._call_chunks(
-                model, state, images, stage1, self.backend
+                model, state, images, stage1, backend or self.backend
             )
             prefix = ts.item_question + "."
 
@@ -346,7 +353,7 @@ class DecisionEngine:
         choice_param = template.questions[ts.choice_question].criteria
         assert isinstance(choice_param, str)
         questions = template.render({choice_param.removeprefix("$"): options}, only={ts.choice_question})
-        return await self._run(template, state, images, questions, ctx, model, extra=extra)
+        return await self._run(template, state, images, questions, ctx, model, backend=backend, extra=extra)
 
     async def _record(
         self,
@@ -390,5 +397,7 @@ class DecisionEngine:
 
     async def aclose(self) -> None:
         await self.backend.aclose()
+        for routed in {id(b): b for b in self.routes.values() if b is not self.backend}.values():
+            await routed.aclose()
         if self.second_opinion is not None and self.second_opinion is not self.backend:
             await self.second_opinion.aclose()
