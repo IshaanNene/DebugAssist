@@ -59,7 +59,7 @@ Tasks without a mark can be done and checked offline with `make check`.
   plain diagnostic text is mangled.
 - [x] **024** Property tests for `confine`, `walk_files` and `hostgit.trusted_gitdir` over generated trees with
   symlinks, `..` and odd names.
-- [ ] **025** Contract tests: recorded GitHub, Jira, Workers AI and OpenRouter responses replayed against the clients
+- [x] **025** Contract tests: recorded GitHub, Jira, Workers AI and OpenRouter responses replayed against the clients
   (fixtures under `tests/fixtures/`), with the live variant behind `DA_LIVE_TESTS=1`.
 - [x] **026** A webhook-to-PR test on the mock App: a signed delivery queued, polled, run with the scripted runner,
   ending in a draft PR and one marker comment.
@@ -176,6 +176,12 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## Progress
 
+- 2026-10-18: 025 (`scripts/record_contracts.py` records the read-only calls our clients make — GitHub branch,
+  missing branch, PR list and PR; Jira's JQL search; OpenRouter's catalog entry for the model in use — redacted
+  (e-mails, Atlassian identities, avatars, the Jira host) into `packages/integrations/tests/fixtures/contracts/`;
+  `test_contracts.py` replays them against `GitHubLive`, `JiraCloud` and `openrouter.model_info`, and three `live`
+  tests re-fetch them and check the fields we read, all passing today. Jira: this account's token sees no projects,
+  so only the (empty) search is recorded; an issue snapshot needs a project it can read.)
 - 2026-10-17: 006, 007 (POSTs need the dashboard's Origin or `DA_API_TOKEN`; `API_HOST` off loopback refuses to
   start without a token), 021 (`make coverage` in CI: total ≥76%, `pipeline/` ≥74%; today 77% and 75%), 055,
   061 (`schema_version` 2 with a v1 upgrader), 068, 069 (atomic writes; one poller at a time), 070, 081.

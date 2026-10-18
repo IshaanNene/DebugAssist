@@ -1,0 +1,20 @@
+{
+  "search": {
+    "body": {
+      "isLast": true,
+      "issues": []
+    },
+    "request": {
+      "json": {
+        "fields": [
+          "key"
+        ],
+        "jql": "project = \"SCRUM\" ORDER BY created DESC",
+        "maxResults": 1
+      },
+      "method": "POST",
+      "path": "/rest/api/3/search/jql"
+    },
+    "status": 200
+  }
+}
