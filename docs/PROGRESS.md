@@ -345,6 +345,26 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Install cache shared across runs (2026-10-19)
+
+- `Sandbox.install` keys a fresh worktree's install by image, setup command, component and the bytes of every tracked
+  manifest and lockfile (`package.json`, `pnpm-lock.yaml`, `uv.lock`, `go.sum`, …). A hit copies the cached dependency
+  directories into the worktree; a miss installs and stores them under `.data/install-cache/<key>`. Saved only from a
+  fresh worktree right after its install, so an agent's commands never reach the cache; restores are clones or full
+  copies, never hard links, so a run that writes into `node_modules` changes only its own copy (tested). LRU with 8
+  entries (`DA_INSTALL_CACHE_MAX`); `DA_INSTALL_CACHE=0` for repositories whose install builds from source.
+- Measured with `scripts/measure_install_cache.py` (`evals/reports/install-cache.json`), worktrees outside iCloud:
+
+  | repo | install | restore | entry |
+  |---|---|---|---|
+  | semver (Python, uv) | 3.5 s | 0.3 s | 21 MB |
+  | go-runewidth (Go) | 1.5 s | 0.0 s | 2 MB |
+  | radashi (TypeScript, pnpm) | 9.4 s | 1.9 s | 285 MB |
+
+  Every suite passes offline after the restore, as after the install. These installs are small; the saving grows
+  with the dependency tree and the network. miniride-client was not measured: iCloud Drive had evicted 96 of its git
+  objects, and with the disk 97% full did not bring them back, so `git worktree add` stalled.
+
 ## One `Workspace` for a run's worktree (2026-10-19)
 
 - `core.workspace.Workspace(root)`: `git`, `show`, `has_ref`, `status`, `dirty`, `apply`, `reset`, `branch`; `read`,

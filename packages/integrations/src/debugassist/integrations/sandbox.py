@@ -16,6 +16,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from debugassist.core import tracing
 from debugassist.core.guards import check_command
 from debugassist.core.policy import ROOT
 from debugassist.core.workspace import Workspace
+from debugassist.integrations import installcache
 
 RUNS = ROOT / ".data" / "runs"
 IMAGES = {
@@ -220,14 +222,38 @@ class Sandbox:
         return ["-v", f"{dot}:/work/.git:ro"] if dot.exists() and not dot.is_symlink() else []
 
     def install(self, setup: str, workdir: str = ".") -> CommandResult:
-        """Install dependencies (the one step allowed network access)."""
+        """Install dependencies (the one step allowed network access), or copy them from the install cache when
+        a run with the same image, command and manifests installed them before (`installcache`, ROADMAP-100 048).
+        Only a fresh worktree — no dependency directories yet — uses or fills the cache."""
         image = IMAGES[self.language]
+        ws = self.workspace
+        fresh = not installcache.dependency_dirs(self.dependency_dirs())
+        cache_key = installcache.key(ws, image, setup, workdir) if fresh and installcache.enabled() else None
+        with tracing.span("install", kind="tool", **{"tool.name": "install", "input.value": setup}) as sp:
+            if cache_key and (entry := installcache.lookup(cache_key)):
+                started = time.monotonic()
+                dirs = installcache.restore(entry, ws)
+                tracing.set_attributes(sp, cache="hit", key=cache_key, seconds=time.monotonic() - started)
+                return CommandResult(setup, 0, f"install cache hit {cache_key}: restored {', '.join(dirs)}")
+            if p := self.ensure_image(image):
+                return p
+            started = time.monotonic()
+            res = self.run(setup, workdir=workdir, network=True, timeout=900)
+            seconds = time.monotonic() - started
+            tracing.set_attributes(sp, cache="miss" if cache_key else "off", seconds=seconds)
+            if cache_key and res.exit_code == 0:
+                dirs = installcache.dependency_dirs(self.dependency_dirs())
+                if dirs and installcache.save(cache_key, ws, dirs, seconds):
+                    installcache.prune()
+            return res
+
+    def ensure_image(self, image: str) -> CommandResult | None:
+        """Pull the image if it is missing, outside the install's timeout (an image gone after a Docker reset)."""
         if subprocess.run(["docker", "image", "inspect", image], capture_output=True).returncode:
-            # Pull first, outside the install's timeout (an image missing after a Docker reset).
             p = subprocess.run(["docker", "pull", "-q", image], capture_output=True, text=True, timeout=900)
             if p.returncode:
                 return CommandResult(f"docker pull {image}", p.returncode, (p.stdout + p.stderr)[-4000:])
-        return self.run(setup, workdir=workdir, network=True, timeout=900)
+        return None
 
     def diff(self, base: str = "HEAD") -> str:
         self._git("add", "-A", "--intent-to-add", ".")
