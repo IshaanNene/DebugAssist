@@ -20,7 +20,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from debugassist.core import hostgit, untrusted
+from debugassist.core import untrusted
 from debugassist.core.policy import Verdict
 from debugassist.core.settings import Integration, get_settings
 from debugassist.integrations.sandbox import IMAGES
@@ -109,7 +109,7 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
         comp = nodes.component_cfg(state, sb.worktree)
         base = f"v{issue.last_version}"
         cmd = str(fa.repro_run["command"])
-        before_head = _git(sb.worktree, "rev-parse", "HEAD")
+        before_head = sb.workspace.git_out("rev-parse", "HEAD")
         tools = build_workspace_tools(
             sb,
             allow_edits=True,
@@ -136,7 +136,7 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
         )
 
         def check(_out: dict[str, Any]) -> str | None:
-            if not _git(sb.worktree, "status", "--porcelain"):
+            if not sb.workspace.dirty():
                 return "you have not changed anything yet"
             return nodes.fix_contract_problem(sb, issue, comp, base, cmd, repro.test_file)
 
@@ -147,8 +147,8 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
         entry["llm"] = {k: v for k, v in nodes.llm_summary(r).items() if k != "tool_calls"}
         problem = check({}) if r.output else "the agent did not submit"
         if problem:
-            hostgit.run(sb.worktree, "checkout", "-q", "--", ".", check=False)
-            hostgit.run(sb.worktree, "clean", "-qfd", check=False)
+            sb.workspace.git("checkout", "-q", "--", ".", check=False)
+            sb.workspace.git("clean", "-qfd", check=False)
             entry |= {"status": "rejected", "reason": problem[:600]}
             return entry
         out = DiffFixOutput.model_validate(r.output)
@@ -158,7 +158,7 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
             "commit": sha[:12],
             "title": out.commit_title,
             "summary": out.summary,
-            "diff": hostgit.run(sb.worktree, "diff", before_head, "HEAD", check=True).stdout[-8000:],
+            "diff": sb.workspace.git("diff", before_head, "HEAD", check=True).stdout[-8000:],
         }
         fa.diff = sb.diff(base)
         fa.files = changed_files(fa.diff)
@@ -169,10 +169,6 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
         _record(state, path, entry)
         if deps.engine.ledger is not None:
             await deps.engine.ledger.close()
-
-
-def _git(cwd: Path, *args: str) -> str:
-    return hostgit.run(cwd, *args, check=False).stdout.strip()
 
 
 def _push_and_comment(
@@ -367,7 +363,7 @@ def open_env(run_id: str) -> dict[str, Any]:
     comp = nodes.component_cfg(state, sb.worktree)
     fa = state.fix_attempts[-1] if state.fix_attempts else None
     bad = f"v{issue.last_version}"
-    fix_branch = state.pr.branch if state.pr else _git(sb.worktree, "branch", "--show-current")
+    fix_branch = state.pr.branch if state.pr else sb.workspace.git_out("branch", "--show-current")
     flags: dict[str, Any] = (
         (state.fix_plan.captured_env.get("flags") if state.fix_plan else None)
         or issue.latest_event.get("flags")

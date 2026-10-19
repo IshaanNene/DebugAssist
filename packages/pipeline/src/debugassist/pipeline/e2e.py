@@ -16,7 +16,7 @@ import shlex
 import subprocess
 from typing import Any, cast
 
-from debugassist.core import hostgit
+from debugassist.core.workspace import Workspace
 from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.workspace_tools import changed_files, is_test_path
 
@@ -153,8 +153,8 @@ def _containers(e2e_cfg: dict[str, Any]) -> dict[str, str]:
 
 
 def _playwright_version(sb: Sandbox, component: str) -> str | None:
-    pkg = sb.run_worktree / component / "node_modules" / "@playwright" / "test" / "package.json"
-    return json.loads(pkg.read_text())["version"] if pkg.is_file() else None
+    ws, pkg = Workspace(sb.run_worktree), f"{component}/node_modules/@playwright/test/package.json"
+    return json.loads(ws.read(pkg))["version"] if ws.is_file(pkg) else None
 
 
 def image(sb: Sandbox, component: str) -> str | None:
@@ -195,21 +195,17 @@ def ensure_network(e2e_cfg: dict[str, Any]) -> None:
 
 def write_helpers(sb: Sandbox, component: str) -> None:
     """The emulation helper ships with the test (a test path); the server is scratch."""
-    root = sb.worktree / component
-    helper = root / HELPER_PATH
-    if not helper.exists():
-        helper.parent.mkdir(parents=True, exist_ok=True)
-        helper.write_text(EMULATE_TS)
-    work = root / WORK_DIR
-    work.mkdir(exist_ok=True)
-    (work / "serve.mjs").write_text(SERVE_MJS)
+    ws, prefix = sb.workspace, "" if component == "." else f"{component}/"
+    if not ws.is_file(f"{prefix}{HELPER_PATH}"):
+        ws.write(f"{prefix}{HELPER_PATH}", EMULATE_TS)
+    ws.write(f"{prefix}{WORK_DIR}/serve.mjs", SERVE_MJS)
 
 
 def _source_key(sb: Sandbox) -> str:
     """Builds depend only on non-test files: HEAD plus the diff of changed source files."""
     src = [f for f in changed_files(sb.diff("HEAD")) if not is_test_path(f)]
-    diff = hostgit.run(sb.worktree, "diff", "HEAD", "--", *src, check=True).stdout if src else ""
-    head = hostgit.run(sb.worktree, "rev-parse", "HEAD", check=True).stdout
+    diff = sb.workspace.git("diff", "HEAD", "--", *src, check=True).stdout if src else ""
+    head = sb.workspace.git("rev-parse", "HEAD", check=True).stdout
     return hashlib.sha256((head + diff).encode()).hexdigest()[:12]
 
 
@@ -217,7 +213,7 @@ def build(sb: Sandbox, pipeline: dict[str, Any], component: str) -> tuple[str | 
     """Build the worktree's current source (cached). Returns (dist dir relative to the component, failure)."""
     env = {**BUILD_ENV, **cast_dict(cast_dict(pipeline.get("e2e")).get("build_env"))}
     dist = f"{WORK_DIR}/dist-{_source_key(sb)}"
-    if (sb.worktree / component / dist / "index.html").is_file():
+    if sb.workspace.is_file(f"{component}/{dist}/index.html"):
         return dist, None
     assigns = " ".join(f"{k}={shlex.quote(str(v))}" for k, v in env.items())
     res = sb.run(

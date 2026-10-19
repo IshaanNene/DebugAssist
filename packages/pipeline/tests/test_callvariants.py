@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
+from debugassist.core.workspace import Workspace
 from debugassist.integrations.sandbox import CommandResult
 from debugassist.pipeline import callvariants as cv
 from debugassist.pipeline.nodes import call_variants_check
@@ -46,6 +47,10 @@ WIDE = _HEAD + "        if obj is None:\n            return self.f\n" + _BOUND
 class FakeSandbox:
     def __init__(self, worktree: Path) -> None:
         self.worktree = worktree
+
+    @property
+    def workspace(self) -> Workspace:
+        return Workspace(self.worktree)
 
     def run(
         self, command: str, *, workdir: str = ".", network: bool = False, timeout: int = 600

@@ -11,10 +11,10 @@ from typing import Any
 
 import yaml
 
-from debugassist.core import hostgit
 from debugassist.core.evidence import EvidenceItem
 from debugassist.core.policy import ROOT
 from debugassist.core.settings import Integration, Mode
+from debugassist.core.workspace import Workspace
 from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.runner import is_daily_quota
 from debugassist.llm.spec import LLMResult
@@ -109,13 +109,14 @@ def pipeline_yaml(worktree: Path, issue: Issue | None = None) -> dict[str, Any]:
 
     The fix agent may edit any file in its worktree, `.DebugAssist/pipeline.yaml` included; read from there, a
     `test: "true"` would make "the suite passes" mean nothing (audit P2-8)."""
+    ws = Workspace(worktree)
     if issue is not None:
-        shown = hostgit.run(worktree, "show", f"v{issue.last_version}:.DebugAssist/pipeline.yaml")
-        if shown.returncode == 0:
-            return yaml.safe_load(shown.stdout)
-        if hostgit.run(worktree, "rev-parse", "--verify", "-q", f"v{issue.last_version}").returncode == 0:
+        shown = ws.show(f"v{issue.last_version}", ".DebugAssist/pipeline.yaml")
+        if shown is not None:
+            return yaml.safe_load(shown)
+        if ws.has_ref(f"v{issue.last_version}"):
             raise RuntimeError(f"v{issue.last_version} has no .DebugAssist/pipeline.yaml")
-    return yaml.safe_load((worktree / ".DebugAssist" / "pipeline.yaml").read_text())
+    return yaml.safe_load(ws.read(".DebugAssist/pipeline.yaml"))
 
 
 def static_problem(sb: Sandbox, comp: dict[str, Any], workdir: str) -> str | None:

@@ -82,7 +82,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **034** Errors as typed records (`node`, `type`, `message`, `traceback`) instead of string pairs read by
   index (`graph.py` reads `[-2]`).
 - [x] **035** A CI check that the count of `dict[str, Any]` and `pyright: ignore` in `pipeline/` only falls.
-- [ ] **036** One `Workspace` object for all host access to a run's worktree (git, reads, walks), replacing the
+- [x] **036** One `Workspace` object for all host access to a run's worktree (git, reads, walks), replacing the
   helpers spread across modules.
 - [x] **037** Decision layer behind one interface with deciders chosen per template from config (rules, LLM, Clef);
   no behaviour change by default.
@@ -176,6 +176,12 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## Progress
 
+- 2026-10-19: 036 (`core.workspace.Workspace`: git through `hostgit`, every file through `guards.confine`, walks
+  through `walk_files`; `Sandbox.workspace` gives the run's. The nodes, `release`, `bisect`, `usages`, `fixplan`,
+  `e2e`, `postpr`, `deps`, the sandbox and both GitHub clients use it. It closed reads
+  that skipped the guards: `usages` read every `git grep` hit by joining onto the worktree (a tracked symlink out of
+  it could be followed), `fixplan` read the file the RCA named the same way. `test_workspace_only` fails on a new git call,
+  worktree join or walk in `pipeline/`.)
 - 2026-10-19: 031 (`pipeline/nodes/`: `intake`, `triage`, `context`, `classify`, `mitigation`, `fixing`, `checks`,
   `validation`, `ship`, `pr`, with shared helpers in `common` and `testing`. Moved mechanically by an AST script —
   definitions unchanged, imports derived; module names differ from the node functions so `nodes.fix` stays the

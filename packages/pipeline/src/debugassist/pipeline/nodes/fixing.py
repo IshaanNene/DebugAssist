@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from debugassist.core import untrusted
@@ -102,7 +103,7 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
                 f"\n{e2e.helper_doc()}\nThe user's captured environment:\n"
                 f"{json.dumps(plan.captured_env, default=str)[:2000]}\n"
                 "Existing specs to copy conventions from: "
-                + ", ".join(sorted(p.name for p in (sb.worktree / issue.component / "e2e").glob("*.spec.ts")))
+                + ", ".join(Path(p).name for p in sb.workspace.glob(f"{issue.component}/e2e", "*.spec.ts"))
                 + "\n"
             )
         node = f"reproduce_{tier}" + (f"_{attempt}" if attempt > 1 else "")
@@ -122,7 +123,7 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
 
         def check_repro(out: dict[str, Any], bound_tier: Tier = tier) -> str | None:
             path = str(out.get("test_file", ""))
-            if not is_test_path(path) or not (sb.worktree / path).is_file():
+            if not is_test_path(path) or not sb.workspace.is_file(path):
                 return f"{path} does not exist as a test file. Create it with write_file first."
             if problem := tier_problem(bound_tier, issue, path):
                 return problem
@@ -149,9 +150,7 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
             fa.llm[node] = llm_summary(r1)
             revert_non_tests(sb)  # source is read-only while reproducing, whatever the agent ran
             out = (
-                r1.output
-                if r1.output and (sb.worktree / str(r1.output.get("test_file", ""))).is_file()
-                else None
+                r1.output if r1.output and sb.workspace.is_file(str(r1.output.get("test_file", ""))) else None
             )
             if out is None:
                 # The model sometimes stops without submitting: trust the worktree, not its word.
@@ -180,7 +179,7 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
             fa.repro_verified = (
                 problem is None
                 and is_test_path(fa.repro.test_file)
-                and (sb.worktree / fa.repro.test_file).is_file()
+                and sb.workspace.is_file(fa.repro.test_file)
             )
             if fa.repro_verified:
                 break

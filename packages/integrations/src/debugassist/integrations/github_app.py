@@ -25,8 +25,8 @@ from typing import Any, Protocol, cast
 import httpx
 import jwt
 
-from debugassist.core import hostgit
 from debugassist.core.policy import ROOT
+from debugassist.core.workspace import Workspace
 from debugassist.integrations.github import GitHubLive, check_rate_limit
 
 API = "https://api.github.com"
@@ -259,8 +259,7 @@ class AppRepoClient(GitHubLive):
         self.repo = repo
 
     def push(self, worktree: Path, branch: str) -> None:
-        hostgit.run(
-            worktree,
+        Workspace(worktree).git(
             "push",
             "-q",
             "-f",

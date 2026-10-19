@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from debugassist.core.workspace import Workspace
 from debugassist.pipeline import nodes
 from debugassist.pipeline.state import RunState
 
@@ -67,7 +68,7 @@ def test_a_renamed_or_quoted_source_file_is_reverted_too(tmp_path: Path) -> None
     (tmp_path / "src" / "new.py").write_text("z = 1\n")
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_new.py").write_text("def test_x(): ...\n")
-    sb = cast(Any, SimpleNamespace(worktree=tmp_path))
+    sb = cast(Any, SimpleNamespace(worktree=tmp_path, workspace=Workspace(tmp_path)))
     nodes._revert_non_tests(sb)  # pyright: ignore[reportPrivateUsage]
     assert (tmp_path / "src" / "lib.py").read_text() == "x = 1\n"
     assert not (tmp_path / "src" / "moved.py").exists() and not (tmp_path / "src" / "new.py").exists()

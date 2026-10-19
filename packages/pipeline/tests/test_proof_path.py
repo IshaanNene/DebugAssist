@@ -24,6 +24,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from debugassist.core import hostgit
 from debugassist.core.policy import Verdict
+from debugassist.core.workspace import Workspace
 from debugassist.integrations.github import PullRequest
 from debugassist.integrations.sandbox import CommandResult
 from debugassist.llm.spec import LLMResult
@@ -107,6 +108,10 @@ class FakeSandbox:
     run_worktree: Path
     log: list[tuple[str, str]] = field(default_factory=list[tuple[str, str]])
     crash_in_checkout: bool = False
+
+    @property
+    def workspace(self) -> Workspace:
+        return Workspace(self.worktree)
 
     def run(
         self, command: str, *, workdir: str = ".", network: bool = False, timeout: int = 600

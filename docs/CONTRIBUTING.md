@@ -47,6 +47,10 @@ A new package is `packages/<name>/pyproject.toml` (hatchling, `packages = ["src/
 call through `deps.gate.gated(action, lambda: …, run_id=…, detail=…)`. `test_gated_writes.py` fails on a write
 client call in `pipeline/` without a gate; a new client method name goes in its `WRITES`.
 
+**Touching a run's worktree.** Use `sb.workspace` (or `Workspace(path)`) for git, reads, writes and walks: the worktree
+is written by the agent, and the workspace's guards refuse `..`, symlinks out, `.git` and secret files.
+`test_workspace_only.py` fails on a `hostgit` call, a `worktree / …` join or a `walk_files` in `pipeline/`.
+
 **A pipeline node or edge.** Nodes live in `pipeline/nodes/`, one module each (shared helpers in `nodes/common.py` and
 `nodes/testing.py`), are exported from the package by name, and are registered in `state.NODE_KIND`; edges in
 `graph.build_graph`. `test_graph_edges.py` reads the edges from the built graph: add a row for every way out of a

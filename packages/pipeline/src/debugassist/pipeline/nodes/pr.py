@@ -7,7 +7,6 @@ from typing import Any
 
 import httpx
 
-from debugassist.core import hostgit
 from debugassist.core.policy import Verdict
 from debugassist.integrations.chat import ChatMessage
 from debugassist.pipeline import (
@@ -160,12 +159,12 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
             else f"fix({scope}): {issue.title[:70]}"
         )[:100]
         # A run resumed after this step committed has nothing left to commit: push what is there (ROADMAP-100 019).
-        if hostgit.run(sb.worktree, "status", "--porcelain", check=True).stdout.strip():
+        if sb.workspace.dirty():
             sb.commit(
                 f"{title}\n\n{rca.output.root_cause if rca.output else ''}\n\n{commit_trailer(issue)}"
                 + (f"\nJira: {tr.jira_key}" if tr and tr.jira_key else "")
             )
-        branch = hostgit.run(sb.worktree, "branch", "--show-current", check=True).stdout.strip()
+        branch = sb.workspace.branch()
         base = issue.base_branch or f"release/{issue.last_version}"
         push_v = deps.gate.verdict("github.push_branch", repo=issue.gh_repo, branch=branch)
         pr_v = deps.gate.verdict("github.open_pr", repo=issue.gh_repo)

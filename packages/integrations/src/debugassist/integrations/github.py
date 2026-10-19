@@ -11,8 +11,8 @@ from typing import Protocol
 import httpx
 from pydantic import BaseModel
 
-from debugassist.core import hostgit
 from debugassist.core.policy import ROOT
+from debugassist.core.workspace import Workspace
 
 
 class PullRequest(BaseModel):
@@ -70,7 +70,7 @@ class GitHubLive:
 
     def push(self, worktree: Path, branch: str) -> None:
         # Uses the developer's configured git remote credentials (the token never enters the sandbox).
-        hostgit.run(worktree, "push", "-q", "-f", "origin", f"HEAD:refs/heads/{branch}", check=True)
+        Workspace(worktree).git("push", "-q", "-f", "origin", f"HEAD:refs/heads/{branch}", check=True)
 
     def open_pr(self, repo: str, head: str, base: str, title: str, body: str, draft: bool) -> PullRequest:
         existing = self.http.get(
@@ -124,7 +124,7 @@ class GitHubMock:
         return True
 
     def push(self, worktree: Path, branch: str) -> None:
-        patch = hostgit.run(worktree, "format-patch", "-1", "--stdout", check=True).stdout
+        patch = Workspace(worktree).git("format-patch", "-1", "--stdout", check=True).stdout
         (self.root / f"{branch.replace('/', '__')}.patch").write_text(patch)
 
     def open_pr(self, repo: str, head: str, base: str, title: str, body: str, draft: bool) -> PullRequest:

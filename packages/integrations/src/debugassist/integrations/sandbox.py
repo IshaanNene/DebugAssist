@@ -19,9 +19,10 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from debugassist.core import hostgit, tracing
+from debugassist.core import tracing
 from debugassist.core.guards import check_command
 from debugassist.core.policy import ROOT
+from debugassist.core.workspace import Workspace
 
 RUNS = ROOT / ".data" / "runs"
 IMAGES = {
@@ -54,6 +55,11 @@ class Sandbox:
         return self.root or self.run_worktree
 
     @property
+    def workspace(self) -> Workspace:
+        """Host access to the worktree — git, reads, walks — through the guards (core.workspace)."""
+        return Workspace(self.worktree)
+
+    @property
     def run_worktree(self) -> Path:
         """The run's own worktree, where dependencies were installed."""
         return RUNS / self.run_id / "repo"
@@ -66,9 +72,11 @@ class Sandbox:
         """The run worktree's ignored directories (installed dependencies, caches), relative to it. The worktree
         is untrusted: a directory reached through a symlink would mount some other host path, so none is."""
         wt = self.run_worktree
-        raw = hostgit.run(
-            wt, "status", "--porcelain=v1", "-z", "--ignored=matching", "--untracked-files=normal"
-        ).stdout
+        raw = (
+            Workspace(wt)
+            .git("status", "--porcelain=v1", "-z", "--ignored=matching", "--untracked-files=normal")
+            .stdout
+        )
         out: list[str] = []
         for entry in raw.split("\0"):
             rel = entry[3:].rstrip("/")
@@ -87,7 +95,7 @@ class Sandbox:
         return out
 
     def _git(self, *args: str, cwd: Path | None = None) -> str:
-        out = hostgit.run(cwd or self.worktree, *args)
+        out = Workspace(cwd or self.worktree).git(*args)
         if out.returncode:
             raise RuntimeError(f"git {' '.join(args)}: {out.stderr.strip()}")
         return out.stdout.strip()
