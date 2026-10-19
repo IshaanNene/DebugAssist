@@ -71,6 +71,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with: { node-version: 22, cache: pnpm, cache-dependency-path: apps/dashboard/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile
+      # the API types are generated from openapi.json (`make api-types`); the Python tests check openapi.json
+      # against the API itself, this checks the generated file against openapi.json
+      - name: API types match the API's schema
+        run: pnpm api-types && git diff --exit-code -- src/lib/api-schema.ts
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm build

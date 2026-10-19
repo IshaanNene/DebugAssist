@@ -10,12 +10,18 @@ make bootstrap   # first time: Python dependencies and the git hooks
 make doctor      # what this machine has and lacks (changes nothing)
 make check       # ruff, pyright strict, pytest — what CI runs
 make coverage    # the same tests with the coverage floors CI enforces
+make api-types   # after changing an API response model: regenerate the dashboard's types, commit both files
 ```
 
 Use `make sync` instead of a bare `uv sync` on macOS (it restores the editable-install path hook). Unit tests never
 see your credentials: the root `conftest.py` hides every setting's environment variable and `.env`, and points the
 audit log at a per-test file. Tests that call real APIs are marked `@pytest.mark.live` and run only with
 `DA_LIVE_TESTS=1`.
+
+The dashboard's API types (`apps/dashboard/src/lib/api-schema.ts`) are generated from the API's OpenAPI schema
+(`apps/dashboard/openapi.json`) — edit the Pydantic models in `packages/api/src/debugassist/api/models.py`, never the
+generated file. A test fails when the committed schema differs from the API, and CI fails when the generated types
+differ from the schema.
 
 ## Layout
 

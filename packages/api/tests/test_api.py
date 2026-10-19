@@ -452,3 +452,14 @@ def test_a_failed_default_branch_check_is_queued(tmp_path: Path, monkeypatch: py
         settings_mod.get_settings.cache_clear()
     [f] = list(app_cli.CI_QUEUE.glob("*.json"))
     assert json.loads(f.read_text()) == {"ref": "GHCI:acme/widgets@77"}
+
+
+def test_openapi_schema_is_current() -> None:
+    """apps/dashboard/openapi.json is what the API serves (ROADMAP-100 064): the dashboard's types are generated from
+    it, so a changed response model must come with `make api-types`."""
+    from debugassist.api import schema
+
+    committed = schema.OUT.read_text()
+    assert committed == schema.render(schema.schema()), (
+        "the API changed: run `make api-types` and commit both files"
+    )

@@ -1,34 +1,15 @@
+import type { components } from "./api-schema";
+
 // Shapes returned by packages/api (debugassist.api.data).
 export type Json = Record<string, unknown>;
 
-export interface RunSummary {
-  run_id: string;
-  issue_ref: string;
-  issue_id: string;
-  source: "vitals" | "bugdrop" | null;
-  title: string | null;
-  app: string | null;
-  version: string | null;
-  status: string;
-  llm_mode: string;
-  started_at: string | null;
-  priority: string | null;
-  severity: string | null;
-  owner: string | null;
-  oncall: string | null;
-  customer_impacting: number | null;
-  worth_agent_run: number | null;
-  jira: string | null;
-  category: string | null;
-  location: string | null;
-  validated: boolean;
-  tier: string | null;
-  outcome: string | null;
-  pr: string | null;
-  watch: string | null;
-  cost_usd: number;
-  seconds: number;
-}
+// Generated from the API's OpenAPI schema (`make api-types`; src/lib/api-schema.ts): responses with a model in
+// packages/api/src/debugassist/api/models.py are typed from it, so the two cannot drift. The rest of this file
+// describes run state the API returns as plain JSON.
+export type RunSummary = components["schemas"]["RunSummary"];
+export type Health = components["schemas"]["Health"];
+export type HealthDeps = components["schemas"]["HealthDeps"];
+export type AppMetrics = components["schemas"]["AppMetrics"];
 
 export interface Issue {
   source: "vitals" | "bugdrop";

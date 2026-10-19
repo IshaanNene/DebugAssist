@@ -127,7 +127,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **062** Alembic migrations for the ledger instead of `create_all`; an upgrade test from a stored old database.
 - [x] **063** Typed response models for every API endpoint (FastAPI `response_model`), so the dashboard's types can
   be generated.
-- [ ] **064** Generate the dashboard's TypeScript API types from the OpenAPI schema in CI and fail on drift.
+- [x] **064** Generate the dashboard's TypeScript API types from the OpenAPI schema in CI and fail on drift.
 - [x] **065** Pagination on `/api/runs` and `/api/issues` (cursor), with limits enforced server-side.
 - [x] **066** The audit log as JSON Lines with a schema and a reader (`debugassist audit show --run …`).
 - [x] **067** Ledger outcome labels written back when a PR merges or is closed (D17 already watches).
@@ -176,6 +176,13 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## Progress
 
+- 2026-10-19: 064 (`python -m debugassist.api.schema` writes the API's OpenAPI schema to `apps/dashboard/openapi.json`
+  with stable formatting; `openapi-typescript` 7.13.0, pinned, generates `src/lib/api-schema.ts`; `make api-types`
+  runs both. `types.ts` now takes `RunSummary`, `Health`, `HealthDeps` and `AppMetrics` from it — the hand-written
+  `RunSummary` had drifted (non-null `status`, `issue_ref`; `source` without `"github"`). `test_openapi_schema_is_current`
+  fails when the API's schema and the committed file differ; CI's dashboard job regenerates the types and fails on a
+  diff. The dashboard's typecheck and lint run here again: the "Node tools hang" note above was iCloud having evicted
+  3,081 files of `apps/dashboard/node_modules`; reinstalled from the lockfile.)
 - 2026-10-19: 087 (REAL-006 shopspring/decimal#461 and REAL-007 mattn/go-runewidth#113 in Go, REAL-008
   radashi#482 and REAL-009 chrono#655 in TypeScript: recent issues closed by a merged PR with its own regression
   test; the parts of each report naming the cause or fix withheld and listed; upstream's tests verbatim as the hidden
