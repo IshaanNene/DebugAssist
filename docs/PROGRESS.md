@@ -345,6 +345,15 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Dashboard API types from the OpenAPI schema (2026-10-19)
+
+- `debugassist.api.schema` → `apps/dashboard/openapi.json` (sorted, stable); `openapi-typescript` 7.13.0 (pinned) →
+  `apps/dashboard/src/lib/api-schema.ts`; `make api-types` / `pnpm api-types`. `types.ts` uses the generated
+  `RunSummary`, `Health`, `HealthDeps`, `AppMetrics` (the hand-written `RunSummary` had drifted from the model).
+- Drift: `test_openapi_schema_is_current` (Python, in `make check`) and a CI step regenerating the types and running
+  `git diff --exit-code`. Checked that a stale schema fails the test and that the generated files survive the
+  whitespace hooks unchanged. Dashboard typecheck and lint pass (its `node_modules` reinstalled after iCloud eviction).
+
 ## Real bugs in Go and TypeScript (2026-10-19) — four cases added, not yet run
 
 - REAL-006 shopspring/decimal#461, REAL-007 mattn/go-runewidth#113 (Go); REAL-008 radashi#482, REAL-009 chrono#655

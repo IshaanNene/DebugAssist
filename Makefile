@@ -118,6 +118,10 @@ screenshots:  ## Proof screenshots into docs/screenshots/ (WHAT=stack|run|dashbo
 deploy:  ## Ship a ref to the local stack (stands in for merge + deploy): make deploy REF=debugassist/vit-1001 [REPO=miniride-services]
 	uv run --no-sync debugassist scenario deploy $(REF) $(if $(REPO),--repo $(REPO),)
 
+api-types:  ## The dashboard's API types from the API's OpenAPI schema (apps/dashboard/openapi.json → src/lib/api-schema.ts)
+	uv run --no-sync python -m debugassist.api.schema
+	pnpm --dir apps/dashboard api-types
+
 api:  ## Dashboard API on :8400 (runs, ledger, inbox, metrics; SSE for live runs)
 	uv run --no-sync python -m debugassist.api
 
