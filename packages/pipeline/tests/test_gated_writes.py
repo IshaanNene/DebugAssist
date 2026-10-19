@@ -41,7 +41,7 @@ def _asks(fn: ast.AST) -> bool:
 
 def ungated() -> list[str]:
     out: list[str] = []
-    for path in sorted(SRC.glob("*.py")):
+    for path in sorted(SRC.rglob("*.py")):  # rglob: nodes/ is a package
         tree = ast.parse(path.read_text())
         for fn in ast.walk(tree):
             if not isinstance(fn, ast.FunctionDef | ast.AsyncFunctionDef):

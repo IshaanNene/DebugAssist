@@ -34,6 +34,6 @@ def test_the_environment_is_the_fallback_for_mcp_server_processes(monkeypatch: p
 def test_building_deps_no_longer_writes_the_environment() -> None:
     from pathlib import Path
 
-    src = (Path(__file__).parents[2] / "pipeline" / "src" / "debugassist" / "pipeline").glob("*.py")
+    src = (Path(__file__).parents[2] / "pipeline" / "src" / "debugassist" / "pipeline").rglob("*.py")
     writes = [p.name for p in src if 'os.environ["' in p.read_text() and "] =" in p.read_text()]
     assert writes == []

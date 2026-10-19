@@ -120,7 +120,7 @@ def test_test_one_comes_from_the_release_too(tmp_path: Path, monkeypatch: pytest
     _git(repo, "commit", "-qm", "init")
     _git(repo, "tag", "v1.0.0")
     (repo / ".DebugAssist" / "pipeline.yaml").write_text(cfg.replace("pytest -q {file}", "true"))  # moved on
-    monkeypatch.setattr(nodes, "ROOT", tmp_path)
+    _patch_root(monkeypatch, tmp_path)
     s = RunState.model_validate(json.loads(FIXTURE.read_text()))
     assert s.issue
     s.issue.repo, s.issue.last_version, s.issue.component, s.issue.language = "lib", "1.0.0", ".", "python"
@@ -152,7 +152,7 @@ def test_a_real_repository_is_owned_by_its_own_maintainers(
     _git(repo, "add", ".")
     _git(repo, "commit", "-qm", "init")
     _git(repo, "tag", "v1.0.0")
-    monkeypatch.setattr(nodes, "ROOT", tmp_path)
+    _patch_root(monkeypatch, tmp_path)
     monkeypatch.setenv("CODE_REPOS", json.dumps({"gh--acme--widgets": str(repo)}))
     s = RunState.model_validate(json.loads(FIXTURE.read_text()))
     assert s.issue
@@ -163,3 +163,10 @@ def test_a_real_repository_is_owned_by_its_own_maintainers(
         ".",
     )
     assert nodes._repo_owner(s.issue) == (owner, source)  # pyright: ignore[reportPrivateUsage]
+
+
+def _patch_root(monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+    """`ROOT` where the node modules read it (nodes is a package of modules, each with its own binding)."""
+    for m in nodes.MODULES:
+        if hasattr(m, "ROOT"):
+            monkeypatch.setattr(m, "ROOT", root)

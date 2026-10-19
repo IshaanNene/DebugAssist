@@ -14,7 +14,9 @@ CEILING = {"dict[str, Any]": 222, "pyright: ignore": 9}
 
 
 def counts() -> dict[str, int]:
-    text = "".join(p.read_text() for p in sorted(SRC.glob("*.py")))
+    text = "".join(
+        p.read_text() for p in sorted(SRC.rglob("*.py"))
+    )  # rglob: nodes/ is a package (ROADMAP-100 031)
     return {k: len(re.findall(re.escape(k), text)) for k in CEILING}
 
 

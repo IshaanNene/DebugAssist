@@ -319,7 +319,9 @@ def toy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Toy:
     def no_skills(*_: Any, **__: Any) -> tuple[str, list[BaseTool]]:
         return "", []
 
-    monkeypatch.setattr(nodes, "_sandbox", sandbox)
+    for m in nodes.MODULES:  # each node module holds its own binding of the helper
+        if hasattr(m, "sandbox_for"):
+            monkeypatch.setattr(m, "sandbox_for", sandbox)
     monkeypatch.setattr(nodes.skills, "for_node", no_skills)
     for flag in ("DA_SECOND_REPRO", "DA_CALL_VARIANTS", "DA_BISECT"):
         monkeypatch.delenv(flag, raising=False)
