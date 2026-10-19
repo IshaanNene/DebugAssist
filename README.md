@@ -146,6 +146,8 @@ Beyond the synthetic catalog: five public issues from four small Python librarie
 
 <sub>Median cost $0.014–0.025 per run. Root cause exact means the file and function upstream changed. The semver hidden test is adapted from upstream's: the issue accepts `rc4` or `rc.4`, so the old-style cases accept either. One semver run was escalated to a human by the fix-strategy decision (a change to version-numbering behaviour) and made no fix. Every cachetools#435 fix made the reported call work but broke keyword access to the instance and `__wrapped__`, which upstream's test also checks.</sub>
 
+**Four more, in Go and TypeScript, ready to run.** [shopspring/decimal#461](https://github.com/shopspring/decimal/issues/461) (`Ln(10, 5)` rounds to `2.30258`), [mattn/go-runewidth#113](https://github.com/mattn/go-runewidth/issues/113) (`IsEastAsian` false for `ja_JP`, `zh_CN.GB18030`), [radashi#482](https://github.com/radashi-org/radashi/issues/482) (`toggle` appends instead of removing a matching `undefined`) and [chrono#655](https://github.com/wanasit/chrono/issues/655) (a `24:` label swallows the date after it) — built the same way, each hidden test checked to fail on the buggy commit and pass with the upstream fix in its own sandbox image. Not run yet (it needs API credit), so they add no numbers above.
+
 #### Widening narrow fixes: four attempts
 
 The misses on real code were fixes as narrow as the report. Asking a model for wider fixes or wider tests did not change that; a check with no model did, in a replay of every fix made so far — not yet proven in a live run with all its parts.

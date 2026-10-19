@@ -1,0 +1,35 @@
+# Answer key for a real open-source bug (never mounted into a sandbox; read by the scorer after a run).
+# The input the agent sees is sources/github/issues/decimal-461.yaml.
+id: REAL-006
+title: "Ln(10, 5) rounds to 2.30258 instead of 2.30259 (shopspring/decimal#461)"
+source: GH-decimal-461
+repo: decimal
+language: go
+category: own_code
+expected_outcome: pr
+upstream:
+  issue: https://github.com/shopspring/decimal/issues/461
+  fix_pr: https://github.com/shopspring/decimal/pull/471
+  fix_commit: bed77f5cb683c3752148c852ed9d97cfb058aec4
+  buggy_commit: 37aad64c5a01f3b0fee4c203ca9868cae7f7d0aa
+  license: MIT (shopspring/decimal)
+  pr_head: dd895e2d909aeaf930922b0ceaf4be5793202022
+ground_truth:
+  location:
+    repo: decimal
+    module: decimal
+    file: math.go
+    function: Ln
+  rca_facts:
+  - "Ln reduces its argument by powers of ten using a precomputed approximation of ln(10), and that approximation counts the decimal point as a digit, so one fractional digit of precision is lost before rounding."
+  - "Ln(10, 5) is 2.302585..., which rounds to 2.30259; the lost digit makes it 2.30258."
+  - "The fix computes Ln with error bounds, as Pow already does, and drops the constant-approximation slice (const.go)."
+  hidden_tests:
+  - src: real/REAL-006/decimal_test.go
+    repo: decimal
+    dest: decimal_test.go
+    command: "go test -count=1 -run '^(TestDecimal_Ln|TestDecimal_LnPowersOfTen)$' ."
+validation:
+  verified: '2026-10-19'
+  how: "on the buggy commit TestDecimal_Ln fails on the reported case (2.30258) and three others and TestDecimal_LnPowersOfTen fails; with the upstream fix both pass and go test ./... passes"
+  hidden_test: "upstream's decimal_test.go at the fix, verbatim; TestDecimal_Ln (new cases) and the new TestDecimal_LnPowersOfTen are selected"

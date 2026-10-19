@@ -345,6 +345,18 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Real bugs in Go and TypeScript (2026-10-19) — four cases added, not yet run
+
+- REAL-006 shopspring/decimal#461, REAL-007 mattn/go-runewidth#113 (Go); REAL-008 radashi#482, REAL-009 chrono#655
+  (TypeScript). Each: a recent issue closed by a merged PR that adds a regression test; the report as the agent sees
+  it, with the parts naming the cause or fix withheld and listed (radashi's title reworded); upstream's test files
+  verbatim as hidden tests; checkout at the fix's parent with the fix and PR head unreachable.
+- Verified twice: with local toolchains (Go 1.26, Node 22) and through `Sandbox` in the pipeline's images — the
+  hidden tests fail on the release and pass with the upstream source diff applied; the full suites pass on the fix
+  (decimal, runewidth, radashi 916, chrono 686).
+- `packages/scenarios/tests/test_real_cases.py`: every case's answer key and input agree, hidden tests exist with
+  commands, the checkout config has setup/test/test_one, and the report names neither the fixed file nor the fix.
+
 ## GitHub App (2026-10-16) — built, tested with a fake API and the mock; not live
 
 - `integrations/github_app.py`: the app JWT (RS256), installation tokens (cached), installed repositories,

@@ -1,0 +1,104 @@
+# A real, public GitHub issue, frozen as the pipeline's input (the "github" issue source).
+# Only part of the report is shown to the agent; what is withheld, and why, is listed at the bottom.
+# The answer key is groundtruth/real/REAL-009.yaml and never reaches the agent.
+id: GH-chrono-655
+case: REAL-009
+url: https://github.com/wanasit/chrono/issues/655
+filed_at: '2026-08-31T15:46:51Z'
+title: "Numeric labels ending in \":\" cause the following date to be discarded"
+repo: chrono
+gh_repo: wanasit/chrono
+language: typescript
+component: .
+about: "chrono-node, an open-source TypeScript natural-language date parser (source under src/, tests under test/, run with jest)"
+# The code the report was filed against: upstream `master` at the parent of the fix. The report names chrono-node 2.10.1; the checkout is the fix's parent 95f3b4f, four commits after v2.10.1.
+checkout:
+  url: https://github.com/wanasit/chrono.git
+  branch: master
+  commit: 95f3b4fb98d17d20d73c25b724a5cdbde8c674b4
+  version: 2.10.1-dev
+  config: |
+    # How DebugAssist builds and tests this repository (added locally; not part of upstream).
+    version: 1
+    repo: chrono
+    default_agent_type: github-issue
+    bot_branch_prefix: debugassist/
+    components:
+      .:
+        path: .
+        language: typescript
+        owner: maintainers
+        setup: npm ci --ignore-scripts --no-audit --no-fund
+        lint: "true"
+        test: npx jest --silent
+        test_one: npx jest {file}
+        test_file_glob: "test/**/*.test.ts"
+body: |
+  ### Description
+
+  A numeric label followed by a colon can cause Chrono to discard the valid date immediately after it.
+
+  This affects both strict and casual parsing in `chrono-node` 2.10.1.
+
+  ### Reproduction
+
+  ```js
+  const chrono = require("chrono-node");
+
+  const input = "24: July 23, 2026 at 3:30 PM";
+  const referenceDate = new Date(2026, 6, 1, 8);
+
+  console.log(
+      chrono.strict.parse(input, referenceDate).map((result) => ({
+          index: result.index,
+          text: result.text,
+          year: result.start.get("year"),
+          month: result.start.get("month"),
+          day: result.start.get("day"),
+          hour: result.start.get("hour"),
+      }))
+  );
+  ```
+
+  Actual result:
+
+  ```js
+  [
+      {
+          index: 18,
+          text: "at 3:30 PM",
+          year: 2026,
+          month: 7,
+          day: 1,
+          hour: 15,
+      },
+  ]
+  ```
+
+  The explicit `July 23, 2026` date is lost, and the date components are instead inferred from the reference date.
+
+  Expected result:
+
+  ```js
+  [
+      {
+          index: 4,
+          text: "July 23, 2026 at 3:30 PM",
+          year: 2026,
+          month: 7,
+          day: 23,
+          hour: 15,
+      },
+  ]
+  ```
+
+  `chrono.casual.parse` exhibits the same behavior.
+
+  ### Regression range
+
+  I tested the published releases:
+
+  - 2.7.5 parses the complete timestamp correctly.
+  - The regression begins in 2.7.6.
+  - It remains present in 2.10.1.
+withheld: "The two paragraphs after the regression range that name the cause (the change adding \":\" as a date/time merge separator, the time parser accepting a bare 24 as an hour, and the date/time refiner merging it with the following date), and the \"Proposed patch\" section with its diff and the note on testing it."

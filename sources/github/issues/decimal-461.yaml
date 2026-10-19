@@ -1,0 +1,67 @@
+# A real, public GitHub issue, frozen as the pipeline's input (the "github" issue source).
+# Only part of the report is shown to the agent; what is withheld, and why, is listed at the bottom.
+# The answer key is groundtruth/real/REAL-006.yaml and never reaches the agent.
+id: GH-decimal-461
+case: REAL-006
+url: https://github.com/shopspring/decimal/issues/461
+filed_at: '2026-10-14T22:24:07Z'
+title: "Ln(10, 5) rounds to 2.30258 instead of 2.30259"
+repo: decimal
+gh_repo: shopspring/decimal
+language: go
+component: .
+about: "shopspring/decimal, an open-source Go library for arbitrary-precision fixed-point decimal numbers (package decimal at the repository root, tests in *_test.go, run with go test)"
+# The code the report was filed against: upstream `master` at the parent of the fix. The report names upstream master 511ed65; the checkout is the fix's parent 37aad64, where the same call returns the same wrong value.
+checkout:
+  url: https://github.com/shopspring/decimal.git
+  branch: master
+  commit: 37aad64c5a01f3b0fee4c203ca9868cae7f7d0aa
+  version: 1.5.0-dev
+  config: |
+    # How DebugAssist builds and tests this repository (added locally; not part of upstream).
+    version: 1
+    repo: decimal
+    default_agent_type: github-issue
+    bot_branch_prefix: debugassist/
+    components:
+      .:
+        path: .
+        language: go
+        owner: maintainers
+        setup: go mod download
+        lint: "true"
+        test: go test -count=1 ./...
+        test_one: go test -count=1 ./...
+        test_file_glob: "*_test.go"
+body: |
+  `Ln(10, 5)` returns `2.30258` instead of the documented five-place result `2.30259`.
+
+  Save this as `main.go`.
+
+  ```go
+  // SPDX-License-Identifier: CC0-1.0
+  package main
+
+  import (
+  	"fmt"
+  	"github.com/shopspring/decimal"
+  )
+
+  func main() {
+  	got, err := decimal.NewFromInt(10).Ln(5)
+  	fmt.Println(got, err)
+  }
+  ```
+
+  ```sh
+  go mod init ln-repro
+  go get github.com/shopspring/decimal@511ed65a1218564ab137d858d9bc4e995322f206
+  go run -p 3 .
+  ```
+
+  We get `2.30258 <nil>` from the current implementation.
+
+  Expected `2.30259` because `ln(10) = 2.302585092994...`, following the documented precision.
+
+  Version: `511ed65a1218564ab137d858d9bc4e995322f206` (master), Go 1.27.2 and 1.26.9, Linux amd64.
+withheld: "The paragraph naming the cause (the constant slice in const.go counting the decimal point as a digit), the two links that pointed at the implementing and documenting lines of math.go (the link texts are kept), \"Happy to send a fix.\" and the finder's signature line."

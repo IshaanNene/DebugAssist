@@ -1,0 +1,35 @@
+# Answer key for a real open-source bug (never mounted into a sandbox; read by the scorer after a run).
+# The input the agent sees is sources/github/issues/go-runewidth-113.yaml.
+id: REAL-007
+title: "IsEastAsian returns false for CJK locales such as ja_JP, zh_CN.GB18030 and ko_KR.EUC-KR (mattn/go-runewidth#113)"
+source: GH-go-runewidth-113
+repo: go-runewidth
+language: go
+category: own_code
+expected_outcome: pr
+upstream:
+  issue: https://github.com/mattn/go-runewidth/issues/113
+  fix_pr: https://github.com/mattn/go-runewidth/pull/114
+  fix_commit: 791e45edceae1d679e247eff8d771ca2eb37b74e
+  buggy_commit: 14205cc90ececd174edb6b189720d30b9a47b812
+  license: MIT (mattn/go-runewidth)
+  pr_head: 31b056e19b448957036ac12a442d5ce077ae26b7
+ground_truth:
+  location:
+    repo: go-runewidth
+    module: runewidth
+    file: runewidth_posix.go
+    function: isEastAsian
+  rca_facts:
+  - "isEastAsian decides from the locale's charset only, matching a fixed list of lower-case, hyphen-less spellings (eucjp, gbk, euckr, big5, ...)."
+  - "A locale with no charset (ja_JP) or a charset spelled with a hyphen or upper case (ja_JP.EUC-JP, zh_CN.GB18030) is therefore not East Asian."
+  - "The fix treats a ja, ko or zh language as East Asian whatever the charset (unless @cjk_narrow), and normalizes charset spellings."
+  hidden_tests:
+  - src: real/REAL-007/runewidth_posix_test.go
+    repo: go-runewidth
+    dest: runewidth_posix_test.go
+    command: "go test -count=1 -run '^TestIsEastAsian$' ."
+validation:
+  verified: '2026-10-19'
+  how: "on the buggy commit TestIsEastAsian fails; with the upstream fix it passes and go test ./... passes"
+  hidden_test: "upstream's runewidth_posix_test.go at the fix, verbatim; TestIsEastAsian (new cases) is selected"

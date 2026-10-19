@@ -1,0 +1,39 @@
+# Answer key for a real open-source bug (never mounted into a sandbox; read by the scorer after a run).
+# The input the agent sees is sources/github/issues/chrono-655.yaml.
+id: REAL-009
+title: "Numeric labels ending in \":\" cause the following date to be discarded (wanasit/chrono#655)"
+source: GH-chrono-655
+repo: chrono
+language: typescript
+category: own_code
+expected_outcome: pr
+upstream:
+  issue: https://github.com/wanasit/chrono/issues/655
+  fix_pr: https://github.com/wanasit/chrono/pull/660
+  fix_commit: 9e2f6cc58cc3a8b55c11b02bf9e0ef16aaa3f98b
+  buggy_commit: 95f3b4fb98d17d20d73c25b724a5cdbde8c674b4
+  license: MIT (wanasit/chrono)
+  pr_head: 49204d1634e86455e578c3af81b4fd0b25435719
+ground_truth:
+  location:
+    repo: chrono
+    module: refiners
+    file: src/common/refiners/AbstractMergeDateTimeRefiner.ts
+    function: shouldMergeResults
+  rca_facts:
+  - "A bare number such as 24 followed by a colon is parsed as a time-only result (the hour 24)."
+  - "The date/time merge refiner accepts ':' as a separator in both directions, so it merges that time with the date that follows, producing an invalid hour-24 datetime that is later dropped together with the date."
+  - "The fix stops a lone ':' from merging a time-only result with a following date-only result (time:date); date:time merges stay."
+  hidden_tests:
+  - src: real/REAL-009/en_time_exp.test.ts
+    repo: chrono
+    dest: test/en/en_time_exp.test.ts
+    command: "npx jest test/en/en_time_exp.test.ts -t 'A bare number followed by a colon'"
+  - src: real/REAL-009/it_merging_relative_dates.test.ts
+    repo: chrono
+    dest: test/it/it_merging_relative_dates.test.ts
+    command: "npx jest test/it/it_merging_relative_dates.test.ts -t 'A bare number followed by a colon'"
+validation:
+  verified: '2026-10-19'
+  how: "on the buggy commit the two new tests fail (2 of 21 in the two files); with the upstream fix all 21 pass and the full suite passes (686)"
+  hidden_test: "upstream's test/en/en_time_exp.test.ts and test/it/it_merging_relative_dates.test.ts at the fix, verbatim; the new 'A bare number followed by a colon' test in each is selected"
