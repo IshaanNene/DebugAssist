@@ -171,8 +171,9 @@ token comparison, Quickstart.
   abstains on rollbacks for rider reports (it was calibrated on crash rates) — teach it the report case.
 - **Real open-source bugs — five done (2026-10-14/15).** Five public issues from four Python libraries
   (`debugassist eval real`, groundtruth/real/REAL-001..005): root cause exact 15/15, fix validated 14/15, upstream's
-  regression test 11/15. Next: other languages (TypeScript, Go), larger repos, bugs without a reproducer in the
-  report; Clef once its token works from this machine again; a team catalog for real repos (triage currently assigns
+  regression test 11/15. Added 2026-10-19, not yet run: two Go (shopspring/decimal#461, mattn/go-runewidth#113)
+  and two TypeScript (radashi#482, chrono#655) cases, REAL-006..009, each verified in its sandbox image. Next: run
+  them; larger repos, bugs without a reproducer in the report; Clef once its token works from this machine again; a team catalog for real repos (triage currently assigns
   a MiniRide team).
   Adding a case: a recent issue (after the model's likely training data) on a small, offline-testable repo; a fix
   with its own regression test; the report read as the agent sees it and any sentence naming the cause or fix

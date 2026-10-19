@@ -16,5 +16,9 @@ node_modules/
 /targets/semver/
 /targets/parse/
 /targets/more-itertools/
+/targets/decimal/
+/targets/go-runewidth/
+/targets/radashi/
+/targets/chrono/
 # GitHub App checkouts (debugassist app poll): one per installed repository
 /targets/gh--*/

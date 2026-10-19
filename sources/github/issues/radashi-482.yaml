@@ -1,0 +1,61 @@
+# A real, public GitHub issue, frozen as the pipeline's input (the "github" issue source).
+# Only part of the report is shown to the agent; what is withheld, and why, is listed at the bottom.
+# The answer key is groundtruth/real/REAL-008.yaml and never reaches the agent.
+id: GH-radashi-482
+case: REAL-008
+url: https://github.com/radashi-org/radashi/issues/482
+filed_at: '2026-09-15T05:46:33Z'
+title: "toggle treats a matching undefined element as missing"
+repo: radashi
+gh_repo: radashi-org/radashi
+language: typescript
+component: .
+about: "radashi, an open-source TypeScript utility library (source under src/, tests under tests/, run with vitest)"
+# The code the report was filed against: upstream `main` at the parent of the fix. The report names main / 12.9.4; the checkout is the fix's parent 4dd501b, one commit after v12.9.4.
+checkout:
+  url: https://github.com/radashi-org/radashi.git
+  branch: main
+  commit: 4dd501b2f45852b2d5f8185dfe1d74e406d8cffb
+  version: 12.9.4-dev
+  config: |
+    # How DebugAssist builds and tests this repository (added locally; not part of upstream).
+    version: 1
+    repo: radashi
+    default_agent_type: github-issue
+    bot_branch_prefix: debugassist/
+    components:
+      .:
+        path: .
+        language: typescript
+        owner: maintainers
+        setup: pnpm install --frozen-lockfile --ignore-scripts
+        lint: "true"
+        test: pnpm exec vitest run
+        test_one: pnpm exec vitest run {file}
+        test_file_glob: "tests/**/*.test.ts"
+body: |
+  This is a narrow case: it needs an `undefined` element whose key collides with the item being toggled. `item === undefined` is already special-cased (that item is skipped), so this only shows up through `toKey`. The `'should work with falsy values'` test covers `0` and `null`, not this.
+
+  ### Repro (current main / 12.9.4)
+
+  ```ts
+  import { toggle } from 'radashi'
+
+  toggle([undefined, 'a'], 'b', () => 'k')
+  // actual:   [undefined, 'a', 'b']
+  // expected: []
+  // every element shares the key, so all matching items should be removed
+  ```
+
+  A slightly more realistic shape:
+
+  ```ts
+  toggle(
+    [undefined, { id: 'a' }],
+    { id: undefined },
+    row => row?.id,
+  )
+  // actual:   [undefined, { id: 'a' }, { id: undefined }]
+  // expected: [{ id: 'a' }]
+  ```
+withheld: "The title's parenthetical \"(Array.prototype.find sentinel)\", which names the cause; the opening code block of toggle's decision and the paragraph explaining that find returns undefined both when nothing matched and when the match is undefined; the \"Suggested fix\" section (use findIndex); and \"Happy to send a PR if that's useful.\""

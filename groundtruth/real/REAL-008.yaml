@@ -1,0 +1,35 @@
+# Answer key for a real open-source bug (never mounted into a sandbox; read by the scorer after a run).
+# The input the agent sees is sources/github/issues/radashi-482.yaml.
+id: REAL-008
+title: "toggle treats a matching undefined element as missing (Array.prototype.find sentinel) (radashi-org/radashi#482)"
+source: GH-radashi-482
+repo: radashi
+language: typescript
+category: own_code
+expected_outcome: pr
+upstream:
+  issue: https://github.com/radashi-org/radashi/issues/482
+  fix_pr: https://github.com/radashi-org/radashi/pull/485
+  fix_commit: a4dce5504a4d7acd7d8cceab3640ae28f1170404
+  buggy_commit: 4dd501b2f45852b2d5f8185dfe1d74e406d8cffb
+  license: MIT (radashi-org/radashi)
+  pr_head: b9bd827fc1fd8178f1d63f29843351c8bda8224b
+ground_truth:
+  location:
+    repo: radashi
+    module: array
+    file: src/array/toggle.ts
+    function: toggle
+  rca_facts:
+  - "toggle decides between adding and removing with array.find(matcher) compared against undefined."
+  - "find returns undefined both when nothing matches and when the matching element is undefined, so a matching undefined element is treated as missing and the item is appended."
+  - "The fix uses findIndex and compares with -1."
+  hidden_tests:
+  - src: real/REAL-008/toggle.test.ts
+    repo: radashi
+    dest: tests/array/toggle.test.ts
+    command: "pnpm exec vitest run tests/array/toggle.test.ts -t 'matching undefined'"
+validation:
+  verified: '2026-10-19'
+  how: "on the buggy commit the two new tests fail (2 of 11); with the upstream fix all 11 pass and the full suite passes (916)"
+  hidden_test: "upstream's tests/array/toggle.test.ts at the fix, verbatim; the two new 'matching undefined' tests are selected"

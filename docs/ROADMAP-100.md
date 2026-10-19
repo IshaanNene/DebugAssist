@@ -156,7 +156,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **084** $ Live arm with the full call-variations check on the five real bugs (ROADMAP P18).
 - [ ] **085** $ Live bisect arm on the real bugs that have a good release.
 - [x] **086** Non-pytest runners for bisect's per-case step (vitest `-t`, `go test -run`), tested on toy repos.
-- [ ] **087** Two TypeScript and two Go real-bug cases following the ROADMAP's checklist (no model needed to add).
+- [x] **087** Two TypeScript and two Go real-bug cases following the ROADMAP's checklist (no model needed to add).
 - [ ] **088** Catalog growth: one concurrency bug and one data-migration bug with hidden tests (`make verify-scenarios`).
 - [ ] **089** $ Rework D01, D13 and D14 and re-measure with three seeds on both arms (ROADMAP P18).
 - [ ] **090** A baseline agent arm (a plain tool-using agent, no plan) on the catalog, for comparison.
@@ -176,6 +176,13 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## Progress
 
+- 2026-10-19: 087 (REAL-006 shopspring/decimal#461 and REAL-007 mattn/go-runewidth#113 in Go, REAL-008
+  radashi#482 and REAL-009 chrono#655 in TypeScript: recent issues closed by a merged PR with its own regression
+  test; the parts of each report naming the cause or fix withheld and listed; upstream's tests verbatim as the hidden
+  tests; each verified locally and in its sandbox image (`golang:1.26-alpine`, `node:22-alpine`) — fails on the
+  release, passes with the upstream fix — and `scenarios.real.prepare` confirmed the fix and PR head unreachable.
+  `test_real_cases.py` checks every case's files, commands and that the report does not name the fixed file or
+  commit. Not run through the pipeline yet: that is 084/085-style live spend.)
 - 2026-10-18: 025 (`scripts/record_contracts.py` records the read-only calls our clients make — GitHub branch,
   missing branch, PR list and PR; Jira's JQL search; OpenRouter's catalog entry for the model in use — redacted
   (e-mails, Atlassian identities, avatars, the Jira host) into `packages/integrations/tests/fixtures/contracts/`;
