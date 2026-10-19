@@ -71,7 +71,7 @@ known-first-party = ["debugassist"]
 "packages/integrations/**" = ["S603", "S607"]
 "packages/mcp_servers/**" = ["S603", "S607"]
 # Nodes run one at a time, so their short git calls cannot starve the event loop.
-"packages/pipeline/src/debugassist/pipeline/nodes.py" = ["S603", "S607", "ASYNC221"]
+"packages/pipeline/src/debugassist/pipeline/nodes/*.py" = ["S603", "S607", "ASYNC221"]
 "packages/pipeline/src/debugassist/pipeline/fixplan.py" = ["S603", "S607"]
 "packages/pipeline/src/debugassist/pipeline/crossrepo.py" = ["S603", "S607"]
 "packages/pipeline/src/debugassist/pipeline/usages.py" = ["S603", "S607"]

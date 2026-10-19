@@ -32,7 +32,7 @@ differ from the schema.
 | `integrations` | GitHub, the GitHub App, Jira, chat, the sandbox |
 | `llm` | the agent runner (live, cassette replay, scripted), workspace tools, middleware |
 | `mcp_servers` | the eleven MCP servers agents use |
-| `pipeline` | the fixed LangGraph plan: `nodes.py`, `graph.py`, `state.py`, release checks, the App poller |
+| `pipeline` | the fixed LangGraph plan: `nodes/` (one module per node), `graph.py`, `state.py`, release checks, the App poller |
 | `api` | the dashboard's API and the webhook |
 | `harness` | agent types, skills, runtime images, the queue worker |
 | `evals` | scoring, replays, reports, the red-team catalogue |
@@ -47,7 +47,8 @@ A new package is `packages/<name>/pyproject.toml` (hatchling, `packages = ["src/
 call through `deps.gate.gated(action, lambda: …, run_id=…, detail=…)`. `test_gated_writes.py` fails on a write
 client call in `pipeline/` without a gate; a new client method name goes in its `WRITES`.
 
-**A pipeline node or edge.** Nodes live in `nodes.py` and are registered in `state.NODE_KIND`; edges in
+**A pipeline node or edge.** Nodes live in `pipeline/nodes/`, one module each (shared helpers in `nodes/common.py` and
+`nodes/testing.py`), are exported from the package by name, and are registered in `state.NODE_KIND`; edges in
 `graph.build_graph`. `test_graph_edges.py` reads the edges from the built graph: add a row for every way out of a
 new edge, or the test fails.
 

@@ -345,6 +345,16 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## `pipeline/nodes.py` split into a package (2026-10-19)
+
+- 1,862 lines into `pipeline/nodes/`: `intake` (N0), `triage` (N1), `context` (N2), `classify` (N3), `mitigation`
+  (N4), `fixing` (N5), `checks` (second reproduction, call variations, bisect), `validation` (N6, D15), `ship` (N7),
+  `pr` (N8, N9); `common` and `testing` for shared helpers. Done by script: every definition moved unchanged, 40
+  underscore helpers given public names (strict pyright), every old name still exported from the package.
+- Tests: patches of `_sandbox` and `ROOT` now go to each node module (`nodes.MODULES`); the typing ratchet, the
+  gated-writes scan and the `os.environ` scan read `pipeline/` recursively (they had been globbing one level and
+  would have stopped checking the nodes). 792 tests pass, pyright strict clean.
+
 ## Dashboard API types from the OpenAPI schema (2026-10-19)
 
 - `debugassist.api.schema` → `apps/dashboard/openapi.json` (sorted, stable); `openapi-typescript` 7.13.0 (pinned) →

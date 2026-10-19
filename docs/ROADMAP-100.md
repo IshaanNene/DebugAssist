@@ -74,7 +74,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## D · Architecture and code health
 
-- [ ] **031** Split `pipeline/nodes.py` (≈1,800 lines) into `pipeline/nodes/` with one module per node and the
+- [x] **031** Split `pipeline/nodes.py` (≈1,800 lines) into `pipeline/nodes/` with one module per node and the
   shared helpers in their own modules; public names unchanged.
 - [x] **032** Remove the hidden import cycle: `postmerge` and `feedback` stop importing `nodes._notify`; a shared
   `notify` module.
@@ -176,6 +176,14 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## Progress
 
+- 2026-10-19: 031 (`pipeline/nodes/`: `intake`, `triage`, `context`, `classify`, `mitigation`, `fixing`, `checks`,
+  `validation`, `ship`, `pr`, with shared helpers in `common` and `testing`. Moved mechanically by an AST script —
+  definitions unchanged, imports derived; module names differ from the node functions so `nodes.fix` stays the
+  function the graph looks up. Helpers used across modules got public names (strict pyright forbids private names
+  across modules); the package exports every old name, the private ones as aliases, so no import changed.
+  Tests that patched `nodes._sandbox` / `nodes.ROOT` patch each module's binding through `nodes.MODULES`. Three
+  source scanners globbed `pipeline/*.py` non-recursively — the typing ratchet, the gated-writes scan and the
+  `os.environ` scan — and would have silently stopped seeing the nodes; all three now use `rglob`.)
 - 2026-10-19: 064 (`python -m debugassist.api.schema` writes the API's OpenAPI schema to `apps/dashboard/openapi.json`
   with stable formatting; `openapi-typescript` 7.13.0, pinned, generates `src/lib/api-schema.ts`; `make api-types`
   runs both. `types.ts` now takes `RunSummary`, `Health`, `HealthDeps` and `AppMetrics` from it — the hand-written
