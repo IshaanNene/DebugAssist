@@ -1,0 +1,66 @@
+{
+  "generated_at": "2026-10-19T16:14:04+00:00",
+  "command": "uv run --no-sync python scripts/measure_install_cache.py --base /private/tmp/claude-501/-Users-ishaannene-Desktop-DebugAssist/2e7aeba3-3085-4a44-8293-58f0cfeebd00/scratchpad semver go-runewidth radashi",
+  "platform": "darwin",
+  "outside_icloud": true,
+  "results": [
+    {
+      "repo": "semver",
+      "language": "python",
+      "setup": "SETUPTOOLS_SCM_PRETEND_VERSION=3.1.0 uv venv -q .venv && SETUPTOOLS_SCM_PRETEND_VERSION=3.1.0 uv pip install -q -p .venv -e . pytest pytest-cov",
+      "ref": "4d5549da8aff",
+      "cold_seconds": 3.5,
+      "cold_install_exit": 0,
+      "cold_cache_hit": false,
+      "cold_test_exit": 0,
+      "warm_seconds": 0.3,
+      "warm_install_exit": 0,
+      "warm_cache_hit": true,
+      "warm_test_exit": 0,
+      "cache_entry_mb": 21.3,
+      "cached_dirs": [
+        ".cache",
+        ".venv",
+        "src/semver.egg-info"
+      ]
+    },
+    {
+      "repo": "go-runewidth",
+      "language": "go",
+      "setup": "go mod download",
+      "ref": "9686d17430d7",
+      "cold_seconds": 1.5,
+      "cold_install_exit": 0,
+      "cold_cache_hit": false,
+      "cold_test_exit": 0,
+      "warm_seconds": 0.0,
+      "warm_install_exit": 0,
+      "warm_cache_hit": true,
+      "warm_test_exit": 0,
+      "cache_entry_mb": 2.1,
+      "cached_dirs": [
+        ".cache"
+      ]
+    },
+    {
+      "repo": "radashi",
+      "language": "typescript",
+      "setup": "pnpm install --frozen-lockfile --ignore-scripts",
+      "ref": "068b9a31e264",
+      "cold_seconds": 9.4,
+      "cold_install_exit": 0,
+      "cold_cache_hit": false,
+      "cold_test_exit": 0,
+      "warm_seconds": 1.9,
+      "warm_install_exit": 0,
+      "warm_cache_hit": true,
+      "warm_test_exit": 0,
+      "cache_entry_mb": 285.3,
+      "cached_dirs": [
+        ".corepack",
+        ".pnpm-store",
+        "node_modules"
+      ]
+    }
+  ]
+}

@@ -102,7 +102,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **045** `api/data.runs` reads an index file instead of parsing up to 500 `state.json` files per request.
 - [x] **046** A worker pool for the App poller with one run per repository at a time and idempotent run keys.
 - [x] **047** Rate-limit awareness for GitHub: read `X-RateLimit-Remaining`, back off before exhaustion; test.
-- [ ] **048** Sandbox install cache shared across runs of the same lockfile (content-addressed), measured.
+- [x] **048** Sandbox install cache shared across runs of the same lockfile (content-addressed), measured.
 - [ ] **049** $ A benchmark job that replays cassettes on a fixed machine and fails if a node's p50 regresses >10%.
 - [x] **050** A stated scale target (runs per hour, repositories) in `docs/github-app.md`, with the bottleneck named.
 
@@ -176,6 +176,13 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## Progress
 
+- 2026-10-19: 048 (`integrations.installcache`: `Sandbox.install` on a fresh worktree looks up a key hashed from the
+  image, the setup command, the component and every tracked manifest and lockfile; a hit copies the cached dependency
+  directories in (clone on APFS, `--reflink` on Linux, never hard links), a miss installs and saves them before any
+  agent runs. LRU, 8 entries; `DA_INSTALL_CACHE=0` turns it off. Measured by `scripts/measure_install_cache.py`
+  (`evals/reports/install-cache.json`, outside iCloud): install against restore 3.5 s → 0.3 s (semver), 1.5 s → 0.0 s
+  (go-runewidth), 9.4 s → 1.9 s (radashi); each suite passes offline after the restore as after the install.
+  miniride-client was not measured: iCloud had evicted 96 of its git objects and did not bring them back.)
 - 2026-10-19: 036 (`core.workspace.Workspace`: git through `hostgit`, every file through `guards.confine`, walks
   through `walk_files`; `Sandbox.workspace` gives the run's. The nodes, `release`, `bisect`, `usages`, `fixplan`,
   `e2e`, `postpr`, `deps`, the sandbox and both GitHub clients use it. It closed reads
