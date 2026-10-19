@@ -12,9 +12,10 @@ from typing import Any, cast
 
 import yaml
 
-from debugassist.core import ablation, hostgit
+from debugassist.core import ablation
 from debugassist.core.policy import ROOT, PolicyGate
 from debugassist.core.settings import Integration, Mode, Settings, get_settings
+from debugassist.core.workspace import Workspace
 from debugassist.decisions.engine import DecisionEngine
 from debugassist.decisions.factory import build_engine
 from debugassist.harness import agent_types
@@ -113,7 +114,7 @@ class GitHubRouter:
         return self.app.client(repo) or self.default
 
     def _repo_of(self, worktree: Path) -> str:
-        url = hostgit.run(worktree, "remote", "get-url", "origin").stdout.strip()
+        url = Workspace(worktree).git("remote", "get-url", "origin").stdout.strip()
         m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
         return m.group(1) if m else ""
 

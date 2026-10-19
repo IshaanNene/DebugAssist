@@ -6,7 +6,6 @@ from typing import Any, cast
 
 from langchain_core.tools import BaseTool, tool
 
-from debugassist.core import hostgit
 from debugassist.core.policy import ROOT
 from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.workspace_tools import is_test_path
@@ -22,7 +21,7 @@ from debugassist.pipeline.state import (
 
 def apply_diff(sb: Sandbox) -> Any:
     def apply(diff: str) -> None:
-        hostgit.run(sb.worktree, "apply", "--whitespace=nowarn", "-", input=diff, check=True)
+        sb.workspace.apply(diff)
 
     return apply
 
@@ -30,35 +29,25 @@ def apply_diff(sb: Sandbox) -> Any:
 def worktree_status(sb: Sandbox) -> list[str]:
     """Paths `git status` reports, both sides of a rename included; NUL-separated, so quoted, escaped and
     renamed paths (`old -> new`) are not misread (audit P3-22)."""
-    raw = hostgit.run(
-        sb.worktree, "status", "--porcelain=v1", "-z", "--untracked-files=all", check=True
-    ).stdout
-    parts, out, i = raw.split("\0"), list[str](), 0
-    while i < len(parts):
-        entry, i = parts[i], i + 1
-        if not entry:
-            continue
-        out.append(entry[3:])
-        if "R" in entry[:2] or "C" in entry[:2]:  # the source path follows as its own field
-            out.append(parts[i])
-            i += 1
-    return out
+    return sb.workspace.status()
 
 
 def revert_non_tests(sb: Sandbox) -> None:
+    ws = sb.workspace
     for path in worktree_status(sb):
         if is_test_path(path):
             continue
-        if hostgit.run(sb.worktree, "cat-file", "-e", f"HEAD:{path}").returncode == 0:
-            hostgit.run(sb.worktree, "checkout", "-q", "HEAD", "--", path, check=False)
+        if ws.git("cat-file", "-e", f"HEAD:{path}").returncode == 0:
+            ws.git("checkout", "-q", "HEAD", "--", path)
         else:  # new in the worktree: drop it from the index (intent-to-add) and from disk
-            hostgit.run(sb.worktree, "rm", "-q", "--cached", "--ignore-unmatch", "--", path, check=False)
-            (sb.worktree / path).unlink(missing_ok=True)
+            ws.git("rm", "-q", "--cached", "--ignore-unmatch", "--", path)
+            ws.remove(path)
 
 
 def new_test_files(sb: Sandbox) -> list[str]:
-    tests = [f for f in worktree_status(sb) if is_test_path(f) and (sb.worktree / f).is_file()]
-    return sorted(set(tests), key=lambda f: (sb.worktree / f).stat().st_mtime)
+    ws = sb.workspace
+    tests = [f for f in worktree_status(sb) if is_test_path(f) and ws.is_file(f)]
+    return sorted(set(tests), key=ws.mtime)
 
 
 def test_cmd(language: str, test_file: str, component: str, template: str | None = None) -> str:
@@ -114,7 +103,7 @@ def e2e_tool(sb: Sandbox, issue: Issue) -> BaseTool:
     def run_e2e(test_file: str) -> str:
         """Build the app from the worktree and run one Playwright spec (e2e/….spec.ts) against the live
         backends. Slow (about a minute): use it to check your spec before submitting."""
-        if tier_problem("e2e_env", issue, test_file) or not (sb.worktree / test_file).is_file():
+        if tier_problem("e2e_env", issue, test_file) or not sb.workspace.is_file(test_file):
             return f"{test_file} is not an existing spec under e2e/"
         res = e2e.run(
             sb, pipeline_yaml(sb.worktree, issue), issue.component, e2e.e2e_cmd(test_file, issue.component)
@@ -130,7 +119,7 @@ def fix_contract_problem(
     """Why the worktree's change is not (yet) a proven fix; None when it is: the reproduction test still
     fails on the release with only the source change reverted, passes with it, and the suite and the
     repository's CI checks pass. A test weakened to pass is therefore rejected."""
-    if not (sb.worktree / test_file).is_file():
+    if not sb.workspace.is_file(test_file):
         return f"the reproduction test {test_file} is missing; restore it"
     before = run_on_release(sb, base, lambda rsb: run_test(rsb, issue, cmd))
     if before is None:
@@ -151,12 +140,10 @@ def fix_contract_problem(
 def reset_to(sb: Sandbox, base: str) -> None:
     # Every attempt (and a resumed run) starts from the release tag, not the branch head: after a PR
     # the bot branch holds the previous fix commit. Ignored dirs (node_modules…) survive.
-    hostgit.run(sb.worktree, "reset", "-q", "--hard", base, check=True)
-    hostgit.run(sb.worktree, "clean", "-qfd", check=False)
+    sb.workspace.reset(base)
 
 
 def file_at_release(sb: Sandbox, base: str, path: str) -> str | None:
     """The file as it is in the release, None if it is not there. (Not `git ls-files`: the runner's diff marks new
     files intent-to-add, which lists them as tracked.)"""
-    out = hostgit.run(sb.worktree, "show", f"{base}:{path}")
-    return out.stdout if out.returncode == 0 else None
+    return sb.workspace.show(base, path)

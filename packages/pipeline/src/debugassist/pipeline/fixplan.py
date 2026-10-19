@@ -17,9 +17,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from debugassist.core import hostgit
 from debugassist.core.ablation import ablated
-from debugassist.core.guards import walk_files
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
 from debugassist.integrations.sandbox import Sandbox
@@ -56,8 +54,13 @@ def _ctx(state: RunState) -> RunContext:
 
 
 def _git(sb: Sandbox, *args: str) -> str:
-    out = hostgit.run(sb.worktree, *args)
+    out = sb.workspace.git(*args)
     return out.stdout.strip() if out.returncode == 0 else ""
+
+
+def _defs(sb: Sandbox, rel: str, language: str) -> list[tuple[str, int, str]]:
+    """`functions` of a worktree file, through the guards: a path the RCA names may point anywhere."""
+    return functions(sb.workspace.path(rel), language) if sb.workspace.is_file(rel) else []
 
 
 def release_window(sb: Sandbox, issue: Issue) -> tuple[str, str] | None:
@@ -100,7 +103,7 @@ def candidates(sb: Sandbox, state: RunState) -> tuple[list[dict[str, str]], list
     issue, rca = state.issue, state.rca
     assert issue and rca and rca.output
     o = rca.output
-    root = sb.worktree
+    ws = sb.workspace
     exts = SOURCE_EXT.get(issue.language, ())
 
     def src(rel: str) -> bool:
@@ -109,7 +112,7 @@ def candidates(sb: Sandbox, state: RunState) -> tuple[list[dict[str, str]], list
             rel_in.endswith(exts)
             and not is_test_path(rel_in)
             and "vendor/" not in rel_in
-            and (root / rel_in).is_file()
+            and ws.is_file(rel_in)
         )
 
     reasons: dict[str, list[str]] = {}
@@ -139,14 +142,13 @@ def candidates(sb: Sandbox, state: RunState) -> tuple[list[dict[str, str]], list
         idents.add(o.location.function.split(".")[-1])
     # Callers: only distinctive names (camelCase, snake_case or long), plus the class owning the RCA function.
     search = {i for i in idents if len(i) >= 6 or re.search(r"[A-Z_]", i)}
-    for name, _, _ in functions(root / o.location.file.removeprefix("./"), issue.language):
+    for name, _, _ in _defs(sb, o.location.file.removeprefix("./"), issue.language):
         if "." in name and name.split(".")[-1] == o.location.function.split(".")[-1]:
             search.add(name.split(".")[0])
     if search:
-        comp = root if issue.component == "." else root / issue.component
         word = re.compile(r"\b(" + "|".join(re.escape(i) for i in sorted(search)) + r")\b")
-        for path in walk_files(comp, {"node_modules"}):
-            rel = str(path.relative_to(root))
+        for path in ws.walk(issue.component, {"node_modules"}):
+            rel = str(path.relative_to(ws.root.resolve()))
             if not src(rel) or rel in reasons:
                 continue
             try:
@@ -163,7 +165,7 @@ def candidates(sb: Sandbox, state: RunState) -> tuple[list[dict[str, str]], list
     out: list[dict[str, str]] = []
     target = (o.location.file.removeprefix("./"), o.location.function.split(".")[-1])
     for rel in sorted(reasons, key=lambda r: -weight(r)):
-        for name, line, sig in functions(root / rel, issue.language):
+        for name, line, sig in _defs(sb, rel, issue.language):
             short = name.split(".")[-1]
             why = list(reasons[rel])
             if (rel, short) == target:

@@ -22,7 +22,7 @@ from collections.abc import Generator, Sequence
 from pathlib import Path
 from typing import Literal, Protocol
 
-from debugassist.core import hostgit
+from debugassist.core.workspace import Workspace
 from debugassist.integrations.sandbox import CommandResult
 from debugassist.llm.workspace_tools import is_test_path
 
@@ -66,9 +66,10 @@ class Checkout(Protocol):
 
 
 def _discard(worktree: Path, path: Path) -> None:
-    hostgit.run(worktree, "worktree", "remove", "--force", str(path))
+    ws = Workspace(worktree)
+    ws.git("worktree", "remove", "--force", str(path))
     shutil.rmtree(path, ignore_errors=True)
-    hostgit.run(worktree, "worktree", "prune")
+    ws.git("worktree", "prune")
 
 
 def discard_stale(worktree: Path) -> list[Path]:
@@ -83,8 +84,9 @@ def patch(worktree: Path, base: str, paths: Sequence[str]) -> str:
     """`paths` as they are in `worktree`, as a binary patch against `base` (new files included)."""
     if not paths:
         return ""
-    hostgit.run(worktree, "add", "-A", "--intent-to-add", ".")  # new files show in the diff
-    return hostgit.run(worktree, "diff", "--binary", "--no-renames", base, "--", *paths, check=True).stdout
+    ws = Workspace(worktree)
+    ws.git("add", "-A", "--intent-to-add", ".")  # new files show in the diff
+    return ws.git("diff", "--binary", "--no-renames", base, "--", *paths, check=True).stdout
 
 
 @contextlib.contextmanager
@@ -96,11 +98,11 @@ def release_checkout[S: Checkout](
     wt = sb.worktree
     discard_stale(wt)
     path = wt.parent / f"{PREFIX}{uuid.uuid4().hex[:10]}"
-    hostgit.run(wt, "worktree", "add", "-q", "--detach", str(path), base, check=True)
+    Workspace(wt).git("worktree", "add", "-q", "--detach", str(path), base, check=True)
     try:
         for diff in (patch(wt, base, overlay), extra):
             if diff:
-                hostgit.run(path, "apply", "--binary", "--whitespace=nowarn", "-", input=diff, check=True)
+                Workspace(path).git("apply", "--binary", "--whitespace=nowarn", "-", input=diff, check=True)
         yield sb.checkout(path)  # pyright: ignore[reportReturnType]
     finally:
         _discard(wt, path)
@@ -108,10 +110,9 @@ def release_checkout[S: Checkout](
 
 def changes(worktree: Path, base: str) -> dict[str, str]:
     """Path → git status letter (A, M, D, T) of the worktree against `base`; renames as a delete plus an add."""
-    hostgit.run(worktree, "add", "-A", "--intent-to-add", ".")
-    raw = hostgit.run(
-        worktree, "diff", "--name-status", "--no-renames", "-z", base, "--", ".", check=True
-    ).stdout
+    ws = Workspace(worktree)
+    ws.git("add", "-A", "--intent-to-add", ".")
+    raw = ws.git("diff", "--name-status", "--no-renames", "-z", base, "--", ".", check=True).stdout
     parts = [p for p in raw.split("\0") if p]
     return {parts[i + 1]: parts[i][:1] for i in range(0, len(parts) - 1, 2)}
 
@@ -147,7 +148,7 @@ def skips(worktree: Path, base: str, classes: dict[str, list[str]]) -> list[str]
     paths = [*classes.get("source", []), *classes.get("new_test", [])]
     if not paths:
         return []
-    diff = hostgit.run(worktree, "diff", "-U0", "--no-renames", base, "--", *paths).stdout
+    diff = Workspace(worktree).git("diff", "-U0", "--no-renames", base, "--", *paths).stdout
     out: list[str] = []
     current = ""
     for line in diff.splitlines():

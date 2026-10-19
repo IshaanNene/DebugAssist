@@ -104,7 +104,7 @@ async def second_reproduction(
 
         def check(out: dict[str, Any]) -> str | None:
             p = str(out.get("test_file", ""))
-            if not is_test_path(p) or not (rsb.worktree / p).is_file():
+            if not is_test_path(p) or not rsb.workspace.is_file(p):
                 return f"{p} does not exist as a test file. Create it with write_file first."
             if p in taken or file_at_release(rsb, base, p) is not None:
                 return f"{p} is already taken; write your test in a new file with another name."
@@ -134,9 +134,7 @@ async def second_reproduction(
         written = [
             f
             for f in new_test_files(rsb)
-            if f not in taken
-            and file_at_release(rsb, base, f) is None
-            and not (rsb.worktree / f).is_symlink()
+            if f not in taken and file_at_release(rsb, base, f) is None and not rsb.workspace.is_symlink(f)
         ]
         claimed = str((r.output or {}).get("test_file", ""))
         path = claimed if claimed in written else (written[-1] if written else None)
@@ -151,7 +149,7 @@ async def second_reproduction(
                 f"the second test does not reproduce the bug on the release; not checked: {problem[:300]}"
             )
             return None, rec, cost
-        rec["test_source"] = (rsb.worktree / path).read_text()[:2500]
+        rec["test_source"] = rsb.workspace.read(path)[:2500]
         second = release.patch(rsb.worktree, base, [path])
     # The fix's source change (not its tests) against the second test; a check, never part of the fix.
     with release.release_checkout(sb, base, classes.get("source", []), extra=second) as fsb:
@@ -184,16 +182,18 @@ def call_variants_check(sb: Sandbox, issue: Issue, comp: dict[str, Any]) -> dict
     if not code:
         return {"result": "unchecked", "why": "no Python code in the report"}
     py = python_for(comp)
-    probe = sb.worktree / (issue.component if issue.component != "." else "") / ".debugassist_variant.py"
+    probe = (
+        f"{issue.component}/.debugassist_variant.py" if issue.component != "." else ".debugassist_variant.py"
+    )
 
     def run(program: str) -> str:
-        probe.write_text(program)
-        return sb.run(f"{py} {probe.name}", workdir=issue.component).output
+        sb.workspace.write(probe, program)
+        return sb.run(f"{py} .debugassist_variant.py", workdir=issue.component).output
 
     try:
         rec = callvariants.run_check(code, run)
     finally:
-        probe.unlink(missing_ok=True)
+        sb.workspace.remove(probe)
     if rec["result"] == "fail":
         rec["note"] = (
             "Callers can make the same call these other ways, or inspect it; the fix must keep them working."

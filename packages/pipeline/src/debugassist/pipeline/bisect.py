@@ -21,7 +21,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from debugassist.core import hostgit
+from debugassist.core.workspace import Workspace
 
 Verdict = Literal["good", "bad", "skip"]
 MAX_TAGS = 10  # earlier releases tried for a last good one, at doubling distances
@@ -31,7 +31,7 @@ MAX_STEPS = 40
 def _git(
     wt: Path, *args: str, stdin: str | None = None, check: bool = False
 ) -> subprocess.CompletedProcess[str]:
-    return hostgit.run(wt, *args, input=stdin, check=check)
+    return Workspace(wt).git(*args, input=stdin, check=check)
 
 
 def _sha(wt: Path, ref: str) -> str:
@@ -84,8 +84,8 @@ def prove(
     ImportError because the code it calls did not exist yet) is skipped, not blamed. Returns
     {result: found | narrowed | no_good_release | unbisectable, ...} — `found` with good, first_bad, subject,
     steps, skipped; `narrowed` with the candidates when commits where the test cannot run sit next to the change."""
-    path = wt / test_file
-    test_src = path.read_text()
+    ws = Workspace(wt)
+    test_src = ws.read(test_file)
     head_ref = _git(wt, "symbolic-ref", "-q", "HEAD").stdout.strip()
     head_sha = _sha(wt, "HEAD")
     saved = _git(
@@ -101,7 +101,7 @@ def prove(
         """Tracked files back to the commit; the placed test removed. Nothing else untracked is touched."""
         _git(wt, "reset", "-q", "--hard")
         if not _git(wt, "ls-files", "--", test_file).stdout.strip():
-            path.unlink(missing_ok=True)
+            ws.remove(test_file)
 
     want: set[str] = set()  # the release failure's exceptions, set by the first probe
 
@@ -114,8 +114,7 @@ def prove(
 
     def probe(first: bool = False) -> Verdict:
         """The test on the commit checked out now; the tree is clean again afterwards."""
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(test_src)
+        ws.write(test_file, test_src)
         try:
             code, output = run(command)
             if first and code:

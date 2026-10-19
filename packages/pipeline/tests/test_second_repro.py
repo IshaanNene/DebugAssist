@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any, cast
 
+from debugassist.core.workspace import Workspace
 from debugassist.integrations.sandbox import CommandResult
 from debugassist.llm.spec import LLMResult
 from debugassist.pipeline.nodes import second_reproduction
@@ -37,6 +38,10 @@ class FakeSandbox:
     def checkout(self, root: Path) -> FakeSandbox:
         self.checkouts.append(root)
         return FakeSandbox(root, self.checkouts)
+
+    @property
+    def workspace(self) -> Workspace:
+        return Workspace(self.worktree)
 
     def run(
         self, command: str, *, workdir: str = ".", network: bool = False, timeout: int = 600

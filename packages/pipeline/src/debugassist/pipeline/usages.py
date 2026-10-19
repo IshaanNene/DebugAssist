@@ -15,7 +15,7 @@ import re
 from collections.abc import Mapping
 from pathlib import Path
 
-from debugassist.core import hostgit
+from debugassist.core.workspace import Workspace
 
 CONTEXT = 8  # lines either side of a hit
 PER_NAME = 6  # snippets per name
@@ -36,14 +36,14 @@ def _rank(path: str) -> int:
 
 
 def _git(worktree: Path, *args: str) -> str:
-    out = hostgit.run(worktree, *args, check=False)
+    out = Workspace(worktree).git(*args, check=False)
     return out.stdout
 
 
 def defined(worktree: Path, name: str) -> bool:
     """Whether the repository defines `name` (a def, class, function, type or exported const)."""
     pat = rf"(def|class|function|type|interface|const|let|var|func)[[:space:]]+{re.escape(name)}([^A-Za-z0-9_]|$)"
-    return hostgit.run(worktree, "grep", "-q", "-E", pat, check=False).returncode == 0
+    return Workspace(worktree).git("grep", "-q", "-E", pat, check=False).returncode == 0
 
 
 def report_text(report: Mapping[str, object]) -> str:
@@ -71,6 +71,7 @@ def names_for(worktree: Path, function: str | None, report: str) -> list[str]:
 def collect(worktree: Path, names: list[str], *, exclude: set[str] | None = None) -> str:
     """Snippets of each name's uses, best sources first; '' when there are none."""
     exclude = exclude or set()
+    ws = Workspace(worktree)
     parts: list[str] = []
     used = 0
     for name in names:
@@ -85,7 +86,9 @@ def collect(worktree: Path, names: list[str], *, exclude: set[str] | None = None
         for path in sorted(hits, key=lambda p: (_rank(p), p)):
             if taken >= PER_NAME:
                 break
-            lines = (worktree / path).read_text(errors="replace").splitlines()
+            if not ws.is_file(path):  # a tracked symlink out of the worktree is never read
+                continue
+            lines = ws.path(path).read_text(errors="replace").splitlines()
             last_end = -1
             for n in hits[path]:
                 if taken >= PER_NAME or n - 1 <= last_end:

@@ -345,6 +345,18 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## One `Workspace` for a run's worktree (2026-10-19)
+
+- `core.workspace.Workspace(root)`: `git`, `show`, `has_ref`, `status`, `dirty`, `apply`, `reset`, `branch`; `read`,
+  `write`, `remove`, `is_file`, `glob`, `walk`. Git goes through `hostgit`, paths through `guards.confine` (a refused
+  path reads as absent to queries and raises on reads and writes), walks never follow a symlink. `remove` deletes a
+  planted symlink itself, never its target.
+- Every pipeline module, the sandbox and both GitHub clients reach run worktrees through it. Two reads had bypassed
+  the guards: `usages.collect` (`git grep` hits, a tracked symlink out of the worktree was read) and `fixplan` (the
+  file the RCA names). `test_workspace_only` keeps new code from adding a git call, a worktree join or a walk of its
+  own; `app_intake` and `retention` keep `hostgit` for host checkouts that are not run worktrees.
+- 796 tests pass; pyright strict and ruff clean.
+
 ## `pipeline/nodes.py` split into a package (2026-10-19)
 
 - 1,862 lines into `pipeline/nodes/`: `intake` (N0), `triage` (N1), `context` (N2), `classify` (N3), `mitigation`
