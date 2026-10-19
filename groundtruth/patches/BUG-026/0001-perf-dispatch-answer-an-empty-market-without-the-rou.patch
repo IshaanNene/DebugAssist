@@ -1,0 +1,44 @@
+From 8c063912623a7d781eac8b86f03a71a90d4ca650 Mon Sep 17 00:00:00 2001
+From: Jonas Berg <jonas.berg@miniride.dev>
+Date: Mon, 19 Oct 2026 10:41:12 +0530
+Subject: [PATCH] perf(dispatch): answer an empty market without the routing
+ delay
+
+A ride request in a city with no free driver waited out the full routing time (800 ms in production) before it got its 409. Pick the driver first and route only that driver to the pickup, so riders in a sold-out market see "no drivers available" straight away.
+---
+ dispatch/src/dispatch/app.py | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/dispatch/src/dispatch/app.py b/dispatch/src/dispatch/app.py
+index b9791db..e834095 100644
+--- a/dispatch/src/dispatch/app.py
++++ b/dispatch/src/dispatch/app.py
+@@ -33,7 +33,7 @@ match_latency = meter.create_histogram("dispatch_match_seconds", unit="s", descr
+ engine = make_engine()
+ SessionLocal = make_sessionmaker(engine)
+ flags = Flags()
+-# Simulated matching work; the weak-network demo depends on this being non-trivial.
++# Simulated routing of the matched driver to the pickup; the weak-network demo depends on this being non-trivial.
+ MATCH_DELAY_S = float(os.environ.get("DISPATCH_MATCH_DELAY_MS", "800")) / 1000
+ 
+ 
+@@ -142,7 +142,6 @@ def request_ride(body: RideRequest, s: DB) -> RideOut:
+             )
+             rides_requested.add(1, {"outcome": "replayed", "city": body.city})
+             return to_out(existing, s.get(Driver, existing.driver_id) if existing.driver_id else None)
+-    time.sleep(MATCH_DELAY_S)
+     try:
+         driver = nearest_available_driver(s, body.city, Point(body.pickup.lat, body.pickup.lng))
+     except NoDriversAvailable:
+@@ -151,6 +150,8 @@ def request_ride(body: RideRequest, s: DB) -> RideOut:
+             log, logging.WARNING, "no drivers available", city=body.city, session_id=body.session_id
+         )
+         raise HTTPException(409, "no drivers available") from None
++    # Route only the driver we picked: an empty market answers at once instead of after the routing work.
++    time.sleep(MATCH_DELAY_S)
+     ride = Ride(
+         id=str(uuid.uuid4()),
+         session_id=body.session_id,
+-- 
+2.55.0
+

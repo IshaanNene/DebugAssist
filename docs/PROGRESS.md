@@ -345,6 +345,23 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Catalog: a concurrency bug and a data-migration bug (2026-10-19)
+
+- **BUG-026** (dispatch, P1). "perf(dispatch): answer an empty market without the routing delay" picks the nearest free
+  driver first and routes it afterwards, so a sold-out city gets its 409 at once. The driver is marked busy only after
+  the 800 ms routing work: riders who book in the same city within that time are matched with the same driver. The
+  reference fix claims the driver with `UPDATE … WHERE busy_ride_id IS NULL` and tries the next one when it lost.
+  The base release has the same read-then-write, but its window is milliseconds; the hidden test sends four riders
+  100 ms apart, which fails on the regression 5/5 and passes on the base 5/5.
+- **BUG-027** (dispatch, P0). "feat(dispatch): drivers can go offline" adds `drivers.online`, a startup migration and a
+  driver-status endpoint, with a test that passes. The migration adds the column without a default, so every driver
+  already in a deployed database is NULL and matching (`online IS TRUE`) finds nobody: every booking in every city
+  gets "no drivers available". Fresh databases seed `online = TRUE`, so CI cannot see it. The hidden tests start from
+  the previous release's table with drivers in it, and from one the buggy migration already touched; the reference
+  fix adds the default and backfills NULLs.
+- `debugassist scenario verify BUG-026 BUG-027`: both pass. Not yet triggered in the stack (`make trigger`) or run
+  through the pipeline live; README's evaluation numbers are still the 25-bug runs.
+
 ## Install cache shared across runs (2026-10-19)
 
 - `Sandbox.install` keys a fresh worktree's install by image, setup command, component and the bytes of every tracked
