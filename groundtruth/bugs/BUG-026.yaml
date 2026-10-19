@@ -1,0 +1,37 @@
+id: BUG-026
+title: Two riders booking at the same time get the same driver after the empty-market speed-up
+language: python
+component: dispatch
+owner_team: dispatch
+category: own_code
+priority: P1
+discovery: [bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.7.13
+  repos:
+    miniride-services: [patches/BUG-026/0001-perf-dispatch-answer-an-empty-market-without-the-rou.patch]
+trigger:
+  scenario: symptom_report
+  params:
+    sessions: 6
+    concurrency: 6  # riders at the same pickup book within the routing time of each other
+    city: sf
+    flow: book
+    pickup: Ferry Building
+    always: true  # the riders cannot see the clash on their own screens; one of them complains
+    wait_s: 3
+    report_text: "Booked at the Ferry Building and waited, but my driver went to pick up someone else. The rider next to me had the same driver and the same car on their app."
+ground_truth:
+  fix: fixes/BUG-026.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-026/test_concurrent_matching_hidden.py, repo: miniride-services, dest: dispatch/tests/test_concurrent_matching_hidden.py }
+  location: { repo: miniride-services, module: dispatch, file: dispatch/src/dispatch/app.py, function: request_ride }
+  rca_facts:
+    - 'Riders who book in the same city within the routing time (about 800 ms) of each other are matched with the same driver: two rides, one driver.'
+    - 'request_ride now picks the nearest free driver before the routing work and marks it busy only after it, so concurrent requests all read the same driver as free; the claim is a plain read-then-write, not a conditional update.'
+    - 'Regression introduced in 1.7.13 by "perf(dispatch): answer an empty market without the routing delay".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

@@ -157,7 +157,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [ ] **085** $ Live bisect arm on the real bugs that have a good release.
 - [x] **086** Non-pytest runners for bisect's per-case step (vitest `-t`, `go test -run`), tested on toy repos.
 - [x] **087** Two TypeScript and two Go real-bug cases following the ROADMAP's checklist (no model needed to add).
-- [ ] **088** Catalog growth: one concurrency bug and one data-migration bug with hidden tests (`make verify-scenarios`).
+- [x] **088** Catalog growth: one concurrency bug and one data-migration bug with hidden tests (`make verify-scenarios`).
 - [ ] **089** $ Rework D01, D13 and D14 and re-measure with three seeds on both arms (ROADMAP P18).
 - [ ] **090** A baseline agent arm (a plain tool-using agent, no plan) on the catalog, for comparison.
 
@@ -176,6 +176,14 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## Progress
 
+- 2026-10-19: 088 (BUG-026, concurrency: a dispatch speed-up picks the driver before the 800 ms routing work and
+  claims it after, so riders booking in the same city within that time share a driver; the fix claims with a
+  conditional update and moves on to the next driver. BUG-027, data migration: "drivers can go offline" adds
+  `drivers.online` without a default, so every driver already in the database is NULL and never matched; fresh
+  databases seed `online = TRUE`, so the repo's own tests pass. Its fix sets the default and backfills NULLs, and a
+  hidden test checks a database the buggy migration already touched. `debugassist scenario verify BUG-026 BUG-027`:
+  both pass. BUG-026's hidden test spaces riders 100 ms apart, so it fails on the regression (5/5) and passes on the
+  base release (5/5), whose own race window is milliseconds. Not yet triggered in the stack or run live.)
 - 2026-10-19: 048 (`integrations.installcache`: `Sandbox.install` on a fresh worktree looks up a key hashed from the
   image, the setup command, the component and every tracked manifest and lockfile; a hit copies the cached dependency
   directories in (clone on APFS, `--reflink` on Linux, never hard links), a miss installs and saves them before any

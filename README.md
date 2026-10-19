@@ -277,7 +277,7 @@ DebugAssist traced the crash to the commit that removed `await whenHydrated()` f
 
 ## 🧪 The bug catalog
 
-MiniRide is this project's own small ride-hailing system — a React web client and three services (GraphQL gateway in TypeScript, dispatch in Python/FastAPI, payments in Go) with OpenTelemetry, Postgres, Redis and Unleash flags. The catalog injects **25 bugs** into its two repos as natural-looking release commits that pass the repos' own lint and tests, then drives a **Playwright rider fleet** into them until Vitals or BugDrop notices.
+MiniRide is this project's own small ride-hailing system — a React web client and three services (GraphQL gateway in TypeScript, dispatch in Python/FastAPI, payments in Go) with OpenTelemetry, Postgres, Redis and Unleash flags. The catalog injects **27 bugs** into its two repos as natural-looking release commits that pass the repos' own lint and tests, then drives a **Playwright rider fleet** into them until Vitals or BugDrop notices. The evaluation numbers below cover the first 25; BUG-026 (a concurrency race) and BUG-027 (a data migration) were added after it and have not been run live yet.
 
 | Kind | Bugs | Examples |
 |---|---|---|

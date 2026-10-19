@@ -1,0 +1,66 @@
+diff --git a/dispatch/src/dispatch/app.py b/dispatch/src/dispatch/app.py
+index e834095..7f74bd6 100644
+--- a/dispatch/src/dispatch/app.py
++++ b/dispatch/src/dispatch/app.py
+@@ -14,7 +14,7 @@ from typing import Annotated, Any
+ from fastapi import Depends, FastAPI, HTTPException
+ from opentelemetry import metrics
+ from pydantic import BaseModel, Field
+-from sqlalchemy import select
++from sqlalchemy import select, update
+ from sqlalchemy.exc import IntegrityError
+ from sqlalchemy.orm import Session
+ 
+@@ -142,18 +142,34 @@ def request_ride(body: RideRequest, s: DB) -> RideOut:
+             )
+             rides_requested.add(1, {"outcome": "replayed", "city": body.city})
+             return to_out(existing, s.get(Driver, existing.driver_id) if existing.driver_id else None)
+-    try:
+-        driver = nearest_available_driver(s, body.city, Point(body.pickup.lat, body.pickup.lng))
+-    except NoDriversAvailable:
+-        rides_requested.add(1, {"outcome": "no_drivers", "city": body.city})
+-        telemetry.log(
+-            log, logging.WARNING, "no drivers available", city=body.city, session_id=body.session_id
++    ride_id = str(uuid.uuid4())
++    routed = False
++    while True:
++        try:
++            driver = nearest_available_driver(s, body.city, Point(body.pickup.lat, body.pickup.lng))
++        except NoDriversAvailable:
++            rides_requested.add(1, {"outcome": "no_drivers", "city": body.city})
++            telemetry.log(
++                log, logging.WARNING, "no drivers available", city=body.city, session_id=body.session_id
++            )
++            raise HTTPException(409, "no drivers available") from None
++        if not routed:
++            # Route only the driver we picked: an empty market answers at once instead of after the routing work.
++            time.sleep(MATCH_DELAY_S)
++            routed = True
++        # Another request may have taken this driver while we routed: claim it only if it is still free.
++        claimed = s.execute(
++            update(Driver)
++            .where(Driver.id == driver.id, Driver.busy_ride_id.is_(None))
++            .values(busy_ride_id=ride_id)
++            .execution_options(synchronize_session=False)
+         )
+-        raise HTTPException(409, "no drivers available") from None
+-    # Route only the driver we picked: an empty market answers at once instead of after the routing work.
+-    time.sleep(MATCH_DELAY_S)
++        if claimed.rowcount == 1:  # type: ignore[attr-defined]
++            s.refresh(driver)
++            break
++        s.rollback()
+     ride = Ride(
+-        id=str(uuid.uuid4()),
++        id=ride_id,
+         session_id=body.session_id,
+         idempotency_key=body.idempotency_key,
+         city=body.city,
+@@ -167,7 +183,6 @@ def request_ride(body: RideRequest, s: DB) -> RideOut:
+         status="driver_assigned",
+         assigned_at=datetime.now(UTC),
+     )
+-    driver.busy_ride_id = ride.id
+     s.add(ride)
+     try:
+         s.commit()

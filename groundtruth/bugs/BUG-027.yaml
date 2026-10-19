@@ -1,0 +1,32 @@
+id: BUG-027
+title: Nobody can book ("no drivers available" everywhere) after the drivers-can-go-offline release
+language: python
+component: dispatch
+owner_team: dispatch
+category: own_code
+priority: P0
+discovery: [bugdrop]
+injection:
+  base: v1.5.1
+  release: 1.7.14
+  repos:
+    miniride-services: [patches/BUG-027/0001-feat-dispatch-drivers-can-go-offline.patch]
+trigger:
+  scenario: booking_failures
+  params:
+    sessions: 6
+    report_text: "Every time I try to book it says no drivers available, in every city, even at the airport."
+ground_truth:
+  fix: fixes/BUG-027.patch
+  hidden_tests:
+    - { src: hidden_tests/BUG-027/test_upgrade_hidden.py, repo: miniride-services, dest: dispatch/tests/test_upgrade_hidden.py }
+  location: { repo: miniride-services, module: dispatch, file: dispatch/src/dispatch/db.py, function: migrate }
+  rca_facts:
+    - 'After the 1.7.14 deploy every ride request in every city fails with 409 "no drivers available", although the fleet is idle.'
+    - 'The startup migration adds drivers.online without a default, so every driver already in the database gets NULL; matching only takes drivers with online = TRUE. New databases (the unit tests, CI) seed drivers with online = TRUE, so nothing failed before the deploy.'
+    - 'A correct fix also backfills the rows the column was already added to (UPDATE ... SET online = TRUE WHERE online IS NULL), not only the column default.'
+    - 'Regression introduced in 1.7.14 by "feat(dispatch): drivers can go offline".'
+  mitigation: none
+validation:
+  cheapest_tier: unit
+expected_outcome: pr

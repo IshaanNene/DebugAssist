@@ -1,0 +1,20 @@
+diff --git a/dispatch/src/dispatch/db.py b/dispatch/src/dispatch/db.py
+index b2690d8..7ff7dc7 100644
+--- a/dispatch/src/dispatch/db.py
++++ b/dispatch/src/dispatch/db.py
+@@ -74,9 +74,12 @@ def make_engine(url: str | None = None) -> Engine:
+ def migrate(engine: Engine) -> None:
+     """Bring an existing database up to the current schema (create_all only creates missing tables)."""
+     columns = {c["name"] for c in inspect(engine).get_columns("drivers")}
+-    if "online" not in columns:
+-        with engine.begin() as conn:
+-            conn.execute(text("ALTER TABLE drivers ADD COLUMN online BOOLEAN"))
++    with engine.begin() as conn:
++        if "online" not in columns:
++            # Existing drivers were all working: they start online, like new ones.
++            conn.execute(text("ALTER TABLE drivers ADD COLUMN online BOOLEAN NOT NULL DEFAULT TRUE"))
++        # Rows the column was added to without a value (an earlier version of this migration).
++        conn.execute(text("UPDATE drivers SET online = TRUE WHERE online IS NULL"))
+ 
+ 
+ def make_sessionmaker(engine: Engine) -> sessionmaker[Session]:
