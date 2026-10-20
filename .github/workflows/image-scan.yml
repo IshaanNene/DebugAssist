@@ -1,0 +1,30 @@
+name: image-scan
+# ROADMAP-100 010: every agent type's runtime image (python:3.13-slim, git, the docker CLI, the agent's PEX) built
+# from this commit and scanned for fixable critical CVEs with a pinned, checksum-verified Trivy
+# (scripts/image_scan.sh). Called from ci.yml on every push and PR, and weekly here: an image can turn vulnerable
+# without any change to this repository. Python packages inside the PEX are not visible to the scanner; the audit job
+# in ci.yml covers them with pip-audit.
+on:
+  workflow_call:
+  schedule:
+    - cron: "41 4 * * 1"  # Mondays 04:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # configs/agent_types/*.yaml (test_image_scan_workflow keeps the two in step)
+        agent_type: [backend-error, github-issue, perf-regression, user-bug-report, web-crash]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: make image-scan AGENT_TYPES=${{ matrix.agent_type }}

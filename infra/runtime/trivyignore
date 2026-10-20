@@ -1,0 +1,3 @@
+# Critical findings accepted in the runtime images (scripts/image_scan.sh, ROADMAP-100 010).
+# One CVE id per line, with why it does not apply and when to look again, e.g.:
+#   CVE-2026-00000  # the vulnerable code path is not reachable: …; review 2026-12-01

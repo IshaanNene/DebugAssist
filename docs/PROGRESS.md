@@ -345,6 +345,21 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Runtime images scanned for critical CVEs (2026-10-20)
+
+- `make image-scan [AGENT_TYPES=…]` builds each agent type's runtime image from the working tree and runs
+  `scripts/image_scan.sh`: Trivy, failing on CRITICAL vulnerabilities that have a fixed version. CI runs it for all
+  five agent types on every push and PR (`.github/workflows/image-scan.yml`, called from `ci.yml`) and weekly,
+  since an image can turn vulnerable without a change here. Accepted findings: `infra/runtime/trivyignore`, one CVE
+  per line with why and a review date (none today).
+- Trivy itself is the supply-chain risk: in March 2026 its release and 76 of 77 `trivy-action` tags were replaced with
+  credential stealers (CVE-2026-33634). So no action: the script downloads the v0.75.0 tarball (released three weeks
+  before) and checks it against a SHA-256 committed in the script; a re-pointed tag or swapped asset fails.
+- First scan: one fixable critical — the docker CLI 28.5.1 in the image is built with Go 1.24.8 (CVE-2025-68121,
+  TLS session resumption skips certificate checks). Docker CLI 29.8.2 scans clean and still talks to the host's
+  daemon (API 1.51). The 28.5.1 image was kept long enough to confirm the script exits 1 on it.
+- Python packages inside the PEX are a zip the scanner does not open; the `audit` job's pip-audit covers them.
+
 ## Baseline agent arm, built (2026-10-20)
 
 - `debugassist baseline <issue>` (`pipeline/baseline.py`) and the eval config `baseline`: what any agent would get

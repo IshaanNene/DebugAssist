@@ -4,7 +4,7 @@ COMPOSE := docker compose -f infra/docker-compose.yml
 PROFILES ?= core obs flags faults target sources
 PROFILE_FLAGS := $(foreach p,$(PROFILES),--profile $(p))
 
-.PHONY: help langfuse eval-full eval eval-report deploy api dashboard lint-skills pex runtime-image worker demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check coverage doctor mutate up down ps logs clean clef-smoke
+.PHONY: help langfuse eval-full eval eval-report deploy api dashboard lint-skills pex runtime-image image-scan worker demo-push-crash report readme-assets screenshots targets seed flags e2e sync bootstrap sync-sdks trigger inject reset-scenario scenarios verify-scenarios traffic load lint fmt typecheck test check coverage doctor mutate up down ps logs clean clef-smoke
 
 help:  ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -143,6 +143,11 @@ pex:  ## Build an agent type's PEX and store it in MinIO: make pex AGENT_TYPE=pe
 
 runtime-image:  ## Build an agent type's runtime image from its PEX: make runtime-image AGENT_TYPE=perf-regression
 	uv run --no-sync debugassist harness image $(AGENT_TYPE)
+
+AGENT_TYPES ?= $(basename $(notdir $(wildcard configs/agent_types/*.yaml)))
+image-scan:  ## Build the runtime images and fail on fixable critical CVEs (pinned Trivy): make image-scan [AGENT_TYPES=web-crash]
+	@for t in $(AGENT_TYPES); do uv run --no-sync debugassist harness pex $$t --no-upload && uv run --no-sync debugassist harness image $$t || exit 1; done
+	scripts/image_scan.sh $(foreach t,$(AGENT_TYPES),debugassist/runtime-$(t))
 
 worker:  ## Process queued issues (Redis + Arq), each in its agent type's runtime container
 	uv run --no-sync debugassist harness worker
