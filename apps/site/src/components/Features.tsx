@@ -78,13 +78,13 @@ const FEATURES: { title: string; body: string; art: ReactNode }[] = [
   },
   {
     title: "Sandboxed and policy-gated",
-    body: "Agents work in a network-less container on a git worktree. Every write — PR, ticket, flag — passes a policy gate and an audit log.",
+    body: "Agents work in a network-less container on a git worktree the host reads only through guards — no symlinks out, no .git, no secrets. Dependencies install once per lockfile and are copied into later runs. Every write — PR, ticket, flag — passes a policy gate and an audit log.",
     art: (
       <div className="grid grid-cols-2 gap-2.5">
         <div className={slab}>--network none</div>
         <div className={slab}>git worktree</div>
         <div className={`${slab} col-span-2 bg-[#f6f87e]`}>policy gate · bot branches only</div>
-        <div className={slab}>dry-run</div>
+        <div className={slab}>install cache</div>
         <div className={slab}>audit log</div>
       </div>
     ),

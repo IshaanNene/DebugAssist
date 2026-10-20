@@ -101,7 +101,7 @@ export interface Results {
   ablation: Ablation | null;
   ours: Record<string, boolean>;
   stats: { label: string; value: string; tone: "cyan" | "green" | "violet" | "amber" | "muted" }[];
-  catalog: { total: number; code: number; notOurs: number };
+  catalog: { total: number; code: number; notOurs: number; evaluated: number };
 }
 
 const yes = (v: string) => v === "True";
@@ -184,6 +184,9 @@ export function results(model = "gpt-6-luna"): Results {
   const ours = Object.fromEntries(Object.entries(outcomes).map(([b, o]) => [b, o === "pr"]));
   const total = Object.keys(outcomes).length;
   const baseline = all.filter((r) => !r.arm).sort((a, b) => a.bug.localeCompare(b.bug));
+  // Bugs the full-catalog run covered: bugs added to the catalog later have no results yet, and must not stop a
+  // re-run of every evaluated bug from counting as a full one.
+  const evaluated = new Set(baseline.map((r) => r.bug)).size || total;
 
   // Arms in run order; an arm that covers the whole catalog is a full re-run and becomes the headline.
   const order: string[] = [];
@@ -192,7 +195,7 @@ export function results(model = "gpt-6-luna"): Results {
     if (!order.includes(r.arm)) order.push(r.arm);
     (armRows[r.arm] ??= []).push(r);
   }
-  const full = order.filter((a) => new Set(armRows[a].map((r) => r.bug)).size >= total);
+  const full = order.filter((a) => new Set(armRows[a].map((r) => r.bug)).size >= evaluated);
   const headArm = full[full.length - 1];
   const baseRows = headArm ? armRows[headArm] : baseline;
   const seedsOf = (rs: Row[], bug: string) => rs.filter((r) => r.bug === bug).length;
@@ -284,6 +287,7 @@ export function results(model = "gpt-6-luna"): Results {
       total,
       code: Object.values(outcomes).filter((o) => o === "pr").length,
       notOurs: Object.values(outcomes).filter((o) => o !== "pr").length,
+      evaluated,
     },
   };
 }
