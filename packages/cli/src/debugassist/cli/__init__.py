@@ -8,7 +8,7 @@ from debugassist.decisions.cli import decide, list_templates, modes
 from debugassist.evals.cli import app as eval_app
 from debugassist.harness.cli import app as harness_app
 from debugassist.pipeline.app_cli import app as github_app
-from debugassist.pipeline.cli import ask, audit, feedback_cmd, fix_diff, open_run, prune, run, watch
+from debugassist.pipeline.cli import ask, audit, baseline, feedback_cmd, fix_diff, open_run, prune, run, watch
 from debugassist.pipeline.report import report
 from debugassist.scenarios.cli import app as scenario_app
 
@@ -17,6 +17,7 @@ app.command()(decide)
 app.command("templates")(list_templates)
 app.command()(modes)
 app.command()(run)
+app.command()(baseline)
 app.command()(report)
 app.command()(watch)
 app.command("fix-diff")(fix_diff)

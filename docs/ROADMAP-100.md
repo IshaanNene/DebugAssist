@@ -176,6 +176,14 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## Progress
 
+- 2026-10-20: 090 built, not yet run (`pipeline/baseline.py`, `debugassist baseline <issue>`, eval config
+  `baseline`): the same intake and a worktree at the release with dependencies installed, then one agent with the
+  RCA's evidence tools and file and shell tools, the RCA's and the fix's limits added together, and a generic prompt
+  — no evidence bundle, decisions, subagents, grounding, reproduction contract, validation or ship gate. A root cause
+  named in another target repo moves the worktree with the pipeline's own `crossrepo.retarget`, once. Its result is
+  written in the pipeline's run format, so `evals.score` grades it unchanged, hidden tests included. Stays open until
+  the live arm has run: `debugassist eval estimate --configs baseline --seeds 3` says $2.11 for the 27 bugs at the
+  pipeline's average cost per run; the baseline's own cap is $1.50 a run.)
 - 2026-10-19: 088 (BUG-026, concurrency: a dispatch speed-up picks the driver before the 800 ms routing work and
   claims it after, so riders booking in the same city within that time share a driver; the fix claims with a
   conditional update and moves on to the next driver. BUG-027, data migration: "drivers can go offline" adds

@@ -160,7 +160,7 @@ def timings(run_id: str, state: dict[str, Any]) -> dict[str, float | None]:
     issue = _obj(state.get("issue"))
     opened = issue.get("opened_at")
     nodes = sorted((RUNS / run_id / "nodes").glob("*.json"))
-    rca = next((n for n in nodes if n.stem.endswith("classify_rca")), None)
+    rca = next((n for n in nodes if n.stem.endswith(("classify_rca", "baseline"))), None)
     end = nodes[-1] if nodes else None
     start = datetime.fromisoformat(str(opened)) if opened else None
     rca_t, end_t = (_ts(rca) if rca else None), (_ts(end) if end else None)

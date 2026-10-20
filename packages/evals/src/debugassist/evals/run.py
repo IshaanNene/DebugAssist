@@ -56,6 +56,7 @@ CONFIGS: dict[str, dict[str, str]] = {
     "context-clear": {"DA_CONTEXT": "clear"},  # P15: old tool results stubbed in batches (cache-friendly)
     "context-compact": {"DA_CONTEXT": "compact"},  # P15: older steps folded into working notes
     "context-concise": {"DA_CONTEXT": "concise"},  # P15: compact JSON, top-k lists, clipped long fields
+    "baseline": {},  # ROADMAP-100 090: one plain tool-using agent, no plan (`debugassist baseline`)
 }
 MOCK_WRITES = {"DA_MODE_GITHUB": "mock", "DA_MODE_JIRA": "mock", "DA_MODE_CHAT": "mock"}
 
@@ -110,7 +111,10 @@ def run_pipeline(
     issue: str, config: str, seed: int, until: str | None, log: Callable[[str], None] = print
 ) -> str | None:
     env = {**os.environ, **MOCK_WRITES, **CONFIGS[config], "DA_LLM_SEED": str(seed)}
-    args = [str(CLI), "run", issue, "--llm", "live"] + (["--until", until] if until else [])
+    if config == "baseline":  # no plan, so no step to stop after
+        args = [str(CLI), "baseline", issue, "--llm", "live"]
+    else:
+        args = [str(CLI), "run", issue, "--llm", "live"] + (["--until", until] if until else [])
     p = subprocess.run(args, env=env, capture_output=True, text=True, cwd=ROOT, timeout=5400)
     m = re.search(r"^run (\S+) \(", p.stdout, re.M)
     if not m:
