@@ -4,7 +4,7 @@
 FROM python:3.13-slim
 ARG AGENT_TYPE
 ARG PEX
-ARG DOCKER_CLI_VERSION=28.5.1
+ARG DOCKER_CLI_VERSION=29.8.2
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl \
  && curl -fsSL "https://download.docker.com/linux/static/stable/$(uname -m)/docker-${DOCKER_CLI_VERSION}.tgz" \
     | tar -xz -C /usr/local/bin --strip-components=1 docker/docker \

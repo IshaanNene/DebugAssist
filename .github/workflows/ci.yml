@@ -79,6 +79,10 @@ jobs:
       - run: pnpm lint
       - run: pnpm build
 
+  image-scan:
+    # The runtime images, scanned for fixable critical CVEs (ROADMAP-100 010); also weekly from the workflow itself.
+    uses: ./.github/workflows/image-scan.yml
+
   compose:
     runs-on: ubuntu-latest
     steps:

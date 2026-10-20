@@ -27,7 +27,7 @@ Tasks without a mark can be done and checked offline with `make check`.
 - [x] **008** Narrow the runtime image's `safe.directory '*'` to the mounted checkout path, with a test that the
   image config names no wildcard.
 - [x] **009** Secret scanning in CI (gitleaks or an equivalent pinned tool) over the diff of each push and PR.
-- [ ] **010** D Container image scan (Trivy or equivalent) of the runtime images in CI, failing on critical CVEs.
+- [x] **010** D Container image scan (Trivy or equivalent) of the runtime images in CI, failing on critical CVEs.
 
 ## B · Correctness and validation
 
@@ -176,6 +176,13 @@ Tasks without a mark can be done and checked offline with `make check`.
 
 ## Progress
 
+- 2026-10-20: 010 (`make image-scan` / `scripts/image_scan.sh`, workflow `image-scan.yml`, called from CI on every
+  push and PR and run weekly: each agent type's runtime image built from the commit and scanned with Trivy 0.75.0,
+  failing on fixable CRITICAL CVEs; accepted findings go in `infra/runtime/trivyignore` with a reason. Trivy is a
+  pinned release tarball checked against a committed SHA-256, not trivy-action, whose tags were force-pushed to
+  malicious commits in March 2026. The first local scan failed on the image as it was: the docker CLI 28.5.1 binary
+  was built with Go 1.24.8 (CVE-2025-68121, crypto/tls) → docker CLI 29.8.2; now clean, and the old image is
+  confirmed to fail the job. Python packages inside the PEX are invisible to the scanner; pip-audit covers them.)
 - 2026-10-20: 090 built, not yet run (`pipeline/baseline.py`, `debugassist baseline <issue>`, eval config
   `baseline`): the same intake and a worktree at the release with dependencies installed, then one agent with the
   RCA's evidence tools and file and shell tools, the RCA's and the fix's limits added together, and a generic prompt

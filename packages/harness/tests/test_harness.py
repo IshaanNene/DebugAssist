@@ -217,3 +217,14 @@ def test_the_runtime_image_trusts_only_the_mounted_checkout() -> None:
     assert "safe.directory '*'" not in dockerfile and "safe.directory *" not in dockerfile
     cmd = launcher.container_command("web-crash", "VIT-1001", [])
     assert f"GIT_CONFIG_VALUE_0={ROOT}/*" in cmd and "GIT_CONFIG_KEY_0=safe.directory" in cmd
+
+
+def test_runtime_images_are_named_as_the_image_scan_expects() -> None:
+    """`make image-scan` scans debugassist/runtime-<type> for every agent type (ROADMAP-100 010)."""
+    types = agent_types.all_types()
+    assert types and all(t.runtime_image == f"debugassist/runtime-{name}" for name, t in types.items())
+
+
+def test_image_scan_workflow_covers_every_agent_type() -> None:
+    wf = yaml.safe_load((launcher.ROOT / ".github" / "workflows" / "image-scan.yml").read_text())
+    assert sorted(wf["jobs"]["scan"]["strategy"]["matrix"]["agent_type"]) == sorted(agent_types.all_types())
