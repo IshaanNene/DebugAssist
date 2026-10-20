@@ -257,8 +257,10 @@ export default function Home() {
           <Lead className="mt-5">
             {data.catalog.total} bugs injected into a small ride-hailing app as natural-looking release commits —{" "}
             {data.catalog.code} that need a code fix, {data.catalog.notOurs} where the right answer is to route it. The
-            agent never sees the answer key; an evaluator scores its root cause and runs hidden tests on its fix. Built
-            from{" "}
+            agent never sees the answer key; an evaluator scores its root cause and runs hidden tests on its fix.
+            {data.catalog.evaluated < data.catalog.total &&
+              ` The results cover the first ${data.catalog.evaluated}; the ${data.catalog.total - data.catalog.evaluated} added since have not been run yet.`}{" "}
+            Built from{" "}
             <a className="text-t1 underline underline-offset-2" href={report}>
               evals/reports/{data.report}
             </a>
@@ -861,6 +863,7 @@ const FAQ: [string, string][] = [
   ["Can I run it on my own repository?", "Yes, through the GitHub App: install it on the repository, add a .DebugAssist/pipeline.yaml saying how to install and test it, and label an issue debugassist. It checks out the default branch, investigates in a network-less sandbox, comments the root cause on the issue and, when a fix validates, opens a draft pull request. It is built and tested against a fake GitHub API and a mock; it has not yet run on a live repository."],
   ["How does it know which commit broke something?", "The root-cause step names a suspect by reading history. With the bisect proof on, the validated reproduction test is also run back through earlier releases until it passes, then git bisect finds the first commit where it fails — a result anyone can re-run. On python-semver#484 it found the change the reporter blamed, where the reading had named a later one."],
   ["How are the results measured?", "Each catalog bug is injected as a natural-looking commit, triggered by simulated riders, and discovered by the crash and bug-report sources. The agent's root cause is scored against an answer key it never sees, and hidden tests run on its fix. Every number on this page is read from the generated reports when the site is built."],
+  ["Would a plain agent do as well?", "That is what the baseline arm is for: one tool-using agent on the same issue, the same release worktree and the same evidence and code tools, with the root cause's and the fix's limits combined — and none of the plan: no evidence bundle, decisions, reproduction contract or validation. It is graded by the same scorer and hidden tests. It is built and tested offline; it has not been run on the catalog yet, so there is no comparison to show."],
   ["Which models does it use?", "Any OpenAI-compatible API. The evaluation on this page ran on openai/gpt-6-luna through OpenRouter; decisions run on Cloudflare Clef."],
   ["Is it affiliated with Uber, Cloudflare or anyone named here?", "No. It is an independent project inspired by a public talk on MCP-powered crash investigation. Vitals and BugDrop are its own stand-ins for crash analytics and in-app bug reports."],
 ];
