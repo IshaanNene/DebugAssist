@@ -284,6 +284,13 @@ Format: **symptom** → cause → fix · *guard*.
   and `make check` hung and a replay was killed. → Restored from git (delete, then check out), `.venv` rebuilt.
   *Lesson: when every tool hangs at once, check the file system before the tools — and keep a working repo out of
   synced folders.*
+- **iCloud evicted the git objects next, and git just waited.** A measurement stalled for ten minutes inside `git
+  worktree add`, sleeping at 0% CPU: `sample` showed it blocked in `mmap` of a loose object. 96 of
+  `miniride-client`'s git objects (and a few elsewhere) were `dataless`, and with the disk 97% full iCloud never
+  brought them back; `brctl download` did not help. `find -flags dataless` had reported none — the check itself was
+  wrong; `ls -lOR .git | grep dataless` found them. → Measured the repos that were intact, outside the synced folder
+  (`--base`), and said which one could not be. *Lesson: a process asleep at 0% CPU is waiting on something; sample
+  it before restarting it — and verify a check finds the thing before trusting its "none".*
 - **A scratch script is not a source for published numbers.** The first replay ran from a throwaway script and its
   "11 of 12" went into the README. → `debugassist eval replay-variants` writes its result into the report, which
   renders it; the README cites that. *Lesson: if a number is worth publishing, make the command that made it part
@@ -302,6 +309,34 @@ Format: **symptom** → cause → fix · *guard*.
 - **One expensive run can carry an arm's average.** A single bug's three max-length fix attempts (after D14 picked
   the e2e tier) were most of the lean arm's token total. → Read per-bug numbers before averages; the report keeps
   per-run rows next to the arm table.
+
+- **A race that never fires is not a catalog bug.** The first concurrency design was an unlocked Go map in the
+  fare handler; the trigger sends a few quotes a second, so two writes would almost never overlap, and the scenario
+  would not reproduce. → A race whose window is a whole step (800 ms of routing between reading a free driver and
+  claiming it). *Lesson: size a race's window against the traffic that has to hit it.*
+- **The base release had the race too.** The first hidden test fired four bookings at once and failed on the base
+  as well as the regression: the old read-then-write is a race with a millisecond window, and simultaneous
+  requests hit it. → Riders 100 ms apart: 5/5 failures on the regression, 5/5 passes on the base. *Lesson: a hidden
+  test for a regression must pass on the release before it, checked several times — not just fail after it.*
+- **A migration bug is invisible on a fresh database.** The regression's own test passed because the fixture seeds a
+  new database, where every driver is created online. → Hidden tests that start from the previous release's table
+  with drivers in it, and from one the buggy migration already touched, so a fix that only adds a column default
+  (and leaves the deployed NULLs) fails. *Lesson: test an upgrade from the state production is actually in.*
+- **A growing denominator moved the headline.** The site chose its headline from the latest re-run covering "every
+  bug in the catalog"; two new, unrun bugs meant no re-run qualified, and the headline would have fallen back to
+  the first run. Caught while updating the site's copy, not by a test. → "Full" means every bug the full run
+  evaluated. *Lesson: a threshold computed from the catalog changes meaning when the catalog grows; tie it to what
+  was measured.*
+- **A package split hid code from its scanners.** Splitting `nodes.py` into a package (ROADMAP-100 031) moved code one
+  directory down; three source scanners — the typing ratchet, the gated-writes scan, the environment-write scan —
+  globbed `pipeline/*.py` and would have stopped seeing every node without failing. → `rglob`, caught in the same
+  change while checking that the tests still covered the moved code. *Lesson: a check that reads files by path breaks silently when
+  the files move; grep for those reads in the same change.*
+- **One object found two unguarded reads.** Moving every host access to a run's worktree into `Workspace`
+  (ROADMAP-100 036) turned up two reads that had joined untrusted paths onto the worktree: every `git grep` hit in
+  the usage collector, and the file the RCA named in fix planning — either would have followed a tracked symlink
+  out of the worktree. → Both through the guards, and a test that fails on any new `hostgit` call, worktree join or
+  walk in `pipeline/`. *Lesson: a boundary spread across helpers has gaps nobody sees; one door makes them visible.*
 
 ## 8. Process
 
@@ -352,3 +387,7 @@ Format: **symptom** → cause → fix · *guard*.
    (prompt rules, an independent test writer, the same with the repo's usages) passed the same narrow fixes; about 430
    lines of `ast` and `inspect` that enumerate the other spellings of a call caught them. Replay any such
    check on every fix already made before running it live, and say when it was shaped by the answer key.
+
+8. **Measure against a plain agent before crediting the plan.** Every result here compares the pipeline with
+   itself; the baseline arm (one agent, same tools, no plan) is the comparison that says whether the plan earns its
+   cost — built, and still to run.

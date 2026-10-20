@@ -226,18 +226,30 @@ token comparison, Quickstart.
   when the whole file never passes). `debugassist eval replay-bisect` on 30 earlier tests: python-semver#484 bisects
   to #462 — the change the report blames — in 3/3 runs, where the RCA named a later commit; the other four real
   bugs have no good release in their checkout's history. Next: a live arm; non-pytest runners (vitest `-t`, `go
-  test -run`) for the per-case step; bisecting across release branches (cachetools' last good release, 6.2.0, is on
+  test -run`) for the per-case step — done 2026-10-17 (ROADMAP-100 086); bisecting across release branches (cachetools' last good release, 6.2.0, is on
   one); and scoring "introduced by" against a known culprit — the catalog's are one commit by construction, so it
   needs real regressions.
 - **GitHub App — built 2026-10-16, not yet live.** `debugassist app status|poll`, `/github/webhook`, `GHA:` issues
   checked out at the default branch, draft PRs and an issue comment as the app (ADR 0008: an installation is the
   opt-in, plus `.DebugAssist/pipeline.yaml`). Next: create the app and run it on one real repository; a hosted
   worker; CI failures as input; per-repository budgets; the PR comment loop for app repositories.
-- Grow the catalog: concurrency bugs, data migrations, memory leaks, third-party API changes, security fixes.
-- The external benchmark arm (SWE-bench subset) and a baseline agent (P16).
+- **Grow the catalog — a concurrency bug and a data migration added 2026-10-19, not yet run.** BUG-026 (dispatch
+  picks the driver before the 800 ms routing work and claims it after, so riders booking together share a driver)
+  and BUG-027 (a migration adds `drivers.online` with no default, so every existing driver is NULL and never
+  matched; fresh databases in CI seed them online). Both pass `debugassist scenario verify`; neither has been
+  triggered in the stack or run through the pipeline. Next: run them (the README's numbers stay the 25-bug runs
+  until then); memory leaks, third-party API changes, security fixes.
+- **A baseline agent — built 2026-10-20, not yet run.** The question every number above leaves open: how much does
+  the plan add over a plain agent? `debugassist baseline` / eval config `baseline`: the same intake, release
+  worktree and tools, the RCA's and the fix's limits combined, one generic prompt, and none of the plan (evidence
+  bundle, decisions, subagents, grounding, the reproduction contract, validation, the ship gate); graded by the same
+  scorer and hidden tests. Next: three seeds on the catalog and the real bugs (estimate $2.11 at the pipeline's
+  average run cost; its own cap is $1.50 a run), compared lane by lane with the main arm. A plan that does not
+  beat it on root cause and hidden tests is overhead.
+- The external benchmark arm (SWE-bench subset).
 
 ## Later
 
 - **DebugAssist as a tool for coding agents**: an MCP server and a `SKILL.md` so Claude Code, Cursor or Codex can
   ask it "investigate VIT-1001" and get the RCA and proof back.
-- A GitHub App instead of a token; a Helm chart; multi-tenant runs.
+- A Helm chart; multi-tenant runs. (The GitHub App is built — see P18.)
