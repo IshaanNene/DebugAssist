@@ -345,6 +345,22 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
 
+## Baseline agent arm, built (2026-10-20)
+
+- `debugassist baseline <issue>` (`pipeline/baseline.py`) and the eval config `baseline`: what any agent would get
+  and nothing the plan adds. The same intake; a worktree at the shipped release with dependencies installed; one
+  agent with the evidence tools (MCP servers) the agent type gives the RCA step plus file and shell tools; the RCA's
+  and the fix's turn, tool-call and budget limits added together; a generic on-call prompt. No evidence bundle,
+  triage, decisions, subagents, grounding check, reproduce-then-fix contract, validation or ship gate.
+- One concession, so services bugs reported from the app are not lost on a technicality: when the agent names a
+  root cause in the other MiniRide repository without changing code, the pipeline's own `crossrepo.retarget` moves
+  its worktree there and it continues once, told what it found.
+- It runs through the pipeline's node wrapper (state files, tracing, run values for the code tools) and writes the
+  pipeline's run format, so `evals.score` grades it unchanged — RCA verdict, outcome, hidden tests on its final
+  worktree. `validated` is always false; the outcome is draft_pr with a change, rca_only without.
+- Tested offline with a scripted agent on toy repositories (limits, tools, prompt fencing, the hand-off, scoring).
+  Not run live yet: the estimate for 27 bugs × 3 seeds is $2.11 at the pipeline's average run cost.
+
 ## Catalog: a concurrency bug and a data-migration bug (2026-10-19)
 
 - **BUG-026** (dispatch, P1). "perf(dispatch): answer an empty market without the routing delay" picks the nearest free

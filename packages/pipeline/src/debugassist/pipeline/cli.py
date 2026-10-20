@@ -8,6 +8,7 @@ import logging
 import sqlite3
 import sys
 from collections import Counter
+from collections.abc import Mapping
 from typing import Annotated, Any, cast
 
 import httpx
@@ -223,7 +224,7 @@ def run(
         progress.setLevel(logging.INFO)
         progress.propagate = False
 
-    def _last_node(values: dict[str, Any]) -> str | None:
+    def _last_node(values: Mapping[str, object]) -> str | None:
         """Runs stopped before `stopped_after` existed: the last node that recorded a timing."""
         timings = list(cast(dict[str, int], values.get("timings_ms") or {}))
         return timings[-1] if timings else None
@@ -326,6 +327,34 @@ def prune(
     )
     if apply:
         retention.prune(items)
+
+
+def baseline(
+    issue: Annotated[str, typer.Argument(help="Vitals issue (VIT-…) or BugDrop report (BD-…)")],
+    llm: Annotated[str, typer.Option(help="live | replay | mock")] = "live",
+) -> None:
+    """The baseline arm (ROADMAP-100 090): one plain tool-using agent on the issue, no plan around it."""
+    from debugassist.pipeline import baseline as baseline_mod
+
+    async def main() -> RunState:
+        run_id = new_run_id(issue)
+        deps = await build_deps(run_id, mode="autonomous", llm_mode=llm)
+        typer.echo(f"run {run_id} (baseline, LLM {llm}); artifacts in .data/runs/{run_id}/")
+        start = RunState.model_validate({"run_id": run_id, "issue_ref": issue, "llm_mode": llm})
+        try:
+            with tracing.session(run_id, issue=issue):
+                return await baseline_mod.run(start, deps, log=lambda m: typer.echo(f"  {m}"))
+        finally:
+            if deps.engine.ledger is not None:
+                await deps.engine.ledger.close()
+
+    s = asyncio.run(main())
+    out = s.rca.output if s.rca else None
+    typer.echo(
+        f"status {s.status} · outcome {s.ship.outcome if s.ship else '—'} · ${sum(s.costs.values()):.3f}"
+    )
+    if out:
+        typer.echo(f"  {out.category} · {out.location.repo}/{out.location.file} → {out.location.function}")
 
 
 def watch(
