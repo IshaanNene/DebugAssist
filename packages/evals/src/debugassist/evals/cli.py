@@ -233,6 +233,31 @@ def replay_bisect(
 
 
 @app.command()
+def timings(
+    report_dir: Annotated[
+        Path | None,
+        typer.Option("--report", help="evals/reports/<date> (default: the latest with a results.csv)"),
+    ] = None,
+) -> None:
+    """Per-step timings of every run in a report, from the run store — writes run-timings.json next to the
+    report's results.csv for the site's run replays."""
+    import csv
+
+    from debugassist.evals import timings as tm
+
+    if report_dir is None:
+        reports = sorted(p for p in (ROOT / "evals" / "reports").iterdir() if (p / "results.csv").is_file())
+        report_dir = reports[-1]
+    rows = list(csv.DictReader((report_dir / "results.csv").open()))
+    data = tm.export([r["run_id"] for r in rows if r.get("run_id")], ROOT / ".data" / "runs")
+    (report_dir / "run-timings.json").write_text(json.dumps(data, indent=2) + "\n")
+    typer.echo(
+        f"timings of {len(data['runs'])} runs ({len(data['missing'])} not in the store): "
+        f"{report_dir / 'run-timings.json'}"
+    )
+
+
+@app.command()
 def latency(
     runs_dir: Annotated[Path, typer.Option(help="directory of run directories")] = ROOT / ".data" / "runs",
     since: Annotated[
@@ -389,4 +414,8 @@ def report(
     out = rep.write(
         dirs, e1, asyncio.run(points()), taus, notes.read_text() if notes else "", run_ids=run_ids
     )
+    from debugassist.evals import timings as tm
+
+    steps = tm.export(sorted(run_ids), ROOT / ".data" / "runs")
+    (out / "run-timings.json").write_text(json.dumps(steps, indent=2) + "\n")
     typer.echo(f"report: {out / 'report.md'}")

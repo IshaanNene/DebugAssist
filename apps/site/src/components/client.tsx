@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
-import type { FeaturedRun } from "@/lib/data";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 
 /** A plain section; its entrance is handled by `.fx` children and the Motion observer. */
 export function Reveal({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
@@ -77,19 +76,10 @@ export function Motion() {
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(frame);
     };
-    const onPointer = (e: PointerEvent) => {
-      const card = (e.target as HTMLElement | null)?.closest<HTMLElement>(".spot");
-      if (!card) return;
-      const r = card.getBoundingClientRect();
-      card.style.setProperty("--mx", `${e.clientX - r.left}px`);
-      card.style.setProperty("--my", `${e.clientY - r.top}px`);
-    };
     frame();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
-    document.addEventListener("pointermove", onPointer, { passive: true });
     return () => {
-      document.removeEventListener("pointermove", onPointer);
       io.disconnect();
       mo.disconnect();
       window.removeEventListener("scroll", onScroll);
@@ -138,106 +128,52 @@ export function Shortcuts({ map }: { map: Record<string, string> }) {
   return null;
 }
 
-type Kind = "code" | "llm" | "clef" | "ok";
-interface Line {
-  step: string;
-  kind: Kind;
-  text: ReactNode;
-}
+type Theme = "system" | "dark" | "light";
+const THEME_EVENT = "da-theme";
+const readTheme = (): Theme => {
+  const t = document.documentElement.getAttribute("data-theme");
+  return t === "dark" || t === "light" ? t : "system";
+};
+const subscribeTheme = (cb: () => void) => {
+  window.addEventListener(THEME_EVENT, cb);
+  return () => window.removeEventListener(THEME_EVENT, cb);
+};
 
-const DOT: Record<Kind, string> = { code: "#cfcfc9", llm: "#8b7cf0", clef: "#e0901b", ok: "#3f8f4f" };
-
-/** The hero card: one real baseline run from the report, replayed line by line, on a loop. */
-export function LiveRun({ run, model }: { run: FeaturedRun; model: string }) {
-  const lines: Line[] = [
-    { step: "ingest", kind: "code", text: <>{run.issue} · {run.agentType}</> },
-    { step: "triage", kind: "clef", text: <>priority by Clef · owner from CODEOWNERS</> },
-    { step: "context", kind: "code", text: <>evidence bundle from the MCP servers</> },
-    {
-      step: "root cause",
-      kind: "llm",
-      text: (
-        <>
-          <span className="text-t1">{run.location}</span>
-        </>
-      ),
-    },
-    {
-      step: "grounding",
-      kind: "code",
-      text: (
-        <>
-          {run.claims} claims · {run.unsupported} unsupported
-        </>
-      ),
-    },
-    { step: "reproduce", kind: "llm", text: <>{run.tier} test fails on the shipped release</> },
-    { step: "fix", kind: "llm", text: <>test passes · suite green</> },
-    {
-      step: "hidden test",
-      kind: "ok",
-      text: (
-        <>
-          <span className="text-good">passed</span> · {run.hiddenTest.split("/").pop()}
-        </>
-      ),
-    },
+/** Auto follows the system setting; Night and Day pin a theme (the boot script in the layout restores it). */
+export function ThemeToggle() {
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, (): Theme => "system");
+  const choose = (t: Theme) => {
+    const d = document.documentElement;
+    if (t === "system") d.removeAttribute("data-theme");
+    else d.setAttribute("data-theme", t);
+    try {
+      if (t === "system") localStorage.removeItem("da-theme");
+      else localStorage.setItem("da-theme", t);
+    } catch {
+      // storage blocked: the choice still holds for this page view
+    }
+    window.dispatchEvent(new Event(THEME_EVENT));
+  };
+  const options: [Theme, string][] = [
+    ["system", "Auto"],
+    ["dark", "Night"],
+    ["light", "Day"],
   ];
-  const [n, setN] = useState(lines.length);
-  useEffect(() => {
-    if (reduced()) return;
-    let i = 0;
-    const reset = setTimeout(() => setN(0), 0); // server-rendered complete; replay from the start
-    const t = setInterval(() => {
-      i += 1;
-      if (i > lines.length + 6) i = 0; // hold the finished run for a moment, then replay
-      setN(Math.min(i, lines.length));
-    }, 650);
-    return () => {
-      clearTimeout(reset);
-      clearInterval(t);
-    };
-  }, [lines.length]);
-  const done = n >= lines.length;
-
   return (
-    <div className="cbox float-card bg-[#fdfdfb] shadow-[0_30px_60px_-30px_rgba(40,38,30,0.35)]">
-      <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
-        <div className="flex items-center gap-2 font-mono text-[11px] text-t3">
-          <span className={`inline-block h-2 w-2 rounded-full ${done ? "bg-good" : "pulse bg-[#e0901b]"}`} />
-          {done ? "run finished" : "running"} · {run.bug}
-        </div>
-        <span className="font-mono text-[10.5px] text-t4">{model}</span>
-      </div>
-      <ol className="space-y-0 px-4 py-3 font-mono text-[12px] leading-[1.5]">
-        {lines.map((l, i) => (
-          <li
-            key={l.step}
-            className={`grid grid-cols-[14px_92px_1fr] items-start gap-2 py-[5px] transition-all duration-300 ${
-              i < n ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
-            }`}
-          >
-            <span className="mt-[5px] inline-block h-2 w-2 rounded-full border border-t2" style={{ background: DOT[l.kind] }} />
-            <span className="text-t3">{l.step}</span>
-            <span className="min-w-0 break-words text-t2">
-              {l.text}
-              {i === n - 1 && !done && <span className="caret" />}
-            </span>
-          </li>
-        ))}
-      </ol>
-      <div className="grid grid-cols-3 border-t border-line font-mono text-[11px]">
-        {[
-          ["cost", `$${run.usd.toFixed(3)}`],
-          ["agent turns", String(run.turns)],
-          ["wall time", `${Math.round(run.wallS)} s`],
-        ].map(([k, v], i) => (
-          <div key={k} className={`px-4 py-2.5 ${i ? "border-l border-line" : ""}`}>
-            <div className="text-t4">{k}</div>
-            <div className={`mt-0.5 text-[13px] transition-opacity duration-500 ${done ? "text-t1 opacity-100" : "opacity-30"}`}>{v}</div>
-          </div>
-        ))}
-      </div>
+    <div role="group" aria-label="Theme" className="hidden rounded-full border border-line p-0.5 sm:inline-flex">
+      {options.map(([t, label]) => (
+        <button
+          key={t}
+          type="button"
+          aria-pressed={theme === t}
+          onClick={() => choose(t)}
+          className={`rounded-full px-2.5 py-1 font-mono text-[10.5px] tracking-[0.03em] transition-colors ${
+            theme === t ? "bg-raised text-t1 shadow-[inset_0_0_0_1px_var(--line-2)]" : "text-t3 hover:text-t1"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }

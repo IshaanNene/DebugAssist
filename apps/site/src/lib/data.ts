@@ -344,6 +344,8 @@ export interface FeaturedRun {
   hiddenTest: string;
   turns: number;
   usd: number;
+  llmUsd: number;
+  clefUsd: number;
   wallS: number;
   decisions: number;
 }
@@ -373,8 +375,32 @@ export function featuredRun(data: Results): FeaturedRun | null {
     hiddenTest,
     turns: Number(r.turns),
     usd: Number(r.usd),
+    llmUsd: Number(r.llm_usd),
+    clefUsd: Number(r.clef_usd),
     wallS: Number(r.wall_s),
     decisions: Number(r.labelled_decisions),
+  };
+}
+
+/** One run's pipeline steps in execution order, from `debugassist eval timings` (run-timings.json in the report). */
+export interface RunTimings {
+  runId: string;
+  steps: { node: string; kind: string; startMs: number; ms: number }[];
+  stepsMs: number; // the steps' sum; the run's wall time also counts the time between them
+}
+
+export function runTimings(runId: string): RunTimings | null {
+  const f = path.join(REPORTS, latestReport(), "run-timings.json");
+  if (!fs.existsSync(f)) return null;
+  const data = JSON.parse(fs.readFileSync(f, "utf8")) as {
+    runs: { run_id: string; steps: { node: string; kind: string; start_ms: number; ms: number }[]; steps_ms: number }[];
+  };
+  const r = data.runs.find((x) => x.run_id === runId);
+  if (!r) return null;
+  return {
+    runId: r.run_id,
+    steps: r.steps.map((s) => ({ node: s.node, kind: s.kind, startMs: s.start_ms, ms: s.ms })),
+    stepsMs: r.steps_ms,
   };
 }
 
@@ -643,4 +669,31 @@ export function bisectReplay(): BisectCase[] {
       result: found.length ? "found" : (runs[0]?.result ?? ""),
     };
   });
+}
+
+/** One side effect DebugAssist can have outside its sandbox, and what a run may do with it. */
+export interface WriteRule {
+  action: string;
+  mode: string; // live · dry_run · approval · deny
+  note: string;
+}
+
+/** The write policy as the agent runs under it: `configs/policies/writes.yaml`, read at build time. */
+export function writePolicy(): { rules: WriteRule[]; branchPrefix: string; repos: string[] } {
+  const text = fs.readFileSync(path.join(ROOT, "configs", "policies", "writes.yaml"), "utf8");
+  const block = (key: string) => {
+    const m = text.match(new RegExp(`^${key}:\\s*(?:#.*)?\\n((?:[ \\t]+.*\\n?)*)`, "m"));
+    return m ? m[1].split("\n") : [];
+  };
+  const rules = block("actions")
+    .map((l) => l.match(/^\s+([\w.]+):\s*(\w+)\s*(?:#\s*(.*))?$/))
+    .filter((m): m is RegExpMatchArray => !!m)
+    .map((m) => ({ action: m[1], mode: m[2], note: (m[3] ?? "").trim() }));
+  const repos = block("repos")
+    .map((l) => l.match(/^\s+-\s*(\S+)/)?.[1])
+    .filter((r): r is string => !!r);
+  const prefix = block("branches")
+    .map((l) => l.match(/^\s+push_prefix:\s*(\S+)/)?.[1])
+    .find(Boolean);
+  return { rules, branchPrefix: prefix ?? "debugassist/", repos };
 }
