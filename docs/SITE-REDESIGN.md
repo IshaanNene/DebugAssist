@@ -79,7 +79,7 @@ Per-step timings come from `run-timings.json` (exported from `.data/runs/<id>/no
 
 ## Stack (npm, 2026-10-25)
 
-In use: Next.js 16.3.8 · React 19.2.8 · Tailwind 4 · the Popover API. Planned: Next.js 16.4.3 · React 19.3.1 · Motion 14.6.0 · Base UI (`@base-ui/react`) 1.9.0, for ⌘K only · cmdk 1.1.1 · Shiki 4.5.0 · `@number-flow/react` 0.6.2 · OGL 1.0.11 · Playwright 1.64.1, `@axe-core/playwright` 4.14.0, `@lhci/cli` 0.15.1.
+In use: Next.js 16.4.2 · React 19.2.8 · Tailwind 4 · the Popover API. Planned: Next.js 16.4.3 · React 19.3.1 · Motion 14.6.0 · Base UI (`@base-ui/react`) 1.9.0, for ⌘K only · cmdk 1.1.1 · Shiki 4.5.0 · `@number-flow/react` 0.6.2 · OGL 1.0.11 · Playwright 1.64.1, `@axe-core/playwright` 4.14.0, `@lhci/cli` 0.15.1.
 
 Not chosen: shadcn/Magic UI/Aceternity styling (the template look), GSAP 3.15 (second runtime), Lenis (scroll hijack), R3F/three (3D isn't the story), Paper Shaders (pre-1.0), Spline/Lottie (heavy). React `ViewTransition` is still experimental in Next 16: `/runs` only, never required.
 
