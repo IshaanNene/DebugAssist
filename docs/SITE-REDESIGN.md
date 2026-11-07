@@ -1,6 +1,36 @@
 # Site redesign plan (apps/site)
 
-Status: P0–P2 built 2026-10-25 (see [PROGRESS.md](PROGRESS.md#site-redesign-foundations-and-the-home-page-2026-10-25)); P3–P4 open. The original visual plan, with a hero sketch: https://claude.ai/artifact/PzokmUJ4wCPYEgivaCsKD2 (private until shared).
+Status: rebuilt 2026-11-07 (see [Rebuild](#rebuild-2026-11-07) below); P0–P2 built 2026-10-25 (see [PROGRESS.md](PROGRESS.md#site-redesign-foundations-and-the-home-page-2026-10-25)); P3–P4 open. The original visual plan, with a hero sketch: https://claude.ai/artifact/PzokmUJ4wCPYEgivaCsKD2 (private until shared).
+
+## Rebuild (2026-11-07)
+
+The 2026-10-25 version (dark navy and amber, flat text panels, no diagrams) was rejected in review: it read as
+text dumped into boxes. The rebuild goes back to what worked on the original site and drops the rest of this plan's
+direction where they conflict:
+
+- **Paper only.** One light theme; the Day/Night switch was removed in review (2026-11-07).
+- **Drafting style, square everywhere.** Hairline frames with corner brackets (`.cbox`), hatched margins (`.hatch`),
+  graph paper under illustrations (`.grid-paper`), square tags and buttons with key hints. No rounded corners except
+  the actor markers (square = code, diamond = Clef, circle = LLM), no glow, blur, gradients or soft shadows.
+- **The highlighter is back** (`.hl`): a solid marker block swept in under each headline's key phrase.
+- **Type:** Instrument Sans (medium-weight headlines), JetBrains Mono for evidence; Instrument Serif only for the
+  caveats column.
+- **Diagrams, each drawn from the system itself:** Fig. 1 signals → evidence and sandbox → DebugAssist → outputs
+  (`Diagrams.tsx`, `HeroDiagram`); the isometric pipeline that pins and advances by scroll (`Loop.tsx`, restored);
+  Fig. 3 the ten LangGraph nodes with the D15 retry loop and the route-away exit, clickable, with each step's real
+  time in the featured run (`Graph.tsx`); Fig. 4 signals → MCP servers → pipeline → policy gate → writes
+  (`SystemMap`); the exploded isometric layers (`Architecture.tsx`, restored). Connectors are right-angle with
+  arrowheads and boxed labels. No moving packets or colour markers: who acted is drawn by shape (solid = code,
+  hatched outline = LLM agent, hollow tick = Clef), in ink only.
+- **Chapter pages**, each rendered from the files that define it (`lib/docs.ts`, `lib/md.tsx`, order in
+  `lib/chapters.ts`; nav, footer and each page's "next" link come from that list): `/system` (system map, layers,
+  the MCP server table and rules from `docs/mcp.md`, invariants linked to ADRs), `/pipeline` (scroll pipeline, node
+  graph, decisions by step), `/decisions` (every template in `packages/decisions/templates` with its band strip,
+  outcomes and questions), `/run` (the replay, the run as a system, its CSV record), `/safety` (`writes.yaml` and
+  `docs/THREAT-MODEL.md`), `/design` and `/design/<adr>` (every ADR). The home page is now an overview: hero, Fig. 1,
+  principle, contents, results summary, start, FAQ.
+- **Unchanged:** every figure is still read from `evals/reports` at build time, the run replay and receipts, the
+  Safety section rendered from `configs/policies/writes.yaml`, and the Lab notebook.
 
 ## What was built, and what changed from the plan
 

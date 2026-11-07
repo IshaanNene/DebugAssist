@@ -74,7 +74,7 @@ export function Receipt({ source, children, className = "" }: { source: Source; 
             role="dialog"
             aria-label="Receipt"
             onToggle={place}
-            className="receipt-pop w-[min(360px,calc(100vw-32px))] rounded-[6px] border border-line-2 bg-raised p-4 text-left text-[13px] text-t1 shadow-[var(--shadow)]"
+  className="receipt-pop w-[min(360px,calc(100vw-32px))]  border border-line-2 bg-raised p-4 text-left text-[13px] text-t1 shadow-[var(--shadow)]"
             style={{ positionAnchor: anchor } as CSSProperties}
           >
             <div className="label text-t3">Receipt</div>

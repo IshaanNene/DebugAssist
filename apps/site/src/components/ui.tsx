@@ -5,21 +5,25 @@ export const doc = (p: string) => `${GH}/blob/main/${p}`;
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
-/** The mark: a signal that spikes once and settles, on amber. */
-export function Logo({ size = 20 }: { size?: number }) {
+/** The mark: a signal that spikes once and settles, on an ink square. */
+export function Logo({ size = 22 }: { size?: number }) {
   return (
-    <span aria-hidden className="grid shrink-0 place-items-center rounded-[4px] bg-amber-fill" style={{ width: size, height: size }}>
-      <svg width={size * 0.64} height={size * 0.64} viewBox="0 0 14 14">
-        <path
-          d="M1 9.5h3l1.6-6 2.2 8.5 1.4-4H13"
-          fill="none"
-          stroke="var(--ink)"
-          strokeWidth={1.6}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
+    <span aria-hidden className="grid shrink-0 place-items-center bg-t1" style={{ width: size, height: size }}>
+      <svg width={size * 0.68} height={size * 0.68} viewBox="0 0 14 14">
+        <path d="M1 8.5h2.6l1.7-5.5 2.4 8.5 1.6-4.2H13" fill="none" stroke="var(--bg)" strokeWidth={1.6} strokeLinejoin="miter" strokeLinecap="square" />
       </svg>
     </span>
+  );
+}
+
+/** A section's small heading line: a numbered index and a name, like a figure in a paper. */
+export function Eyebrow({ n, children, className }: { n?: string; children: ReactNode; className?: string }) {
+  return (
+    <div className={cx("fx flex items-center gap-3 font-mono text-[11.5px] uppercase tracking-[0.12em] text-t3", className)}>
+      {n && <span className="text-t1">{n}</span>}
+      {n && <span aria-hidden className="h-px w-8 bg-line-2" />}
+      {children}
+    </div>
   );
 }
 
@@ -29,12 +33,12 @@ export function Panel({ children, className }: { children?: ReactNode; className
 }
 
 export function H2({ children, className }: { children: ReactNode; className?: string }) {
-  return <h2 className={cx("fx title text-t1 text-[34px] sm:text-[44px] md:text-[54px]", className)}>{children}</h2>;
+  return <h2 className={cx("fx title text-t1 text-[38px] sm:text-[52px] md:text-[64px]", className)}>{children}</h2>;
 }
 
 export function Lead({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <p className={cx("fx max-w-[60ch] text-[17px] leading-[1.6] text-t2", className)} style={{ ["--i" as string]: 1 }}>
+    <p className={cx("fx max-w-[58ch] text-[17px] leading-[1.65] text-t2 sm:text-[18.5px]", className)} style={{ ["--i" as string]: 1 }}>
       {children}
     </p>
   );
@@ -60,18 +64,16 @@ export function Button({
     <a
       href={href}
       className={cx(
-        "inline-flex h-9 items-center gap-2.5 rounded-[5px] border px-3.5 text-[13.5px] font-semibold tracking-[-0.005em] transition-[background-color,border-color,transform] duration-150 active:translate-y-px",
-        primary
-          ? "border-transparent bg-amber-fill text-ink hover:brightness-105"
-          : "border-line-2 bg-raised text-t1 hover:border-line-strong",
+        "inline-flex h-10 items-center gap-3 border px-4 text-[14.5px] font-medium tracking-[-0.01em] shadow-[0_1px_0_var(--line)] transition-colors active:translate-y-px",
+        primary ? "border-t1 bg-t1 text-surface hover:bg-t2" : "border-line-2 bg-surface text-t1 hover:border-line-strong",
       )}
     >
       {children}
       {hint && (
         <kbd
           className={cx(
-            "grid h-[18px] min-w-[18px] place-items-center rounded-[3px] border px-1 font-mono text-[10px] font-medium not-italic",
-            primary ? "border-ink/30 text-ink/80" : "border-line-2 text-t3",
+            "grid h-5 min-w-5 place-items-center border px-1 font-mono text-[11px] font-medium not-italic",
+            primary ? "border-surface/25 text-surface/80" : "border-line-2 text-t3",
           )}
         >
           {hint}
@@ -89,7 +91,7 @@ export function Chip({ children, tone }: { children: ReactNode; tone?: "good" | 
   return (
     <span
       className={cx(
-        "inline-flex items-center rounded-[3px] border bg-raised px-2 py-[3px] font-mono text-[11px] leading-none",
+  "inline-flex items-center  border bg-raised px-2 py-[3px] font-mono text-[11px] leading-none",
         tone === "good" ? "border-good/40 text-good" : tone === "bad" ? "border-line-2 text-bad" : "border-line text-t2",
       )}
     >

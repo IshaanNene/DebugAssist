@@ -1,55 +1,68 @@
 @import "tailwindcss";
 
-/* ───────────────────────── Tokens (docs/SITE-REDESIGN.md) ─────────────────────────
-   Night shift and day shift from one definition: each token is light-dark(day, night). The page follows the
-   system setting; `data-theme` on <html> (the header toggle, remembered in localStorage) pins one.
-   Colour is data: amber marks time and action, the actor colours mark who did something (deterministic code,
-   LLM agents, Clef), the incoming crash is the only red, and a miss is a neutral hatch. */
+/* ───────────────────────── Tokens ─────────────────────────
+   Paper by default, ink on top; Night is opt-in (the header toggle, remembered in localStorage).
+   Each token is day. Colour is data:
+     highlighter — what to read first        blue   — time and action (clock, links, focus)
+     orange      — Clef decisions            violet — LLM agents            ink — deterministic code
+     green       — a check that passed       red    — the incoming crash, and nothing else
+   A miss is a neutral hatch, never red. Every text step is at least 4.5:1 on --bg. */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   /* surfaces */
-  --bg: light-dark(#f4f6fa, #0e1421);
-  --raised: light-dark(#ffffff, #151c2b);
-  --sunk: light-dark(#e9edf4, #0a0f19);
+  --bg: #f6f5f0;
+  --raised: #fdfdfb;
+  --sunk: #eeede6;
   /* lines */
-  --line: light-dark(#d6dce6, #243046);
-  --line-2: light-dark(#c1c9d6, #34405a);
-  --line-strong: light-dark(#8a94a8, #4f5c78);
-  /* text: every step is at least 4.5:1 on --bg */
-  --fg: light-dark(#111a2c, #e9edf4);
-  --fg-2: light-dark(#3b465c, #afb8c9);
-  --fg-3: light-dark(#596479, #8f9ab0);
-  --fg-4: light-dark(#646e82, #7c879d);
+  --line: #dcdad1;
+  --line-2: #c8c6bb;
+  --line-strong: #3d3c36;
+  /* text */
+  --fg: #141412;
+  --fg-2: #3d3c37;
+  --fg-3: #5c5a52;
+  --fg-4: #6a685f;
   /* time and action */
-  --amber: light-dark(#9a5b00, #ffb547);
-  --amber-fill: #ffb547;
-  --ink: #111a2c;
-  --tint: light-dark(rgba(154, 91, 0, 0.1), rgba(255, 181, 71, 0.12));
-  --tint-solid: light-dark(#ede3d5, #2c2620); /* the tint over --sunk, opaque, for shapes that overlap */
+  --amber: #2f55d4;
+  --amber-fill: #f3f66a;
+  --ink: #141412;
+  --tint: rgba(243, 246, 106, 0.38);
+  --tint-solid: #f4f3b8;
+  /* the highlighter */
+  --mark: #f7f985;
+  --mark-hot: #fbff7a;
+  --mark-side: #dde05f;
+  --mark-front: #e9ec6c;
   /* who acted, and how a check ended */
-  --actor-code: light-dark(#3b465c, #c9d1de);
-  --actor-llm: light-dark(#5a48d0, #aa9cff);
-  --actor-clef: light-dark(#0b7c73, #3fd0c0);
-  --pass: light-dark(#18794a, #6bdb98);
-  --signal: light-dark(#c42f44, #ff7a85);
-  --hatch: light-dark(rgba(59, 70, 92, 0.3), rgba(175, 184, 201, 0.32));
-  /* the terminal band stays dark in both themes */
-  --term-bg: #0a0f19;
-  --term-panel: #111827;
-  --term-fg: #e9edf4;
-  --term-dim: #9aa5ba;
-  --term-line: rgba(233, 237, 244, 0.14);
+  --actor-code: #3d3c36;
+  --actor-llm: #6c52e0;
+  --actor-clef: #b8650a;
+  --pass: #23773b;
+  --signal: #c8323f;
+  --hatch: rgba(61, 60, 54, 0.28);
+  /* isometric drawings */
+  --iso-ink: #2f2e2a;
+  --iso-soft: #8a887f;
+  --iso-dim: #6f6d66;
+  --iso-faint: #a9a79e;
+  --iso-text-2: #55544e;
+  --iso-top: #ffffff;
+  --iso-plate: #f9f9f6;
+  --iso-side: #e9e9e3;
+  --iso-front: #dededa;
+  /* the terminal band is dark */
+  --term-bg: #10100e;
+  --term-panel: #171715;
+  --term-fg: #f1f0ea;
+  --term-dim: #9d9b91;
+  --term-line: rgba(241, 240, 234, 0.12);
 
-  /* light-dark() takes colours only, so the shadow's colour is the token */
-  --shadow-color: light-dark(rgba(17, 26, 44, 0.3), rgba(0, 0, 0, 0.7));
+  --grad: linear-gradient(90deg, var(--actor-clef), var(--amber) 50%, var(--actor-llm));
+  --glass: rgba(253, 253, 251, 0.78);
+  --glass-line: rgba(20, 20, 18, 0.1);
+  --shadow-color: rgba(40, 38, 30, 0.22);
   --shadow: 0 30px 60px -32px var(--shadow-color);
-}
-:root[data-theme="light"] {
-  color-scheme: light;
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
 }
 
 @theme inline {
@@ -67,22 +80,22 @@
   --color-amber-fill: var(--amber-fill);
   --color-ink: var(--ink);
   --color-tint: var(--tint);
+  --color-mark: var(--mark);
   --color-code: var(--actor-code);
   --color-llm: var(--actor-llm);
   --color-clef: var(--actor-clef);
   --color-good: var(--pass);
-  --color-bad: var(--fg-3); /* a miss is stated, not alarmed: neutral ink, never red */
+  --color-bad: var(--fg-3);
   --color-signal: var(--signal);
   --color-term: var(--term-bg);
   --color-term-panel: var(--term-panel);
   --color-term-fg: var(--term-fg);
   --color-term-dim: var(--term-dim);
   --color-term-line: var(--term-line);
-  /* three voices: claims, evidence, caveats */
-  --font-sans: var(--font-archivo), "Helvetica Neue", Arial, sans-serif;
-  --font-display: var(--font-archivo), "Helvetica Neue", Arial, sans-serif;
-  --font-mono: var(--font-martian), ui-monospace, "SF Mono", Menlo, monospace;
-  --font-serif: var(--font-newsreader), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-sans-src), "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-sans-src), "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-mono-src), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-serif: var(--font-serif-src), Georgia, "Times New Roman", serif;
 }
 
 html {
@@ -94,7 +107,9 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
@@ -105,7 +120,7 @@ body {
 
 :focus-visible {
   outline: 2px solid var(--amber);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
 h1,
@@ -113,47 +128,258 @@ h2,
 h3 {
   text-wrap: balance;
 }
+p {
+  text-wrap: pretty;
+}
 
 /* ── voices ── */
 .display {
   font-family: var(--font-display);
-  font-stretch: 118%;
-  font-weight: 680;
-  letter-spacing: -0.045em;
-  line-height: 0.94;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
 }
 .title {
   font-family: var(--font-display);
-  font-stretch: 112%;
-  font-weight: 620;
-  letter-spacing: -0.032em;
-  line-height: 1.02;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+}
+.display em,
+.title em,
+.serif {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.015em;
 }
 .label {
   font-family: var(--font-mono);
   font-size: 11px;
-  font-stretch: 112.5%;
   font-weight: 500;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .caveat {
   font-family: var(--font-serif);
   font-style: italic;
-  font-size: 1.12em;
+  font-size: 1.14em;
   line-height: 1.45;
+}
+/* the three actors as one stroke of colour */
+.grad-text {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ── the page's atmosphere ── */
+.aurora {
+  position: relative;
+  isolation: isolate;
+}
+.aurora::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--line) 70%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--line) 70%, transparent) 1px, transparent 1px);
+  background-size: 16px 16px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent 95%);
+  mask-image: linear-gradient(to bottom, #000 30%, transparent 95%);
+  pointer-events: none;
+}
+/* a lit horizon line between sections */
+.horizon {
+  height: 1px;
+  background: var(--line);
+}
+
+/* ── glass and cards ── */
+.glass {
+  background: var(--raised);
+  border: 1px solid var(--line);
+}
+/* a 1px gradient border, for the one thing on screen that matters most */
+.ring-grad {
+  position: relative;
+  border: 1px solid var(--line-strong);
+}
+
+/* a drafting frame: hairline box with 8px corner brackets */
+.cbox {
+  position: relative;
+  border: 1px solid var(--line);
+}
+.cbox::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  --c: var(--line-strong);
+  --s: 9px;
+  background:
+    linear-gradient(var(--c), var(--c)) top left / var(--s) 1px,
+    linear-gradient(var(--c), var(--c)) top left / 1px var(--s),
+    linear-gradient(var(--c), var(--c)) top right / var(--s) 1px,
+    linear-gradient(var(--c), var(--c)) top right / 1px var(--s),
+    linear-gradient(var(--c), var(--c)) bottom left / var(--s) 1px,
+    linear-gradient(var(--c), var(--c)) bottom left / 1px var(--s),
+    linear-gradient(var(--c), var(--c)) bottom right / var(--s) 1px,
+    linear-gradient(var(--c), var(--c)) bottom right / 1px var(--s);
+  background-repeat: no-repeat;
+}
+.cbox.no-top::before {
+  background-size: 0 0, 0 0, 0 0, 0 0, var(--s) 1px, 1px var(--s), var(--s) 1px, 1px var(--s);
+}
+
+/* the highlighter: a stroke laid behind a phrase, swept in once it is on screen */
+.hl {
+  background-image: linear-gradient(var(--mark-hot), var(--mark-hot));
+  background-repeat: no-repeat;
+  background-size: 100% 0.82em;
+  background-position: 0 62%;
+  padding: 0 0.08em;
+  margin: 0 -0.08em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.js .fx .hl,
+.js .hl-fx {
+  background-size: 0% 0.82em;
+  transition: background-size 0.9s var(--ease-out) 0.35s;
+}
+.js .fx[data-in] .hl,
+.js .hl-fx[data-in] {
+  background-size: 100% 0.82em;
+}
+/* diagonal hatching for the margins beside a framed block */
+.hatch {
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--line-2) 60%, transparent) 5px 6px);
+}
+/* graph paper, for the area under a card's illustration */
+.grid-paper {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--line) 75%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--line) 75%, transparent) 1px, transparent 1px);
+  background-size: 14px 14px;
+  background-color: color-mix(in srgb, var(--sunk) 40%, var(--bg));
+}
+/* the dotted grid of a drafting table */
+.drafting {
+  background-image: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+/* ── diagrams ── */
+.wire {
+  fill: none;
+  stroke: var(--line-2);
+  stroke-width: 1.25;
+}
+.wire-live {
+  fill: none;
+  stroke-width: 1.25;
+  stroke-dasharray: 3 7;
+  animation: flow 1.6s linear infinite;
+}
+/* a packet travels its wire: `offset-path` is set inline from the same path the wire draws */
+.packet {
+  offset-rotate: 0deg;
+  offset-distance: 0%;
+  animation: travel var(--dur, 3.2s) cubic-bezier(0.45, 0, 0.35, 1) infinite;
+  animation-delay: var(--delay, 0s);
+  opacity: 0;
+}
+@keyframes travel {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+/* the four phases light one after another */
+.cycle {
+  animation: cycle 8s infinite;
+  animation-delay: calc(var(--i, 0) * 2s);
+}
+@keyframes cycle {
+  0%,
+  24% {
+    color: var(--fg);
+    border-color: var(--line-strong);
+    background-color: var(--mark);
+  }
+  30%,
+  100% {
+    color: var(--fg-3);
+    border-color: var(--line);
+    background-color: transparent;
+  }
+}
+.breathe {
+  animation: breathe 3.6s ease-in-out infinite;
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+.spin-slow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spin 40s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* bars of a chart grow up from the baseline */
+.js .rise .col {
+  transform: scaleY(0.02);
+  transform-origin: bottom;
+  transition: transform 1s var(--ease-out);
+  transition-delay: calc(var(--i, 0) * 80ms + 0.1s);
+}
+.js .rise[data-in] .col {
+  transform: none;
+}
+/* a pipeline node */
+.gnode {
+  transition:
+    border-color var(--t-ui),
+    background-color var(--t-ui);
+}
+.gnode:hover {
+  border-color: var(--line-strong);
+}
+.gnode[aria-pressed="true"] {
+  border-color: var(--fg);
+  background-color: var(--raised);
 }
 
 /* ── surfaces ── */
 .panel {
   border: 1px solid var(--line);
-  border-radius: 6px;
   background: var(--raised);
 }
 
 /* A figure with a receipt: dotted amber underline; its popover (Popover API) names the file, row and field. */
 .receipt {
-  border-bottom: 1px dotted var(--amber);
+  border-bottom: 1px dotted var(--line-strong);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background-color var(--t-ui);
@@ -195,54 +421,14 @@ h3 {
   }
 }
 
-/* ── the hero ── */
-.hero-field {
-  position: relative;
-  isolation: isolate;
-}
-/* a fine dot grid that fades out, and a low amber glow where the console sits */
-.hero-field::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-image: radial-gradient(circle at 1px 1px, var(--line-2) 1px, transparent 0);
-  background-size: 22px 22px;
-  -webkit-mask-image: radial-gradient(ellipse 75% 55% at 50% 35%, #000 25%, transparent 78%);
-  mask-image: radial-gradient(ellipse 75% 55% at 50% 35%, #000 25%, transparent 78%);
-}
-.hero-field::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  left: 50%;
-  top: 52%;
-  width: min(1200px, 96vw);
-  height: 640px;
-  transform: translate(-50%, -30%);
-  background:
-    radial-gradient(closest-side, color-mix(in srgb, var(--amber-fill) 16%, transparent), transparent 70%),
-    radial-gradient(closest-side at 30% 60%, color-mix(in srgb, var(--actor-llm) 12%, transparent), transparent 70%);
-  filter: blur(30px);
-  pointer-events: none;
-}
-
 .console {
-  background: color-mix(in srgb, var(--raised) 94%, transparent);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--fg) 7%, transparent),
-    0 50px 100px -40px var(--shadow-color),
-    0 0 0 1px color-mix(in srgb, var(--fg) 3%, transparent);
+  background: var(--raised);
 }
 .signal-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+  width: 8px;
+  height: 8px;
   flex: none;
-  background: var(--signal);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--signal) 20%, transparent);
+  background: var(--fg);
 }
 .console-grid {
   position: relative;
@@ -277,29 +463,37 @@ h3 {
   position: absolute;
   top: 3px;
   bottom: 3px;
-  border-radius: 3px;
   transform-origin: left center;
 }
-.console-grid .bar-run {
-  box-shadow: 0 0 18px -2px var(--amber-fill);
+/* who acted, by shape: code is a solid bar, an LLM agent a hatched outline */
+.bar-code {
+  background: var(--fg);
+}
+.bar-llm {
+  background: repeating-linear-gradient(-45deg, var(--fg) 0 1px, var(--raised) 1px 4px);
+  box-shadow: inset 0 0 0 1px var(--fg);
+}
+.key {
+  display: inline-block;
+  width: 16px;
+  height: 8px;
 }
 [data-state="wait"] > div:first-child > div:first-child {
   color: var(--fg-4);
 }
 .diamond,
 .diamond-key {
-  width: 8px;
-  height: 8px;
-  transform: rotate(45deg);
-  background: var(--actor-clef);
+  width: 10px;
+  height: 10px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1.5px var(--fg);
   display: inline-block;
 }
 .diamond {
   position: absolute;
-  top: 7px;
+  top: 6px;
   opacity: 0.25;
   transition: opacity var(--t-ui);
-  box-shadow: 0 0 0 2px var(--raised);
 }
 .diamond[data-on] {
   opacity: 1;
@@ -315,8 +509,8 @@ h3 {
   transition: color var(--t-ui);
 }
 .phase[data-on] {
-  color: var(--amber);
-  border-color: var(--amber);
+  color: var(--fg);
+  border-color: var(--fg);
 }
 .now-rail {
   position: absolute;
@@ -334,9 +528,8 @@ h3 {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 1.5px;
-  background: var(--amber);
-  box-shadow: 0 0 12px var(--amber-fill);
+  width: 1px;
+  background: var(--fg);
   transition: opacity 0.4s;
 }
 .finding {
@@ -384,8 +577,7 @@ h3 {
     box-shadow 0.3s;
 }
 html[data-scrolled] .site-header {
-  background-color: color-mix(in srgb, var(--bg) 92%, transparent);
-  box-shadow: var(--shadow);
+  border-bottom-color: var(--line-2);
 }
 
 /* entrance: an 8px rise from a visible state, staggered by --i */
@@ -530,9 +722,14 @@ html[data-scrolled] .site-header {
     animation: none !important;
     transition: none !important;
   }
+  .js .fx .hl,
+  .js .hl-fx {
+    background-size: 100% 0.82em;
+  }
   .js .fx,
   .js .wave .cell,
-  .js .grow .bar {
+  .js .grow .bar,
+  .js .rise .col {
     opacity: 1;
     transform: none;
   }
@@ -542,4 +739,105 @@ html[data-scrolled] .site-header {
   .draw {
     stroke-dasharray: none;
   }
+  .packet {
+    display: none;
+  }
+}
+
+/* ───────── chapter pages ───────── */
+/* an ink hatch, for the safe-default band of a decision */
+.hatch-ink {
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, var(--fg) 3px 4px);
+}
+
+/* the repository's own Markdown (ADRs, the threat model), set like a technical paper */
+.prose-da {
+  color: var(--fg-2);
+  font-size: 15.5px;
+  line-height: 1.7;
+}
+.prose-da > * + * {
+  margin-top: 1em;
+}
+.prose-da h2 {
+  margin-top: 2.6em;
+  padding-bottom: 0.5em;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+.prose-da h2:first-child {
+  margin-top: 0;
+}
+.prose-da h3 {
+  margin-top: 2em;
+  color: var(--fg);
+  font-size: 17px;
+  font-weight: 500;
+}
+.prose-da ul,
+.prose-da ol {
+  padding-left: 1.25em;
+}
+.prose-da ul {
+  list-style: square;
+}
+.prose-da ol {
+  list-style: decimal;
+}
+.prose-da li + li {
+  margin-top: 0.45em;
+}
+.prose-da li::marker {
+  color: var(--fg-4);
+}
+.prose-da blockquote {
+  border-left: 2px solid var(--fg);
+  padding-left: 1em;
+  color: var(--fg-3);
+}
+.prose-da pre {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  background: var(--sunk);
+  padding: 14px 16px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.prose-da .table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  background: var(--raised);
+}
+.prose-da table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.prose-da th {
+  border-bottom: 1px solid var(--line-strong);
+  background: var(--sunk);
+  padding: 9px 14px;
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.prose-da td {
+  border-top: 1px solid var(--line);
+  padding: 10px 14px;
+  vertical-align: top;
+}
+.prose-da td:first-child {
+  color: var(--fg);
+  font-weight: 500;
 }

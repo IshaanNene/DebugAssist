@@ -1,176 +1,151 @@
 import Link from "next/link";
-import { Motion, Shortcuts } from "@/components/client";
 import { Banner, COL, SiteFooter, SiteHeader } from "@/components/Chrome";
-import { Features } from "@/components/Features";
-import { Receipt } from "@/components/Receipt";
+import { Motion, Shortcuts } from "@/components/client";
+import { HeroDiagram, Principle } from "@/components/Diagrams";
+import { CHAPTERS, Figure } from "@/components/Page";
 import { Results } from "@/components/Results";
-import { RunConsole } from "@/components/RunConsole";
-import { Actors, Layers, Pipeline, Safety } from "@/components/Sections";
-import { Button, GH, H2, Lead, Panel, doc } from "@/components/ui";
-import { bisectReplay, deciderReplay, facts, featuredRun, realBugs, results, runTimings, writePolicy } from "@/lib/data";
+import { Button, Eyebrow, GH, H2, Lead, doc } from "@/components/ui";
+import { bisectReplay, facts, featuredRun, realBugs, results } from "@/lib/data";
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
+const v = (i: number) => ({ ["--i" as string]: i });
 
 export default function Home() {
   const data = results();
   const reals = realBugs();
-  const replay = deciderReplay();
   const bis = bisectReplay();
   const foundBisect = bis.find((b) => b.found > 0);
   const f = facts();
   const run = featuredRun(data);
-  const timings = run ? runTimings(run.runId) : null;
-  const policy = writePolicy();
   const report = doc(`evals/reports/${data.report}/report.md`);
-  const v = (i: number) => ({ ["--i" as string]: i });
 
   return (
     <>
       <Motion />
-      <Shortcuts map={{ g: GH, d: doc("README.md"), r: "#results", s: "#start" }} />
+      <Shortcuts map={{ g: GH, d: doc("README.md"), r: `${base}/results/`, s: "#start" }} />
       <SiteHeader
         banner={
           foundBisect && (
             <Banner href="/results/#real" tag="culprit commit, proven">
               {foundBisect.issue.replace("https://github.com/", "").replace("/issues/", "#")} bisects to{" "}
-              {foundBisect.commit.slice(0, 7)} in {foundBisect.found}/{foundBisect.tests} runs, by running the agent&apos;s test
+              {foundBisect.commit.slice(0, 7)} in {foundBisect.found}/{foundBisect.tests} runs, by running the agent&apos;s own test
             </Banner>
           )
         }
       />
 
       <main>
-        {/* ── hero: one real run, replayed ── */}
-        <section className="hero-field overflow-hidden">
-          <div className={`${COL} pt-12 md:pt-16`}>
-            <div className="fx inline-flex items-center gap-2 rounded-full border border-line bg-raised/80 px-3 py-1 font-mono text-[11px] text-t2" style={v(0)}>
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-good" />
-              open source · crash → pull request
-            </div>
-            <h1 className="fx display mt-7 text-[56px] text-t1 sm:text-[88px] xl:text-[120px]" style={v(1)}>
-              On call, <span className="text-t3">with</span> receipts.
-            </h1>
-            <div className="fx mt-8 flex flex-wrap items-end justify-between gap-x-10 gap-y-6" style={v(2)}>
-              <p className="max-w-[52ch] text-[17.5px] leading-[1.6] text-t2">
-                A crash, a rider&apos;s report or a labeled GitHub issue goes in. A root cause backed by evidence, a failing
-                test, the fix and its proof come out as a pull request.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button href="#start" variant="primary" hint="S">
-                  Get started
-                </Button>
-                <Button href="#results" hint="R">
-                  See the results
-                </Button>
-                <Button href={doc("README.md")} hint="D">
-                  Docs
-                </Button>
+        {/* ── hero: a framed plate between hatched margins ── */}
+        <section className="relative">
+          <div aria-hidden className="hatch absolute inset-y-0 left-0 hidden w-[calc((100vw-1240px)/2+32px)] xl:block" />
+          <div aria-hidden className="hatch absolute inset-y-0 right-0 hidden w-[calc((100vw-1240px)/2+32px)] xl:block" />
+          <div className={`${COL} relative pt-10 md:pt-14`}>
+            <div className="cbox bg-surface">
+              <dl className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-b border-line px-4 py-3.5 text-[14px] text-t2 sm:text-[15px]">
+                {[
+                  [String(data.catalog.total), "-bug evaluation catalog"],
+                  [String(reals.length), " real open-source bugs"],
+                  [String(f.templates), " Clef decision templates"],
+                  [String(f.mcpServers), ` MCP servers · ${f.mcpTools} tools`],
+                ].map(([n, l], i) => (
+                  <div key={l} className="flex items-center gap-6">
+                    {i > 0 && <span aria-hidden className="hidden text-t4 sm:inline">·</span>}
+                    <div>
+                      <dt className="sr-only">{l.trim()}</dt>
+                      <dd>
+                        <span className="font-semibold text-t1">{n}</span>
+                        {l}
+                      </dd>
+                    </div>
+                  </div>
+                ))}
+              </dl>
+              <div className="px-5 py-16 text-center sm:px-10 md:py-24">
+                <h1 className="fx display mx-auto max-w-[14ch] text-[48px] leading-[1.06] text-t1 sm:text-[72px] lg:text-[92px]" style={v(1)}>
+                  <span className="hl">The on-call engineer</span> <span className="hl">that shows its work.</span>
+                </h1>
+                <p className="fx mx-auto mt-10 max-w-[62ch] text-[17px] leading-[1.65] text-t2 sm:text-[18.5px]" style={v(2)}>
+                  A crash, a rider&apos;s report or a labeled GitHub issue goes in. A root cause backed by evidence, a
+                  test that fails on the shipped release, the fix and its proof come out — as a pull request. Every
+                  number on this page is generated from the evaluation reports.
+                </p>
+                <div className="fx mt-10 flex flex-wrap justify-center gap-3" style={v(3)}>
+                  <Button href="#start" variant="primary" hint="S">
+                    Get started
+                  </Button>
+                  <Button href={doc("README.md")} hint="D">
+                    Documentation
+                  </Button>
+                  <Button href={`${base}/results/`} hint="R">
+                    See the results
+                  </Button>
+                </div>
               </div>
             </div>
 
-            {run && timings && (
-              <div className="fx mt-12 md:mt-14" style={v(3)}>
-                <RunConsole
-                  run={run}
-                  timings={timings}
-                  report={data.report}
-                  model={data.model}
-                  notes={{
-                    auto_triage: <>Priority set by Clef, owner from CODEOWNERS.</>,
-                    context_collector: <>Evidence bundle from {f.mcpServers} MCP servers: crashes, code, flags, telemetry.</>,
-                    classify_rca: (
-                      <>
-                        Root cause in <span className="font-mono text-[12px] text-t1">{run.location}</span>, with{" "}
-                        <Receipt source={{ file: `evals/reports/${data.report}/results.csv`, row: `run_id ${run.runId}`, field: "claims · claims_unsupported", raw: `${run.claims} · ${run.unsupported}` }}>
-                          {run.claims} claims, {run.unsupported} unsupported
-                        </Receipt>
-                        .
-                      </>
-                    ),
-                    fix: <>A {run.tier} test fails on the shipped release; the fix makes it pass.</>,
-                    validate: (
-                      <>
-                        Suite green. Hidden test <span className="text-good">passed</span>:{" "}
-                        <span className="font-mono text-[12px]">{run.hiddenTest.split("/").pop()}</span>.
-                      </>
-                    ),
-                  }}
-                />
-                <p className="mt-4 text-center font-mono text-[11px] text-t3">
-                  A real baseline run, replayed on its own clock. Tap any underlined figure for its source.
-                </p>
+            {run && (
+              <div className="mt-12">
+                <Figure n="1" title="what goes in, what comes out" note={`${run.issue}, an evaluated run`}>
+                  <HeroDiagram run={run} servers={f.mcpServers} tools={f.mcpTools} templates={f.templates} />
+                </Figure>
               </div>
             )}
-
-            <dl className="mt-16 grid grid-cols-2 gap-px overflow-hidden rounded-[8px] border border-line bg-line md:mt-20 md:grid-cols-4">
-              {[
-                [String(data.catalog.total), "bugs in the evaluation catalog"],
-                [String(reals.length), "real open-source bugs"],
-                [String(f.templates), "Clef decision templates"],
-                [`${f.mcpServers} · ${f.mcpTools}`, "MCP servers · tools"],
-              ].map(([n, l]) => (
-                <div key={l} className="bg-surface px-5 py-6">
-                  <dt className="sr-only">{l}</dt>
-                  <dd className="font-mono text-[34px] font-medium leading-none tracking-[-0.03em] text-t1">{n}</dd>
-                  <dd className="mt-2 text-[13px] text-t3">{l}</dd>
-                </div>
-              ))}
-            </dl>
           </div>
         </section>
 
-        {/* ── the three actors ── */}
-        <section className={`${COL} pt-[140px]`}>
-          <div className="label text-t3">The principle</div>
-          <H2 className="mt-4 max-w-[18ch]">The plan is code. Models never choose the next step.</H2>
-          <div className="mt-12">
-            <Actors templates={f.templates} />
-          </div>
-        </section>
-
-        {/* ── how it works: the fixed plan ── */}
-        <section id="how" className={`${COL} scroll-mt-20 pt-[140px]`}>
-          <div className="label text-t3">How it works</div>
-          <H2 className="mt-4">Investigate, fix, prove — in that order.</H2>
-          <Lead className="mt-5">
-            Four phases, twelve steps, always the same sequence. Clef takes each judgement call, agents do the reasoning
-            inside a step, and deterministic code performs every write.
+        {/* ── the principle ── */}
+        <section className={`${COL} pt-[150px]`}>
+          <Eyebrow n="01">The principle</Eyebrow>
+          <H2 className="mt-5 max-w-[20ch]">
+            The plan is code. <span className="hl">Models never choose the next step.</span>
+          </H2>
+          <Lead className="mt-6">
+            Three actors, each doing only what it is good at. Clef turns every judgement call into a probability, the
+            LLM reasons and writes code inside a step, and deterministic code performs every write.
           </Lead>
           <div className="mt-12">
-            <Pipeline />
+            <Principle templates={f.templates} />
           </div>
         </section>
 
-        {/* ── architecture: four layers ── */}
-        <section id="architecture" className={`${COL} scroll-mt-20 pt-[140px]`}>
-          <div className="label text-t3">Architecture</div>
-          <H2 className="mt-4">One system, four layers.</H2>
-          <Lead className="mt-5">
-            Problems surface at the bottom and rise. Agents see the world only through evidence tools. Every action
-            leaves through the top, behind a policy gate.
+        {/* ── contents: one page per chapter ── */}
+        <section id="contents" className={`${COL} scroll-mt-24 pt-[150px]`}>
+          <Eyebrow n="02">Contents</Eyebrow>
+          <H2 className="mt-5 max-w-[18ch]">
+            Read it like a <span className="hl">design doc.</span>
+          </H2>
+          <Lead className="mt-6">
+            Each part of the system has its own page. Most are rendered from the files that define them — the decision
+            templates, the write policy, the server table, the threat model and the design records — so they cannot drift
+            from the code.
           </Lead>
-          <div className="mt-12">
-            <Layers servers={f.mcpServers} tools={f.mcpTools} />
-          </div>
+          <ol className="mt-12 border-t border-line-strong">
+            {CHAPTERS.map((c, i) => (
+              <li key={c.href} className="fx" style={v(i * 0.4)}>
+                <Link
+                  href={c.href}
+                  className="group grid gap-x-8 gap-y-1 border-b border-line py-7 transition-colors hover:bg-sunk/40 md:grid-cols-[80px_minmax(0,300px)_minmax(0,1fr)_24px] md:items-baseline"
+                >
+                  <span className="font-mono text-[12px] text-t3">{c.n}</span>
+                  <span className="text-[26px] font-medium tracking-[-0.02em] text-t1 sm:text-[30px]">{c.title}</span>
+                  <span className="max-w-[60ch] text-[15px] leading-[1.6] text-t3">{c.blurb}</span>
+                  <span className="hidden font-mono text-[18px] text-t3 transition-transform group-hover:translate-x-1 group-hover:text-t1 md:block">→</span>
+                </Link>
+              </li>
+            ))}
+          </ol>
         </section>
 
-        {/* ── features ── */}
-        <section id="features" className={`${COL} scroll-mt-20 pt-[140px]`}>
-          <div className="label text-t3">What it does</div>
-          <H2 className="mt-4 max-w-[20ch]">Everything an on-call engineer does, with receipts.</H2>
-          <div className="mt-12">
-            <Features />
-          </div>
-        </section>
-
-        {/* ── results: the headline, then the notebook ── */}
-        <section id="results" className={`${COL} scroll-mt-20 pt-[140px]`}>
-          <div className="label text-t3">Results</div>
-          <H2 className="mt-4">Measured, not claimed.</H2>
-          <Lead className="mt-5">
+        {/* ── results ── */}
+        <section id="results" className={`${COL} scroll-mt-24 pt-[150px]`}>
+          <Eyebrow n="03">Results</Eyebrow>
+          <H2 className="mt-5">
+            Measured, <span className="hl">not claimed.</span>
+          </H2>
+          <Lead className="mt-6">
             {data.catalog.total} bugs injected into a small ride-hailing app as natural-looking release commits. The agent
             never sees the answer key; an evaluator scores its root cause and runs hidden tests on its fix. Built from{" "}
-            <a className="text-t1 underline underline-offset-2" href={report}>
+            <a className="text-t1 underline decoration-line-2 underline-offset-4 hover:decoration-t1" href={report}>
               evals/reports/{data.report}
             </a>
             .
@@ -178,36 +153,40 @@ export default function Home() {
           <div className="mt-12">
             <Results data={data} compact />
           </div>
-          <div className="mt-2 grid gap-2 md:grid-cols-2">
-            <Panel className="fx p-6">
-              <div className="label text-good">✓ What works</div>
-              <ul className="mt-4 space-y-3 text-[14.5px] leading-[1.55] text-t2">
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="fx panel p-7">
+              <div className="label text-t1">
+                What works
+              </div>
+              <ul className="mt-5 space-y-4 text-[15px] leading-[1.6] text-t2">
                 <li>Crash-data bugs — locale and currency edge cases, a nil-map panic, a removed await, a battery-draining poller: ten code bugs pass every lane in all three seeds.</li>
                 <li>Following a rider&apos;s report into the backend and moving the fix to the service that holds the defect.</li>
                 <li>Saying &ldquo;not our bug&rdquo; — a WebView crash, a vendored SDK, a misconfigured flag — and routing it instead of patching, for about a cent a run.</li>
               </ul>
-            </Panel>
-            <Panel className="fx bg-sunk/60 p-6">
-              <div className="label text-t3">✗ What doesn&apos;t, yet</div>
-              <ul className="caveat mt-4 space-y-3 text-[16.5px] text-t2">
+            </div>
+            <div className="fx panel p-7" style={v(1)}>
+              <div className="label text-t3">
+                What doesn&apos;t, yet
+              </div>
+              <ul className="caveat mt-5 space-y-4 text-[17px] text-t2">
                 <li>Stopping where the symptom surfaced: a CORS change and a payments panic are blamed on the client and the gateway.</li>
                 <li>Fixes narrower than the regression: they pass the agent&apos;s own test but not the hidden one.</li>
                 <li>An active incident still loses to suspicious code, and seeds disagree on ten bugs: one run of a bug proves little.</li>
               </ul>
-            </Panel>
+            </div>
           </div>
-          <div className="mt-2 grid gap-2 md:grid-cols-3">
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
             {[
-              ["/results/#clef", "Does Clef help?", replay.length > 0 ? "Not yet: every logged decision replayed with Clef, an LLM and simple rules." : "Decision replay against the catalog."],
+              ["/results/#clef", "Does Clef help?", "Every logged decision replayed with Clef, an LLM and simple rules."],
               ["/results/#real", "Real open-source bugs", `${reals.length} public issues, each run on the code it was filed against, with bisect proofs.`],
               ["/results/#tokens", "Where the tokens go", "A context audit of real runs, and three context-engineering experiments."],
-            ].map(([href, t, b]) => (
-              <Link key={href} href={href} className="fx panel group flex flex-col justify-between gap-6 p-6 transition-colors hover:border-line-strong">
+            ].map(([href, t, b], i) => (
+              <Link key={href} href={href} className="fx panel group flex flex-col justify-between gap-8 p-7 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-line-strong" style={v(i)}>
                 <div>
-                  <h3 className="title text-[20px] text-t1">{t}</h3>
-                  <p className="mt-2 text-[14px] leading-[1.55] text-t2">{b}</p>
+                  <h3 className="title text-[22px] text-t1">{t}</h3>
+                  <p className="mt-2 text-[14.5px] leading-[1.6] text-t2">{b}</p>
                 </div>
-                <span className="font-mono text-[12px] text-amber">
+                <span className="font-mono text-[12px] text-t1">
                   Lab notebook <span className="inline-block transition-transform group-hover:translate-x-1">→</span>
                 </span>
               </Link>
@@ -215,106 +194,73 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── safety: the real policy file ── */}
-        <section id="safety" className={`${COL} scroll-mt-20 pt-[140px]`}>
-          <div className="label text-t3">Safety</div>
-          <H2 className="mt-4 max-w-[20ch]">It can&apos;t change production on its own.</H2>
-          <Lead className="mt-5">
-            Every side effect is listed in one policy file, and this section is rendered from it at build time — so the
-            page can never drift from the rules the agent runs under.
-          </Lead>
-          <div className="mt-12">
-            <Safety rules={policy.rules} branchPrefix={policy.branchPrefix} />
-          </div>
-        </section>
-
-        {/* ── stack ── */}
-        <section id="stack" className={`${COL} scroll-mt-20 pt-[140px]`}>
-          <div className="label text-t3">Integrations</div>
-          <H2 className="mt-4">Works with your stack.</H2>
-          <Lead className="mt-5">
-            Any OpenAI-compatible model, OpenTelemetry for telemetry, MCP for evidence. Every integration has a mock, so
-            the whole pipeline runs without a single key.
-          </Lead>
-          <div className="mt-12">
-            <div className="grid gap-2">
-              <Pills title={`Evidence · ${f.mcpServers} MCP servers · ${f.mcpTools} tools`} items={["crash analytics", "code search", "git history", "feature flags", "bug reports", "logging", "tracing", "metrics & profiles", "incidents", "releases", "Jira"]} />
-              <div className="grid gap-2 md:grid-cols-2">
-                <Pills title="Models & decisions" items={["Cloudflare Clef", "OpenRouter", "GroqCloud", "OpenAI-compatible", "LangGraph", "LangChain"]} />
-                <Pills title="Telemetry" items={["OpenTelemetry", "Jaeger", "Loki", "Prometheus", "Phoenix", "Langfuse"]} />
+        {/* ── get started ── */}
+        <section id="start" className={`${COL} scroll-mt-24 pt-[150px]`}>
+  <div className="relative overflow-hidden  bg-term text-term-fg">
+            <div className="relative grid items-center gap-12 p-8 sm:p-12 lg:grid-cols-[1fr_1.15fr] lg:p-16">
+              <div>
+                <div className="fx label text-term-dim">Get started</div>
+                <h2 className="fx title mt-5 text-[40px] sm:text-[56px]" style={v(1)}>
+                  Try it in a few minutes.
+                </h2>
+                <p className="fx mt-5 max-w-[42ch] text-[16.5px] leading-[1.65] text-term-dim" style={v(2)}>
+                  The keyless demo runs the whole pipeline with a scripted model and mocked integrations — no API keys,
+                  no accounts.
+                </p>
+                <div className="fx mt-8 flex flex-wrap gap-3" style={v(3)}>
+  <a href={GH} className="inline-flex h-10 items-center gap-2.5 bg-amber-fill px-4 text-[14px] font-medium text-ink transition-transform active:scale-[0.98]">
+                    Star on GitHub
+                  </a>
+  <a href={`${GH}#-quickstart`} className="inline-flex h-10 items-center border border-term-line px-4 text-[14px] font-medium text-term-fg transition-colors hover:border-term-dim">
+                    Quickstart →
+                  </a>
+                </div>
               </div>
-              <Pills title="Target languages & tools" items={["TypeScript · React", "Python · FastAPI", "Go", "Playwright", "GitHub", "GitHub App", "Unleash", "Docker"]} />
-              <Pills title="On the roadmap" items={["LiteLLM", "Ollama · vLLM", "Promptfoo", "Inspect AI", "GlitchTip", "SWE-bench Lite"]} muted />
-            </div>
-          </div>
-        </section>
-
-        {/* ── open ── */}
-        <section id="open" className={`${COL} pt-[120px]`}>
-          <div className="label text-t3">Open source</div>
-          <H2 className="mt-4">Open platform. Open process.</H2>
-          <div className="panel mt-12 overflow-hidden">
-            <div className="grid gap-px bg-line md:grid-cols-3">
-              <Col i={0} title="Self-host it" items={[["make up — app, telemetry, sources", null], ["mock mode, no keys needed", null], ["The GitHub App on your repos", doc("docs/github-app.md")]]} />
-              <Col i={1} title="Read the process" items={[["Lessons learned", doc("docs/LESSONS.md")], ["Architecture", doc("docs/ARCHITECTURE.md")], ["Decision records", `${GH}/tree/main/docs/adr`]]} />
-              <Col i={2} title="Check the numbers" items={[["Lab notebook", `${base}/results/`], ["Latest report", report], ["Progress log", doc("docs/PROGRESS.md")]]} />
-            </div>
-          </div>
-        </section>
-
-        {/* ── get started: a dark band ── */}
-        <section id="start" className="relative mt-[140px] overflow-hidden bg-term text-term-fg">
-          <div className={`${COL} relative grid items-center gap-12 py-24 lg:grid-cols-[1fr_1.15fr]`}>
-            <div>
-              <div className="fx label text-term-dim">Get started</div>
-              <h2 className="fx title mt-4 text-[40px] sm:text-[56px]" style={v(1)}>
-                <span className="text-amber-fill">Try it</span> in a few minutes.
-              </h2>
-              <p className="fx mt-5 max-w-[42ch] text-[16.5px] leading-[1.6] text-term-dim" style={v(2)}>
-                The keyless demo runs the whole pipeline with a scripted model and mocked integrations — no API keys, no
-                accounts.
-              </p>
-              <div className="fx mt-8 flex flex-wrap gap-2" style={v(3)}>
-                <a href={GH} className="inline-flex h-9 items-center gap-2.5 rounded-[5px] bg-amber-fill px-4 text-[13.5px] font-semibold text-ink transition-transform active:translate-y-px">
-                  Star on GitHub
-                  <kbd className="grid h-[18px] min-w-[18px] place-items-center rounded-[3px] border border-ink/30 px-1 font-mono text-[10px] text-ink/80">G</kbd>
-                </a>
-                <a href={`${GH}#-quickstart`} className="inline-flex h-9 items-center rounded-[5px] border border-term-line px-4 text-[13.5px] font-semibold text-term-fg transition-colors hover:border-term-dim">
-                  Quickstart →
-                </a>
-              </div>
-            </div>
-            <div className="typed fx overflow-hidden rounded-[6px] border border-term-line bg-term-panel shadow-[0_40px_80px_-30px_rgba(0,0,0,0.6)]" style={v(2)}>
-              <div className="flex items-center border-b border-term-line px-4 py-3">
-                <span className="font-mono text-[11px] text-term-dim">~/DebugAssist</span>
-              </div>
-              <div className="overflow-x-auto p-5 font-mono text-[12.5px] leading-[1.9]">
-                {TERMINAL.map(([cmd, note], i) => (
-                  <div key={cmd} className="type-line whitespace-nowrap" style={v(i)}>
-                    <span className="text-amber-fill">$</span> {cmd}
-                    {note && <span className="text-term-dim">  # {note}</span>}
-                  </div>
-                ))}
+  <div className="typed fx overflow-hidden  border border-term-line bg-term-panel " style={v(2)}>
+                <div className="flex items-center gap-2 border-b border-term-line px-4 py-3">
+                  <span className="font-mono text-[11px] text-term-dim">~/DebugAssist</span>
+                </div>
+                <div className="overflow-x-auto p-5 font-mono text-[12.5px] leading-[1.95]">
+                  {TERMINAL.map(([cmd, note], i) => (
+                    <div key={cmd} className="type-line whitespace-nowrap" style={v(i)}>
+                      <span className="text-amber-fill">$</span> {cmd}
+                      {note && <span className="text-term-dim">  # {note}</span>}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         </section>
 
         {/* ── FAQ ── */}
-        <section id="faq" className={`${COL} scroll-mt-20 pt-[140px]`}>
+        <section id="faq" className={`${COL} scroll-mt-24 pt-[150px]`}>
           <div className="grid gap-10 md:grid-cols-[1fr_1.7fr]">
             <div>
-              <div className="label text-t3">FAQ</div>
-              <H2 className="mt-4">Questions &amp; answers</H2>
+              <Eyebrow n="04">FAQ</Eyebrow>
+              <H2 className="mt-5">
+                Questions &amp; answers
+              </H2>
+              <p className="mt-6 text-[15px] leading-[1.6] text-t3">
+                Something else?{" "}
+                <a className="text-t1 underline decoration-line-2 underline-offset-4" href={`${GH}/issues`}>
+                  Open an issue
+                </a>
+                , or read the{" "}
+                <a className="text-t1 underline decoration-line-2 underline-offset-4" href={`${base}/results/`}>
+                  lab notebook
+                </a>
+                .
+              </p>
             </div>
             <div className="border-t border-line">
               {FAQ.map(([q, a], i) => (
-                <details key={q} className="fx group border-b border-line" style={v(i)}>
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-[16px] font-medium text-t1 transition-colors hover:text-t2">
+                <details key={q} className="fx group border-b border-line" style={v(i * 0.5)}>
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-[17px] font-medium tracking-[-0.01em] text-t1 transition-colors hover:text-t2">
                     {q}
-                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-[4px] border border-line font-mono text-t3 transition-transform duration-300 group-open:rotate-45">+</span>
+  <span className="grid h-7 w-7 shrink-0 place-items-center  border border-line font-mono text-t3 transition-transform duration-300 group-open:rotate-45">+</span>
                   </summary>
-                  <p className="max-w-[64ch] pb-5 text-[14.5px] leading-[1.65] text-t3">{a}</p>
+                  <p className="max-w-[64ch] pb-6 text-[15px] leading-[1.7] text-t2">{a}</p>
                 </details>
               ))}
             </div>
@@ -344,44 +290,3 @@ const FAQ: [string, string][] = [
   ["Which models does it use?", "Any OpenAI-compatible API. The evaluation on this page ran on openai/gpt-6-luna through OpenRouter; decisions run on Cloudflare Clef."],
   ["Is it affiliated with Uber, Cloudflare or anyone named here?", "No. It is an independent project inspired by a public talk on MCP-powered crash investigation. Vitals and BugDrop are its own stand-ins for crash analytics and in-app bug reports."],
 ];
-
-function Pills({ title, items, muted }: { title: string; items: string[]; muted?: boolean }) {
-  return (
-    <Panel className={`p-6 ${muted ? "bg-sunk/60" : ""}`}>
-      <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">{title}</div>
-      <div className="mt-4 flex flex-wrap gap-1.5">
-        {items.map((i, k) => (
-          <span
-            key={i}
-            className={`fx inline-flex h-8 items-center rounded-full border px-3 text-[13px] transition-colors ${muted ? "border-dashed border-line-2 text-t3" : "border-line bg-surface text-t2 hover:border-line-strong hover:text-t1"}`}
-            style={{ ["--i" as string]: k * 0.5 }}
-          >
-            {i}
-          </span>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
-function Col({ title, items, i }: { title: string; items: [string, string | null][]; i: number }) {
-  return (
-    <div className="fx bg-raised p-6" style={{ ["--i" as string]: i }}>
-      <div className="title text-[20px] tracking-[-0.015em]">{title}</div>
-      <ul className="mt-3 space-y-2 text-[13.5px] text-t2">
-        {items.map(([t, href]) => (
-          <li key={t} className="flex items-center gap-2">
-            <span className="inline-block h-[3px] w-[3px] rounded-full bg-t3" />
-            {href ? (
-              <a className="underline decoration-line-2 underline-offset-2 hover:text-t1" href={href}>
-                {t}
-              </a>
-            ) : (
-              t
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
