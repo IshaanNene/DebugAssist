@@ -16,9 +16,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { themeColor: "#f6f5f0" };
 
-// Before first paint: restore Night if the visitor chose it, and arm motion. Motion is opt-in: `js` arms the
+// Before first paint: arm motion. Motion is opt-in: `js` arms the
 // entrance styles; if the Motion observer has not started within 2.5 s (script error, blocked JS), drop `js`.
-const BOOT = `(function(){var d=document.documentElement;try{if(localStorage.getItem('da-theme')==='dark')d.setAttribute('data-theme','dark')}catch(e){}d.classList.add('js');setTimeout(function(){if(!d.hasAttribute('data-motion'))d.classList.remove('js')},2500)})();`;
+const BOOT = `(function(){var d=document.documentElement;d.classList.add('js');setTimeout(function(){if(!d.hasAttribute('data-motion'))d.classList.remove('js')},2500)})();`;
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

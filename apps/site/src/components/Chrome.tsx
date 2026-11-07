@@ -1,19 +1,12 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ThemeToggle } from "@/components/client";
 import { GH, Logo, doc } from "@/components/ui";
+import { CHAPTERS } from "@/lib/chapters";
 
 export const COL = "mx-auto w-full max-w-[1240px] px-4 sm:px-8";
 
 // Internal links go through next/link so they keep the GitHub Pages base path.
-const NAV: [string, string][] = [
-  ["/#system", "System"],
-  ["/#pipeline", "Pipeline"],
-  ["/#run", "A real run"],
-  ["/#results", "Results"],
-  ["/#safety", "Safety"],
-  ["/results/", "Lab notebook"],
-];
+const NAV: [string, string][] = CHAPTERS.map((c) => [c.href, c.title]);
 
 /** The announcement line (optional) and a full-width header bar with the page's scroll progress. */
 export function SiteHeader({ banner }: { banner?: ReactNode }) {
@@ -26,7 +19,7 @@ export function SiteHeader({ banner }: { banner?: ReactNode }) {
             <Logo />
             DebugAssist
           </Link>
-          <nav className="hidden items-center gap-6 text-[14px] text-t2 lg:flex">
+          <nav className="hidden items-center gap-5 text-[13.5px] text-t2 xl:flex">
             {NAV.map(([h, t]) => (
               <Link key={h} className="transition-colors hover:text-t1" href={h}>
                 {t}
@@ -34,7 +27,20 @@ export function SiteHeader({ banner }: { banner?: ReactNode }) {
             ))}
           </nav>
           <div className="flex items-center gap-2">
-            <ThemeToggle />
+            <details className="group relative xl:hidden">
+              <summary className="grid h-8 cursor-pointer list-none place-items-center border border-line-2 px-3 font-mono text-[11.5px] text-t2 hover:text-t1">
+                <span className="group-open:hidden">Menu</span>
+                <span className="hidden group-open:inline">Close</span>
+              </summary>
+              <nav className="absolute right-0 top-10 z-40 w-[260px] border border-line-strong bg-surface py-2">
+                {CHAPTERS.map((c) => (
+                  <Link key={c.href} href={c.href} className="flex gap-3 px-4 py-2 text-[14px] text-t2 hover:bg-sunk hover:text-t1">
+                    <span className="font-mono text-[11px] leading-[21px] text-t4">{c.n}</span>
+                    {c.title}
+                  </Link>
+                ))}
+              </nav>
+            </details>
             <a
               href={GH}
               className="inline-flex h-8 items-center gap-2.5 border border-t1 bg-t1 px-3 text-[13.5px] font-medium text-surface transition-colors hover:bg-t2"
@@ -76,7 +82,7 @@ export function SiteFooter({ report }: { report: string }) {
   return (
     <footer className="relative mt-[160px] overflow-hidden">
       <div className="horizon" />
-      <div className={`${COL} grid gap-10 py-16 text-[13.5px] md:grid-cols-[1.6fr_1fr_1fr_1fr]`}>
+      <div className={`${COL} grid gap-10 py-16 text-[13.5px] md:grid-cols-[1.6fr_1fr_1fr_1fr_1fr]`}>
         <div>
           <div className="flex items-center gap-2.5 text-[16px] font-semibold tracking-[-0.025em]">
             <Logo />
@@ -86,6 +92,7 @@ export function SiteFooter({ report }: { report: string }) {
             An open-source on-call engineer. MIT licensed, built and measured in the open.
           </p>
         </div>
+        <FooterCol title="Site" links={CHAPTERS.map((c) => [c.title, c.href])} internal />
         <FooterCol title="Project" links={[["GitHub", GH], ["README", doc("README.md")], ["Latest report", report]]} />
         <FooterCol title="Docs" links={[["Architecture", doc("docs/ARCHITECTURE.md")], ["MCP servers", doc("docs/mcp.md")], ["Lessons learned", doc("docs/LESSONS.md")]]} />
         <FooterCol title="Process" links={[["Decision records", `${GH}/tree/main/docs/adr`], ["Roadmap", doc("docs/ROADMAP.md")], ["Progress", doc("docs/PROGRESS.md")]]} />
@@ -100,16 +107,22 @@ export function SiteFooter({ report }: { report: string }) {
   );
 }
 
-function FooterCol({ title, links }: { title: string; links: [string, string][] }) {
+function FooterCol({ title, links, internal }: { title: string; links: [string, string][]; internal?: boolean }) {
   return (
     <div>
       <div className="label text-[10.5px] text-t4">{title}</div>
       <ul className="mt-4 space-y-2.5">
         {links.map(([t, h]) => (
           <li key={t}>
-            <a className="text-t2 transition-colors hover:text-t1" href={h}>
-              {t}
-            </a>
+            {internal ? (
+              <Link className="text-t2 transition-colors hover:text-t1" href={h}>
+                {t}
+              </Link>
+            ) : (
+              <a className="text-t2 transition-colors hover:text-t1" href={h}>
+                {t}
+              </a>
+            )}
           </li>
         ))}
       </ul>

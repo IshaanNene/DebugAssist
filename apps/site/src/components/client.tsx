@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 
 /** A plain section; its entrance is handled by `.fx` children and the Motion observer. */
 export function Reveal({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
@@ -126,50 +126,4 @@ export function Shortcuts({ map }: { map: Record<string, string> }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [map]);
   return null;
-}
-
-type Theme = "dark" | "light";
-const THEME_EVENT = "da-theme";
-const readTheme = (): Theme => (document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light");
-const subscribeTheme = (cb: () => void) => {
-  window.addEventListener(THEME_EVENT, cb);
-  return () => window.removeEventListener(THEME_EVENT, cb);
-};
-
-/** Day (paper) is the default; Night is opt-in and remembered (the boot script in the layout restores it). */
-export function ThemeToggle() {
-  const theme = useSyncExternalStore(subscribeTheme, readTheme, (): Theme => "light");
-  const choose = (t: Theme) => {
-    const d = document.documentElement;
-    if (t === "light") d.removeAttribute("data-theme");
-    else d.setAttribute("data-theme", t);
-    try {
-      if (t === "light") localStorage.removeItem("da-theme");
-      else localStorage.setItem("da-theme", t);
-    } catch {
-      // storage blocked: the choice still holds for this page view
-    }
-    window.dispatchEvent(new Event(THEME_EVENT));
-  };
-  const options: [Theme, string][] = [
-    ["light", "Day"],
-    ["dark", "Night"],
-  ];
-  return (
-  <div role="group" aria-label="Theme" className="hidden border border-line-2 sm:inline-flex">
-      {options.map(([t, label]) => (
-        <button
-          key={t}
-          type="button"
-          aria-pressed={theme === t}
-          onClick={() => choose(t)}
-  className={`h-8 px-3 font-mono text-[11.5px] transition-colors ${
-            theme === t ? "bg-t1 text-surface" : "bg-surface text-t3 hover:text-t1"
-          }`}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
 }

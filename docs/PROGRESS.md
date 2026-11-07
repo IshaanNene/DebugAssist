@@ -12,7 +12,7 @@
 | Audit fixes: sandbox trust boundary, credentials, dev stack, App contract, write gate ([below](#audit-fixes-2026-10-16)) | ✅ done (container flags not run under Docker yet) | 2026-10-16 |
 | Site redesign: tokens, type, receipts, run console, new home page, Lab notebook ([below](#site-redesign-foundations-and-the-home-page-2026-10-25)) | ✅ done (P0–P2) | 2026-10-25 |
 | Next level, Phase 0: hermetic tests, truthful ship reasons, scoring fixes, doctor, cloud sweeps ([below](#next-level-phase-0-make-the-basics-true-2026-11-07--done-offline)) | ✅ done (cloud sweep not run) | 2026-11-07 |
-| Site rebuild: paper and drafting style, square everywhere, five system diagrams, Night opt-in ([below](#site-rebuild-drafting-style-and-diagrams-2026-11-07)) | ✅ done | 2026-11-07 |
+| Site rebuild: paper and drafting style, square everywhere, system diagrams, chapter pages ([below](#site-rebuild-drafting-style-and-diagrams-2026-11-07)) | ✅ done | 2026-11-07 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
 The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
@@ -362,7 +362,12 @@ in review as text dumped into dark boxes with no diagrams.
   `Loop.tsx` and `Architecture.tsx` restored from the original site with theme tokens.
 - Checked: typecheck, lint, static build; desktop, phone width (no horizontal scroll) and Night in the browser.
 
-**Not done**: `/runs`, ⌘K and OG images (P3–P4); the day/night check of `/results` was a quick look only.
+- Follow-up the same day: Night removed; diagrams and the run console drawn in ink by shape instead of colour; six
+  chapter pages added (`/system`, `/pipeline`, `/decisions`, `/run`, `/safety`, `/design` with a page per ADR),
+  rendered at build time from the decision templates, `docs/mcp.md`, `writes.yaml`, `docs/THREAT-MODEL.md` and
+  `docs/adr/`. Checked: typecheck, lint, static build, every route at desktop and phone width.
+
+**Not done**: `/runs`, ⌘K and OG images (P3–P4).
 
 ## Next level, Phase 0: make the basics true (2026-11-07) — done, offline
 

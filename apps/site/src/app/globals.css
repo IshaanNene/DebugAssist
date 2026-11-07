@@ -2,7 +2,7 @@
 
 /* ───────────────────────── Tokens ─────────────────────────
    Paper by default, ink on top; Night is opt-in (the header toggle, remembered in localStorage).
-   Each token is light-dark(day, night). Colour is data:
+   Each token is day. Colour is data:
      highlighter — what to read first        blue   — time and action (clock, links, focus)
      orange      — Clef decisions            violet — LLM agents            ink — deterministic code
      green       — a check that passed       red    — the incoming crash, and nothing else
@@ -11,47 +11,47 @@
   color-scheme: light;
 
   /* surfaces */
-  --bg: light-dark(#f6f5f0, #0c0c0b);
-  --raised: light-dark(#fdfdfb, #141412);
-  --sunk: light-dark(#eeede6, #080807);
+  --bg: #f6f5f0;
+  --raised: #fdfdfb;
+  --sunk: #eeede6;
   /* lines */
-  --line: light-dark(#dcdad1, #262521);
-  --line-2: light-dark(#c8c6bb, #36352f);
-  --line-strong: light-dark(#3d3c36, #8d8b82);
+  --line: #dcdad1;
+  --line-2: #c8c6bb;
+  --line-strong: #3d3c36;
   /* text */
-  --fg: light-dark(#141412, #f1f0ea);
-  --fg-2: light-dark(#3d3c37, #c3c1b8);
-  --fg-3: light-dark(#5c5a52, #98968c);
-  --fg-4: light-dark(#6a685f, #85837a);
+  --fg: #141412;
+  --fg-2: #3d3c37;
+  --fg-3: #5c5a52;
+  --fg-4: #6a685f;
   /* time and action */
-  --amber: light-dark(#2f55d4, #8ea6ff);
+  --amber: #2f55d4;
   --amber-fill: #f3f66a;
   --ink: #141412;
-  --tint: light-dark(rgba(243, 246, 106, 0.38), rgba(243, 246, 106, 0.1));
-  --tint-solid: light-dark(#f4f3b8, #24240f);
+  --tint: rgba(243, 246, 106, 0.38);
+  --tint-solid: #f4f3b8;
   /* the highlighter */
-  --mark: light-dark(#f7f985, #4a4c16);
-  --mark-hot: light-dark(#fbff7a, #62651a);
-  --mark-side: light-dark(#dde05f, #2c2e0c);
-  --mark-front: light-dark(#e9ec6c, #3a3c10);
+  --mark: #f7f985;
+  --mark-hot: #fbff7a;
+  --mark-side: #dde05f;
+  --mark-front: #e9ec6c;
   /* who acted, and how a check ended */
-  --actor-code: light-dark(#3d3c36, #d6d4cb);
-  --actor-llm: light-dark(#6c52e0, #b8a6ff);
-  --actor-clef: light-dark(#b8650a, #f2a540);
-  --pass: light-dark(#23773b, #5fd88a);
-  --signal: light-dark(#c8323f, #ff6b76);
-  --hatch: light-dark(rgba(61, 60, 54, 0.28), rgba(195, 193, 184, 0.26));
+  --actor-code: #3d3c36;
+  --actor-llm: #6c52e0;
+  --actor-clef: #b8650a;
+  --pass: #23773b;
+  --signal: #c8323f;
+  --hatch: rgba(61, 60, 54, 0.28);
   /* isometric drawings */
-  --iso-ink: light-dark(#2f2e2a, #d6d4cb);
-  --iso-soft: light-dark(#8a887f, #8d8b82);
-  --iso-dim: light-dark(#6f6d66, #9a988f);
-  --iso-faint: light-dark(#a9a79e, #5d5b54);
-  --iso-text-2: light-dark(#55544e, #aeaca3);
-  --iso-top: light-dark(#ffffff, #1d1d1a);
-  --iso-plate: light-dark(#f9f9f6, #171715);
-  --iso-side: light-dark(#e9e9e3, #0f0f0d);
-  --iso-front: light-dark(#dededa, #131311);
-  /* the terminal band stays dark in both themes */
+  --iso-ink: #2f2e2a;
+  --iso-soft: #8a887f;
+  --iso-dim: #6f6d66;
+  --iso-faint: #a9a79e;
+  --iso-text-2: #55544e;
+  --iso-top: #ffffff;
+  --iso-plate: #f9f9f6;
+  --iso-side: #e9e9e3;
+  --iso-front: #dededa;
+  /* the terminal band is dark */
   --term-bg: #10100e;
   --term-panel: #171715;
   --term-fg: #f1f0ea;
@@ -59,13 +59,10 @@
   --term-line: rgba(241, 240, 234, 0.12);
 
   --grad: linear-gradient(90deg, var(--actor-clef), var(--amber) 50%, var(--actor-llm));
-  --glass: light-dark(rgba(253, 253, 251, 0.78), rgba(24, 24, 21, 0.7));
-  --glass-line: light-dark(rgba(20, 20, 18, 0.1), rgba(255, 255, 255, 0.09));
-  --shadow-color: light-dark(rgba(40, 38, 30, 0.22), rgba(0, 0, 0, 0.7));
+  --glass: rgba(253, 253, 251, 0.78);
+  --glass-line: rgba(20, 20, 18, 0.1);
+  --shadow-color: rgba(40, 38, 30, 0.22);
   --shadow: 0 30px 60px -32px var(--shadow-color);
-}
-:root[data-theme="dark"] {
-  color-scheme: dark;
 }
 
 @theme inline {
@@ -745,4 +742,102 @@ html[data-scrolled] .site-header {
   .packet {
     display: none;
   }
+}
+
+/* ───────── chapter pages ───────── */
+/* an ink hatch, for the safe-default band of a decision */
+.hatch-ink {
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, var(--fg) 3px 4px);
+}
+
+/* the repository's own Markdown (ADRs, the threat model), set like a technical paper */
+.prose-da {
+  color: var(--fg-2);
+  font-size: 15.5px;
+  line-height: 1.7;
+}
+.prose-da > * + * {
+  margin-top: 1em;
+}
+.prose-da h2 {
+  margin-top: 2.6em;
+  padding-bottom: 0.5em;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg);
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+.prose-da h2:first-child {
+  margin-top: 0;
+}
+.prose-da h3 {
+  margin-top: 2em;
+  color: var(--fg);
+  font-size: 17px;
+  font-weight: 500;
+}
+.prose-da ul,
+.prose-da ol {
+  padding-left: 1.25em;
+}
+.prose-da ul {
+  list-style: square;
+}
+.prose-da ol {
+  list-style: decimal;
+}
+.prose-da li + li {
+  margin-top: 0.45em;
+}
+.prose-da li::marker {
+  color: var(--fg-4);
+}
+.prose-da blockquote {
+  border-left: 2px solid var(--fg);
+  padding-left: 1em;
+  color: var(--fg-3);
+}
+.prose-da pre {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  background: var(--sunk);
+  padding: 14px 16px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.prose-da .table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  background: var(--raised);
+}
+.prose-da table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.prose-da th {
+  border-bottom: 1px solid var(--line-strong);
+  background: var(--sunk);
+  padding: 9px 14px;
+  color: var(--fg-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.prose-da td {
+  border-top: 1px solid var(--line);
+  padding: 10px 14px;
+  vertical-align: top;
+}
+.prose-da td:first-child {
+  color: var(--fg);
+  font-weight: 500;
 }

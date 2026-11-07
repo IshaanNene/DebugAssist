@@ -1,35 +1,14 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { Architecture } from "@/components/Architecture";
 import { Banner, COL, SiteFooter, SiteHeader } from "@/components/Chrome";
 import { Motion, Shortcuts } from "@/components/client";
-import { HeroDiagram, Principle, SystemMap } from "@/components/Diagrams";
-import { Graph } from "@/components/Graph";
-import { Loop } from "@/components/Loop";
-import { Receipt } from "@/components/Receipt";
+import { HeroDiagram, Principle } from "@/components/Diagrams";
+import { CHAPTERS, Figure } from "@/components/Page";
 import { Results } from "@/components/Results";
-import { RunConsole } from "@/components/RunConsole";
-import { Safety } from "@/components/Sections";
 import { Button, Eyebrow, GH, H2, Lead, doc } from "@/components/ui";
-import { bisectReplay, facts, featuredRun, realBugs, results, runTimings, writePolicy } from "@/lib/data";
+import { bisectReplay, facts, featuredRun, realBugs, results } from "@/lib/data";
 
 const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const v = (i: number) => ({ ["--i" as string]: i });
-
-/** A numbered figure in a drafting frame, like a plate in a technical paper. */
-function Figure({ n, title, note, children, className = "" }: { n: string; title: string; note?: ReactNode; children: ReactNode; className?: string }) {
-  return (
-    <figure className={`fx cbox bg-surface ${className}`}>
-      <figcaption className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-2.5 font-mono text-[11px] text-t3 sm:px-5">
-        <span>
-          <span className="text-t1">Fig. {n}</span> · {title}
-        </span>
-        {note && <span className="text-t4">{note}</span>}
-      </figcaption>
-      <div className="p-4 sm:p-8">{children}</div>
-    </figure>
-  );
-}
 
 export default function Home() {
   const data = results();
@@ -38,15 +17,12 @@ export default function Home() {
   const foundBisect = bis.find((b) => b.found > 0);
   const f = facts();
   const run = featuredRun(data);
-  const timings = run ? runTimings(run.runId) : null;
-  const ms = Object.fromEntries((timings?.steps ?? []).map((s) => [s.node, s.ms]));
-  const policy = writePolicy();
   const report = doc(`evals/reports/${data.report}/report.md`);
 
   return (
     <>
       <Motion />
-      <Shortcuts map={{ g: GH, d: doc("README.md"), r: "#results", s: "#start" }} />
+      <Shortcuts map={{ g: GH, d: doc("README.md"), r: `${base}/results/`, s: "#start" }} />
       <SiteHeader
         banner={
           foundBisect && (
@@ -100,7 +76,7 @@ export default function Home() {
                   <Button href={doc("README.md")} hint="D">
                     Documentation
                   </Button>
-                  <Button href="#results" hint="R">
+                  <Button href={`${base}/results/`} hint="R">
                     See the results
                   </Button>
                 </div>
@@ -132,91 +108,37 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── the pipeline ── */}
-        <section id="pipeline" className={`${COL} scroll-mt-24 pt-[150px]`}>
-          <Eyebrow n="02">The pipeline</Eyebrow>
+        {/* ── contents: one page per chapter ── */}
+        <section id="contents" className={`${COL} scroll-mt-24 pt-[150px]`}>
+          <Eyebrow n="02">Contents</Eyebrow>
           <H2 className="mt-5 max-w-[18ch]">
-            Investigate, fix, prove — <span className="hl">in that order.</span>
+            Read it like a <span className="hl">design doc.</span>
           </H2>
           <Lead className="mt-6">
-            Four phases, ten steps, always the same sequence. Scroll through it, then open any step to see who acts, which
-            decisions it takes, and how long it took in a real run.
+            Each part of the system has its own page. Most are rendered from the files that define them — the decision
+            templates, the write policy, the server table, the threat model and the design records — so they cannot drift
+            from the code.
           </Lead>
-          <div className="mt-12">
-            <Loop />
-          </div>
-          <div className="mt-6">
-            <Figure n="3" title="the graph, node by node" note="pick a step">
-              <Graph ms={ms} runLabel={run ? `run ${run.issue}` : "the featured run"} />
-            </Figure>
-          </div>
-        </section>
-
-        {/* ── a real run ── */}
-        <section id="run" className={`${COL} scroll-mt-24 pt-[150px]`}>
-          <Eyebrow n="03">A real run</Eyebrow>
-          <H2 className="mt-5 max-w-[18ch]">
-            Three and a half minutes, <span className="hl">replayed.</span>
-          </H2>
-          <Lead className="mt-6">
-            An evaluated run on its true clock: bars coloured by who acted, a diamond for each Clef decision. Tap any
-            underlined figure to see the file, row and field it comes from.
-          </Lead>
-          {run && timings && (
-            <div className="fx mt-12">
-              <RunConsole
-                run={run}
-                timings={timings}
-                report={data.report}
-                model={data.model}
-                notes={{
-                  auto_triage: <>Priority set by Clef, owner from CODEOWNERS.</>,
-                  context_collector: <>Evidence bundle from {f.mcpServers} MCP servers: crashes, code, flags, telemetry.</>,
-                  classify_rca: (
-                    <>
-                      Root cause in <span className="font-mono text-[12px] text-t1">{run.location}</span>, with{" "}
-                      <Receipt source={{ file: `evals/reports/${data.report}/results.csv`, row: `run_id ${run.runId}`, field: "claims · claims_unsupported", raw: `${run.claims} · ${run.unsupported}` }}>
-                        {run.claims} claims, {run.unsupported} unsupported
-                      </Receipt>
-                      .
-                    </>
-                  ),
-                  fix: <>A {run.tier} test fails on the shipped release; the fix makes it pass.</>,
-                  validate: (
-                    <>
-                      Suite green. Hidden test passed:{" "}
-                      <span className="font-mono text-[12px]">{run.hiddenTest.split("/").pop()}</span>.
-                    </>
-                  ),
-                }}
-              />
-            </div>
-          )}
-        </section>
-
-        {/* ── the system ── */}
-        <section id="system" className={`${COL} scroll-mt-24 pt-[150px]`}>
-          <Eyebrow n="04">The system</Eyebrow>
-          <H2 className="mt-5 max-w-[18ch]">
-            Signals in, evidence up, <span className="hl">one gate out.</span>
-          </H2>
-          <Lead className="mt-6">
-            Agents see the world only through read-only evidence tools. Every action leaves through a single policy
-            file — and anything it doesn&apos;t list is a dry run.
-          </Lead>
-          <div className="mt-12">
-            <Figure n="4" title="how a signal travels" note="every write passes the gate">
-              <SystemMap servers={f.mcpServers} tools={f.mcpTools} templates={f.templates} branchPrefix={policy.branchPrefix} />
-            </Figure>
-          </div>
-          <div className="mt-6">
-            <Architecture servers={f.mcpServers} tools={f.mcpTools} />
-          </div>
+          <ol className="mt-12 border-t border-line-strong">
+            {CHAPTERS.map((c, i) => (
+              <li key={c.href} className="fx" style={v(i * 0.4)}>
+                <Link
+                  href={c.href}
+                  className="group grid gap-x-8 gap-y-1 border-b border-line py-7 transition-colors hover:bg-sunk/40 md:grid-cols-[80px_minmax(0,300px)_minmax(0,1fr)_24px] md:items-baseline"
+                >
+                  <span className="font-mono text-[12px] text-t3">{c.n}</span>
+                  <span className="text-[26px] font-medium tracking-[-0.02em] text-t1 sm:text-[30px]">{c.title}</span>
+                  <span className="max-w-[60ch] text-[15px] leading-[1.6] text-t3">{c.blurb}</span>
+                  <span className="hidden font-mono text-[18px] text-t3 transition-transform group-hover:translate-x-1 group-hover:text-t1 md:block">→</span>
+                </Link>
+              </li>
+            ))}
+          </ol>
         </section>
 
         {/* ── results ── */}
         <section id="results" className={`${COL} scroll-mt-24 pt-[150px]`}>
-          <Eyebrow n="05">Results</Eyebrow>
+          <Eyebrow n="03">Results</Eyebrow>
           <H2 className="mt-5">
             Measured, <span className="hl">not claimed.</span>
           </H2>
@@ -272,21 +194,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ── safety ── */}
-        <section id="safety" className={`${COL} scroll-mt-24 pt-[150px]`}>
-          <Eyebrow n="06">Safety</Eyebrow>
-          <H2 className="mt-5 max-w-[18ch]">
-            It can&apos;t touch production <span className="hl">on its own.</span>
-          </H2>
-          <Lead className="mt-6">
-            Every side effect is listed in one policy file, and this section is rendered from it at build time — so the
-            page can never drift from the rules the agent runs under.
-          </Lead>
-          <div className="mt-12">
-            <Safety rules={policy.rules} branchPrefix={policy.branchPrefix} />
-          </div>
-        </section>
-
         {/* ── get started ── */}
         <section id="start" className={`${COL} scroll-mt-24 pt-[150px]`}>
   <div className="relative overflow-hidden  bg-term text-term-fg">
@@ -330,7 +237,7 @@ export default function Home() {
         <section id="faq" className={`${COL} scroll-mt-24 pt-[150px]`}>
           <div className="grid gap-10 md:grid-cols-[1fr_1.7fr]">
             <div>
-              <Eyebrow n="07">FAQ</Eyebrow>
+              <Eyebrow n="04">FAQ</Eyebrow>
               <H2 className="mt-5">
                 Questions &amp; answers
               </H2>
