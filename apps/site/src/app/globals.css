@@ -209,10 +209,10 @@ p {
   border: 1px solid var(--line-strong);
 }
 
-/* a drafting frame: hairline box with 8px corner brackets */
+/* a drafting sheet: a closed hairline border with 9px registration corners */
 .cbox {
   position: relative;
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-2);
 }
 .cbox::before {
   content: "";

@@ -52,6 +52,12 @@ direction where they conflict:
   colour tones with meaning: amber for Clef, violet for the LLM, green for what holds, red for what broke, the
   yellow highlighter for the outcome to look at. Drawings switch to their step lists below `xl`, where the column is narrower than they were laid
   out for.
+- **Drafting pass.** Every box is closed: data stores have both ends, the older figures' corner-bracket frames
+  became solid boxes, shape details scale with the box. Labels knock out the lines they sit on; lanes replace loose
+  dashed boundaries. The isometric pictures (the System layers, the Pipeline loop) were redrawn flat — four
+  swimlanes, and a row of phases with the open phase's steps drawn out below — because skewed text and labels
+  under blocks read as decoration. A figure may rename a colour in its key (`names`). A paper 404 page replaces
+  Next's default.
 - **Unchanged:** every figure is still read from `evals/reports` at build time, the run replay and receipts, the
   Safety section rendered from `configs/policies/writes.yaml`, and the Lab notebook.
 

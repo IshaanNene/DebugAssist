@@ -59,7 +59,7 @@ export default function SystemPage() {
         </Figure>
       </Section>
 
-      <Section id="layers" title="The layers" aside="Fig. 2 · scroll to open">
+      <Section id="layers" title="The layers" aside="Fig. 2 · hover a layer">
         <Architecture servers={f.mcpServers} tools={f.mcpTools} />
       </Section>
 

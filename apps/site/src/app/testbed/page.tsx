@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Draw } from "@/components/Draw";
 import { ChapterPage, Figure, Section } from "@/components/Page";
 import { ShipGraph } from "@/components/figs";
 import { results } from "@/lib/data";
@@ -21,88 +21,42 @@ const TOC = [
   { id: "verify", text: "Proving the catalog" },
 ];
 
-const W = 1200;
-const H = 400;
-type Box = { x: number; y: number; w: number; h: number };
-const pc = (b: Box) => ({ left: `${(b.x / W) * 100}%`, top: `${(b.y / H) * 100}%`, width: `${(b.w / W) * 100}%`, height: `${(b.h / H) * 100}%` });
-
-function Part({ b, title, sub, children, hatch }: { b: Box; title: string; sub: string; children?: ReactNode; hatch?: boolean }) {
-  return (
-    <div className={`absolute flex flex-col justify-between border border-line-strong p-3 ${hatch ? "hatch bg-sunk" : "bg-surface"}`} style={pc(b)}>
-      <div>
-        <div className="text-[14.5px] font-medium tracking-[-0.01em] text-t1">{title}</div>
-        <div className="font-mono text-[10.5px] text-t3">{sub}</div>
-      </div>
-      {children && <div className="font-mono text-[10.5px] leading-[1.5] text-t3">{children}</div>}
-    </div>
-  );
-}
-
-// The system as docs/ARCHITECTURE.md describes it: client → gateway (GraphQL) → dispatch and payments; flags from
-// Unleash; every component ships OpenTelemetry to the collector, which feeds Jaeger, Loki and Prometheus.
-const CLIENT: Box = { x: 0, y: 40, w: 230, h: 130 };
-const GATEWAY: Box = { x: 320, y: 40, w: 230, h: 130 };
-const DISPATCH: Box = { x: 650, y: 0, w: 230, h: 95 };
-const PAYMENTS: Box = { x: 650, y: 115, w: 230, h: 95 };
-const PG: Box = { x: 970, y: 0, w: 230, h: 95 };
-const FLAGS: Box = { x: 970, y: 115, w: 230, h: 95 };
-const OTEL: Box = { x: 0, y: 290, w: 1200, h: 90 };
-
+// The system as docs/ARCHITECTURE.md describes it: client → gateway (GraphQL) → dispatch and payments; Postgres
+// behind Toxiproxy; flags from Unleash; every component ships OpenTelemetry to the collector, which feeds Jaeger,
+// Loki and Prometheus. Below xl the components table stands in for it.
 function MiniRideMap() {
-  const e = [
-    `M${CLIENT.x + CLIENT.w} 105 H ${GATEWAY.x}`,
-    `M${GATEWAY.x + GATEWAY.w} 90 H 600 V 47 H ${DISPATCH.x}`,
-    `M${GATEWAY.x + GATEWAY.w} 120 H 600 V 162 H ${PAYMENTS.x}`,
-    `M${DISPATCH.x + DISPATCH.w} 47 H ${PG.x}`,
-    `M${PAYMENTS.x + PAYMENTS.w} 162 H ${FLAGS.x}`,
-  ];
-  const otel = [115, 435, 765].map((x) => `M${x} ${x === 765 ? 210 : 170} V ${OTEL.y}`);
   return (
-    <div className="relative hidden aspect-[1200/400] w-full xl:block">
-      <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
-        <defs>
-          <marker id="ta" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
-            <path d="M0 0 L8 4 L0 8 z" fill="var(--line-strong)" />
-          </marker>
-        </defs>
-        {e.map((d) => (
-          <path key={d} d={d} fill="none" stroke="var(--line-strong)" strokeWidth={1} markerEnd="url(#ta)" />
-        ))}
-        {otel.map((d) => (
-          <path key={d} d={d} fill="none" stroke="var(--line-strong)" strokeWidth={1} strokeDasharray="4 4" markerEnd="url(#ta)" />
-        ))}
-      </svg>
-      <Part b={CLIENT} title="client" sub="TypeScript · React 19 · Vite">
-        booking · notification center
-        <br />
-        push deep links · ETA poller
-      </Part>
-      <Part b={GATEWAY} title="gateway" sub="Node 22 · GraphQL Yoga">
-        rider API · notification store
-        <br />
-        logs every operation
-      </Part>
-      <Part b={DISPATCH} title="dispatch" sub="Python 3.13 · FastAPI" />
-      <Part b={PAYMENTS} title="payments" sub="Go · per-city tariffs" />
-      <Part b={PG} title="Postgres" sub="behind Toxiproxy" hatch />
-      <Part b={FLAGS} title="Unleash" sub="notif_router_v2 · surge_pricing" hatch />
-      <span className="absolute border border-line-2 bg-surface px-2 py-0.5 font-mono text-[10.5px] text-t3" style={{ left: `${(565 / W) * 100}%`, top: `${(90 / H) * 100}%`, transform: "translate(-50%,-50%)" }}>
-        GraphQL
-      </span>
-      <div className="absolute flex items-center justify-between border border-t1 bg-t1 px-4 text-surface" style={pc(OTEL)}>
-        <div>
-          <div className="text-[14.5px] font-medium">OpenTelemetry collector</div>
-          <div className="font-mono text-[10.5px] text-surface/70">W3C trace context browser → gateway → dispatch / payments · x-session-id · x-app-version</div>
-        </div>
-        <div className="hidden gap-2 font-mono text-[11px] xl:flex">
-          {["Jaeger", "Loki", "Prometheus"].map((t) => (
-            <span key={t} className="border border-surface/30 px-2 py-0.5">
-              {t}
-            </span>
-          ))}
-        </div>
-      </div>
-    </div>
+    <Draw
+      w={1200}
+      h={390}
+      legend={false}
+      boxes={[
+        { x: 0, y: 40, w: 220, h: 120, title: "client", tag: "TS · React 19", lines: ["booking · notifications", "push links · ETA poller"] },
+        { x: 300, y: 40, w: 220, h: 120, title: "gateway", tag: "Node 22", lines: ["GraphQL Yoga · rider API", "logs every operation"] },
+        { x: 600, y: 0, w: 220, h: 90, title: "dispatch", tag: "Python 3.13", lines: ["FastAPI"] },
+        { x: 600, y: 110, w: 220, h: 90, title: "payments", tag: "Go", lines: ["per-city tariffs"] },
+        { x: 900, y: 0, w: 300, h: 90, title: "Postgres", lines: ["behind Toxiproxy"], shape: "store" },
+        { x: 900, y: 110, w: 300, h: 90, title: "Unleash", lines: ["notif_router_v2 · surge_pricing"], shape: "store" },
+        { x: 0, y: 280, w: 840, h: 100, title: "OpenTelemetry collector", lines: ["W3C trace context browser → gateway → dispatch / payments · x-session-id · x-app-version"], tone: "ink" },
+        { x: 900, y: 280, w: 300, h: 100, title: "Jaeger · Loki · Prometheus", lines: ["traces · logs · metrics"], shape: "store" },
+      ]}
+      edges={[
+        { d: "M220 100 H 300" },
+        { d: "M520 80 H 560 V 45 H 600" },
+        { d: "M520 120 H 560 V 155 H 600" },
+        { d: "M820 45 H 900" },
+        { d: "M820 155 H 900" },
+        { d: "M110 160 V 280", dashed: true },
+        { d: "M410 160 V 280", dashed: true },
+        { d: "M710 200 V 280", dashed: true },
+        { d: "M840 330 H 900" },
+      ]}
+      labels={[
+        { x: 260, y: 84, text: "GraphQL", boxed: false },
+        { x: 560, y: 240, text: "OTLP from every component", boxed: false },
+      ]}
+      steps={[]}
+    />
   );
 }
 

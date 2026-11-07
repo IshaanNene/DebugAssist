@@ -52,9 +52,9 @@ export function Tag({ children, solid }: { children: ReactNode; solid?: boolean 
   );
 }
 
-/** A frame: hairline box with corner brackets. */
+/** A frame: a closed, solid-edged box, drawn like the Draw kit's process shape. */
 function Frame({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("cbox h-full bg-surface", className)}>{children}</div>;
+  return <div className={cx("h-full border border-line-strong bg-raised", className)}>{children}</div>;
 }
 
 function Kicker({ children }: { children: ReactNode }) {
@@ -85,7 +85,7 @@ export function HeroDiagram({ run, servers, tools, templates }: { run: FeaturedR
     <Frame>
       <div className="flex h-full flex-col">
         {signals.map(([t, d, tags], i) => (
-          <div key={t} className={cx("flex-1 px-6 py-5", i > 0 && "border-t border-line")}>
+          <div key={t} className={cx("flex-1 px-6 py-5", i > 0 && "border-t border-line-2")}>
             <h4 className="text-[18px] font-medium tracking-[-0.015em] text-t1">{t}</h4>
             <p className="mt-1 text-[14px] text-t3">{d}</p>
             <div className="mt-3 flex flex-wrap gap-1.5">
@@ -148,7 +148,7 @@ export function HeroDiagram({ run, servers, tools, templates }: { run: FeaturedR
             <Tag>write gate</Tag>
           </Row>
         </div>
-        <div className="mt-auto border-t border-line px-6 py-5">
+        <div className="mt-auto border-t border-line-2 px-6 py-5">
           <Kicker>out, for {run.issue}</Kicker>
           <div className="mt-3 grid grid-cols-2 gap-1.5">
             {["root cause", "mitigation", "failing test", "draft PR"].map((o) => (
@@ -268,13 +268,13 @@ export function SystemMap({ servers, tools, templates, branchPrefix }: { servers
             </span>
           ))}
         </div>
-        <div className="mt-5 grid grid-cols-2 border border-line">
+        <div className="mt-5 grid grid-cols-2 border border-line-2">
           <div className="p-4">
             <Kicker>Clef</Kicker>
             <div className="mt-2 text-[14px] font-medium text-t1">{templates} decision templates</div>
             <p className="mt-1 text-[12.5px] leading-[1.5] text-t3">A probability, mapped by policy to act, escalate or a safe default.</p>
           </div>
-          <div className="border-l border-line p-4">
+          <div className="border-l border-line-2 p-4">
             <Kicker>Agents</Kicker>
             <div className="mt-2 text-[14px] font-medium text-t1">In a sandbox</div>
             <p className="mt-1 text-[12.5px] leading-[1.5] text-t3">No network, a worktree of the release.</p>

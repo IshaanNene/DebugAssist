@@ -14,28 +14,28 @@ export function FingerprintFlow() {
   return (
     <Draw
       w={1200}
-      h={320}
+      h={310}
       boxes={[
-        { x: 0, y: 100, w: 170, h: 110, title: "Crash event", tag: "SDK", lines: ["stack · version", "device · city · flags"], shape: "doc" },
-        { x: 210, y: 100, w: 180, h: 110, title: "Normalize", lines: ["in-app frames only", "no line numbers", "no asset hashes"] },
-        { x: 430, y: 100, w: 160, h: 110, title: "Fingerprint", lines: ["one key per bug,", "across builds"] },
-        { x: 630, y: 100, w: 180, h: 110, title: "Groups", lines: ["count · versions", "session denominators"], shape: "store" },
-        { x: 845, y: 85, w: 140, h: 140, title: "Seen before?", shape: "decision" },
-        { x: 1020, y: 10, w: 180, h: 100, title: "Open an issue", tag: "VIT-…", lines: ["a new group"], tone: "mark" },
-        { x: 1020, y: 200, w: 180, h: 100, title: "Reopen it", tag: "regression", lines: ["back on a newer", "version"], tone: "bad" },
+        { x: 0, y: 100, w: 180, h: 110, title: "Crash event", tag: "SDK", lines: ["stack · version", "device · flags"], shape: "doc" },
+        { x: 220, y: 100, w: 180, h: 110, title: "Normalize", lines: ["in-app frames only", "no line numbers", "no asset hashes"] },
+        { x: 440, y: 100, w: 160, h: 110, title: "Fingerprint", lines: ["one key per bug", "across builds"] },
+        { x: 640, y: 100, w: 180, h: 110, title: "Groups", lines: ["counts · versions", "sessions as base"], shape: "store" },
+        { x: 855, y: 80, w: 170, h: 150, title: "Seen before?", shape: "decision" },
+        { x: 1060, y: 10, w: 140, h: 100, title: "Open issue", lines: ["VIT-…, new"], tone: "mark" },
+        { x: 1060, y: 200, w: 140, h: 100, title: "Reopen", lines: ["as a regression"], tone: "bad" },
       ]}
       edges={[
-        { d: "M170 155 H 210" },
-        { d: "M390 155 H 430" },
-        { d: "M590 155 H 630" },
-        { d: "M810 155 H 845" },
-        { d: "M915 85 V 60 H 1020" },
-        { d: "M915 225 V 250 H 1020" },
+        { d: "M180 155 H 220" },
+        { d: "M400 155 H 440" },
+        { d: "M600 155 H 640" },
+        { d: "M820 155 H 855" },
+        { d: "M940 80 V 60 H 1060" },
+        { d: "M940 230 V 250 H 1060" },
       ]}
       labels={[
-        { x: 300, y: 245, text: "source maps → function names", boxed: false },
-        { x: 965, y: 46, text: "no", boxed: false },
-        { x: 967, y: 268, text: "yes, newer version", boxed: false },
+        { x: 310, y: 240, text: "source maps → function names", boxed: false },
+        { x: 1052, y: 46, text: "no", boxed: false, anchor: "r" },
+        { x: 1052, y: 268, text: "yes, on a newer version", boxed: false, anchor: "r" },
       ]}
       steps={[
         "A crash event arrives with its stack, version, device, city and flag exposures.",
@@ -92,25 +92,25 @@ export function Backends() {
   return (
     <Draw
       w={1200}
-      h={320}
+      h={330}
       boxes={[
-        { x: 0, y: 110, w: 190, h: 100, title: "ClefRequest", lines: ["template · state", "params · images"], shape: "doc" },
-        { x: 270, y: 10, w: 270, h: 90, title: "WorkersAIClef", tag: "default", lines: ["Clef / Clef-flash · keys set", "retries 429 · 5xx · timeouts"], tone: "clef" },
-        { x: 270, y: 115, w: 270, h: 90, title: "LLMDecider", tag: "fallback", lines: ["breaker open · baseline", "escalation second opinion"], tone: "llm" },
-        { x: 270, y: 220, w: 270, h: 90, title: "MockDecider", tag: "CI", lines: ["no keys · demos", "deterministic per question"], tone: "dashed" },
-        { x: 630, y: 80, w: 240, h: 160, title: "Policy band", lines: ["p vs τ_high · τ_low"], shape: "decision" },
-        { x: 930, y: 110, w: 270, h: 100, title: "Decision ledger", lines: ["state hash · answers · band", "action · cost · mode"], shape: "store" },
+        { x: 0, y: 115, w: 190, h: 100, title: "ClefRequest", lines: ["template · state", "params · images"], shape: "doc" },
+        { x: 270, y: 0, w: 270, h: 92, title: "WorkersAIClef", tag: "default", lines: ["Clef / Clef-flash · keys set", "retries 429 · 5xx · timeouts"], tone: "clef" },
+        { x: 270, y: 119, w: 270, h: 92, title: "LLMDecider", tag: "fallback", lines: ["breaker open · baseline", "escalation second opinion"], tone: "llm" },
+        { x: 270, y: 238, w: 270, h: 92, title: "MockDecider", tag: "CI", lines: ["no keys · demos", "deterministic per question"], tone: "dashed" },
+        { x: 630, y: 85, w: 240, h: 160, title: "Policy band", lines: ["p vs τ_high · τ_low"], shape: "decision" },
+        { x: 930, y: 115, w: 270, h: 100, title: "Decision ledger", lines: ["state hash · answers · band", "action · cost · mode"], shape: "store" },
       ]}
       edges={[
-        { d: "M190 160 H 230 V 55 H 270" },
-        { d: "M190 160 H 270" },
-        { d: "M190 160 H 230 V 265 H 270", dashed: true },
-        { d: "M540 55 H 750 V 80" },
-        { d: "M540 160 H 630" },
-        { d: "M540 265 H 750 V 240", dashed: true },
-        { d: "M870 160 H 930" },
+        { d: "M190 165 H 230 V 46 H 270" },
+        { d: "M190 165 H 270" },
+        { d: "M190 165 H 230 V 284 H 270", dashed: true },
+        { d: "M540 46 H 750 V 85" },
+        { d: "M540 165 H 630" },
+        { d: "M540 284 H 750 V 245", dashed: true },
+        { d: "M870 165 H 930" },
       ]}
-      labels={[{ x: 405, y: 107, text: "circuit breaker", boxed: true }]}
+      labels={[{ x: 405, y: 105.5, text: "circuit breaker opens ↓" }]}
       steps={[
         "Every decision is one ClefRequest: a template, the state, parameters and optional images.",
         "WorkersAIClef answers it when Cloudflare keys are set, retrying rate limits, server errors and timeouts.",
@@ -200,29 +200,28 @@ export function Abstain({ rows, name }: { rows: DecisionMetrics[]; name: (d: str
 
 /** Where untrusted input crosses a boundary, and what holds each one (docs/THREAT-MODEL.md › Boundaries). */
 export function TrustBoundaries() {
-  const zone = (x: number) => <line key={x} x1={x} x2={x} y1={70} y2={330} stroke="var(--fg)" strokeDasharray="6 5" />;
+  const bw = 192;
+  const gap = 60;
+  const X = (k: number) => k * (bw + gap);
+  const zones = [0, 1, 2, 3].map((k) => X(k) + bw + gap / 2);
   return (
     <Draw
       w={1200}
       h={400}
-      svg={[210, 465, 735, 985].map(zone)}
+      svg={zones.map((x) => (
+        <line key={x} x1={x} x2={x} y1={64} y2={336} stroke="var(--fg)" strokeDasharray="6 5" vectorEffect="non-scaling-stroke" />
+      ))}
       boxes={[
-        { x: 0, y: 145, w: 170, h: 120, title: "Strangers' text", lines: ["issue bodies · logs", "commits · test output"], tone: "bad", shape: "doc" },
-        { x: 250, y: 145, w: 175, h: 120, title: "Model", lines: ["follows instructions", "it should not"], tone: "llm" },
-        { x: 505, y: 145, w: 190, h: 120, title: "Container", lines: ["--network none", "--cap-drop ALL", ".git read-only"] },
-        { x: 775, y: 145, w: 170, h: 120, title: "Host", lines: ["git · grep · walks", "keys in .env"] },
-        { x: 1025, y: 145, w: 175, h: 120, title: "Outside world", lines: ["repos · tracker", "chat · flags"], shape: "external" },
+        { x: X(0), y: 140, w: bw, h: 120, title: "Strangers' text", lines: ["issue bodies · logs", "commits · CI output"], tone: "bad", shape: "doc" },
+        { x: X(1), y: 140, w: bw, h: 120, title: "Model", lines: ["may follow", "planted instructions"], tone: "llm" },
+        { x: X(2), y: 140, w: bw, h: 120, title: "Container", lines: ["--network none", "--cap-drop ALL", ".git read-only"] },
+        { x: X(3), y: 140, w: bw, h: 120, title: "Host", lines: ["git · grep · walks", "keys in .env"] },
+        { x: X(4), y: 140, w: bw, h: 120, title: "Outside world", lines: ["repos · tracker", "chat · flags"], shape: "external" },
       ]}
-      edges={[{ d: "M170 205 H 250" }, { d: "M425 205 H 505" }, { d: "M695 205 H 775" }, { d: "M945 205 H 1025" }]}
+      edges={[0, 1, 2, 3].map((k) => ({ d: `M${X(k) + bw} 200 H ${X(k + 1)}` }))}
       labels={[
-        { x: 210, y: 40, text: "fenced as <untrusted_data>" },
-        { x: 465, y: 40, text: "commands run in the container" },
-        { x: 735, y: 40, text: "core.hostgit · no symlinks" },
-        { x: 985, y: 40, text: "one policy gate · audit" },
-        { x: 210, y: 360, text: "test_injection.py", boxed: false },
-        { x: 465, y: 360, text: "test_hostgit.py", boxed: false },
-        { x: 735, y: 360, text: "test_workspace_tools.py", boxed: false },
-        { x: 985, y: 360, text: "test_gated_writes.py", boxed: false },
+        ...["fenced as <untrusted_data>", "commands run in the container", "core.hostgit · no symlinks", "one policy gate · audit"].map((t, k) => ({ x: zones[k], y: 40, text: t })),
+        ...["test_injection.py", "test_hostgit.py", "test_workspace_tools.py", "test_gated_writes.py"].map((t, k) => ({ x: zones[k], y: 362, text: t, boxed: false })),
       ]}
       steps={[
         "Text strangers write — issue bodies, logs, commit messages — reaches the model fenced as <untrusted_data>, never as instruction.",
@@ -246,31 +245,33 @@ const MODES: [string, string, string[]][] = [
 export function WriteGate({ rules }: { rules: WriteRule[] }) {
   const count = (m: string) => rules.filter((r) => r.mode === m).length;
   const tag = (m: string) => (count(m) ? `${count(m)} listed` : "none listed");
-  const ys = [0, 92, 184, 276];
+  const bh = 90;
+  const ys = [0, 100, 200, 300];
+  const mid = 195;
   return (
     <Draw
       w={1200}
-      h={364}
+      h={390}
       boxes={[
-        { x: 0, y: 135, w: 180, h: 95, title: "A write", lines: ["push · comment · PR", "ticket · flag · chat"] },
-        { x: 240, y: 92, w: 250, h: 180, title: "Listed in writes.yaml?", lines: [`${rules.length} actions · which mode?`], shape: "decision" },
+        { x: 0, y: mid - 48, w: 180, h: 96, title: "A write", lines: ["push · comment · PR", "ticket · flag · chat"] },
+        { x: 230, y: mid - 95, w: 280, h: 190, title: "In writes.yaml?", lines: [`${rules.length} actions listed`], shape: "decision" },
         ...MODES.map(([m, t, lines], i) => ({
-          x: 560,
+          x: 590,
           y: ys[i],
           w: 300,
-          h: 86,
+          h: bh,
           title: t,
           tag: tag(m),
           lines,
           tone: (m === "deny" ? "bad" : m === "dry_run" ? "dashed" : m === "live" ? "good" : "mark") as Tone,
         })),
-        { x: 940, y: 0, w: 260, h: 168, title: "Audit log", lines: ["what was applied", ".data/audit.jsonl"], shape: "store" },
+        { x: 960, y: 0, w: 240, h: 190, title: "Audit log", lines: ["what was applied", ".data/audit.jsonl"], shape: "store" },
       ]}
       edges={[
-        { d: "M180 182 H 240" },
-        ...ys.map((y) => ({ d: `M490 182 H 520 V ${y + 43} H 560` })),
-        { d: "M860 43 H 940" },
-        { d: "M860 135 H 940" },
+        { d: `M180 ${mid} H 230` },
+        ...ys.map((y) => ({ d: `M510 ${mid} H 550 V ${y + bh / 2} H 590` })),
+        { d: `M890 ${bh / 2} H 960` },
+        { d: `M890 ${100 + bh / 2} H 960` },
       ]}
       steps={[
         "Every side effect — a push, a comment, a pull request, a ticket, a flag change, a chat message — is an action.",
@@ -286,30 +287,48 @@ export function WriteGate({ rules }: { rules: WriteRule[] }) {
 
 /** How one catalog bug is shipped, as a git graph (docs/ARCHITECTURE.md › Bug catalog and scenarios). */
 export function ShipGraph() {
-  const sq = (x: number, y: number, ink = true) => <rect key={`${x}-${y}`} x={x - 7} y={y - 7} width={14} height={14} fill={ink ? "var(--fg)" : "var(--raised)"} stroke="var(--fg)" />;
+  const MAIN = 60;
+  const REL = 170;
+  const node = (x: number, y: number, fill: string, stroke = "var(--fg)") => (
+    <rect key={`${x}-${y}`} x={x - 8} y={y - 8} width={16} height={16} fill={fill} stroke={stroke} strokeWidth={1.4} vectorEffect="non-scaling-stroke" />
+  );
   return (
     <Draw
       w={1200}
-      h={330}
+      h={300}
+      legend={false}
       svg={
         <>
-          <line x1={20} x2={1180} y1={70} y2={70} stroke="var(--fg)" strokeWidth={1.5} />
-          <path d="M300 70 V 190 H 820" fill="none" stroke="var(--signal)" strokeWidth={1.5} />
-          <path d="M820 190 H 860" fill="none" stroke="var(--fg)" strokeWidth={1.5} strokeDasharray="4 4" />
-          {[120, 300, 1060].map((x) => sq(x, 70, x === 300))}
-          <rect x={513} y={183} width={14} height={14} fill="var(--signal)" stroke="var(--signal)" />
-          <rect x={753} y={183} width={14} height={14} fill="var(--mark)" stroke="var(--fg)" />
+          <line x1={40} x2={1180} y1={MAIN} y2={MAIN} stroke="var(--fg)" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
+          <path d={`M240 ${MAIN} V ${REL} H 720`} fill="none" stroke="var(--signal)" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
+          {node(120, MAIN, "var(--raised)")}
+          {node(240, MAIN, "var(--fg)")}
+          {node(470, REL, "var(--signal)", "var(--signal)")}
+          {node(720, REL, "var(--mark)")}
         </>
       }
-      boxes={[{ x: 880, y: 140, w: 320, h: 170, title: "Then, on the live stack", lines: ["rebuild the affected services", "previous client keeps a share on :8081", "flag rollout · Toxiproxy · incident", "rider fleet + Locust traffic", "→ found by Vitals or BugDrop"], tone: "plain" }]}
+      boxes={[
+        {
+          x: 860,
+          y: 110,
+          w: 340,
+          h: 170,
+          title: "On the live stack",
+          lines: ["rebuild the affected services", "previous client keeps a share on :8081", "flag rollout · toxics · incident", "rider fleet + Locust traffic", "→ found by Vitals or BugDrop"],
+        },
+      ]}
+      edges={[
+        { d: `M728 ${REL} H 860` },
+        { d: `M1030 110 V ${MAIN + 10}`, dashed: true },
+      ]}
       labels={[
-        { x: 20, y: 40, text: "main", boxed: false, anchor: "l" },
-        { x: 300, y: 40, text: "base tag" },
-        { x: 230, y: 190, text: "release/<version>", boxed: false, anchor: "r" },
-        { x: 520, y: 228, text: "regression · git am" },
-        { x: 520, y: 260, text: "a fictional MiniRide author", boxed: false },
-        { x: 760, y: 228, text: "release.sh · v1.6.x" },
-        { x: 1060, y: 40, text: "reset restores main" },
+        { x: 40, y: MAIN - 22, text: "main", anchor: "l", boxed: false },
+        { x: 240, y: MAIN - 26, text: "base tag" },
+        { x: 360, y: REL, text: "release/<version>", boxed: false },
+        { x: 470, y: REL + 34, text: "regression · git am" },
+        { x: 470, y: REL + 62, text: "authored by a fictional MiniRide engineer", boxed: false },
+        { x: 720, y: REL + 34, text: "release.sh → tag v1.6.x" },
+        { x: 1040, y: 85, text: "reset → main, baseline flags", anchor: "l", boxed: false },
       ]}
       steps={[
         "A release/<version> branch is cut from the base tag on main.",
@@ -364,14 +383,14 @@ export function AppScope() {
   return (
     <Draw
       w={1200}
-      h={330}
+      h={250}
       boxes={[
-        { x: 0, y: 20, w: 330, h: 290, title: "May", tone: "good", lines: ["comment on the labeled issue", "push debugassist/* branches", "open pull requests — as drafts", "only on installed repositories", "only with .DebugAssist/pipeline.yaml", "every write through the gate and audit"] },
-        { x: 435, y: 105, w: 330, h: 120, title: "The App", tag: "installation", lines: ["installing it is the opt-in", "uninstalling takes the repo away"], tone: "ink" },
-        { x: 870, y: 20, w: 330, h: 290, title: "Never", lines: ["the default branch", "release/* branches", "tags", "repositories it is not installed on", "anything, if its API is unreachable", "a token inside the sandbox"], tone: "bad" },
+        { x: 0, y: 10, w: 360, h: 180, title: "May", tone: "good", lines: ["comment on the labeled issue", "push debugassist/* branches", "open pull requests, as drafts", "only where the App is installed", "and .DebugAssist/pipeline.yaml exists", "every write through the gate and audit"] },
+        { x: 440, y: 50, w: 320, h: 100, title: "The App", tag: "installation", lines: ["installing it is the opt-in", "uninstalling takes the repo away"], tone: "ink" },
+        { x: 840, y: 10, w: 360, h: 180, title: "Never", tone: "bad", lines: ["the default branch", "release/* branches or tags", "repositories it is not installed on", "anything, if its API is unreachable", "a token inside the sandbox"] },
       ]}
-      edges={[{ d: "M435 165 H 330" }, { d: "M765 165 H 870", dashed: true }]}
-      labels={[{ x: 600, y: 270, text: "tokens live an hour, on the host only" }]}
+      edges={[{ d: "M440 100 H 360" }, { d: "M760 100 H 840", dashed: true }]}
+      labels={[{ x: 600, y: 222, text: "installation tokens live an hour, on the host only" }]}
       steps={[
         "Installing the App on a repository is the opt-in; uninstalling it takes the repository away.",
         "It may comment on the labeled issue, push debugassist/* branches and open draft pull requests — on installed repositories that carry .DebugAssist/pipeline.yaml, every write through the gate.",
@@ -427,6 +446,7 @@ export function AdrLayers({ records, focus, w = 1200 }: { records: Adr[]; focus?
   );
   return (
     <Draw
+      names={focus ? { mark: "this record" } : undefined}
       w={w}
       h={LAYERS.length * (rowH + gap) - gap}
       boxes={LAYERS.map(([t, what, ns], i) => {
@@ -673,37 +693,41 @@ export function HowEntriesClose({ entries }: { entries: Lesson[] }) {
 
 /** How one number on this site is made, and where the answer key sits (docs/ARCHITECTURE.md, PLAN §5). */
 export function HowANumberIsMade() {
+  // five columns, two lanes: what the agent's side touches never includes the answer key
+  const col = (k: number) => 24 + k * 236;
+  const W = 196;
   return (
     <Draw
       w={1200}
-      h={360}
-      svg={<line x1={20} x2={1180} y1={225} y2={225} stroke="var(--fg)" strokeDasharray="6 5" />}
+      h={420}
+      lanes={[
+        { y: 0, h: 200, label: "agent side · never sees the answer key" },
+        { y: 220, h: 200, label: "evaluator side" },
+      ]}
       boxes={[
-        { x: 0, y: 40, w: 180, h: 110, title: "Inject", lines: ["a release commit", "in MiniRide"], shape: "doc" },
-        { x: 230, y: 40, w: 180, h: 110, title: "Trigger", lines: ["rider fleet", "flags · toxics"], shape: "stack" },
-        { x: 460, y: 40, w: 180, h: 110, title: "Discover", lines: ["Vitals issue", "or BugDrop report"] },
-        { x: 690, y: 40, w: 200, h: 110, title: "Agent run", lines: ["never sees", "the answer key"], tone: "llm" },
-        { x: 940, y: 40, w: 260, h: 110, title: "results.csv · report", lines: ["evals/reports/<date>", "→ this site, at build"], shape: "store", tone: "mark" },
-        { x: 690, y: 255, w: 200, h: 90, title: "Scorer", lines: ["root cause vs key", "hidden tests on the fix"] },
-        { x: 230, y: 255, w: 360, h: 90, title: "groundtruth/", lines: ["answer key · reference fix · hidden tests", "never mounted into a sandbox"], tone: "hatch", shape: "store" },
+        { x: col(0), y: 44, w: W, h: 116, title: "Inject", tag: "1", lines: ["a regression shipped", "as a release commit"], shape: "doc" },
+        { x: col(1), y: 44, w: W, h: 116, title: "Trigger", tag: "2", lines: ["simulated riders", "flags · faults"], shape: "stack" },
+        { x: col(2), y: 44, w: W, h: 116, title: "Discover", tag: "3", lines: ["a Vitals issue or", "a BugDrop report"] },
+        { x: col(3), y: 44, w: W, h: 116, title: "Agent run", tag: "4", lines: ["root cause · test · fix", "from the issue alone"], tone: "llm" },
+        { x: col(1), y: 264, w: W * 2 + 40, h: 116, title: "groundtruth/", lines: ["answer key · reference fix · hidden tests", "never mounted into a sandbox"], shape: "store", tone: "hatch" },
+        { x: col(3), y: 264, w: W, h: 116, title: "Scorer", tag: "5", lines: ["root cause vs the key", "hidden tests on the fix"] },
+        { x: col(4), y: 264, w: W, h: 116, title: "results.csv", tag: "6", lines: ["→ report.md", "→ this site, at build"], shape: "store", tone: "mark" },
       ]}
       edges={[
-        { d: "M180 95 H 230" },
-        { d: "M410 95 H 460" },
-        { d: "M640 95 H 690" },
-        { d: "M790 150 V 255" },
-        { d: "M590 300 H 690" },
-        { d: "M890 300 H 1070 V 150" },
+        { d: `M${col(0) + W} 102 H ${col(1)}` },
+        { d: `M${col(1) + W} 102 H ${col(2)}` },
+        { d: `M${col(2) + W} 102 H ${col(3)}` },
+        { d: `M${col(3) + W / 2} 160 V 264` },
+        { d: `M${col(1) + W * 2 + 40} 322 H ${col(3)}` },
+        { d: `M${col(3) + W} 322 H ${col(4)}` },
       ]}
-      labels={[
-        { x: 1180, y: 210, text: "the agent's side ↑ · the evaluator's side ↓", anchor: "r", boxed: false },
-      ]}
+      labels={[{ x: col(3) + W / 2, y: 210, text: "only its answer crosses" }]}
       steps={[
         "A catalog bug is injected into MiniRide as an ordinary release commit.",
         "Simulated riders trigger it; flags, toxics and incidents are applied.",
         "Vitals or BugDrop discovers it, the way a real bug would be found.",
-        "The agent runs on that issue and never sees the answer key.",
-        "The scorer compares its root cause with the answer key and runs hidden tests on its fix — both from groundtruth/, which is never mounted into a sandbox.",
+        "The agent runs on that issue alone and never sees the answer key.",
+        "Only its answer crosses to the evaluator: the scorer compares the root cause with the answer key and runs hidden tests on the fix, both from groundtruth/, which is never mounted into a sandbox.",
         "Scores land in results.csv and the report; this site reads them at build time.",
       ]}
     />

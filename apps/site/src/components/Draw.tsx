@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
 // A small drafting kit for the chapter pages' figures. Shapes follow the usual flowchart and data-flow conventions,
-// all straight-edged: a process is a rectangle, a decision a diamond, a data store an open-ended rectangle with an
-// ID compartment, a document a sheet with a folded corner, an external party a rectangle with a hard offset shadow,
-// and "many of these" a short stack. Outlines are drawn in SVG, text is HTML laid over the shape's usable area, so
-// both stay crisp at any width. Below `xl` (where the column is narrower than the drawings were laid out for) the drawing is replaced by its
-// steps as a numbered list.
+// all straight-edged and closed: a process is a rectangle, a decision a diamond, a data store a rectangle with an
+// ID compartment, a document a sheet with a folded corner, an outside party a rectangle with a hard offset shadow,
+// and "many of these" a short stack. Swimlanes split a drawing by who may see what. Outlines are SVG; text is HTML
+// laid over each shape's usable area, set top-down; labels knock out the lines behind them. Below `xl` (where the
+// column is narrower than the drawings were laid out for) the drawing is replaced by its steps as a numbered list.
 
 export type Shape = "process" | "decision" | "store" | "doc" | "external" | "stack";
 
@@ -45,13 +45,14 @@ export interface DLabel {
   y: number;
   text: ReactNode;
   anchor?: "c" | "l" | "r";
+  /** a framed tag; otherwise plain text that knocks out whatever line runs behind it */
   boxed?: boolean;
 }
-
-const FOLD = 16; // document corner
-const SHADOW = 6; // external party
-const STACK = 6; // offset between sheets of a stack
-const STORE_ID = 14; // a store's ID compartment
+export interface DLane {
+  y: number;
+  h: number;
+  label: ReactNode;
+}
 
 const SHAPE_NAME: Record<Shape, string> = {
   process: "process",
@@ -62,9 +63,20 @@ const SHAPE_NAME: Record<Shape, string> = {
   stack: "many of these",
 };
 
+/** Shape details, scaled to the box so small glyphs keep their proportions. */
+function geo(w: number, h: number) {
+  return {
+    fold: Math.min(16, h * 0.32, w * 0.3),
+    shadow: Math.min(6, h * 0.14, w * 0.14),
+    stack: Math.min(6, h * 0.12, w * 0.12),
+    sid: Math.min(14, w * 0.22),
+  };
+}
+
 /** The outline of one box, in the drawing's own coordinates. */
 function Outline({ b, i }: { b: DBox; i: number }) {
   const { x, y, w, h } = b;
+  const g = geo(w, h);
   const tone = b.tone ?? "plain";
   const c = COLOURED[tone];
   const fill = c ? c[0] : tone === "ink" ? "var(--fg)" : tone === "sunk" ? "var(--sunk)" : tone === "hatch" ? `url(#dh-${i})` : "var(--raised)";
@@ -76,6 +88,7 @@ function Outline({ b, i }: { b: DBox; i: number }) {
     vectorEffect: "non-scaling-stroke" as const,
     strokeDasharray: tone === "dashed" ? "5 4" : undefined,
   };
+  const line = { ...p, fill: "none" };
   const hatch =
     tone === "hatch" ? (
       <pattern id={`dh-${i}`} patternUnits="userSpaceOnUse" width={7} height={7} patternTransform="rotate(45)">
@@ -92,38 +105,37 @@ function Outline({ b, i }: { b: DBox; i: number }) {
         </g>
       );
     case "store":
-      // open on the right: top and bottom rules, a closed left side and an ID compartment
+      // closed, with an ID compartment down the left side
       return (
         <g>
           {hatch}
-          <rect x={x} y={y} width={w} height={h} fill={fill} stroke="none" />
-          <path d={`M${x + w} ${y} H ${x} V ${y + h} H ${x + w}`} {...p} fill="none" />
-          <line x1={x + STORE_ID} x2={x + STORE_ID} y1={y} y2={y + h} {...p} />
+          <rect x={x} y={y} width={w} height={h} {...p} />
+          <line x1={x + g.sid} x2={x + g.sid} y1={y} y2={y + h} {...line} />
         </g>
       );
     case "doc":
       return (
         <g>
           {hatch}
-          <path d={`M${x} ${y} H ${x + w - FOLD} L ${x + w} ${y + FOLD} V ${y + h} H ${x} Z`} {...p} />
-          <path d={`M${x + w - FOLD} ${y} V ${y + FOLD} H ${x + w}`} {...p} fill="none" />
+          <path d={`M${x} ${y} H ${x + w - g.fold} L ${x + w} ${y + g.fold} V ${y + h} H ${x} Z`} {...p} />
+          <path d={`M${x + w - g.fold} ${y} V ${y + g.fold} H ${x + w}`} {...line} />
         </g>
       );
     case "external":
       return (
         <g>
           {hatch}
-          <rect x={x + SHADOW} y={y + SHADOW} width={w - SHADOW} height={h - SHADOW} fill="var(--fg)" />
-          <rect x={x} y={y} width={w - SHADOW} height={h - SHADOW} {...p} />
+          <rect x={x + g.shadow} y={y + g.shadow} width={w - g.shadow} height={h - g.shadow} fill="var(--fg)" />
+          <rect x={x} y={y} width={w - g.shadow} height={h - g.shadow} {...p} />
         </g>
       );
     case "stack":
       return (
         <g>
           {hatch}
-          <rect x={x + 2 * STACK} y={y} width={w - 2 * STACK} height={h - 2 * STACK} {...p} fill="var(--raised)" />
-          <rect x={x + STACK} y={y + STACK} width={w - 2 * STACK} height={h - 2 * STACK} {...p} fill="var(--raised)" />
-          <rect x={x} y={y + 2 * STACK} width={w - 2 * STACK} height={h - 2 * STACK} {...p} />
+          <rect x={x + 2 * g.stack} y={y} width={w - 2 * g.stack} height={h - 2 * g.stack} {...p} fill="var(--raised)" />
+          <rect x={x + g.stack} y={y + g.stack} width={w - 2 * g.stack} height={h - 2 * g.stack} {...p} fill="var(--raised)" />
+          <rect x={x} y={y + 2 * g.stack} width={w - 2 * g.stack} height={h - 2 * g.stack} {...p} />
         </g>
       );
     default:
@@ -139,17 +151,18 @@ function Outline({ b, i }: { b: DBox; i: number }) {
 /** The part of a shape text may use. */
 function inner(b: DBox): { x: number; y: number; w: number; h: number; center: boolean } {
   const { x, y, w, h } = b;
+  const g = geo(w, h);
   switch (b.shape ?? "process") {
     case "decision":
-      return { x: x + w * 0.2, y: y + h * 0.24, w: w * 0.6, h: h * 0.52, center: true };
+      return { x: x + w * 0.2, y: y + h * 0.22, w: w * 0.6, h: h * 0.56, center: true };
     case "store":
-      return { x: x + STORE_ID, y, w: w - STORE_ID, h, center: false };
+      return { x: x + g.sid, y, w: w - g.sid, h, center: false };
     case "doc":
-      return { x, y, w: w - FOLD * 0.6, h, center: false };
+      return { x, y, w: w - g.fold * 0.75, h, center: false };
     case "external":
-      return { x, y, w: w - SHADOW, h: h - SHADOW, center: false };
+      return { x, y, w: w - g.shadow, h: h - g.shadow, center: false };
     case "stack":
-      return { x, y: y + 2 * STACK, w: w - 2 * STACK, h: h - 2 * STACK, center: false };
+      return { x, y: y + 2 * g.stack, w: w - 2 * g.stack, h: h - 2 * g.stack, center: false };
     default:
       return { x, y, w, h, center: false };
   }
@@ -161,21 +174,27 @@ export function Draw({
   boxes,
   edges = [],
   labels = [],
+  lanes = [],
   steps,
   svg,
   legend = true,
+  names,
 }: {
   w: number;
   h: number;
   boxes: DBox[];
   edges?: DEdge[];
   labels?: DLabel[];
+  /** horizontal swimlanes, full width, each with a header */
+  lanes?: DLane[];
   /** what the drawing says, in order, for narrow screens */
   steps: ReactNode[];
   /** extra SVG drawn under the frames (ticks, axes, lifelines) */
   svg?: ReactNode;
-  /** show a key of the shapes used, when there is more than one kind */
+  /** show a key of the shapes and colours used */
   legend?: boolean;
+  /** rename a colour in the key, e.g. mark: "this record" */
+  names?: Partial<Record<Tone, string>>;
 }) {
   const pc = (v: number, of: number) => `${(v / of) * 100}%`;
   const used = [...new Set(boxes.map((b) => b.shape ?? "process"))];
@@ -190,6 +209,9 @@ export function Draw({
                 <path d="M0 0 L8 4 L0 8 z" fill="var(--line-strong)" />
               </marker>
             </defs>
+            {lanes.map((l, i) => (
+              <rect key={i} x={0} y={l.y} width={w} height={l.h} fill="none" stroke="var(--line-2)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            ))}
             {svg}
             {edges.map((e, i) => (
               <path
@@ -207,13 +229,22 @@ export function Draw({
               <Outline key={i} b={b} i={i} />
             ))}
           </svg>
+          {lanes.map((l, i) => (
+            <span
+              key={i}
+              className="absolute whitespace-nowrap bg-surface px-1.5 font-mono text-[10.5px] uppercase leading-none tracking-[0.08em] text-t3"
+              style={{ left: pc(10, w), top: pc(l.y, h), transform: "translate(0,-50%)" }}
+            >
+              {l.label}
+            </span>
+          ))}
           {boxes.map((b, i) => {
             const ink = b.tone === "ink";
             const a = inner(b);
             return (
               <div
                 key={i}
-                className={`absolute flex flex-col gap-1 overflow-hidden ${a.center ? "items-center justify-center text-center" : "justify-between"} ${b.shape === "decision" ? "p-0" : "p-3"}`}
+                className={`absolute flex flex-col gap-2 overflow-hidden ${a.center ? "items-center justify-center text-center" : "justify-start"} ${b.shape === "decision" ? "p-0" : "px-3.5 py-3"}`}
                 style={{ left: pc(a.x, w), top: pc(a.y, h), width: pc(a.w, w), height: pc(a.h, h) }}
               >
                 {(b.title || b.tag) && (
@@ -223,7 +254,7 @@ export function Draw({
                   </div>
                 )}
                 {b.lines && (
-                  <div className={`font-mono text-[10.5px] leading-[1.5] ${ink ? "text-surface/80" : "text-t3"}`}>
+                  <div className={`font-mono text-[10.5px] leading-[1.55] ${ink ? "text-surface/80" : "text-t3"}`}>
                     {b.lines.map((l, j) => (
                       <div key={j}>{l}</div>
                     ))}
@@ -235,7 +266,7 @@ export function Draw({
           {labels.map((l, i) => (
             <span
               key={i}
-              className={`absolute whitespace-nowrap font-mono text-[10.5px] leading-none ${l.boxed === false ? "text-t3" : "border border-line-2 bg-surface px-2 py-1 text-t2"}`}
+              className={`absolute whitespace-nowrap font-mono text-[10.5px] leading-none ${l.boxed === false ? "bg-surface px-1.5 py-0.5 text-t3" : "border border-line-2 bg-surface px-2 py-1 text-t2"}`}
               style={{
                 left: pc(l.x, w),
                 top: pc(l.y, h),
@@ -246,7 +277,7 @@ export function Draw({
             </span>
           ))}
         </div>
-        {legend && (used.length > 1 || tones.length > 0) && <ShapeKey shapes={used.length > 1 ? used : []} tones={tones} />}
+        {legend && (used.length > 1 || tones.length > 0) && <ShapeKey shapes={used.length > 1 ? used : []} tones={tones} names={names} />}
       </div>
       <ol className="grid gap-2 xl:hidden">
         {steps.map((s, i) => (
@@ -260,24 +291,33 @@ export function Draw({
   );
 }
 
-/** A one-line key of the shapes a drawing uses, each drawn small. */
-export function ShapeKey({ shapes, tones = [] }: { shapes: Shape[]; tones?: Tone[] }) {
+/** A one-line key of the shapes and colours a drawing uses, each drawn small but in proportion. */
+export function ShapeKey({
+  shapes,
+  tones = [],
+  names,
+}: {
+  shapes: Shape[];
+  tones?: Tone[];
+  names?: Partial<Record<Tone, string>>;
+}) {
   return (
-    <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-3 font-mono text-[10.5px] text-t3">
+    <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2.5 border-t border-line pt-3.5 font-mono text-[10.5px] text-t3">
       {shapes.map((s) => (
         <span key={s} className="inline-flex items-center gap-2">
-          <svg viewBox="0 0 28 18" width={28} height={18} aria-hidden className="overflow-visible">
-            <Outline b={{ x: 1, y: 1, w: 26, h: 16, shape: s }} i={-1} />
+          <svg viewBox="0 0 40 24" width={34} height={20} aria-hidden className="overflow-visible">
+            <Outline b={{ x: 1, y: 1, w: 38, h: 22, shape: s }} i={-1} />
           </svg>
           {SHAPE_NAME[s]}
         </span>
       ))}
+      {shapes.length > 0 && tones.length > 0 && <span className="h-4 w-px bg-line-2" aria-hidden />}
       {tones.map((t) => (
         <span key={t} className="inline-flex items-center gap-2">
-          <svg viewBox="0 0 18 18" width={18} height={18} aria-hidden className="overflow-visible">
-            <Outline b={{ x: 1, y: 1, w: 16, h: 16, tone: t }} i={-1} />
+          <svg viewBox="0 0 24 24" width={16} height={16} aria-hidden className="overflow-visible">
+            <Outline b={{ x: 1, y: 1, w: 22, h: 22, tone: t }} i={-1} />
           </svg>
-          {TONE_NAME[t]}
+          {names?.[t] ?? TONE_NAME[t]}
         </span>
       ))}
     </div>
