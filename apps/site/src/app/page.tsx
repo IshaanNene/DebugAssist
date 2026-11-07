@@ -208,7 +208,7 @@ export default function Home() {
                   no accounts.
                 </p>
                 <div className="fx mt-8 flex flex-wrap gap-3" style={v(3)}>
-  <a href={GH} className="inline-flex h-10 items-center gap-2.5 bg-amber-fill px-4 text-[14px] font-medium text-ink transition-transform active:scale-[0.98]">
+  <a href={GH} className="inline-flex h-10 items-center gap-2.5 bg-term-fg px-4 text-[14px] font-medium text-ink transition-transform active:scale-[0.98]">
                     Star on GitHub
                   </a>
   <a href={`${GH}#-quickstart`} className="inline-flex h-10 items-center border border-term-line px-4 text-[14px] font-medium text-term-fg transition-colors hover:border-term-dim">
@@ -223,7 +223,7 @@ export default function Home() {
                 <div className="overflow-x-auto p-5 font-mono text-[12.5px] leading-[1.95]">
                   {TERMINAL.map(([cmd, note], i) => (
                     <div key={cmd} className="type-line whitespace-nowrap" style={v(i)}>
-                      <span className="text-amber-fill">$</span> {cmd}
+                      <span className="text-term-dim">$</span> {cmd}
                       {note && <span className="text-term-dim">  # {note}</span>}
                     </div>
                   ))}

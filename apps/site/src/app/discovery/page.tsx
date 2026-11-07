@@ -70,7 +70,7 @@ function Flow({ dedup, triage }: { dedup: string; triage: string }) {
   ];
   return (
     <>
-      <div className="relative hidden aspect-[1200/440] w-full lg:block">
+      <div className="relative hidden aspect-[1200/440] w-full xl:block">
         <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
           <defs>
             <marker id="da" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
@@ -118,7 +118,7 @@ function Flow({ dedup, triage }: { dedup: string; triage: string }) {
           a maintainer, not the rider
         </span>
       </div>
-      <ol className="grid gap-2 lg:hidden">
+      <ol className="grid gap-2 xl:hidden">
         {["Rider session — SDKs capture crashes, hangs, breadcrumbs and bug reports", "Vitals (VIT-…), BugDrop (BD-…) or GitHub (GHA:, GHCI:)", "Ingest — one Issue, whatever the source", `Triage — ${dedup} duplicate? ${triage} worth a run?`, "Run"].map((t, i) => (
           <li key={t} className="flex gap-3 border border-line bg-surface p-3 text-[14px] text-t2">
             <span className="font-mono text-[11px] text-t4">{String(i + 1).padStart(2, "0")}</span>

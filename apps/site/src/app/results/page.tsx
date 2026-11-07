@@ -72,7 +72,7 @@ export default function ResultsPage() {
           </div>
           <div className="mt-2 grid gap-2 md:grid-cols-2">
             <Panel className="fx p-6">
-              <div className="label text-good">✓ What works</div>
+              <div className="label text-t1">What works</div>
               <ul className="mt-4 space-y-3 text-[14.5px] leading-[1.55] text-t2">
                 <li>Crash-data bugs — locale and currency edge cases, a nil-map panic, a removed await, a battery-draining poller: ten code bugs pass every lane in all three seeds.</li>
                 <li>Following a rider&apos;s report into the backend and moving the fix to the service that holds the defect — none of those bugs had the right root cause before the hand-off.</li>
@@ -80,7 +80,7 @@ export default function ResultsPage() {
               </ul>
             </Panel>
             <Panel className="fx bg-sunk/60 p-6">
-              <div className="label text-t3">✗ What doesn&apos;t, yet</div>
+              <div className="label text-t3">What doesn&apos;t, yet</div>
               <ul className="caveat mt-4 space-y-3 text-[16.5px] text-t2">
                 <li>Stopping where the symptom surfaced: a CORS change and a payments panic are blamed on the client and the gateway.</li>
                 <li>Fixes narrower than the regression: they pass the agent&apos;s own test but not the hidden one.</li>
@@ -396,7 +396,7 @@ export default function ResultsPage() {
                 {[
                   [ctx.toolsShare, "bg-code", "tool results"],
                   [ctx.prefixShare, "bg-line-strong", "fixed prefix"],
-                  [ctx.modelShare, "bg-llm", "model output"],
+                  [ctx.modelShare, "hatch-ink border border-t1", "model output"],
                 ].map(([share, cls, label], i) => (
                   <div key={label as string} className="min-w-0" style={{ flex: `${share as number} 1 0` }}>
   <div className={`bar h-12  ${cls}`} style={v(i * 3)} />

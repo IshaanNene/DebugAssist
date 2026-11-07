@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { COL, SiteFooter, SiteHeader } from "@/components/Chrome";
 import { Motion } from "@/components/client";
+import { AdrLayers, AdrRecordFlow } from "@/components/figs";
+import { Figure } from "@/components/Page";
 import { doc } from "@/components/ui";
 import { results } from "@/lib/data";
 import { adrs } from "@/lib/docs";
@@ -60,7 +62,17 @@ export default async function AdrPage({ params }: { params: Promise<{ slug: stri
               <span className="text-t1">ADR {r.n}</span> · {r.status} · {r.date}
             </div>
             <h1 className="fx display mt-5 text-[36px] leading-[1.1] text-t1 sm:text-[48px]">{r.title}</h1>
-            <div className="fx mt-10">
+            <Figure n="1" title="the record in three lines" note="the first sentence of each section" className="mt-10">
+              <div className="p-4 sm:p-6">
+                <AdrRecordFlow record={r} w={560} />
+              </div>
+            </Figure>
+            <Figure n="2" title="where it applies" note={`ADR ${r.n}, inked`} className="mt-6">
+              <div className="p-4 sm:p-6">
+                <AdrLayers records={all} focus={r.n} w={560} />
+              </div>
+            </Figure>
+            <div className="fx mt-12">
               <Markdown src={r.body} from={r.file} skipTitle={false} />
             </div>
             <a href={doc(r.file)} className="mt-10 inline-block font-mono text-[11.5px] text-t3 underline decoration-line-2 underline-offset-[3px] hover:text-t1">

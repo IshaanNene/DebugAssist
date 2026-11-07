@@ -1,9 +1,8 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { FeaturedRun } from "@/lib/data";
 
 // Technical drawings: bracketed frames, right-angle connectors with arrowheads, square mono tags. Each diagram is an
-// SVG for the connectors laid under HTML frames placed in the same coordinate box, so text stays crisp. A small square
-// packet rides each connector (CSS offset-path on the same path) and stops entirely under reduced motion. Below `lg`
+// SVG for the connectors laid under HTML frames placed in the same coordinate box, so text stays crisp. Below `lg`
 // each drawing becomes a vertical stack.
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
@@ -20,24 +19,9 @@ export function Defs({ id }: { id: string }) {
   );
 }
 
-/** A connector with an arrowhead and, optionally, a packet travelling it. */
-export function Edge({ d, arrow, packet = false, dur = 2.8, delay = 0, dashed }: { d: string; arrow?: string; packet?: boolean; dur?: number; delay?: number; dashed?: boolean }) {
-  return (
-    <g>
-      <path d={d} fill="none" stroke="var(--line-strong)" strokeWidth={1} strokeDasharray={dashed ? "4 4" : undefined} markerEnd={arrow ? `url(#${arrow})` : undefined} />
-      {packet && (
-        <rect
-          x={-2.5}
-          y={-2.5}
-          width={5}
-          height={5}
-          fill="var(--fg)"
-          className="packet"
-          style={{ offsetPath: `path("${d}")`, ["--dur"]: `${dur}s`, ["--delay"]: `${delay}s` } as CSSProperties}
-        />
-      )}
-    </g>
-  );
+/** A connector with an arrowhead. */
+export function Edge({ d, arrow, dashed }: { d: string; arrow?: string; dur?: number; delay?: number; dashed?: boolean }) {
+  return <path d={d} fill="none" stroke="var(--line-strong)" strokeWidth={1} strokeDasharray={dashed ? "4 4" : undefined} markerEnd={arrow ? `url(#${arrow})` : undefined} />;
 }
 
 /** Place an HTML child at viewBox coordinates inside a W×H box. */
@@ -181,13 +165,13 @@ export function HeroDiagram({ run, servers, tools, templates }: { run: FeaturedR
 
   return (
     <div>
-      <div className="relative hidden aspect-[1200/520] w-full lg:block">
+      <div className="relative hidden aspect-[1200/520] w-full xl:block">
         <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
           <Defs id="a1" />
           <Edge d="M330 260 H 365 V 150 H 400" arrow="a1" delay={0} />
           <Edge d="M330 260 H 365 V 430 H 400" arrow="a1" delay={0.6} />
           <Edge d="M730 150 H 765 V 260 H 800" arrow="a1" delay={1.2} />
-          <Edge d="M730 430 H 765 V 260 H 800" arrow="a1" packet={false} />
+          <Edge d="M730 430 H 765 V 260 H 800" arrow="a1" />
           <rect x={362} y={257} width={6} height={6} fill="var(--line-strong)" />
         </svg>
         <At x={0} y={0} w={330} h={520} W={W} H={H}>
@@ -204,7 +188,7 @@ export function HeroDiagram({ run, servers, tools, templates }: { run: FeaturedR
         </At>
       </div>
 
-      <div className="lg:hidden">
+      <div className="xl:hidden">
         {left}
         <Down />
         {evidence}
@@ -312,16 +296,16 @@ export function SystemMap({ servers, tools, templates, branchPrefix }: { servers
 
   return (
     <div>
-      <div className="relative hidden aspect-[1200/560] w-full lg:block">
+      <div className="relative hidden aspect-[1200/560] w-full xl:block">
         <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
           <Defs id="a4" />
           {rows.map((y, i) => (
-            <Edge key={`i${y}`} d={`M210 ${y + bh / 2} H 236 V ${mid} H 262`} arrow={i === 0 ? "a4" : undefined} packet={i % 2 === 0} delay={i * 0.5} />
+            <Edge key={`i${y}`} d={`M210 ${y + bh / 2} H 236 V ${mid} H 262`} arrow={i === 0 ? "a4" : undefined} />
           ))}
           <Edge d={`M542 ${mid} H 590`} arrow="a4" delay={1.4} />
           <Edge d={`M920 ${mid} H 962`} arrow="a4" delay={2} />
-          {rows.map((y, i) => (
-            <Edge key={`o${y}`} d={`M998 ${mid} H 1012 V ${y + bh / 2} H 1032`} arrow="a4" packet={i === 0 || i === 3} delay={2.6 + i * 0.3} />
+          {rows.map((y) => (
+            <Edge key={`o${y}`} d={`M998 ${mid} H 1012 V ${y + bh / 2} H 1032`} arrow="a4" />
           ))}
         </svg>
         {signals.map(([t, s], i) => (
@@ -345,7 +329,7 @@ export function SystemMap({ servers, tools, templates, branchPrefix }: { servers
         ))}
       </div>
 
-      <div className="space-y-3 lg:hidden">
+      <div className="space-y-3 xl:hidden">
         <div className="grid gap-3 sm:grid-cols-2">
           {signals.map(([t, s]) => (
             <div key={t} className="h-[88px]">

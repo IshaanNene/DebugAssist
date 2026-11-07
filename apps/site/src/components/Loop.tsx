@@ -72,10 +72,11 @@ const PHASES: Phase[] = [
   },
 ];
 
-const KIND: Record<Kind, { label: string; color: string }> = {
-  code: { label: "deterministic code", color: "var(--actor-code)" },
-  llm: { label: "LLM agents", color: "var(--actor-llm)" },
-  clef: { label: "Clef decisions", color: "var(--actor-clef)" },
+// solid for code, hatched for the LLM, hollow for Clef — the same marks as the run console, in ink only
+const KIND: Record<Kind, { label: string; color: string; swatch: string }> = {
+  code: { label: "deterministic code", color: "var(--fg)", swatch: "bg-t1" },
+  llm: { label: "LLM agents", color: "url(#loop-hatch)", swatch: "hatch-ink" },
+  clef: { label: "Clef decisions", color: "var(--raised)", swatch: "bg-surface" },
 };
 
 // Isometric projection: x runs down-right (towards the viewer), y runs up-right, z is height.
@@ -174,12 +175,17 @@ function Diagram({ active, onSelect }: { active: number; onSelect: (i: number) =
       role="img"
       aria-label={`The DebugAssist pipeline in four phases: ${PHASES.map((p) => p.name).join(", ")}. Showing ${PHASES[active].name}: ${PHASES[active].parts.map((s) => s.name).join(", ")}.`}
     >
+      <defs>
+        <pattern id="loop-hatch" patternUnits="userSpaceOnUse" width={4} height={4} patternTransform="rotate(45)">
+          <rect width={4} height={4} fill="var(--raised)" />
+          <line x1={0} y1={0} x2={0} y2={4} stroke="var(--fg)" strokeWidth={1.6} />
+        </pattern>
+      </defs>
       {/* track */}
       <polygon points={P(...trackEnd)} fill="var(--mark-side)" stroke={INK} strokeWidth={1} />
       <polygon points={P(...trackFront)} fill="var(--mark-front)" stroke={INK} strokeWidth={1} />
       <polygon points={P(...trackTop)} fill="var(--mark)" stroke={INK} strokeWidth={1.1} />
       <polyline
-        className="flow"
         points={P(iso(W + 10, t0y + 10), iso(W + 10, t1y - 10))}
         fill="none"
         stroke={INK}
@@ -328,7 +334,7 @@ export function Loop() {
               <span className="flex gap-3">
                 {(Object.keys(KIND) as Kind[]).map((k) => (
                   <span key={k} className="inline-flex items-center gap-1.5">
-                    <span className="inline-block h-2 w-2 rounded-full border border-t2" style={{ background: KIND[k].color }} />
+                    <span className={`inline-block h-2.5 w-2.5 border border-t1 ${KIND[k].swatch}`} />
                     <span className="hidden sm:inline">{KIND[k].label}</span>
                   </span>
                 ))}
@@ -377,7 +383,7 @@ export function Loop() {
                         <span className="mt-2.5 flex flex-wrap gap-3">
                           {p.kind.map((k) => (
                             <span key={k} className="inline-flex items-center gap-1.5 font-mono text-[11px] text-t3">
-                              <span className="inline-block h-2 w-2 rounded-full border border-t2" style={{ background: KIND[k].color }} />
+                              <span className={`inline-block h-2.5 w-2.5 border border-t1 ${KIND[k].swatch}`} />
                               {KIND[k].label}
                             </span>
                           ))}

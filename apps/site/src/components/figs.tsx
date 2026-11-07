@@ -14,29 +14,35 @@ export function FingerprintFlow() {
   return (
     <Draw
       w={1200}
-      h={300}
+      h={320}
       boxes={[
-        { x: 0, y: 95, w: 200, h: 110, title: "Crash event", tag: "SDK", lines: ["stack · version", "device · city · flags"] },
-        { x: 250, y: 95, w: 210, h: 110, title: "Normalize", lines: ["in-app frames only", "no line numbers", "no asset hashes"] },
-        { x: 510, y: 95, w: 180, h: 110, title: "Fingerprint", lines: ["one key per bug,", "across builds"] },
-        { x: 740, y: 95, w: 200, h: 110, title: "Group", lines: ["count · first / last version", "sessions as denominator"] },
-        { x: 990, y: 20, w: 210, h: 100, title: "Open an issue", tag: "VIT-…", lines: ["a group seen", "for the first time"], tone: "ink" },
-        { x: 990, y: 180, w: 210, h: 100, title: "Reopen it", tag: "regression", lines: ["the group comes back", "on a newer version"] },
+        { x: 0, y: 100, w: 170, h: 110, title: "Crash event", tag: "SDK", lines: ["stack · version", "device · city · flags"], shape: "doc" },
+        { x: 210, y: 100, w: 180, h: 110, title: "Normalize", lines: ["in-app frames only", "no line numbers", "no asset hashes"] },
+        { x: 430, y: 100, w: 160, h: 110, title: "Fingerprint", lines: ["one key per bug,", "across builds"] },
+        { x: 630, y: 100, w: 180, h: 110, title: "Groups", lines: ["count · versions", "session denominators"], shape: "store" },
+        { x: 845, y: 85, w: 140, h: 140, title: "Seen before?", shape: "decision" },
+        { x: 1020, y: 10, w: 180, h: 100, title: "Open an issue", tag: "VIT-…", lines: ["a new group"], tone: "ink" },
+        { x: 1020, y: 200, w: 180, h: 100, title: "Reopen it", tag: "regression", lines: ["back on a newer", "version"] },
       ]}
       edges={[
-        { d: "M200 150 H 250" },
-        { d: "M460 150 H 510" },
-        { d: "M690 150 H 740" },
-        { d: "M940 150 H 965 V 70 H 990" },
-        { d: "M940 150 H 965 V 230 H 990" },
+        { d: "M170 155 H 210" },
+        { d: "M390 155 H 430" },
+        { d: "M590 155 H 630" },
+        { d: "M810 155 H 845" },
+        { d: "M915 85 V 60 H 1020" },
+        { d: "M915 225 V 250 H 1020" },
       ]}
-      labels={[{ x: 355, y: 232, text: "source maps → function names", boxed: false }]}
+      labels={[
+        { x: 300, y: 245, text: "source maps → function names", boxed: false },
+        { x: 965, y: 46, text: "no", boxed: false },
+        { x: 967, y: 268, text: "yes, newer version", boxed: false },
+      ]}
       steps={[
         "A crash event arrives with its stack, version, device, city and flag exposures.",
         "The stack is normalized: in-app frames only, without line numbers or asset hashes; source maps restore function names.",
         "The normalized stack is fingerprinted, so one bug is one group across builds.",
         "Events join their group, which keeps counts, first and last version, and session denominators.",
-        "A new group opens a Vitals issue; a group seen again on a newer version reopens its issue as a regression.",
+        "A group seen for the first time opens a Vitals issue; one seen again on a newer version reopens its issue as a regression.",
       ]}
     />
   );
@@ -51,8 +57,8 @@ export function TwoStage({ act, escalate, safe }: { act: string[]; escalate: str
       w={1200}
       h={330}
       boxes={[
-        { x: 0, y: 105, w: 180, h: 120, title: "Candidates", tag: "N", lines: ["files and functions", "from code search"] },
-        { x: 230, y: 105, w: 240, h: 120, title: "One noul each", tag: "stage 1", lines: ["is this the location?", "chunks of 64, concurrent"] },
+        { x: 0, y: 105, w: 180, h: 120, title: "Candidates", tag: "N", lines: ["files and functions", "from code search"], shape: "stack" },
+        { x: 230, y: 105, w: 240, h: 120, title: "One noul each", tag: "stage 1", lines: ["is this the location?", "chunks of 64, concurrent"], shape: "stack" },
         { x: 520, y: 105, w: 150, h: 120, title: "Top K", lines: ["highest P(yes)"] },
         { x: 720, y: 105, w: 190, h: 120, title: "One choice", tag: "stage 2", lines: ["over the top K", "plus none"], tone: "ink" },
         { x: 960, y: 10, w: 240, h: 95, title: "act", lines: act },
@@ -88,21 +94,21 @@ export function Backends() {
       w={1200}
       h={320}
       boxes={[
-        { x: 0, y: 110, w: 190, h: 100, title: "ClefRequest", lines: ["template · state", "params · images"] },
+        { x: 0, y: 110, w: 190, h: 100, title: "ClefRequest", lines: ["template · state", "params · images"], shape: "doc" },
         { x: 270, y: 10, w: 270, h: 90, title: "WorkersAIClef", tag: "default", lines: ["Clef / Clef-flash · keys set", "retries 429 · 5xx · timeouts"], tone: "ink" },
         { x: 270, y: 115, w: 270, h: 90, title: "LLMDecider", tag: "fallback", lines: ["breaker open · baseline", "escalation second opinion"] },
         { x: 270, y: 220, w: 270, h: 90, title: "MockDecider", tag: "CI", lines: ["no keys · demos", "deterministic per question"], tone: "dashed" },
-        { x: 640, y: 110, w: 220, h: 100, title: "Policy band", lines: ["act · escalate", "safe default"] },
-        { x: 930, y: 110, w: 270, h: 100, title: "Decision ledger", lines: ["state hash · answers · band", "action · cost · mode"], tone: "sunk" },
+        { x: 630, y: 80, w: 240, h: 160, title: "Policy band", lines: ["p vs τ_high · τ_low"], shape: "decision" },
+        { x: 930, y: 110, w: 270, h: 100, title: "Decision ledger", lines: ["state hash · answers · band", "action · cost · mode"], shape: "store" },
       ]}
       edges={[
         { d: "M190 160 H 230 V 55 H 270" },
         { d: "M190 160 H 270" },
         { d: "M190 160 H 230 V 265 H 270", dashed: true },
-        { d: "M540 55 H 600 V 150 H 640" },
-        { d: "M540 160 H 640" },
-        { d: "M540 265 H 600 V 170 H 640", dashed: true },
-        { d: "M860 160 H 930" },
+        { d: "M540 55 H 750 V 80" },
+        { d: "M540 160 H 630" },
+        { d: "M540 265 H 750 V 240", dashed: true },
+        { d: "M870 160 H 930" },
       ]}
       labels={[{ x: 405, y: 107, text: "circuit breaker", boxed: true }]}
       steps={[
@@ -201,11 +207,11 @@ export function TrustBoundaries() {
       h={400}
       svg={[210, 465, 735, 985].map(zone)}
       boxes={[
-        { x: 0, y: 145, w: 170, h: 120, title: "Strangers' text", lines: ["issue bodies · logs", "commits · test output"], tone: "hatch" },
+        { x: 0, y: 145, w: 170, h: 120, title: "Strangers' text", lines: ["issue bodies · logs", "commits · test output"], tone: "hatch", shape: "doc" },
         { x: 250, y: 145, w: 175, h: 120, title: "Model", lines: ["follows instructions", "it should not"] },
         { x: 505, y: 145, w: 190, h: 120, title: "Container", lines: ["--network none", "--cap-drop ALL", ".git read-only"] },
         { x: 775, y: 145, w: 170, h: 120, title: "Host", lines: ["git · grep · walks", "keys in .env"] },
-        { x: 1025, y: 145, w: 175, h: 120, title: "Outside world", lines: ["repos · tracker", "chat · flags"], tone: "ink" },
+        { x: 1025, y: 145, w: 175, h: 120, title: "Outside world", lines: ["repos · tracker", "chat · flags"], shape: "external" },
       ]}
       edges={[{ d: "M170 205 H 250" }, { d: "M425 205 H 505" }, { d: "M695 205 H 775" }, { d: "M945 205 H 1025" }]}
       labels={[
@@ -246,8 +252,8 @@ export function WriteGate({ rules }: { rules: WriteRule[] }) {
       w={1200}
       h={364}
       boxes={[
-        { x: 0, y: 135, w: 190, h: 95, title: "A write", lines: ["push · comment · PR", "ticket · flag · chat"] },
-        { x: 250, y: 135, w: 230, h: 95, title: "writes.yaml", tag: `${rules.length} actions`, lines: ["listed? which mode?"], tone: "ink" },
+        { x: 0, y: 135, w: 180, h: 95, title: "A write", lines: ["push · comment · PR", "ticket · flag · chat"] },
+        { x: 240, y: 92, w: 250, h: 180, title: "Listed in writes.yaml?", lines: [`${rules.length} actions · which mode?`], shape: "decision" },
         ...MODES.map(([m, t, lines], i) => ({
           x: 560,
           y: ys[i],
@@ -258,11 +264,11 @@ export function WriteGate({ rules }: { rules: WriteRule[] }) {
           lines,
           tone: (m === "deny" ? "hatch" : m === "dry_run" ? "dashed" : "plain") as "hatch" | "dashed" | "plain",
         })),
-        { x: 940, y: 0, w: 260, h: 168, title: "Audit log", lines: ["what was applied", ".data/audit.jsonl"], tone: "sunk" },
+        { x: 940, y: 0, w: 260, h: 168, title: "Audit log", lines: ["what was applied", ".data/audit.jsonl"], shape: "store" },
       ]}
       edges={[
-        { d: "M190 182 H 250" },
-        ...ys.map((y) => ({ d: `M480 182 H 520 V ${y + 43} H 560` })),
+        { d: "M180 182 H 240" },
+        ...ys.map((y) => ({ d: `M490 182 H 520 V ${y + 43} H 560` })),
         { d: "M860 43 H 940" },
         { d: "M860 135 H 940" },
       ]}
@@ -345,7 +351,7 @@ export function AppSequence() {
       svg={lanes.map((l) => (
         <line key={l.x} x1={l.x} x2={l.x} y1={64} y2={y0 + msgs.length * dy} stroke="var(--line-2)" strokeDasharray="4 4" />
       ))}
-      boxes={lanes.map((l, i) => ({ x: l.x - 110, y: 10, w: 220, h: 54, title: l.t, tone: i === 2 ? ("ink" as const) : ("plain" as const) }))}
+      boxes={lanes.map((l, i) => ({ x: l.x - 110, y: 6, w: 220, h: 58, title: l.t, tone: i === 2 ? ("ink" as const) : i === 3 ? ("dashed" as const) : ("plain" as const), shape: i < 2 ? ("external" as const) : ("process" as const) }))}
       edges={msgs.map(([a, b, , back], i) => ({ d: `M${lanes[a].x} ${y0 + i * dy} H ${lanes[b].x + (b > a ? -4 : 4)}`, dashed: back }))}
       labels={msgs.map(([a, b, t], i) => ({ x: (lanes[a].x + lanes[b].x) / 2, y: y0 + i * dy - 11, text: t, boxed: false }))}
       steps={msgs.map(([a, b, t]) => `${lanes[a].t} → ${lanes[b].t}: ${t}.`)}
@@ -395,50 +401,93 @@ const short = (t: string) => {
   return s.length > 60 ? s.split(",")[0] : s;
 };
 
-/** The system as layers, outside in, each with the records that govern it. */
-export function AdrLayers({ records }: { records: Adr[] }) {
-  const rowH = 76;
-  const gap = 10;
+/** The system as layers, outside in, each with the records that govern it. With `focus`, that record's layer is
+ * inked and the others are named only — for a record's own page, in its narrower column. */
+export function AdrLayers({ records, focus, w = 1200 }: { records: Adr[]; focus?: string; w?: number }) {
+  const rowH = focus ? 46 : 76;
+  const gap = focus ? 8 : 10;
+  const step = focus ? 10 : 14;
   const by = (n: string) => records.find((r) => r.n === n);
+  const titles = (ns: string[]) => (
+    <span key="l">
+      {ns.map((n, j) => {
+        const r = by(n);
+        return (
+          r && (
+            <span key={n}>
+              {j > 0 && " · "}
+              <Link href={`/design/${r.slug}/`} className="text-current underline decoration-current/40 underline-offset-2 hover:decoration-current">
+                {short(r.title)}
+              </Link>
+            </span>
+          )
+        );
+      })}
+    </span>
+  );
   return (
     <Draw
-      w={1200}
+      w={w}
       h={LAYERS.length * (rowH + gap) - gap}
-      boxes={LAYERS.map(([t, what, ns], i) => ({
-        x: i * 14,
-        y: i * (rowH + gap),
-        w: 1200 - i * 28,
-        h: rowH,
-        title: t,
-        tag: ns.map((n) => `ADR ${n}`).join(" · "),
-        lines: [
-          <span key="l">
-            {what} —{" "}
-            {ns.map((n, j) => {
-              const r = by(n);
-              return (
-                r && (
-                  <span key={n}>
-                    {j > 0 && " · "}
-                    <Link href={`/design/${r.slug}/`} className="text-current underline decoration-current/40 underline-offset-2 hover:decoration-current">
-                      {short(r.title)}
-                    </Link>
-                  </span>
-                )
-              );
-            })}
-          </span>,
-        ],
-        tone: (i === 0 ? "ink" : i === LAYERS.length - 1 ? "sunk" : "plain") as "ink" | "sunk" | "plain",
-      }))}
+      boxes={LAYERS.map(([t, what, ns], i) => {
+        const on = focus ? ns.includes(focus) : i === 0;
+        return {
+          x: i * step,
+          y: i * (rowH + gap),
+          w: w - i * step * 2,
+          h: rowH,
+          title: t,
+          tag: ns.map((n) => `ADR ${n}`).join(" · "),
+          lines: focus ? undefined : [<span key="l">{what} — {titles(ns)}</span>],
+          tone: (on ? "ink" : focus ? "sunk" : i === LAYERS.length - 1 ? "sunk" : "plain") as "ink" | "sunk" | "plain",
+        };
+      })}
       steps={LAYERS.map(([t, what, ns]) => (
         <>
-          <b className="font-medium text-t1">{t}</b> — {what}:{" "}
-          {ns
-            .map(by)
-            .filter((r): r is Adr => !!r)
-            .map((r) => `ADR ${r.n} ${r.title.replace(/`/g, "")}`)
-            .join("; ")}
+          <b className="font-medium text-t1">{t}</b> — {what}: {ns.map((n) => `ADR ${n}`).join(", ")}
+          {focus && ns.includes(focus) ? " (this record)" : ""}
+        </>
+      ))}
+    />
+  );
+}
+
+/** The first sentence of a markdown section, as plain text. */
+function firstSentence(md: string): string {
+  const text = md
+    .replace(/^\s*[-*]\s+/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[`*_]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const m = text.match(/^(.+?[.:;])(\s|$)/);
+  const out = m ? m[1].replace(/[:;]$/, ".") : text;
+  return out.length > 190 ? `${out.slice(0, 187).replace(/\s+\S*$/, "")}…` : out;
+}
+
+/** One record, read as context → decision → consequences: the first sentence of each of its sections. */
+export function AdrRecordFlow({ record, w = 760 }: { record: Adr; w?: number }) {
+  const sec = (name: string) => {
+    const m = record.body.match(new RegExp(`^## ${name}\\s*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`, "m"));
+    return m ? firstSentence(m[1]) : "";
+  };
+  const parts: [string, string, "doc" | "process", "plain" | "ink"][] = [
+    ["Context", sec("Context"), "doc", "plain"],
+    ["Decision", sec("Decision"), "process", "ink"],
+    ["Consequences", sec("Consequences"), "process", "plain"],
+  ];
+  const bh = 104;
+  const gap = 36;
+  return (
+    <Draw
+      w={w}
+      h={parts.length * (bh + gap) - gap}
+      boxes={parts.map(([t, l, shape, tone], i) => ({ x: 0, y: i * (bh + gap), w, h: bh, title: t, lines: [l], shape, tone }))}
+      edges={parts.slice(1).map((_, i) => ({ d: `M${w / 2} ${i * (bh + gap) + bh} V ${(i + 1) * (bh + gap)}` }))}
+      legend={false}
+      steps={parts.map(([t, l]) => (
+        <>
+          <b className="font-medium text-t1">{t}</b> — {l}
         </>
       ))}
     />
@@ -481,7 +530,7 @@ export function CaseAnatomy() {
       w={1200}
       h={300}
       boxes={[
-        { x: 0, y: 60, w: 230, h: 110, title: "Symptom", lines: ["what a live run showed", "in bold, first"] },
+        { x: 0, y: 60, w: 230, h: 110, title: "Symptom", lines: ["what a live run showed", "in bold, first"], shape: "doc" },
         { x: 320, y: 60, w: 230, h: 110, title: "Cause", lines: ["why it happened —", "often not the model"] },
         { x: 640, y: 60, w: 230, h: 110, title: "Fix", lines: ["after the arrow"] },
         { x: 960, y: 60, w: 240, h: 110, title: "Guard", lines: ["a test or a check", "or a lesson, written down"], tone: "ink" },
@@ -521,6 +570,7 @@ export function WhereNumbersBroke({ marks }: { marks: Record<string, ReactNode[]
         title: t,
         lines: [l, ...(marks[id] ?? [])],
         tone: (marks[id]?.length ? "plain" : "sunk") as "plain" | "sunk",
+        shape: (["thesis", "report", "site"].includes(id) ? "doc" : "process") as "doc" | "process",
       }))}
       edges={stages.slice(1).map((_, i) => ({ d: `M${i * (w + gap) + w} 95 H ${(i + 1) * (w + gap)}` }))}
       steps={stages.map(([id, t, l]) => (
@@ -541,11 +591,11 @@ export function Escapes() {
       h={330}
       svg={<line x1={255} x2={255} y1={0} y2={330} stroke="var(--fg)" strokeDasharray="6 5" />}
       boxes={[
-        { x: 0, y: 40, w: 220, h: 100, title: "A planted .git", tag: "container", lines: ["config sets", "core.fsmonitor"] },
+        { x: 0, y: 40, w: 220, h: 100, title: "A planted .git", tag: "container", lines: ["config sets", "core.fsmonitor"], shape: "doc" },
         { x: 290, y: 40, w: 200, h: 100, title: "host git diff", lines: ["discovers that .git"] },
         { x: 560, y: 40, w: 240, h: 100, title: "runs a command", tag: "before", lines: ["on the host"], tone: "hatch" },
         { x: 870, y: 40, w: 330, h: 100, title: "core.hostgit", tag: "now", lines: ["a verified worktree admin dir", "hooks and fsmonitor off"], tone: "ink" },
-        { x: 0, y: 200, w: 220, h: 100, title: "A symlink", tag: "container", lines: ["to a .env outside", "the worktree"] },
+        { x: 0, y: 200, w: 220, h: 100, title: "A symlink", tag: "container", lines: ["to a .env outside", "the worktree"], shape: "doc" },
         { x: 290, y: 200, w: 200, h: 100, title: "host-side grep", lines: ["follows it"] },
         { x: 560, y: 200, w: 240, h: 100, title: "returns the secret", tag: "before", lines: ["to the agent"], tone: "hatch" },
         { x: 870, y: 200, w: 330, h: 100, title: "walk_files", tag: "now", lines: ["host-side walks never", "follow symlinks"], tone: "ink" },
@@ -629,13 +679,13 @@ export function HowANumberIsMade() {
       h={360}
       svg={<line x1={20} x2={1180} y1={225} y2={225} stroke="var(--fg)" strokeDasharray="6 5" />}
       boxes={[
-        { x: 0, y: 40, w: 180, h: 110, title: "Inject", lines: ["a release commit", "in MiniRide"] },
-        { x: 230, y: 40, w: 180, h: 110, title: "Trigger", lines: ["rider fleet", "flags · toxics"] },
+        { x: 0, y: 40, w: 180, h: 110, title: "Inject", lines: ["a release commit", "in MiniRide"], shape: "doc" },
+        { x: 230, y: 40, w: 180, h: 110, title: "Trigger", lines: ["rider fleet", "flags · toxics"], shape: "stack" },
         { x: 460, y: 40, w: 180, h: 110, title: "Discover", lines: ["Vitals issue", "or BugDrop report"] },
         { x: 690, y: 40, w: 200, h: 110, title: "Agent run", lines: ["never sees", "the answer key"], tone: "ink" },
-        { x: 940, y: 40, w: 260, h: 110, title: "results.csv → report", lines: ["evals/reports/<date>", "→ this site, at build"] },
+        { x: 940, y: 40, w: 260, h: 110, title: "results.csv · report", lines: ["evals/reports/<date>", "→ this site, at build"], shape: "store" },
         { x: 690, y: 255, w: 200, h: 90, title: "Scorer", lines: ["root cause vs key", "hidden tests on the fix"] },
-        { x: 230, y: 255, w: 360, h: 90, title: "groundtruth/", lines: ["answer key · reference fix · hidden tests", "never mounted into a sandbox"], tone: "hatch" },
+        { x: 230, y: 255, w: 360, h: 90, title: "groundtruth/", lines: ["answer key · reference fix · hidden tests", "never mounted into a sandbox"], tone: "hatch", shape: "store" },
       ]}
       edges={[
         { d: "M180 95 H 230" },

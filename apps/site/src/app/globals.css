@@ -24,22 +24,22 @@
   --fg-3: #5c5a52;
   --fg-4: #6a685f;
   /* time and action */
-  --amber: #2f55d4;
-  --amber-fill: #f3f66a;
+  --amber: var(--fg);
+  --amber-fill: var(--sunk);
   --ink: #141412;
-  --tint: rgba(243, 246, 106, 0.38);
-  --tint-solid: #f4f3b8;
+  --tint: rgba(20, 20, 18, 0.06);
+  --tint-solid: #ecebe4;
   /* the highlighter */
-  --mark: #f7f985;
-  --mark-hot: #fbff7a;
-  --mark-side: #dde05f;
-  --mark-front: #e9ec6c;
+  --mark: #e7e6df;
+  --mark-hot: #d9d7cd;
+  --mark-side: #cfcdc3;
+  --mark-front: #dbd9d0;
   /* who acted, and how a check ended */
   --actor-code: #3d3c36;
-  --actor-llm: #6c52e0;
-  --actor-clef: #b8650a;
-  --pass: #23773b;
-  --signal: #c8323f;
+  --actor-llm: var(--fg-2);
+  --actor-clef: var(--fg-3);
+  --pass: var(--fg);
+  --signal: var(--fg);
   --hatch: rgba(61, 60, 54, 0.28);
   /* isometric drawings */
   --iso-ink: #2f2e2a;
@@ -114,12 +114,12 @@ body {
 }
 
 ::selection {
-  background: var(--amber-fill);
+  background: var(--line-2);
   color: var(--ink);
 }
 
 :focus-visible {
-  outline: 2px solid var(--amber);
+  outline: 2px solid var(--fg);
   outline-offset: 3px;
 }
 
@@ -377,7 +377,7 @@ p {
   background: var(--raised);
 }
 
-/* A figure with a receipt: dotted amber underline; its popover (Popover API) names the file, row and field. */
+/* A figure with a receipt: dotted underline; its popover (Popover API) names the file, row and field. */
 .receipt {
   border-bottom: 1px dotted var(--line-strong);
   font-variant-numeric: tabular-nums;
@@ -630,7 +630,7 @@ html[data-scrolled] .site-header {
   height: 13px;
   margin-left: 4px;
   vertical-align: -2px;
-  background: var(--amber);
+  background: var(--term-fg);
   animation: pulse 0.9s steps(1) infinite;
 }
 

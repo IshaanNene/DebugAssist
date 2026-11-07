@@ -84,7 +84,7 @@ export function Button({
 }
 
 export function Dot() {
-  return <span aria-hidden className="inline-block h-[3px] w-[3px] rounded-full bg-t4" />;
+  return <span aria-hidden className="inline-block h-[3px] w-[3px] bg-t4" />;
 }
 
 export function Chip({ children, tone }: { children: ReactNode; tone?: "good" | "bad" | "muted" }) {

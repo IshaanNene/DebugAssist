@@ -58,7 +58,7 @@ function MiniRideMap() {
   ];
   const otel = [115, 435, 765].map((x) => `M${x} ${x === 765 ? 210 : 170} V ${OTEL.y}`);
   return (
-    <div className="relative hidden aspect-[1200/400] w-full lg:block">
+    <div className="relative hidden aspect-[1200/400] w-full xl:block">
       <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
         <defs>
           <marker id="ta" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
@@ -179,9 +179,9 @@ export default function TestbedPage() {
       <Section id="miniride" title="MiniRide" aside="IshaanNene/miniride-client · miniride-services">
         <Figure n="1" title="the system under test" note="every component ships telemetry">
           <MiniRideMap />
-          <div className="lg:hidden">{components && <Table t={components} from={ARCH} />}</div>
+          <div className="xl:hidden">{components && <Table t={components} from={ARCH} />}</div>
         </Figure>
-        <div className="mt-8 hidden lg:block">{components && <Table t={components} from={ARCH} wide={900} />}</div>
+        <div className="mt-8 hidden xl:block">{components && <Table t={components} from={ARCH} wide={900} />}</div>
         <div className="fx mt-8 max-w-[80ch]">
           <Markdown src={contract} from={ARCH} />
         </div>

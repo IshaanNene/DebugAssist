@@ -42,6 +42,14 @@ direction where they conflict:
   the release graph of an injected bug, the GitHub App as a sequence and its scope, ADRs by layer and a record's
   anatomy, where each measurement case broke and the ADR 0009 escapes, a lessons entry and how each section's
   entries close, how a number is made and bisect-proof (an illustration).
+- **Shapes and the last colours.** Figures use a straight-edged flowchart / data-flow vocabulary drawn in SVG:
+  process (rectangle), decision (diamond), data store (open-ended, with an ID compartment), document (folded
+  corner), outside party (hard offset shadow), many-of (a stack), with a key under each drawing. Each ADR page
+  gets two figures: the record as context → decision → consequences, and its layer in the system. Removed: the
+  last moving packets and marching dashes, the purple/orange actor colours on the pipeline drawing (now solid
+  code, hatched LLM, hollow Clef), green pass cells and tick marks, the yellow plates, button, tint and
+  highlighter. Drawings switch to their step lists below `xl`, where the column is narrower than they were laid
+  out for.
 - **Unchanged:** every figure is still read from `evals/reports` at build time, the run replay and receipts, the
   Safety section rendered from `configs/policies/writes.yaml`, and the Lab notebook.
 

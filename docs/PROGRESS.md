@@ -373,6 +373,9 @@ in review as text dumped into dark boxes with no diagrams.
 - Every chapter page now carries two figures (`components/Draw.tsx`, `components/figs.tsx`), each drawn from a repo
   doc, config or report; on phones each becomes its numbered steps. Checked: no clipped frames at 1440 px, no
   horizontal scroll at 375 px.
+- Figure shapes follow flowchart / data-flow conventions (decision, store, document, outside party, stack); ADR
+  pages carry two figures; the remaining colours and looping animations are gone. Checked: no clipped frames at
+  1024, 1280 and 1440 px, no horizontal scroll at 375 px, all ten ADR pages.
 
 **Not done**: `/runs`, ⌘K and OG images (P3–P4).
 

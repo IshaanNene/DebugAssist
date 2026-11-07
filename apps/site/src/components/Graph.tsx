@@ -82,7 +82,7 @@ export function Graph({ ms, runLabel }: { ms: Record<string, number>; runLabel: 
   return (
     <div ref={box}>
       {/* desktop graph */}
-      <div className="relative hidden aspect-[1200/400] w-full lg:block">
+      <div className="relative hidden aspect-[1200/400] w-full xl:block">
         <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full overflow-visible" aria-hidden>
           <defs>
             <marker id="ga" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
@@ -110,7 +110,7 @@ export function Graph({ ms, runLabel }: { ms: Record<string, number>; runLabel: 
       </div>
 
       {/* phones: a list in two columns */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 lg:hidden">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 xl:hidden">
         {NODES.map((node, i) => (
           <div key={node.id} className="h-[92px]">
             <NodeButton node={node} i={i} on={i === sel} onPick={pick} ms={ms[node.id]} />
