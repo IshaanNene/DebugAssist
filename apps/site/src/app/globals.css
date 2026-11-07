@@ -382,7 +382,7 @@ p {
 
 /* A figure with a receipt: dotted amber underline; its popover (Popover API) names the file, row and field. */
 .receipt {
-  border-bottom: 1px dotted var(--amber);
+  border-bottom: 1px dotted var(--line-strong);
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background-color var(--t-ui);
@@ -428,12 +428,10 @@ p {
   background: var(--raised);
 }
 .signal-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+  width: 8px;
+  height: 8px;
   flex: none;
-  background: var(--signal);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--signal) 20%, transparent);
+  background: var(--fg);
 }
 .console-grid {
   position: relative;
@@ -470,25 +468,35 @@ p {
   bottom: 3px;
   transform-origin: left center;
 }
-.console-grid .bar-run {
+/* who acted, by shape: code is a solid bar, an LLM agent a hatched outline */
+.bar-code {
+  background: var(--fg);
+}
+.bar-llm {
+  background: repeating-linear-gradient(-45deg, var(--fg) 0 1px, var(--raised) 1px 4px);
+  box-shadow: inset 0 0 0 1px var(--fg);
+}
+.key {
+  display: inline-block;
+  width: 16px;
+  height: 8px;
 }
 [data-state="wait"] > div:first-child > div:first-child {
   color: var(--fg-4);
 }
 .diamond,
 .diamond-key {
-  width: 8px;
-  height: 8px;
-  transform: rotate(45deg);
-  background: var(--actor-clef);
+  width: 10px;
+  height: 10px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1.5px var(--fg);
   display: inline-block;
 }
 .diamond {
   position: absolute;
-  top: 7px;
+  top: 6px;
   opacity: 0.25;
   transition: opacity var(--t-ui);
-  box-shadow: 0 0 0 2px var(--raised);
 }
 .diamond[data-on] {
   opacity: 1;
@@ -504,8 +512,8 @@ p {
   transition: color var(--t-ui);
 }
 .phase[data-on] {
-  color: var(--amber);
-  border-color: var(--amber);
+  color: var(--fg);
+  border-color: var(--fg);
 }
 .now-rail {
   position: absolute;
@@ -523,8 +531,8 @@ p {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 1.5px;
-  background: var(--amber);
+  width: 1px;
+  background: var(--fg);
   transition: opacity 0.4s;
 }
 .finding {

@@ -184,7 +184,7 @@ export default function Home() {
                   fix: <>A {run.tier} test fails on the shipped release; the fix makes it pass.</>,
                   validate: (
                     <>
-                      Suite green. Hidden test <span className="text-good">passed</span>:{" "}
+                      Suite green. Hidden test passed:{" "}
                       <span className="font-mono text-[12px]">{run.hiddenTest.split("/").pop()}</span>.
                     </>
                   ),
@@ -233,8 +233,8 @@ export default function Home() {
           </div>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div className="fx panel p-7">
-              <div className="label flex items-center gap-2 text-good">
-                <span className="h-2 w-2 rounded-full bg-good" /> What works
+              <div className="label text-t1">
+                What works
               </div>
               <ul className="mt-5 space-y-4 text-[15px] leading-[1.6] text-t2">
                 <li>Crash-data bugs — locale and currency edge cases, a nil-map panic, a removed await, a battery-draining poller: ten code bugs pass every lane in all three seeds.</li>
@@ -243,8 +243,8 @@ export default function Home() {
               </ul>
             </div>
             <div className="fx panel p-7" style={v(1)}>
-              <div className="label flex items-center gap-2 text-t3">
-  <span className="miss h-2.5 w-2.5 " /> What doesn&apos;t, yet
+              <div className="label text-t3">
+                What doesn&apos;t, yet
               </div>
               <ul className="caveat mt-5 space-y-4 text-[17px] text-t2">
                 <li>Stopping where the symptom surfaced: a CORS change and a payments panic are blamed on the client and the gateway.</li>
@@ -264,7 +264,7 @@ export default function Home() {
                   <h3 className="title text-[22px] text-t1">{t}</h3>
                   <p className="mt-2 text-[14.5px] leading-[1.6] text-t2">{b}</p>
                 </div>
-                <span className="font-mono text-[12px] text-amber">
+                <span className="font-mono text-[12px] text-t1">
                   Lab notebook <span className="inline-block transition-transform group-hover:translate-x-1">→</span>
                 </span>
               </Link>

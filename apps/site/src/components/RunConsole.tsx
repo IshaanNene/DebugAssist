@@ -5,12 +5,11 @@ import { Receipt, type Source } from "@/components/Receipt";
 import type { FeaturedRun, RunTimings } from "@/lib/data";
 
 // The hero: one real evaluated run replayed on its true time axis (step timings from run-timings.json). Bars are
-// coloured by who acted; a diamond marks a step that took a Clef decision. Server-rendered in its finished state;
+// drawn by who acted (solid: code, hatched: an LLM agent); a hollow tick marks a step that took a Clef decision. Server-rendered in its finished state;
 // the replay starts once when the console scrolls into view, never with reduced motion.
 
 type Actor = "code" | "llm" | "clef";
 const actorOf = (kind: string): Actor => (kind.startsWith("llm") ? "llm" : kind === "clef" ? "clef" : "code");
-const COLOR: Record<Actor, string> = { code: "var(--actor-code)", llm: "var(--actor-llm)", clef: "var(--actor-clef)" };
 const ACTOR: Record<Actor, string> = { code: "code", llm: "LLM agent", clef: "Clef" };
 
 const STEP: Record<string, { label: string; phase: string }> = {
@@ -137,7 +136,7 @@ export function RunConsole({
   ];
 
   return (
-  <div ref={root} className="console overflow-hidden  border border-line-2">
+  <div ref={root} className="console overflow-hidden border border-line-2">
       {/* header: the incident, the clock, the controls */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-5 py-4 md:px-6">
         <div className="flex min-w-0 items-center gap-3">
@@ -154,7 +153,7 @@ export function RunConsole({
         <div className="ml-auto flex items-center gap-5">
           <div className="text-right">
             <div className="label text-[10px] text-t3">{done ? "Run finished" : playing ? "Replaying" : "Paused"}</div>
-            <div className="font-mono text-[26px] font-medium leading-none tracking-[-0.02em] text-amber tabular-nums" aria-hidden>
+            <div className="font-mono text-[26px] font-medium leading-none tracking-[-0.02em] text-t1 tabular-nums" aria-hidden>
               T+{pad(t)}
               <span className="text-[14px] text-t3"> s</span>
             </div>
@@ -163,19 +162,19 @@ export function RunConsole({
             <button
               type="button"
               onClick={() => (playing ? stop() : play())}
-  className="inline-flex h-9 items-center gap-2  bg-amber-fill px-3.5 text-[13px] font-semibold text-ink transition-transform active:translate-y-px"
+  className="inline-flex h-9 items-center gap-2 border border-t1 bg-t1 px-3.5 text-[13px] font-medium text-surface transition-colors hover:bg-t2"
             >
               <span aria-hidden className="font-mono text-[11px]">{playing ? "■" : "▶"}</span>
               {playing ? "Stop" : done ? "Replay" : "Play"}
             </button>
-  <div role="group" aria-label="Replay speed" className="hidden  border border-line p-0.5 sm:flex">
+  <div role="group" aria-label="Replay speed" className="hidden border border-line p-0.5 sm:flex">
               {SPEEDS.map((s) => (
                 <button
                   key={s}
                   type="button"
                   aria-pressed={speed === s}
                   onClick={() => changeSpeed(s)}
-  className={` px-2 py-1 font-mono text-[11px] tabular-nums transition-colors ${
+  className={`px-2 py-1 font-mono text-[11px] tabular-nums transition-colors ${
                     speed === s ? "bg-sunk text-t1 shadow-[inset_0_0_0_1px_var(--line-2)]" : "text-t3 hover:text-t1"
                   }`}
                 >
@@ -225,15 +224,14 @@ export function RunConsole({
                   </div>
                   <div className="track">
                     <i
-                      className={`bar ${state === "run" ? "bar-run" : ""}`}
+                      className={`bar bar-${st.actor === "llm" ? "llm" : "code"}`}
                       style={{
                         left: at(st.s),
                         width: `max(${at(st.e - st.s)}, 4px)`,
                         transform: `scaleX(${p})`,
-                        background: COLOR[st.actor],
                       }}
                     />
-                    {st.clef && <i className="diamond" style={{ left: `calc(${at(st.s)} - 4px)` }} data-on={t >= st.s ? "" : undefined} />}
+                    {st.clef && <i className="diamond" style={{ left: `calc(${at(st.s)} - 5px)` }} data-on={t >= st.s ? "" : undefined} />}
                   </div>
                   <div className="text-right font-mono text-[11.5px] text-t2">
                     <Receipt source={{ file: stepFile, row: `run_id ${run.runId} · step ${st.node}`, field: "ms", raw: st.ms }}>
@@ -256,8 +254,8 @@ export function RunConsole({
             <div className="hidden md:block" />
           </div>
           <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10.5px] text-t3">
-  <span className="inline-flex items-center gap-2"><i className="h-[6px] w-4  bg-code" />deterministic code</span>
-  <span className="inline-flex items-center gap-2"><i className="h-[6px] w-4  bg-llm" />LLM agent</span>
+  <span className="inline-flex items-center gap-2"><i className="key bar-code" />deterministic code</span>
+  <span className="inline-flex items-center gap-2"><i className="key bar-llm" />LLM agent</span>
             <span className="inline-flex items-center gap-2"><i className="diamond-key" />Clef decision</span>
           </div>
         </div>
@@ -274,7 +272,7 @@ export function RunConsole({
                   <li key={st.node} className={`finding grid grid-cols-[54px_minmax(0,1fr)] gap-2 ${on ? "" : "finding-off"}`}>
                     <span className="pt-[2px] font-mono text-[10.5px] text-t3 tabular-nums">T+{st.e.toFixed(1)}</span>
                     <span className="flex gap-2 text-[13.5px] leading-[1.45] text-t2">
-  <i className="mt-[6px] h-[7px] w-[7px] shrink-0 " style={{ background: COLOR[st.actor] }} />
+  <i className={`mt-[6px] h-[7px] w-[7px] shrink-0 bar-${st.actor === "llm" ? "llm" : "code"}`} />
                       <span className="min-w-0">{notes[st.node]}</span>
                     </span>
                   </li>
