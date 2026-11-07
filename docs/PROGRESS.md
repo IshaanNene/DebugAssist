@@ -365,7 +365,51 @@ in review as text dumped into dark boxes with no diagrams.
 - Follow-up the same day: Night removed; diagrams and the run console drawn in ink by shape instead of colour; six
   chapter pages added (`/system`, `/pipeline`, `/decisions`, `/run`, `/safety`, `/design` with a page per ADR),
   rendered at build time from the decision templates, `docs/mcp.md`, `writes.yaml`, `docs/THREAT-MODEL.md` and
-  `docs/adr/`. Checked: typecheck, lint, static build, every route at desktop and phone width.
+  `docs/adr/`; then four more: `/discovery` (intake paths, sources, triage, discovery-to-answer medians over 24
+  runs in `evals/reports/2026-11-07`), `/testbed`, `/repo` and `/lessons`; then `/clef` (why a decision model, how it runs, and where the bet
+  stands: Clef beats the LLM decider on none of the five replayed decisions, rules win on two) and `/stories` (case
+  files from the lessons log). Checked: typecheck, lint, static build,
+  every route at desktop and phone width.
+- Every chapter page now carries two figures (`components/Draw.tsx`, `components/figs.tsx`), each drawn from a repo
+  doc, config or report; on phones each becomes its numbered steps. Checked: no clipped frames at 1440 px, no
+  horizontal scroll at 375 px.
+- Figure shapes follow flowchart / data-flow conventions (decision, store, document, outside party, stack); ADR
+  pages carry two figures; the remaining colours and looping animations are gone. Checked: no clipped frames at
+  1024, 1280 and 1440 px, no horizontal scroll at 375 px, all ten ADR pages.
+- Colour restored site-wide, and figures coloured by meaning (Clef amber, LLM violet, holds green, broke red,
+  outcome yellow) with a colour key under each drawing.
+- Drafting pass on every figure: closed shapes, no labels on lines or under boxes, the release graph and App scope
+  redrawn, the answer-key figure in swimlanes, the isometric System layers and Pipeline loop redrawn flat, a paper
+  404. Checked: no clipped frames or horizontal scroll at 375, 1280 and 1440 px on all fifteen routes checked.
+- Numbers no longer count up from zero: a screenshot or a throttled frame caught the Lab notebook headline at
+  2% and $0.000. Every figure now renders its report value at once (checked against `evals/reports/2026-11-07/report.md`).
+- Two pages for a reviewer: `/costs/` (per-run cost with the LLM/Clef split, time to a root cause, Clef latency
+  p50–p95 per decision, the per-agent caps read from `configs/`, what happens when a dependency fails) and
+  `/limits/` (six limitations, each with its evidence, meaning and what would change it: Clef vs the LLM decider,
+  decisions that lose to rules, sample sizes with a 95% Wilson interval, fixes that pass their own test but not the
+  hidden one, the self-built catalog, unsupported claims). Every number is computed at build time in
+  `apps/site/src/lib/ops.ts` from the latest report and configs.
+- Error bars on the Lab notebook (and the home page summary): each headline rate carries its 95% Wilson interval
+  and n, drawn on a 0–100% track; re-run panels give the counts behind each rate and the interval after; the
+  decision replay gives the interval of each row's best score; the real-bug totals their intervals. The Clef
+  ablation reports the paired difference per lane with a 95% bootstrap interval over bugs (seeded, so every build
+  draws the same): it includes zero on all four lanes.
+- `/run/` Fig. 1: the featured run (VIT-1001) as a swimlane sequence — each step in the lane of whoever did the
+  work (code, LLM agents), each labelled decision under the step its template names, as the ledger recorded it
+  (backend, probability, right or wrong) with Clef's answer to the same decision from the E1 replay, and the steps
+  again on their true clock. Read from `run-timings.json`, `evals/ledger/decisions.jsonl` and `evals/runs/e1/`.
+- **Found while building it, then traced (2026-11-07): Clef answered none of the evaluation's decisions.** The
+  ledger snapshot records all 889 labelled decisions — 603 from `routed` (Clef) runs — with the LLM's model, a field
+  taken from the response itself, so the pre-P3-17 `last_backend` naming cannot explain it. Decision spend per run is
+  the same with and without Clef configured ($0.0041 vs $0.0044). The E1 replay went through the same
+  `FallbackBackend`: Workers AI bills input tokens only, so clef-flash/clef cost for one request should be exactly
+  0.375; the recorded ratio has a median of 1.006 and ranges 0.59–1.48 (the LLM's input+output pricing). Most likely
+  cause, from these notes: the token's 401 from this machine (P5; 2026-10-14) — the runs did not keep the fallback
+  reason. So the replay's Clef columns and the `no-clef` ablation compare the LLM with itself. README and site
+  reworded (Why Clef gains a "Clef never answered" section computed by `lib/ops.ts` `clefReach()`; Results,
+  Limitations, the run sequence and the figures relabelled); the generated reports under `evals/reports/` are left
+  as written. To measure Clef: fix the token, make eval runs fail on fallback, check the ledger records
+  `workers_ai`, rerun replay and ablation.
 
 **Not done**: `/runs`, ⌘K and OG images (P3–P4).
 

@@ -73,9 +73,9 @@ const PHASES: Phase[] = [
 ];
 
 const KIND: Record<Kind, { label: string; color: string }> = {
-  code: { label: "deterministic code", color: "var(--actor-code)" },
-  llm: { label: "LLM agents", color: "var(--actor-llm)" },
-  clef: { label: "Clef decisions", color: "var(--actor-clef)" },
+  code: { label: "deterministic code", color: "#cfcfc9" },
+  llm: { label: "LLM agents", color: "#8b7cf0" },
+  clef: { label: "Clef decisions", color: "#e0901b" },
 };
 
 // Isometric projection: x runs down-right (towards the viewer), y runs up-right, z is height.
@@ -94,8 +94,8 @@ const flatX = (x: number, y: number, z: number) => {
   return `matrix(${C} ${S} ${-C} ${S} ${tx.toFixed(1)} ${ty.toFixed(1)})`;
 };
 
-const INK = "var(--iso-ink)";
-const FONT = "var(--font-mono-src), ui-monospace, monospace";
+const INK = "#2f2e2a";
+const FONT = "var(--font-geist-mono), ui-monospace, monospace";
 
 // four phase blocks on one track; the current phase opens into its three steps
 const W = 128; // along x
@@ -111,9 +111,9 @@ const TH = 10;
 
 type Tone = "on" | "done" | "next";
 const TONE: Record<Tone, { ink: string; top: string; side: string; front: string; text: string }> = {
-  on: { ink: INK, top: "var(--iso-top)", side: "var(--iso-side)", front: "var(--iso-front)", text: INK },
-  done: { ink: "var(--iso-dim)", top: "var(--iso-plate)", side: "var(--iso-side)", front: "var(--iso-front)", text: "var(--iso-text-2)" },
-  next: { ink: "var(--iso-faint)", top: "var(--iso-plate)", side: "var(--iso-side)", front: "var(--iso-front)", text: "var(--iso-faint)" },
+  on: { ink: INK, top: "#ffffff", side: "#e9e9e3", front: "#dcdcd6", text: INK },
+  done: { ink: "#6f6d66", top: "#fcfcf9", side: "#ecece6", front: "#e2e2dc", text: "#55544e" },
+  next: { ink: "#a9a79e", top: "#fbfbf9", side: "#f0f0ec", front: "#e8e8e3", text: "#97958c" },
 };
 
 function Block({ x, y, w, d, h, tone }: { x: number; y: number; w: number; d: number; h: number; tone: Tone }) {
@@ -175,9 +175,9 @@ function Diagram({ active, onSelect }: { active: number; onSelect: (i: number) =
       aria-label={`The DebugAssist pipeline in four phases: ${PHASES.map((p) => p.name).join(", ")}. Showing ${PHASES[active].name}: ${PHASES[active].parts.map((s) => s.name).join(", ")}.`}
     >
       {/* track */}
-      <polygon points={P(...trackEnd)} fill="var(--mark-side)" stroke={INK} strokeWidth={1} />
-      <polygon points={P(...trackFront)} fill="var(--mark-front)" stroke={INK} strokeWidth={1} />
-      <polygon points={P(...trackTop)} fill="var(--mark)" stroke={INK} strokeWidth={1.1} />
+      <polygon points={P(...trackEnd)} fill="#dde05f" stroke={INK} strokeWidth={1} />
+      <polygon points={P(...trackFront)} fill="#e9ec6c" stroke={INK} strokeWidth={1} />
+      <polygon points={P(...trackTop)} fill="#f7f985" stroke={INK} strokeWidth={1.1} />
       <polyline
         className="flow"
         points={P(iso(W + 10, t0y + 10), iso(W + 10, t1y - 10))}
@@ -187,10 +187,10 @@ function Diagram({ active, onSelect }: { active: number; onSelect: (i: number) =
         strokeWidth={1}
         strokeDasharray="4 10"
       />
-      <text transform={flat(t1x + 24, t0y - 74, 0)} fontFamily={FONT} fontSize={12} fill="var(--iso-text-2)">
+      <text transform={flat(t1x + 24, t0y - 74, 0)} fontFamily={FONT} fontSize={12} fill="#55544e">
         signal in →
       </text>
-      <text transform={flat(t1x + 24, t1y - 2, 0)} fontFamily={FONT} fontSize={12} fill="var(--iso-text-2)">
+      <text transform={flat(t1x + 24, t1y - 2, 0)} fontFamily={FONT} fontSize={12} fill="#55544e">
         → proof out
       </text>
 
@@ -205,7 +205,7 @@ function Diagram({ active, onSelect }: { active: number; onSelect: (i: number) =
             {on && (
               <text transform={flat(W + 26, y0 + 4, 0)} fontFamily={FONT} fontSize={13.5} fontWeight={600} fill={INK}>
                 {String(i + 1).padStart(2, "0")} {ph.name}
-                <tspan fontWeight={400} fontSize={10.5} fill="var(--iso-dim)" dx={8}>
+                <tspan fontWeight={400} fontSize={10.5} fill="#6f6d66" dx={8}>
                   {ph.decisions}
                 </tspan>
               </text>
@@ -227,7 +227,7 @@ function Diagram({ active, onSelect }: { active: number; onSelect: (i: number) =
                         {st.name}
                       </text>
                       {st.d && (
-                        <text transform={flatX(st.kind.length > 1 ? 42 : 29, y + 8, H_ON)} fontFamily={FONT} fontSize={9.5} fill="var(--iso-soft)">
+                        <text transform={flatX(st.kind.length > 1 ? 42 : 29, y + 8, H_ON)} fontFamily={FONT} fontSize={9.5} fill="#8a887f">
                           {st.d}
                         </text>
                       )}
@@ -314,7 +314,7 @@ export function Loop() {
   return (
     <div ref={ref} style={pinned ? { height: `${n * 85 + 60}vh` } : undefined}>
       <div
-        className={pinned ? "sticky top-14 flex h-[calc(100vh-56px)] items-center" : ""}
+        className={pinned ? "sticky top-12 flex h-[calc(100vh-48px)] items-center" : ""}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >

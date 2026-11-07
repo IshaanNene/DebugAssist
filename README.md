@@ -18,7 +18,7 @@
 <tr>
 <td width="33%" valign="top">
 <h3>🟧 Clef decides</h3>
-Every judgement call — priority, root-cause category, roll back a flag or not, which test tier, retry, ship as PR or draft — is one of <b>18 Cloudflare Clef decision templates</b> returning probabilities, mapped to <i>act / escalate / safe default</i> by policy and written to a ledger. Does Clef beat an LLM making the same calls? <a href="#does-clef-help-not-yet">Not yet, by our own numbers</a>.
+Every judgement call — priority, root-cause category, roll back a flag or not, which test tier, retry, ship as PR or draft — is one of <b>18 Cloudflare Clef decision templates</b> returning probabilities, mapped to <i>act / escalate / safe default</i> by policy and written to a ledger. Does Clef beat an LLM making the same calls? <a href="#does-clef-help-not-measured-yet">Not measured yet</a>: every recorded evaluation decision was answered by the LLM fallback.
 </td>
 <td width="33%" valign="top">
 <h3>🟪 LLMs reason</h3>
@@ -113,23 +113,29 @@ Every catalog bug was injected into the MiniRide repos, discovered from simulate
 </tr>
 </table>
 
-### Does Clef help? Not yet
+### Does Clef help? Not measured yet
 
-The design bets that small calibrated decision models beat an LLM making the same judgement calls. **Our own measurements don't show that yet.** Replaying every logged decision against the catalog's answers (`debugassist eval replay`, same inputs for each decider):
+The design bets that small calibrated decision models beat an LLM making the same judgement calls. **We have not tested that yet: no evaluation decision on record was answered by Clef.** The Clef backend sits behind a circuit breaker that falls back to the LLM decider on any error, and during these runs every Clef call failed, so every call fell back without failing the run. The project's notes record the cause as a 401 — the Cloudflare token was restricted to an old IP address — though the runs did not keep the fallback reason to prove it call by call. The evidence, all in the repo:
 
-| Decision | n | Clef | Clef-flash | LLM decider | Rules |
-|---|---:|---:|---:|---:|---:|
-| D01 triage (priority, owner) | 40 | 0.15 | 0.15 | 0.28 | **0.30** |
-| D05 root-cause category | 40 | 0.70 | **0.75** | 0.73 | 0.63 |
-| D11 flag rollback | 4 | 0.75 | 0.75 | 0.75 | — |
-| D12 localisation | 21 | 0.48 | 0.48 | 0.48 | — |
-| D14 test tier | 26 | 0.42 | 0.50 | 0.46 | **0.73** |
+- **The ledger:** all 889 labelled decisions (`evals/ledger/decisions.jsonl`), including the 603 from runs configured for Clef, record the LLM's model as the one that answered — a field taken from the response itself.
+- **Cost:** decision spend per run is the same with and without Clef configured ($0.0041 and $0.0044).
+- **The replay** (`debugassist eval replay`) went through the same fallback. Workers AI bills input tokens only, so the same prompt should cost exactly 0.375× as much on Clef-flash as on Clef; the recorded ratio has a median of 1.006 and ranges from 0.59 to 1.48, which is the LLM's input-plus-output pricing.
 
-<sub>Accuracy against the catalog's answers. Clef's calibration (Brier score) is slightly better than the LLM's on D05, D11 and D14 and worse on D01 and D12; latency and cost per decision are about the same. Rules win on triage and test tier — those templates need rework.</sub>
+So the replay's "Clef" and "Clef-flash" columns and the `no-clef` ablation compare the LLM decider with itself. What they do show:
 
-**End to end, the difference is small and within noise.** We ran the same pipeline with the LLM making every Clef decision (`no-clef` arm, one run per bug, all 24 discovered bugs) and compared it with each bug's latest Clef runs: root cause right or close **0.79 with Clef vs 0.75 without**, exact 0.64 vs 0.58, code-bug fixes validated 0.80 vs 0.78, hidden tests passing 0.67 vs 0.61, at the same cost. The gaps come from a handful of single bugs and go both ways — Clef's fix-strategy decision escalated one bug to a human in every seed where the LLM decider let it be fixed, while two not-our-bug cases were right with Clef and wrong without — and one run against three cannot separate a few points from noise. So on this catalog the outcome is decided by the investigation, not by the decision layer — the case for Clef here is auditability (a ledger of every call, act/escalate bands), not accuracy, until a reworked template shows otherwise.
+| Decision | n | LLM decider (three replays) | Rules |
+|---|---:|---:|---:|
+| D01 triage (priority, owner) | 40 | 0.15 · 0.15 · 0.28 | **0.30** |
+| D05 root-cause category | 40 | 0.70 · 0.75 · 0.73 | 0.63 |
+| D11 flag rollback | 4 | 0.75 · 0.75 · 0.75 | — |
+| D12 localisation | 21 | 0.48 · 0.48 · 0.48 | — |
+| D14 test tier | 26 | 0.42 · 0.50 · 0.46 | **0.73** |
 
-<sub>25 synthetic bugs, three seeds each in the top grid — read it as strengths and gaps, not precise rates. The report also has a decision-level evaluation (accuracy, Brier, calibration per decision), a replay of the logged decisions across Clef, Clef-flash, an LLM decider and a rules baseline, and every caveat. All runs use `openai/gpt-6-luna`. Reproduce: <code>debugassist eval run --bugs all</code> · <code>debugassist eval replay</code> · <code>debugassist eval report</code>.</sub>
+<sub>Accuracy against the catalog's answers. The three replays are the report's "Clef", "Clef-flash" and "LLM decider" columns, all answered by the LLM; their spread (up to 13 points on D01) is the LLM's run-to-run variation. Rules win on triage and test tier — those templates need rework whichever model answers them.</sub>
+
+**End to end, two LLM-decided arms differ only by noise.** The "with Clef" runs and the `no-clef` arm (one run per bug, all 24 discovered bugs) were both decided by the LLM: root cause right or close 0.79 vs 0.75, exact 0.64 vs 0.58, code-bug fixes validated 0.80 vs 0.78, hidden tests passing 0.67 vs 0.61, at the same cost. That is a measure of how much the same setup varies between runs, not of Clef. Measuring Clef needs the token fixed, a check that the ledger records `backend: workers_ai`, and the replay and ablation run again. Until then the case for the decision layer is auditability (a ledger of every call, act/escalate bands, a fallback that keeps runs going), not accuracy.
+
+<sub>25 synthetic bugs, three seeds each in the top grid — read it as strengths and gaps, not precise rates. The report also has a decision-level evaluation (accuracy, Brier, calibration per decision), a replay of the logged decisions across three deciders (all answered by the LLM fallback — see above) and a rules baseline, and every caveat. All runs use `openai/gpt-6-luna`. Reproduce: <code>debugassist eval run --bugs all</code> · <code>debugassist eval replay</code> · <code>debugassist eval report</code>.</sub>
 
 ### Real open-source bugs
 
@@ -197,7 +203,7 @@ Read the numbers above with these in mind:
 - **Same author, both sides.** The catalog and the agent skills were written by the same person. Skills are generic and linted for leaks, and the answer key (`groundtruth/`) never reaches the agent, but it is in this public repo, so a model trained on it later could be contaminated.
 - **Small samples.** Three seeds per bug, 25 bugs. Seeds still disagree on ten bugs; treat single-bug differences between arms as noise unless they repeat.
 - **No plain-agent comparison yet.** A baseline arm — one tool-using agent with the same issue, worktree and tools and none of the plan (`debugassist baseline`, eval config `baseline`) — is built and graded by the same scorer, but has not been run, so nothing here shows how much the plan adds over a plain agent.
-- **Clef is unproven.** See [Does Clef help?](#does-clef-help-not-yet): no accuracy gain over an LLM decider so far.
+- **Clef is unmeasured.** See [Does Clef help?](#does-clef-help-not-measured-yet): every recorded evaluation decision was answered by the LLM fallback.
 - **The live stack is hard to reproduce elsewhere.** `miniride-services` is a private submodule, the Clef token is IP-restricted, and the stack needs Docker with about 10 GB of RAM. A plain clone runs every test and regenerates the full evaluation report from the committed runs ([Quickstart](#-quickstart)), but not new live runs.
 - **Parked pieces.** Four context-engineering switches (`DA_CONTEXT=lean|clear|compact|concise`) were built and measured or estimated, saved little or nothing, and are off by default; the Discord notifier was never run against a real webhook; the two model-based fix-width checks (`DA_SECOND_REPRO`) did not widen fixes, and the no-model one (`DA_CALL_VARIANTS`) waits for a live run with all its parts. They are listed, with why, under [Parked](docs/ROADMAP.md#parked-2026-10-14) in the roadmap; none is a next step.
 
@@ -324,7 +330,7 @@ in [docs/REFERENCE.md](docs/REFERENCE.md). Also: [threat model](docs/THREAT-MODE
 
 ## 📍 Status
 
-Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Done: P0–P14 (decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness, cross-repo hand-off), P16's Langfuse integration and P17's public site; a three-seed run of the catalog with a fix round and a Clef-vs-LLM ablation; a clone that runs every test and rebuilds the report without the private repo; five real open-source bugs; four attempts to widen narrow fixes; a bisect proof of the culprit commit; a GitHub App for labeled issues on any repository it is installed on; one guarded `Workspace` for all host access to a run's worktree; an install cache shared across runs; two more catalog bugs (a concurrency race and a data migration); and a baseline agent arm, built but not yet run. Measured and parked, off by default: P15's context-engineering switches and the model-based fix-width checks ([parked](docs/ROADMAP.md#parked-2026-10-14)).
+Built phase by phase ([plan](docs/PLAN.md) · [progress](docs/PROGRESS.md) · [architecture](docs/ARCHITECTURE.md) · [decisions](docs/adr/) · [lessons learned](docs/LESSONS.md) · [roadmap](docs/ROADMAP.md)). Done: P0–P14 (decision engine, target system and sources, the full pipeline with 11 MCP servers, triage and RCA, fix planning and the e2e tier, PRs and post-merge watch, dashboard, feedback loop, agent harness, observability and cost controls, the evaluation harness, cross-repo hand-off), P16's Langfuse integration and P17's public site; a three-seed run of the catalog with a fix round and a decider ablation (both arms turned out LLM-decided); a clone that runs every test and rebuilds the report without the private repo; five real open-source bugs; four attempts to widen narrow fixes; a bisect proof of the culprit commit; a GitHub App for labeled issues on any repository it is installed on; one guarded `Workspace` for all host access to a run's worktree; an install cache shared across runs; two more catalog bugs (a concurrency race and a data migration); and a baseline agent arm, built but not yet run. Measured and parked, off by default: P15's context-engineering switches and the model-based fix-width checks ([parked](docs/ROADMAP.md#parked-2026-10-14)).
 
 **Next** ([roadmap](docs/ROADMAP.md)): the baseline arm and BUG-026/027 live, for a plan-vs-plain-agent comparison; the GitHub App on a first real repository; live runs of the call-variation check with all its parts and of the bisect proof, and more real bugs — other languages, larger repos, reports that define or decorate methods — to test it on code it was not designed from; then decide whether to turn it on · prove or rework Clef (D01 triage and D14 test tier first) · LiteLLM and local models. Everything that went wrong on the way, and what fixed it: [lessons learned](docs/LESSONS.md).
 

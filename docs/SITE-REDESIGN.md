@@ -27,8 +27,40 @@ direction where they conflict:
   the MCP server table and rules from `docs/mcp.md`, invariants linked to ADRs), `/pipeline` (scroll pipeline, node
   graph, decisions by step), `/decisions` (every template in `packages/decisions/templates` with its band strip,
   outcomes and questions), `/run` (the replay, the run as a system, its CSV record), `/safety` (`writes.yaml` and
-  `docs/THREAT-MODEL.md`), `/design` and `/design/<adr>` (every ADR). The home page is now an overview: hero, Fig. 1,
+  `docs/THREAT-MODEL.md`), `/design` and `/design/<adr>` (every ADR), `/discovery` (the five intake paths from
+  `nodes/intake.py`, Vitals and BugDrop from `docs/ARCHITECTURE.md`, D01/D02, discovery-to-answer medians from the
+  report), `/testbed` (MiniRide, stand-ins, injection and verification), `/repo` (`docs/github-app.md`) and
+  `/lessons` (`docs/LESSONS.md`), `/clef` (the case for Clef from ADR 0002 and `docs/decisions.md`, live
+  coverage and accuracy at τ_high from `decisions.csv`, the E1 replay against an LLM and rules from `e1.csv`, the
+  no-Clef ablation) and `/stories` (20 case files picked by title from `docs/LESSONS.md`, the ADR 0009 audit, the
+  PLAN §0 amendments). One topic per page; the header shows six chapters and an "All pages" index. The home page is now an overview: hero, Fig. 1,
   principle, contents, results summary, start, FAQ.
+- **Two figures on every chapter page.** `components/Draw.tsx` is a small drafting kit (frames in a fixed coordinate
+  box, right-angle connectors, boxed labels; a numbered list below `lg`); `components/figs.tsx` holds the drawings,
+  each from a doc, config or report: Vitals fingerprinting, D12's two-stage choice, the Clef backends and a
+  coverage/accuracy plot from `decisions.csv`, the write gate from `writes.yaml` and the threat model's boundaries,
+  the release graph of an injected bug, the GitHub App as a sequence and its scope, ADRs by layer and a record's
+  anatomy, where each measurement case broke and the ADR 0009 escapes, a lessons entry and how each section's
+  entries close, how a number is made and bisect-proof (an illustration).
+- **Shapes and the last colours.** Figures use a straight-edged flowchart / data-flow vocabulary drawn in SVG:
+  process (rectangle), decision (diamond), data store (open-ended, with an ID compartment), document (folded
+  corner), outside party (hard offset shadow), many-of (a stack), with a key under each drawing. Each ADR page
+  gets two figures: the record as context → decision → consequences, and its layer in the system. Removed: the
+  last moving packets and marching dashes, the purple/orange actor colours on the pipeline drawing (now solid
+  code, hatched LLM, hollow Clef), green pass cells and tick marks, the yellow plates, button, tint and
+  highlighter — then the palette came back on request (the site should not look bland), and the figures gained
+  colour tones with meaning: amber for Clef, violet for the LLM, green for what holds, red for what broke, the
+  yellow highlighter for the outcome to look at. Drawings switch to their step lists below `xl`, where the column is narrower than they were laid
+  out for.
+- **Drafting pass.** Every box is closed: data stores have both ends, the older figures' corner-bracket frames
+  became solid boxes, shape details scale with the box. Labels knock out the lines they sit on; lanes replace loose
+  dashed boundaries. The isometric pictures (the System layers, the Pipeline loop) were redrawn flat — four
+  swimlanes, and a row of phases with the open phase's steps drawn out below — because skewed text and labels
+  under blocks read as decoration. A figure may rename a colour in its key (`names`). A paper 404 page replaces
+  Next's default.
+- **For a reviewer.** Cost and latency (14) and Limitations (15) follow the Lab notebook: medians with the 90th
+  percentile, intervals on rates, the weaknesses stated before anyone has to find them. Charts there are plain SVG
+  (`components/opsfigs.tsx`) and become number lists below `lg`. Numbers never animate.
 - **Unchanged:** every figure is still read from `evals/reports` at build time, the run replay and receipts, the
   Safety section rendered from `configs/policies/writes.yaml`, and the Lab notebook.
 

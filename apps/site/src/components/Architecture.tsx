@@ -10,9 +10,9 @@ const S = Math.sin(Math.PI / 6);
 const iso = (x: number, y: number, z = 0): [number, number] => [(x + y) * C, (x - y) * S - z];
 const P = (...p: [number, number][]) => p.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(" ");
 
-const INK = "var(--iso-ink)";
-const SOFT = "var(--iso-soft)";
-const FONT = "var(--font-mono-src), ui-monospace, monospace";
+const INK = "#2f2e2a";
+const SOFT = "#8a887f";
+const FONT = "var(--font-geist-mono), ui-monospace, monospace";
 
 /** Text lying on a horizontal face at height z, reading along +x (lines stack towards −y). */
 const flatX = (x: number, y: number, z: number) => {
@@ -54,7 +54,7 @@ function layers(servers: number, tools: number): Layer[] {
         ["payments", "Go"],
         ["flags", "Unleash"],
       ],
-      plate: "var(--iso-plate)",
+      plate: "#f9f9f6",
     },
     {
       name: "Signals",
@@ -67,7 +67,7 @@ function layers(servers: number, tools: number): Layer[] {
         ["logs", "Loki"],
         ["metrics", "Prometheus"],
       ],
-      plate: "var(--iso-plate)",
+      plate: "#f9f9f6",
     },
     {
       name: "Evidence",
@@ -79,7 +79,7 @@ function layers(servers: number, tools: number): Layer[] {
         ["flags", "releases"],
         ["tickets", "Jira · incidents"],
       ],
-      plate: "var(--iso-plate)",
+      plate: "#f9f9f6",
     },
     {
       name: "Agent core",
@@ -92,7 +92,7 @@ function layers(servers: number, tools: number): Layer[] {
         ["sandbox", "no network"],
         ["policy gate", "→ PR · ticket"],
       ],
-      plate: "var(--mark)",
+      plate: "#f7f985",
     },
   ];
 }
@@ -166,9 +166,9 @@ export function Architecture({ servers, tools }: { servers: number; tools: numbe
                   w={LX}
                   d={LY}
                   h={T}
-                  top={on ? "var(--mark-hot)" : layer.plate}
-                  side={layer.plate === "var(--iso-plate)" ? "var(--iso-side)" : "var(--mark-side)"}
-                  front={layer.plate === "var(--iso-plate)" ? "var(--iso-front)" : "var(--mark-front)"}
+                  top={on ? "#fbff7a" : layer.plate}
+                  side={layer.plate === "#f9f9f6" ? "#e6e6df" : "#dde05f"}
+                  front={layer.plate === "#f9f9f6" ? "#ebebe5" : "#e9ec6c"}
                 />
                 <text transform={flatX(MARGIN, 8, 0)} fontFamily={FONT} fontSize={11} fill={INK} letterSpacing="0.06em" dy={4}>
                   {String(k + 1).padStart(2, "0")} · {layer.name.toUpperCase()}
@@ -179,7 +179,7 @@ export function Architecture({ servers, tools }: { servers: number; tools: numbe
                   const x = MARGIN + j * (bw + BGAP);
                   return (
                     <g key={label}>
-                      <Box3 x={x} y={BY0} z={0} w={bw} d={LY - 14 - BY0} h={BH} top="var(--iso-top)" side="var(--iso-side)" front="var(--iso-front)" />
+                      <Box3 x={x} y={BY0} z={0} w={bw} d={LY - 14 - BY0} h={BH} top="#ffffff" side="#e9e9e3" front="#dededa" />
                       <text transform={flatX(x + 10, LY - 40, BH)} fontFamily={FONT} fontSize={13} fill={INK}>
                         {label}
                       </text>
@@ -219,7 +219,7 @@ export function Architecture({ servers, tools }: { servers: number; tools: numbe
           return (
             <li
               key={layer.name}
-              className={`fx relative cursor-default p-5 transition-colors ${on ? "bg-tint" : "bg-surface"}`}
+              className={`fx relative cursor-default p-5 transition-colors ${on ? "bg-[#fdfde6]" : "bg-surface"}`}
               style={{ ["--i" as string]: k }}
               onMouseEnter={() => setHover(k)}
               onMouseLeave={() => setHover(null)}
