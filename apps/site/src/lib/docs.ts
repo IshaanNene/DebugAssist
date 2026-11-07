@@ -251,3 +251,66 @@ export function docSection(file: string, heading: string): string {
   const end = after.search(/^## /m);
   return (end < 0 ? after : after.slice(0, end)).trim();
 }
+
+// ───────────────────────── lessons, one entry at a time ─────────────────────────
+
+export interface Lesson {
+  section: string; // "7. Keeping the evaluation honest"
+  title: string; // the bold symptom
+  what: string; // what happened and why
+  fix: string; // what fixed it ("" when the entry has no fix yet)
+  guards: string[]; // "Guard: …" / "Lesson: …" lines
+}
+
+/** Every `- **Symptom.** cause → fix. *Guard: …*` entry in docs/LESSONS.md, by section. */
+export function lessons(): Lesson[] {
+  const src = read("docs/LESSONS.md");
+  const out: Lesson[] = [];
+  let section = "";
+  let cur: string[] | null = null;
+  const flush = () => {
+    if (!cur) return;
+    const text = cur.join(" ").replace(/\s+/g, " ").trim();
+    cur = null;
+    const m = text.match(/^\*\*(.+?)\*\*\s*(.*)$/);
+    if (!m) return;
+    const guards = [...m[2].matchAll(/\*((?:Guard|Lesson|Open)[^*]*)\*/g)].map((g) => g[1].trim());
+    const body = m[2].replace(/\*((?:Guard|Lesson|Open)[^*]*)\*/g, "").trim();
+    const at = body.indexOf("→");
+    out.push({
+      section,
+      title: m[1].trim(),
+      what: (at < 0 ? body : body.slice(0, at)).trim(),
+      fix: at < 0 ? "" : body.slice(at + 1).trim(),
+      guards,
+    });
+  };
+  for (const line of src.split("\n")) {
+    const h = line.match(/^## (.*)$/);
+    if (h) {
+      flush();
+      section = h[1].trim();
+    } else if (line.startsWith("- **")) {
+      flush();
+      cur = [line.slice(2)];
+    } else if (cur && /^\s{2,}\S/.test(line)) cur.push(line.trim());
+    else flush();
+  }
+  flush();
+  return out;
+}
+
+/** The amendments table in docs/PLAN.md §0: what replaced the original spec, and where it lives. */
+export function planAmendments(): { id: string; decision: string; where: string }[] {
+  const sec = docSection("docs/PLAN.md", "0. Decisions that override the spec");
+  return sec
+    .split("\n")
+    .filter((l) => /^\| (A\d|—)/.test(l))
+    .map((l) => {
+      const c = l
+        .replace(/^\||\|$/g, "")
+        .split("|")
+        .map((s) => s.trim());
+      return { id: c[0], decision: c[1], where: c[2] };
+    });
+}

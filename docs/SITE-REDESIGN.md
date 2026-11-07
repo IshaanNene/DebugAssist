@@ -30,7 +30,10 @@ direction where they conflict:
   `docs/THREAT-MODEL.md`), `/design` and `/design/<adr>` (every ADR), `/discovery` (the five intake paths from
   `nodes/intake.py`, Vitals and BugDrop from `docs/ARCHITECTURE.md`, D01/D02, discovery-to-answer medians from the
   report), `/testbed` (MiniRide, stand-ins, injection and verification), `/repo` (`docs/github-app.md`) and
-  `/lessons` (`docs/LESSONS.md`). The header shows six chapters and an "All pages" index. The home page is now an overview: hero, Fig. 1,
+  `/lessons` (`docs/LESSONS.md`), `/clef` (the case for Clef from ADR 0002 and `docs/decisions.md`, live
+  coverage and accuracy at τ_high from `decisions.csv`, the E1 replay against an LLM and rules from `e1.csv`, the
+  no-Clef ablation) and `/stories` (20 case files picked by title from `docs/LESSONS.md`, the ADR 0009 audit, the
+  PLAN §0 amendments). One topic per page; the header shows six chapters and an "All pages" index. The home page is now an overview: hero, Fig. 1,
   principle, contents, results summary, start, FAQ.
 - **Unchanged:** every figure is still read from `evals/reports` at build time, the run replay and receipts, the
   Safety section rendered from `configs/policies/writes.yaml`, and the Lab notebook.

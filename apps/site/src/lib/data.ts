@@ -749,3 +749,43 @@ export function discoveryTimes(data: Results): DiscoveryTimes | null {
     end: span(rows.map((r) => r.end)),
   };
 }
+
+/** One decision's metrics as the report computes them (evals/metrics.py): accuracy against the catalog's labels,
+ *  Brier score, expected calibration error, and — for live ledger rows — coverage and accuracy at τ_high. */
+export interface DecisionMetrics {
+  decision: string;
+  backend: string; // "clef" for the live ledger; clef · clef-flash · llm · rules in the replay
+  n: number;
+  accuracy: number;
+  brier: number | null;
+  ece: number | null;
+  coverage: number | null;
+  accuracyAtTau: number | null;
+  latencyP50: number;
+  usdPer1k: number;
+}
+
+const optNum = (v: string | undefined) => (v === undefined || v === "" || v === "None" ? null : Number(v));
+
+function metricRows(file: string, backend?: string): { report: string; rows: DecisionMetrics[] } | null {
+  const report = reportWith(file);
+  if (!report) return null;
+  const rows = parseCsv(fs.readFileSync(path.join(REPORTS, report, file), "utf8")).map((r) => ({
+    decision: r.decision,
+    backend: backend ?? r.backend,
+    n: Number(r.n),
+    accuracy: Number(r.accuracy),
+    brier: optNum(r.brier),
+    ece: optNum(r.ece),
+    coverage: optNum(r.coverage_at_tau),
+    accuracyAtTau: optNum(r.accuracy_at_tau),
+    latencyP50: Number(r.latency_p50_ms),
+    usdPer1k: Number(r.usd_per_1k),
+  }));
+  return { report, rows };
+}
+
+/** Live decisions from the run ledgers, labelled from the catalog (decisions.csv). */
+export const liveDecisions = () => metricRows("decisions.csv", "clef");
+/** The replay (E1): the same logged decisions re-decided by each backend (e1.csv). */
+export const replayDecisions = () => metricRows("e1.csv");
