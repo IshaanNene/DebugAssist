@@ -100,6 +100,8 @@ export interface ArmPanel {
   bugs: { bug: string; before: BugAgg["lanes"]; after: BugAgg["lanes"] }[];
   near: [number, number]; // runs with the root cause right or close, before → after (as rates when seeded)
   passed: [number, number]; // hidden tests passing
+  /** the counts behind near and passed: [k, n] before and after */
+  counts: { near: [[number, number], [number, number]]; passed: [[number, number], [number, number]] };
   seeded: boolean;
 }
 
@@ -112,11 +114,43 @@ export interface Results {
   arms: ArmPanel[];
   ablation: Ablation | null;
   ours: Record<string, boolean>;
-  stats: { label: string; value: string; tone: "cyan" | "green" | "violet" | "amber" | "muted" }[];
+  /** k of n with its 95% Wilson interval; the cost tile carries its 90th percentile instead */
+  stats: { label: string; value: string; tone: "cyan" | "green" | "violet" | "amber" | "muted"; k?: number; n: number; ci?: [number, number]; note?: string }[];
   catalog: { total: number; code: number; notOurs: number; evaluated: number };
 }
 
 const yes = (v: string) => v === "True";
+
+/** Wilson score interval (95%) for k successes out of n. */
+export function wilson(k: number, n: number): [number, number] {
+  if (!n) return [0, 0];
+  const z = 1.96;
+  const p = k / n;
+  const d = 1 + (z * z) / n;
+  const c = (p + (z * z) / (2 * n)) / d;
+  const h = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / d;
+  return [Math.max(0, c - h), Math.min(1, c + h)];
+}
+
+/** 95% paired bootstrap interval of the mean of per-item differences; seeded, so every build draws the same. */
+export function bootstrapMean(diffs: number[], draws = 4000): [number, number] {
+  if (!diffs.length) return [0, 0];
+  let x = 0x9e3779b9;
+  const rnd = () => {
+    x ^= x << 13;
+    x ^= x >>> 17;
+    x ^= x << 5;
+    return (x >>> 0) / 4294967296;
+  };
+  const means: number[] = [];
+  for (let d = 0; d < draws; d++) {
+    let t = 0;
+    for (let i = 0; i < diffs.length; i++) t += diffs[Math.floor(rnd() * diffs.length)];
+    means.push(t / diffs.length);
+  }
+  means.sort((a, b) => a - b);
+  return [means[Math.floor(0.025 * draws)], means[Math.ceil(0.975 * draws) - 1]];
+}
 
 /** The decider ablation: the same pipeline with an LLM making every Clef decision, on the bugs it ran, against each
  *  bug's latest Clef run. Rates are the mean of per-bug pass rates, so a bug counts once however many seeds it had;
@@ -127,7 +161,8 @@ export interface Ablation {
   bugs: number;
   clefSeeds: number;
   clefCommits: string[]; // the code the Clef runs it is compared with ran on
-  lanes: { label: string; clef: number; noClef: number }[];
+  /** diff: 95% paired bootstrap interval of Clef minus no Clef over bugs; n: bugs in the lane */
+  lanes: { label: string; clef: number; noClef: number; diff: [number, number]; n: number }[];
 }
 
 function ablation(arm: string | undefined, armRows: Record<string, Row[]>, latest: Record<string, Row[]>, ours: Record<string, boolean>): Ablation | null {
@@ -152,7 +187,8 @@ function ablation(arm: string | undefined, armRows: Record<string, Row[]>, lates
     lanes: lanes.map(([label, f, codeOnly]) => {
       const set = codeOnly ? bugs.filter((b) => ours[b]) : bugs;
       const mean = (pick: (b: string) => Row[]) => set.reduce((n, b) => n + rate(pick(b), f), 0) / (set.length || 1);
-      return { label, clef: mean((b) => latest[b]), noClef: mean((b) => nc.filter((r) => r.bug === b)) };
+      const diffs = set.map((b) => rate(latest[b], f) - rate(nc.filter((r) => r.bug === b), f));
+      return { label, clef: mean((b) => latest[b]), noClef: mean((b) => nc.filter((r) => r.bug === b)), diff: bootstrapMean(diffs), n: set.length };
     }),
   };
 }
@@ -249,7 +285,17 @@ export function results(model = "gpt-6-luna"): Results {
   const hidden = runs.filter((r) => r.hidden_tests === "True" || r.hidden_tests === "False");
   const costs = runs.map((r) => Number(r.usd)).sort((a, b) => a - b);
   const median = costs.length ? costs[Math.floor(costs.length / 2)] : 0;
+  const p90 = costs.length ? costs[Math.min(costs.length - 1, Math.ceil(0.9 * costs.length) - 1)] : 0;
   const frac = (a: number, b: number) => (headline.seeds > 1 ? `${Math.round((100 * a) / (b || 1))}%` : `${a}/${b}`);
+
+  const rateStat = (label: string, k: number, of: number, tone: Results["stats"][number]["tone"]): Results["stats"][number] => ({
+    label,
+    value: frac(k, of),
+    tone,
+    k,
+    n: of,
+    ci: wilson(k, of),
+  });
 
   // Re-run panels: arms before the headline compare with the first run; arms after it with the headline run.
   const nearOf = (rs: Row[]) => rs.filter((r) => r.rca === "exact" || r.rca === "directional").length;
@@ -276,6 +322,16 @@ export function results(model = "gpt-6-luna"): Results {
       })),
       near: [rate(nearOf(b), b.length), rate(nearOf(after), after.length)],
       passed: [rate(passOf(b), hid(b).length), rate(passOf(after), hid(after).length)],
+      counts: {
+        near: [
+          [nearOf(b), b.length],
+          [nearOf(after), after.length],
+        ],
+        passed: [
+          [passOf(b), hid(b).length],
+          [passOf(after), hid(after).length],
+        ],
+      },
       seeded,
     };
   };
@@ -289,12 +345,12 @@ export function results(model = "gpt-6-luna"): Results {
     ablation: ablation(order.filter((a) => a.startsWith("no-clef")).pop(), armRows, latest, ours),
     ours,
     stats: [
-      { label: "root cause right or close", value: frac(near, n), tone: "cyan" },
-      { label: "root cause exact", value: frac(exact, n), tone: "green" },
-      { label: "category right", value: frac(runs.filter((r) => yes(r.category_ok)).length, n), tone: "violet" },
-      { label: "code bugs: fix validated", value: frac(code.filter((r) => yes(r.validated)).length, code.length), tone: "green" },
-      { label: "hidden tests pass", value: frac(hidden.filter((r) => yes(r.hidden_tests)).length, hidden.length), tone: "amber" },
-      { label: "median cost per run", value: `$${median.toFixed(3)}`, tone: "muted" },
+      rateStat("root cause right or close", near, n, "cyan"),
+      rateStat("root cause exact", exact, n, "green"),
+      rateStat("category right", runs.filter((r) => yes(r.category_ok)).length, n, "violet"),
+      rateStat("code bugs: fix validated", code.filter((r) => yes(r.validated)).length, code.length, "green"),
+      rateStat("hidden tests pass", hidden.filter((r) => yes(r.hidden_tests)).length, hidden.length, "amber"),
+      { label: "median cost per run", value: "$" + median.toFixed(3), tone: "muted", n: costs.length, note: "p90 $" + p90.toFixed(3) },
     ],
     catalog: {
       total,

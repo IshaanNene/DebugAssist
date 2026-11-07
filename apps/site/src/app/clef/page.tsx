@@ -26,6 +26,7 @@ const BACKENDS = ["clef", "clef-flash", "llm", "rules"] as const;
 const NAME: Record<string, string> = { clef: "Clef", "clef-flash": "Clef-flash", llm: "LLM", rules: "rules" };
 const f2 = (x: number | null) => (x === null ? "—" : x.toFixed(2));
 const pct = (x: number) => `${Math.round(x * 100)}%`;
+const pts = (x: number) => `${x >= 0 ? "+" : "−"}${Math.abs(Math.round(x * 100))}`;
 
 // The argument, each point from ADR 0002 or docs/decisions.md.
 const BET_BASE: [string, string][] = [
@@ -270,6 +271,9 @@ export default function ClefPage() {
                       <span className="text-right text-t1">{pct(v)}</span>
                     </div>
                   ))}
+                </div>
+                <div className="mt-4 border-t border-line pt-3 font-mono text-[10.5px] leading-snug text-t3">
+                  {pts(l.clef - l.noClef)} pts · 95% CI {pts(l.diff[0])} to {pts(l.diff[1])} · {l.n} bugs
                 </div>
               </div>
             ))}

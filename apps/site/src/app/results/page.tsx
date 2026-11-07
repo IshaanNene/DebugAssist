@@ -12,6 +12,7 @@ import {
   fixWidth,
   realBugs,
   results,
+  wilson,
   type ContextArm,
 } from "@/lib/data";
 import type { Metadata } from "next";
@@ -23,6 +24,9 @@ export const metadata: Metadata = {
 };
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
+/** a difference in percentage points, signed */
+const pts = (x: number) => `${x >= 0 ? "+" : "−"}${Math.abs(Math.round(x * 100))}`;
+const ci = ([lo, hi]: [number, number]) => `${Math.round(lo * 100)}–${Math.round(hi * 100)}%`;
 
 // The evaluation in full: everything the home page summarises, each block built from evals/reports.
 export default function ResultsPage() {
@@ -110,6 +114,7 @@ export default function ResultsPage() {
                           {b === "llm" ? "LLM" : b === "rules" ? "rules" : b === "clef" ? "Clef" : "Clef-flash"}
                         </th>
                       ))}
+                      <th className="pb-2 pl-4 text-right font-normal">best, 95% CI</th>
                     </tr>
                   </thead>
                   <tbody className="tabular-nums">
@@ -128,6 +133,7 @@ export default function ResultsPage() {
                               </td>
                             );
                           })}
+                          <td className="py-2 pl-4 text-right font-mono text-[11.5px] text-t3">{ci(wilson(Math.round(best * d.n), d.n))}</td>
                         </tr>
                       );
                     })}
@@ -153,6 +159,9 @@ export default function ResultsPage() {
                           {Math.round(100 * l.clef)}% <span className="text-t4">/</span> {Math.round(100 * l.noClef)}%
                         </div>
                         <div className="mt-1 text-[12px] leading-snug text-t3">{l.label} · Clef / no Clef</div>
+                        <div className="mt-2 font-mono text-[10.5px] leading-snug text-t3">
+                          difference {pts(l.clef - l.noClef)} pts, 95% CI {pts(l.diff[0])} to {pts(l.diff[1])} · {l.n} bugs
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -219,6 +228,13 @@ export default function ResultsPage() {
                       <td className="py-2 text-right">
                         {reals.reduce((n, b) => n + b.hidden, 0)}/{reals.reduce((n, b) => n + b.hiddenRan, 0)}
                       </td>
+                      <td />
+                    </tr>
+                    <tr className="font-mono text-[11px] text-t3">
+                      <td className="pb-2">95% CI</td>
+                      <td className="pb-2 text-right">{ci(wilson(reals.reduce((n, b) => n + b.rcaExact, 0), reals.reduce((n, b) => n + b.runs, 0)))}</td>
+                      <td className="pb-2 text-right">{ci(wilson(reals.reduce((n, b) => n + b.validated, 0), reals.reduce((n, b) => n + b.runs, 0)))}</td>
+                      <td className="pb-2 text-right">{ci(wilson(reals.reduce((n, b) => n + b.hidden, 0), reals.reduce((n, b) => n + b.hiddenRan, 0)))}</td>
                       <td />
                     </tr>
                   </tbody>

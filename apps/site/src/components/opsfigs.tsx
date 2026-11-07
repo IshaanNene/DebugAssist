@@ -208,15 +208,16 @@ export function LatencyRanges({ rows }: { rows: { decision: string; n: number; p
 
 /* ───────────── Clef against the LLM decider, end to end ───────────── */
 
-export function Dumbbell({ lanes, clefSeeds }: { lanes: { label: string; clef: number; noClef: number }[]; clefSeeds: number }) {
+export function Dumbbell({ lanes, clefSeeds }: { lanes: { label: string; clef: number; noClef: number; diff?: [number, number] }[]; clefSeeds: number }) {
   const W = 1200;
   const RH = 58;
-  const T = 20;
+  const T = 34;
   const yb = T + lanes.length * RH;
   const H = yb + 40;
   const L = 330;
-  const R = 1150;
+  const R = 1000;
   const x = (v: number) => L + v * (R - L);
+  const pts = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(Math.round(v * 100))}`;
   return (
     <>
       <Chart
@@ -228,6 +229,7 @@ export function Dumbbell({ lanes, clefSeeds }: { lanes: { label: string; clef: n
             {lanes.map((l) => (
               <li key={l.label}>
                 {l.label}: Clef {pc(l.clef)} · LLM decider {pc(l.noClef)}
+                {l.diff ? ` · difference 95% CI ${pts(l.diff[0])} to ${pts(l.diff[1])} pts` : ""}
               </li>
             ))}
           </ul>
@@ -241,6 +243,11 @@ export function Dumbbell({ lanes, clefSeeds }: { lanes: { label: string; clef: n
             </text>
           </g>
         ))}
+        {lanes.some((l) => l.diff) && (
+          <text x={W} y={T - 6} textAnchor="end" fontFamily={MONO} fontSize={12} fill="var(--fg-3)">
+            difference, 95% CI (pts)
+          </text>
+        )}
         {lanes.map((l, i) => {
           const cy = T + i * RH + RH / 2;
           const [a, b] = [Math.min(l.clef, l.noClef), Math.max(l.clef, l.noClef)];
@@ -259,6 +266,11 @@ export function Dumbbell({ lanes, clefSeeds }: { lanes: { label: string; clef: n
               <text x={x(clefRight ? l.clef : l.noClef) + 14} y={cy + 5} fontFamily={MONO} fontSize={12.5} fill="var(--fg-2)">
                 {pc(b)}
               </text>
+              {l.diff && (
+                <text x={W} y={cy + 5} textAnchor="end" fontFamily={MONO} fontSize={12.5} fill="var(--fg-3)">
+                  {pts(l.diff[0])} to {pts(l.diff[1])}
+                </text>
+              )}
             </g>
           );
         })}

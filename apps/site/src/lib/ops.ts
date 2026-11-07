@@ -2,24 +2,15 @@
 // generated reports (evals/reports/<date>/*.csv) or read from configs/ — never typed by hand.
 import fs from "node:fs";
 import path from "node:path";
-import { parseCsv, REPORTS, ROOT, type Results, type Row } from "@/lib/data";
+import { parseCsv, REPORTS, ROOT, wilson, type Results, type Row } from "@/lib/data";
+
+export { wilson };
 
 /** Nearest-rank percentile of a list (q in 0..1). */
 export function pct(xs: number[], q: number): number {
   if (!xs.length) return 0;
   const s = [...xs].sort((a, b) => a - b);
   return s[Math.min(s.length - 1, Math.max(0, Math.ceil(q * s.length) - 1))];
-}
-
-/** Wilson score interval (95%) for k successes out of n. */
-export function wilson(k: number, n: number): [number, number] {
-  if (!n) return [0, 0];
-  const z = 1.96;
-  const p = k / n;
-  const d = 1 + (z * z) / n;
-  const c = (p + (z * z) / (2 * n)) / d;
-  const h = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / d;
-  return [Math.max(0, c - h), Math.min(1, c + h)];
 }
 
 const num = (rs: Row[], k: string) => rs.map((r) => r[k]).filter((v) => v !== "" && v !== undefined).map(Number).filter(Number.isFinite);

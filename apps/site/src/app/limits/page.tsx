@@ -87,11 +87,12 @@ export default function LimitsPage() {
               evidence={
                 <>
                   On {ab.bugs} bugs, the same pipeline with an LLM making every decision is within {Math.round(gap * 100)} points of Clef on
-                  every lane — Clef at {ab.clefSeeds} seeds per bug, the LLM decider at one.
+                  every lane — Clef at {ab.clefSeeds} seeds per bug, the LLM decider at one. The 95% interval of the paired difference
+                  {ab.lanes.every((l) => l.diff[0] < 0 && l.diff[1] > 0) ? " includes zero on every lane" : ` excludes zero on ${ab.lanes.filter((l) => !(l.diff[0] < 0 && l.diff[1] > 0)).length} lane(s)`}.
                 </>
               }
               means="The central bet — a calibrated decision model beats an LLM's own confidence — is not shown end to end on this catalog. The gaps come from single bugs and go both ways."
-              change={<>Three seeds for the LLM decider, more bugs, and a paired test per bug. See {link("/clef/", "Why Clef")}.</>}
+              change={<>Three seeds for the LLM decider and more bugs, until the interval excludes zero — or the bet is dropped. See {link("/clef/", "Why Clef")}.</>}
             >
               <Figure n="1" title="pass rates with Clef and with an LLM decider, the same bugs" note={`mean of per-bug rates · ${ab.arm}`}>
                 <Dumbbell lanes={ab.lanes} clefSeeds={ab.clefSeeds} />

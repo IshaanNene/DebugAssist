@@ -1,4 +1,19 @@
-import { evalDate, type BugAgg, type Lane, type Results as R } from "@/lib/data";
+import { evalDate, wilson, type BugAgg, type Lane, type Results as R } from "@/lib/data";
+
+const pc = (v: number) => `${Math.round(v * 100)}%`;
+const ci = ([lo, hi]: [number, number]) => `${Math.round(lo * 100)}–${Math.round(hi * 100)}%`;
+
+/** A rate's 95% interval on a 0–100% track, with the rate itself as a tick. */
+export function Interval({ k, n, lo, hi }: { k: number; n: number; lo: number; hi: number }) {
+  const p = n ? k / n : 0;
+  return (
+    <div className="relative h-[10px]" role="img" aria-label={`95% interval ${pc(lo)} to ${pc(hi)}`}>
+      <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-line-2" />
+      <div className="absolute top-1/2 h-[6px] -translate-y-1/2 border-x border-t1 bg-t1/20" style={{ left: pc(lo), width: pc(hi - lo) }} />
+      <div className="absolute top-0 h-[10px] w-[2px] -translate-x-1/2 bg-t1" style={{ left: pc(p) }} />
+    </div>
+  );
+}
 
 const LANES: [string, Lane][] = [
   ["root cause", "rca"],
@@ -58,6 +73,12 @@ export function Results({ data, compact }: { data: R; compact?: boolean }) {
                 <span>{s.value}</span>
               </div>
               <div className="mt-2 text-[12.5px] leading-snug text-t3">{s.label}</div>
+              <div className="mt-4">
+                {s.ci && s.k !== undefined ? <Interval k={s.k} n={s.n} lo={s.ci[0]} hi={s.ci[1]} /> : <div className="h-[10px]" />}
+              </div>
+              <div className="mt-2 font-mono text-[10.5px] leading-snug text-t3">
+                {s.ci ? `95% CI ${ci(s.ci)}` : s.note} · n {s.n}
+              </div>
             </div>
           ))}
         </div>
@@ -148,6 +169,18 @@ export function Results({ data, compact }: { data: R; compact?: boolean }) {
                 </b>
               </div>
             </dl>
+            <div className="mt-3 space-y-0.5 font-mono text-[10px] leading-snug text-t3">
+              {(
+                [
+                  ["right or close", arm.counts.near],
+                  ["hidden tests", arm.counts.passed],
+                ] as const
+              ).map(([t, [b, a]]) => (
+                <div key={t}>
+                  {t}: {b[0]}/{b[1]} → {a[0]}/{a[1]} · after, 95% CI {ci(wilson(a[0], a[1]))}
+                </div>
+              ))}
+            </div>
             <div className="mt-3 font-mono text-[10px] text-t3">per bug: left = {arm.beforeLabel} · right = this re-run</div>
           </div>
           <div className="wave flex flex-wrap gap-x-6 gap-y-4 p-5">

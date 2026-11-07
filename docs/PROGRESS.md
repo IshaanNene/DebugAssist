@@ -389,6 +389,11 @@ in review as text dumped into dark boxes with no diagrams.
   decisions that lose to rules, sample sizes with a 95% Wilson interval, fixes that pass their own test but not the
   hidden one, the self-built catalog, unsupported claims). Every number is computed at build time in
   `apps/site/src/lib/ops.ts` from the latest report and configs.
+- Error bars on the Lab notebook (and the home page summary): each headline rate carries its 95% Wilson interval
+  and n, drawn on a 0–100% track; re-run panels give the counts behind each rate and the interval after; the
+  decision replay gives the interval of each row's best score; the real-bug totals their intervals. The Clef
+  ablation reports the paired difference per lane with a 95% bootstrap interval over bugs (seeded, so every build
+  draws the same): it includes zero on all four lanes.
 
 **Not done**: `/runs`, ⌘K and OG images (P3–P4).
 
