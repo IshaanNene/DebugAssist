@@ -146,3 +146,71 @@ export function claims(data: Results): Claims {
     n: rs.length,
   };
 }
+
+export interface RunDecision {
+  decision: string;
+  stage: string; // the pipeline step the template belongs to (packages/decisions/templates/*.yaml)
+  served: { backend: string; model: string; confidence: number; correct: boolean; latencyS: number; usd: number };
+  /** the same logged decision re-decided by Clef in the replay (E1), when it was replayed */
+  clef: { got: string; expected: string; confidence: number; band: string; correct: boolean } | null;
+}
+
+/** One run's labelled decisions as the ledger snapshot recorded them, each with Clef's answer from the replay. */
+export function runDecisions(runId: string): { decisions: RunDecision[]; replayFile: string | null } {
+  const ledger = path.join(ROOT, "evals", "ledger", "decisions.jsonl");
+  const read = (f: string) =>
+    fs
+      .readFileSync(f, "utf8")
+      .split("\n")
+      .filter((l) => l.includes(runId))
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
+  const rows = fs.existsSync(ledger) ? read(ledger) : [];
+  const e1dir = path.join(ROOT, "evals", "runs", "e1");
+  const files = fs.existsSync(e1dir) ? fs.readdirSync(e1dir).filter((f) => f.endsWith(".jsonl")).sort() : [];
+  let replayFile: string | null = null;
+  const clef: Record<string, Record<string, unknown>> = {};
+  for (const f of files) {
+    for (const r of read(path.join(e1dir, f)).filter((r) => r.backend === "clef")) {
+      clef[r.decision as string] = r;
+      replayFile = `evals/runs/e1/${f}`;
+    }
+  }
+  const stage = (d: string) => {
+    const f = path.join(ROOT, "packages", "decisions", "templates", `${d}.yaml`);
+    return fs.existsSync(f) ? (fs.readFileSync(f, "utf8").match(/^stage:\s*(\S+)/m)?.[1] ?? "") : "";
+  };
+  return {
+    replayFile,
+    decisions: rows.map((r) => {
+      const c = clef[r.decision as string];
+      return {
+        decision: r.decision as string,
+        stage: stage(r.decision as string),
+        served: {
+          backend: r.backend as string,
+          model: r.model as string,
+          confidence: r.confidence as number,
+          correct: r.correct as boolean,
+          latencyS: (r.latency_ms as number) / 1000,
+          usd: r.cost_usd as number,
+        },
+        clef: c
+          ? { got: String(c.got), expected: String(c.expected), confidence: c.confidence as number, band: String(c.band), correct: c.correct as boolean }
+          : null,
+      };
+    }),
+  };
+}
+
+/** Which backend served the labelled decisions, as the ledger snapshot (evals/ledger/decisions.jsonl) recorded it. */
+export function ledgerBackends(): Record<string, number> {
+  const f = path.join(ROOT, "evals", "ledger", "decisions.jsonl");
+  const out: Record<string, number> = {};
+  if (!fs.existsSync(f)) return out;
+  for (const l of fs.readFileSync(f, "utf8").split("\n")) {
+    if (!l.trim()) continue;
+    const b = (JSON.parse(l) as { backend: string }).backend;
+    out[b] = (out[b] ?? 0) + 1;
+  }
+  return out;
+}

@@ -4,7 +4,9 @@ import { HeroDiagram } from "@/components/Diagrams";
 import { ChapterPage, Figure, Section } from "@/components/Page";
 import { Receipt } from "@/components/Receipt";
 import { RunConsole } from "@/components/RunConsole";
+import { RunSequence } from "@/components/runfigs";
 import { facts, featuredRun, results, runTimings } from "@/lib/data";
+import { runDecisions } from "@/lib/ops";
 
 export const metadata: Metadata = {
   title: "A real run — DebugAssist",
@@ -13,6 +15,7 @@ export const metadata: Metadata = {
 
 const TOC = [
   { id: "replay", text: "The replay" },
+  { id: "sequence", text: "Every step and decision" },
   { id: "flow", text: "What went in, what came out" },
   { id: "record", text: "The record" },
 ];
@@ -23,6 +26,8 @@ export default function RunPage() {
   const run = featuredRun(data);
   const timings = run ? runTimings(run.runId) : null;
   const csv = `evals/reports/${data.report}/results.csv`;
+  const rd = run ? runDecisions(run.runId) : { decisions: [], replayFile: null };
+  const served = [...new Set(rd.decisions.map((d) => d.served.backend))];
 
   return (
     <ChapterPage
@@ -38,7 +43,7 @@ export default function RunPage() {
           each Clef decision. Every underlined figure opens the file, row and field it comes from.
         </>
       }
-      sources={[csv, `evals/reports/${data.report}/run-timings.json`]}
+      sources={[csv, `evals/reports/${data.report}/run-timings.json`, "evals/ledger/decisions.jsonl", ...(rd.replayFile ? [rd.replayFile] : [])]}
       toc={TOC}
     >
       {run && timings ? (
@@ -73,8 +78,40 @@ export default function RunPage() {
             </div>
           </Section>
 
+          <Section id="sequence" title="Every step and decision" aside="Fig. 1 · run-timings.json · decisions.jsonl">
+            <Figure n="1" title="the run as a sequence: who acted, what was decided, and when" note={`${run.issue} · $${run.usd.toFixed(4)} · ${Math.round(run.wallS)} s wall`}>
+              <RunSequence
+                timings={timings}
+                decisions={rd.decisions}
+                notes={{
+                  ingest: ["from Vitals"],
+                  auto_triage: ["owner · priority"],
+                  context_collector: [`${f.mcpServers} MCP servers`],
+                  classify_rca: [`claims ${run.claims - run.unsupported}/${run.claims} backed`],
+                  mitigate: ["roll back a flag?"],
+                  fix: ["test, then fix"],
+                  validate: [`${run.tier} · hidden ✓`],
+                }}
+              />
+            </Figure>
+            <p className="fx mt-8 max-w-[72ch] text-[15px] leading-[1.65] text-t2">
+              Each step sits in the lane of whoever did the work; each labelled decision sits under the step that took it, as the
+              decision ledger recorded it — the backend that served it, its probability, and whether the catalog says it was right
+              — with Clef&apos;s answer to the same logged decision from the replay (E1).{" "}
+              {served.length === 1 && served[0] !== "workers_ai" && (
+                <b className="font-medium text-t1">
+                  In this run the ledger records every decision as served by the {served[0] === "llm" ? "LLM decider" : served[0]}, not by Clef.
+                </b>
+              )}{" "}
+              The bottom lane is the same steps to scale: the two agents are {Math.round(
+                (100 * timings.steps.filter((s) => s.kind.startsWith("llm")).reduce((t, s) => t + s.ms, 0)) / (timings.stepsMs || 1),
+              )}
+              % of the time.
+            </p>
+          </Section>
+
           <Section id="flow" title="What went in, what came out">
-            <Figure n="1" title="the run as a system" note={`${run.issue}, an evaluated run`}>
+            <Figure n="2" title="the run as a system" note={`${run.issue}, an evaluated run`}>
               <HeroDiagram run={run} servers={f.mcpServers} tools={f.mcpTools} templates={f.templates} />
             </Figure>
           </Section>

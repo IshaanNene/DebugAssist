@@ -394,6 +394,16 @@ in review as text dumped into dark boxes with no diagrams.
   decision replay gives the interval of each row's best score; the real-bug totals their intervals. The Clef
   ablation reports the paired difference per lane with a 95% bootstrap interval over bugs (seeded, so every build
   draws the same): it includes zero on all four lanes.
+- `/run/` Fig. 1: the featured run (VIT-1001) as a swimlane sequence — each step in the lane of whoever did the
+  work (code, LLM agents), each labelled decision under the step its template names, as the ledger recorded it
+  (backend, probability, right or wrong) with Clef's answer to the same decision from the E1 replay, and the steps
+  again on their true clock. Read from `run-timings.json`, `evals/ledger/decisions.jsonl` and `evals/runs/e1/`.
+- **Open question found while building it:** the ledger snapshot records all 889 labelled decisions — 603 of them
+  from `routed` (Clef) runs — as served by the LLM decider (`backend: llm`, model gpt-6-luna), none by
+  `workers_ai`. Before P3-17 (2026-10-17) the backend name came from `FallbackBackend.last_backend`, which could
+  name another call's backend under concurrency, but that does not explain every row. The Cost page now labels
+  those latencies as the LLM decider's, from the ledger; the report's Clef-vs-no-Clef wording is unchanged pending
+  a check.
 
 **Not done**: `/runs`, ⌘K and OG images (P3–P4).
 

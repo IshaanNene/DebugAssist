@@ -95,9 +95,9 @@ export function CostBars({ runs, p50, p90 }: { runs: { bug: string; seed: string
           const x = L + i * slot + (slot - bw) / 2;
           return (
             <g key={`${r.bug}-${r.seed}`}>
-              <title>{`${r.bug} seed ${r.seed}: ${usd(r.usd)} (LLM ${usd(r.llm)}, Clef ${usd(r.clef)})`}</title>
+              <title>{`${r.bug} seed ${r.seed}: ${usd(r.usd)} (agents ${usd(r.llm)}, decisions ${usd(r.clef)})`}</title>
               <rect x={x} y={y(r.llm)} width={bw} height={B - y(r.llm)} fill={LLM} />
-              <rect x={x} y={y(r.llm + r.clef)} width={bw} height={y(r.llm) - y(r.llm + r.clef)} fill={CLEF} />
+              <rect x={x} y={y(r.llm + r.clef)} width={bw} height={y(r.llm) - y(r.llm + r.clef)} fill="var(--fg-3)" />
             </g>
           );
         })}
@@ -126,7 +126,7 @@ export function CostBars({ runs, p50, p90 }: { runs: { bug: string; seed: string
       <Key
         items={[
           [<Sq key="l" c={LLM} />, "LLM agents"],
-          [<Sq key="c" c={CLEF} />, "Clef decisions"],
+          [<Sq key="c" c="var(--fg-3)" />, "decision calls"],
           [<Dash key="d" />, "median and 90th percentile"],
         ]}
       />
@@ -153,7 +153,7 @@ export function LatencyRanges({ rows }: { rows: { decision: string; n: number; p
       <Chart
         w={W}
         h={H}
-        label="Latency of each live Clef decision, median to 95th percentile, with cost per thousand calls."
+        label="Latency of each labelled live decision, median to 95th percentile, with cost per thousand calls."
         list={
           <ul className="space-y-1.5 font-mono text-[12.5px] text-t2">
             {rows.map((r) => (
@@ -185,8 +185,8 @@ export function LatencyRanges({ rows }: { rows: { decision: string; n: number; p
               <text x={L - 14} y={cy + 5} textAnchor="end" fontFamily={MONO} fontSize={11.5} fill="var(--fg-3)">
                 n {r.n}
               </text>
-              <line x1={x(r.p50)} x2={x(r.p95)} y1={cy} y2={cy} stroke={CLEF} strokeWidth={3} {...NS} />
-              <rect x={x(r.p50) - 6} y={cy - 6} width={12} height={12} fill={CLEF} stroke="var(--fg)" strokeWidth={1} {...NS} />
+              <line x1={x(r.p50)} x2={x(r.p95)} y1={cy} y2={cy} stroke="var(--fg-2)" strokeWidth={3} {...NS} />
+              <rect x={x(r.p50) - 6} y={cy - 6} width={12} height={12} fill="var(--fg-2)" stroke="var(--fg)" strokeWidth={1} {...NS} />
               <line x1={x(r.p95)} x2={x(r.p95)} y1={cy - 9} y2={cy + 9} stroke="var(--fg)" strokeWidth={1.4} {...NS} />
               <text x={R + 30} y={cy + 5} fontFamily={MONO} fontSize={13} fill="var(--fg-2)">
                 ${r.usdPer1k.toFixed(2)}
@@ -198,7 +198,7 @@ export function LatencyRanges({ rows }: { rows: { decision: string; n: number; p
       </Chart>
       <Key
         items={[
-          [<Sq key="m" c={CLEF} />, "median (p50)"],
+          [<Sq key="m" c="var(--fg-2)" />, "median (p50)"],
           [<i key="t" className="inline-block h-3 w-0 border-l-[1.5px] border-t1" />, "95th percentile"],
         ]}
       />

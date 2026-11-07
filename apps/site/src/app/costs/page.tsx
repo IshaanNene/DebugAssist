@@ -3,11 +3,11 @@ import Link from "next/link";
 import { CostBars, LatencyRanges } from "@/components/opsfigs";
 import { ChapterPage, Figure, Section } from "@/components/Page";
 import { results } from "@/lib/data";
-import { decisionOps, economics, limits } from "@/lib/ops";
+import { decisionOps, economics, ledgerBackends, limits } from "@/lib/ops";
 
 export const metadata: Metadata = {
   title: "Cost and latency — DebugAssist",
-  description: "What a DebugAssist run costs and how long it takes, computed from the evaluation reports: per-run cost, time to a root cause, Clef latency and the caps that bound a run.",
+  description: "What a DebugAssist run costs and how long it takes, computed from the evaluation reports: per-run cost, time to a root cause, decision latency and the caps that bound a run.",
 };
 
 const usd = (v: number) => `$${v.toFixed(3)}`;
@@ -18,13 +18,20 @@ export default function CostsPage() {
   const e = economics(data);
   const ops = decisionOps();
   const lim = limits();
+  const served = ledgerBackends();
+  const servedTotal = Object.values(served).reduce((a, b) => a + b, 0);
+  const NAME: Record<string, string> = { llm: "the LLM decider", workers_ai: "Clef", mock: "the mock", rules: "rules", local: "local Clef" };
+  const servedText = Object.entries(served)
+    .sort((a, b) => b[1] - a[1])
+    .map(([b, k]) => `${k === servedTotal ? "all" : k} by ${NAME[b] ?? b}`)
+    .join(", ");
   const rca = lim.nodes.find((n) => n.node === "classify_rca");
   const fix = lim.nodes.find((n) => n.node === "fix");
   const SRC = `evals/reports/${data.report}/results.csv`;
 
   const tiles: [string, string, string][] = [
     [usd(e.usd.p50), "median cost per run", `p90 ${usd(e.usd.p90)} · most ${usd(e.usd.max)}`],
-    [`${Math.round(e.llmShare * 100)}%`, "of spend is the LLM", "the rest is Clef"],
+    [`${Math.round(e.llmShare * 100)}%`, "of spend is the LLM agents", "the rest is decision calls"],
     [min(e.toRca.p50), "discovery → root cause", `p90 ${min(e.toRca.p90)}`],
     [min(e.pipeline.p50), "pipeline time", `p90 ${min(e.pipeline.p90)}`],
     [String(e.turns.p50), "model turns per run", `p90 ${e.turns.p90}`],
@@ -68,23 +75,24 @@ export default function CostsPage() {
       </Section>
 
       <Section id="spend" title="Where the money goes" aside="Fig. 1">
-        <Figure n="1" title="the cost of every headline run, LLM and Clef stacked" note={SRC}>
+        <Figure n="1" title="the cost of every headline run, agents and decisions stacked" note={SRC}>
           <CostBars runs={e.perRun} p50={e.usd.p50} p90={e.usd.p90} />
         </Figure>
         <p className="mt-8 max-w-[70ch] text-[15px] leading-[1.65] text-t2">
-          The LLM agents — root cause, reproduction and fix — are {Math.round(e.llmShare * 100)}% of the spend; every Clef decision in
-          a run together is the rest. The dearest run cost {usd(e.usd.max)}, {Math.round(e.usd.max / e.usd.p50)}× the median; the 90th percentile is{" "}
+          The LLM agents — root cause, reproduction and fix — are {Math.round(e.llmShare * 100)}% of the spend; the run&apos;s decision calls together are
+          the rest. The dearest run cost {usd(e.usd.max)}, {Math.round(e.usd.max / e.usd.p50)}× the median; the 90th percentile is{" "}
           {usd(e.usd.p90)}.
         </p>
       </Section>
 
       {ops && (
         <Section id="latency" title="Decision latency" aside={`Fig. 2 · evals/reports/${ops.report}/decisions.csv`}>
-          <Figure n="2" title="each live Clef decision, median to 95th percentile" note={`${ops.rows.reduce((t, r) => t + r.n, 0)} decisions`}>
+          <Figure n="2" title="each labelled live decision, median to 95th percentile" note={`${ops.rows.reduce((t, r) => t + r.n, 0)} decisions`}>
             <LatencyRanges rows={ops.rows} />
           </Figure>
           <p className="mt-8 max-w-[70ch] text-[15px] leading-[1.65] text-t2">
-            Every Clef decision is a network call to Workers AI. Medians sit between {Math.min(...ops.rows.map((r) => r.p50)).toFixed(1)} and{" "}
+            Of the {servedTotal} labelled decisions in the ledger, {servedText} — so these are that decider&apos;s latencies, not
+            Clef&apos;s. Medians sit between {Math.min(...ops.rows.map((r) => r.p50)).toFixed(1)} and{" "}
             {Math.max(...ops.rows.map((r) => r.p50)).toFixed(1)} s; the slowest 95th percentile is {Math.max(...ops.rows.map((r) => r.p95)).toFixed(1)} s.
             The costs are per thousand calls. See <Link href="/clef/" className="underline decoration-line-2 underline-offset-[3px] hover:text-t1">Why Clef</Link> for what each decision is worth.
           </p>
