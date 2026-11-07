@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Dumbbell, ReplayDots } from "@/components/opsfigs";
 import { ChapterPage, Figure, Section } from "@/components/Page";
 import { deciderReplay, realBugs, results } from "@/lib/data";
-import { claims, decisionOps, wilson } from "@/lib/ops";
+import { claims, clefReach, decisionOps, wilson } from "@/lib/ops";
 
 export const metadata: Metadata = {
   title: "Limitations — DebugAssist",
@@ -44,6 +44,7 @@ export default function LimitsPage() {
   const data = results();
   const c = claims(data);
   const ab = data.ablation;
+  const reach = clefReach();
   const replay = deciderReplay();
   const ops = decisionOps();
   const reals = realBugs();
@@ -70,7 +71,7 @@ export default function LimitsPage() {
       lead="The weaknesses to know before trusting a number on this site. Each is computed from the same reports as the results, with what it means and what would change it."
       sources={[`${SRC}/results.csv`, `${SRC}/e1.csv`, `${SRC}/decisions.csv`, `${SRC}/report.md`]}
       toc={[
-        { id: "clef", text: "Clef's edge is not shown" },
+        { id: "clef", text: "Clef was never measured" },
         { id: "rules", text: "Some decisions lose to rules" },
         { id: "samples", text: "Small samples" },
         { id: "fixes", text: "Its own test is not enough" },
@@ -83,18 +84,20 @@ export default function LimitsPage() {
           {ab && (
             <Limit
               n={1}
-              title="Clef's edge over an LLM decider is not established"
+              title="Clef was never measured"
               evidence={
                 <>
-                  On {ab.bugs} bugs, the same pipeline with an LLM making every decision is within {Math.round(gap * 100)} points of Clef on
-                  every lane — Clef at {ab.clefSeeds} seeds per bug, the LLM decider at one. The 95% interval of the paired difference
+                  {reach.workersAi === 0 ? "None" : reach.workersAi} of the {reach.total} labelled decisions in the ledger were answered by Clef: Clef
+                  failed and the LLM decider answered in its place, without failing a run. So the ablation on {ab.bugs} bugs
+                  compares the LLM with itself — the arms are within {Math.round(gap * 100)} points on every lane, and the 95% interval
+                  of the paired difference
                   {ab.lanes.every((l) => l.diff[0] < 0 && l.diff[1] > 0) ? " includes zero on every lane" : ` excludes zero on ${ab.lanes.filter((l) => !(l.diff[0] < 0 && l.diff[1] > 0)).length} lane(s)`}.
                 </>
               }
-              means="The central bet — a calibrated decision model beats an LLM's own confidence — is not shown end to end on this catalog. The gaps come from single bugs and go both ways."
-              change={<>Three seeds for the LLM decider and more bugs, until the interval excludes zero — or the bet is dropped. See {link("/clef/", "Why Clef")}.</>}
+              means="The central bet — a calibrated decision model beats an LLM's own confidence — is untested. Every decision number on this site is the LLM decider's. The figure shows how much two identical setups vary, which is useful for reading any other comparison."
+              change={<>Fix the token, make an evaluation run fail when it falls back, check the ledger records Clef, then rerun the replay and the ablation with three seeds per arm. See {link("/clef/#reach", "the evidence")}.</>}
             >
-              <Figure n="1" title="pass rates with Clef and with an LLM decider, the same bugs" note={`mean of per-bug rates · ${ab.arm}`}>
+              <Figure n="1" title="pass rates of two arms the LLM decided, the same bugs" note={`mean of per-bug rates · ${ab.arm}`}>
                 <Dumbbell lanes={ab.lanes} clefSeeds={ab.clefSeeds} />
               </Figure>
             </Limit>
@@ -106,7 +109,7 @@ export default function LimitsPage() {
                 title="Some decisions lose to hand-written rules"
                 evidence={
                   <>
-                    Re-deciding logged decisions, rules beat every model on {rulesWin.map((r) => r.decision.replace(/_.*/, "")).join(" and ")}
+                    Re-deciding logged decisions, rules beat the LLM decider on {rulesWin.map((r) => r.decision.replace(/_.*/, "")).join(" and ")}
                     {rulesWin.length ? "" : "none"}.
                     {worst && (
                       <>
@@ -120,7 +123,7 @@ export default function LimitsPage() {
                 means="Where a decision is badly calibrated, its threshold does not protect the run: it acts with confidence it has not earned."
                 change="Fix the template where a rule wins (more context, sharper outcomes), or keep the rule. Abstain more on the weakest decision until it improves."
               >
-                <Figure n="2" title="each logged decision re-decided by Clef, Clef-flash, an LLM and rules" note={`replay E1 · ${SRC}/e1.csv`}>
+                <Figure n="2" title="each logged decision re-decided three times by the LLM and once by rules" note={`replay E1 · ${SRC}/e1.csv`}>
                   <ReplayDots rows={replay} />
                 </Figure>
               </Limit>
@@ -137,7 +140,7 @@ export default function LimitsPage() {
             evidence={
               <>
                 Root cause right or close: {pc(c.near / c.n)} ({c.near} of {c.n} runs), 95% interval {pc(lo)}–{pc(hi)}. The headline has{" "}
-                {data.headline.seeds} seeds per bug; the Clef ablation has one for the LLM side
+                {data.headline.seeds} seeds per bug; the decider ablation has one for its no-clef arm
                 {smallest ? `; the smallest replay row (${smallest.decision.replace(/_.*/, "")}) has ${smallest.n} cases` : ""}.
               </>
             }

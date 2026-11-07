@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Motion, Shortcuts } from "@/components/client";
 import { COL, SiteFooter, SiteHeader } from "@/components/Chrome";
 import { Results } from "@/components/Results";
@@ -95,13 +96,18 @@ export default function ResultsPage() {
           {replay.length > 0 && (
             <div id="clef" className="fx panel mt-2 p-6">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">Does Clef help? Not yet</div>
+                <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">Does Clef help? Not measured yet</div>
                 <div className="font-mono text-[11px] text-t4">decision replay · accuracy against the catalog</div>
               </div>
               <p className="mt-3 max-w-[80ch] text-[14.5px] leading-[1.55] text-t2">
-                The design bets that small calibrated decision models beat an LLM making the same calls. Replaying every
-                logged decision with each decider, <b className="font-medium text-t1">Clef does not beat the LLM decider yet</b>,
-                and simple rules win on triage and test tier. Those templates are the next thing to fix.
+                The design bets that small calibrated decision models beat an LLM making the same calls.{" "}
+                <b className="font-medium text-t1">No recorded decision was answered by Clef</b>: Clef failed and the
+                LLM decider answered every call in its place ({" "}
+                <Link className="underline decoration-line-2 underline-offset-[3px] hover:text-t1" href="/clef/#reach">
+                  evidence
+                </Link>
+                ). So the &ldquo;Clef&rdquo; columns below are the LLM again; what the replay does show is that simple rules win on
+                triage and test tier.
               </p>
               <div className="mt-5 overflow-x-auto">
                 <table className="w-full min-w-[520px] text-left text-[13px]">
@@ -111,7 +117,7 @@ export default function ResultsPage() {
                       <th className="pb-2 text-right font-normal">n</th>
                       {(["clef", "clef-flash", "llm", "rules"] as const).map((b) => (
                         <th key={b} className="pb-2 text-right font-normal">
-                          {b === "llm" ? "LLM" : b === "rules" ? "rules" : b === "clef" ? "Clef" : "Clef-flash"}
+                          {b === "llm" ? "LLM" : b === "rules" ? "rules" : b === "clef" ? "“Clef”" : "“Clef-flash”"}
                         </th>
                       ))}
                       <th className="pb-2 pl-4 text-right font-normal">best, 95% CI</th>
@@ -143,14 +149,13 @@ export default function ResultsPage() {
               {data.ablation && (
                 <div className="mt-6 border-t border-line pt-5">
                   <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">
-                    End to end, without Clef · {data.ablation.bugs} bugs · {data.ablation.commit}
+                    End to end, two LLM-decided arms · {data.ablation.bugs} bugs · {data.ablation.commit}
                   </div>
                   <p className="mt-2 max-w-[80ch] text-[14px] leading-[1.55] text-t2">
-                    The same pipeline with the LLM making every Clef decision ({data.ablation.arm}, one run per bug),
-                    against each bug&apos;s latest Clef runs ({data.ablation.clefSeeds} each, on{" "}
-                    {data.ablation.clefCommits.join(" and ")}). <b className="font-medium text-t1">A small difference, within noise</b>: the
-                    gaps come from a handful of single bugs and go both ways — one escalated to a human by a Clef decision,
-                    two not-our-bug cases right only with Clef.
+                    The no-clef arm ({data.ablation.arm}, one run per bug) against each bug&apos;s latest runs configured for
+                    Clef ({data.ablation.clefSeeds} each, on {data.ablation.clefCommits.join(" and ")}) — but the LLM decider
+                    answered in both. <b className="font-medium text-t1">The difference is run-to-run noise, not Clef</b>: every
+                    interval includes zero.
                   </p>
                   <div className="mt-4 grid gap-px bg-line sm:grid-cols-4">
                     {data.ablation.lanes.map((l) => (
@@ -158,7 +163,7 @@ export default function ResultsPage() {
                         <div className="font-display text-[22px] font-medium tabular-nums tracking-[-0.02em] text-t1">
                           {Math.round(100 * l.clef)}% <span className="text-t4">/</span> {Math.round(100 * l.noClef)}%
                         </div>
-                        <div className="mt-1 text-[12px] leading-snug text-t3">{l.label} · Clef / no Clef</div>
+                        <div className="mt-1 text-[12px] leading-snug text-t3">{l.label} · for Clef / no-clef</div>
                         <div className="mt-2 font-mono text-[10.5px] leading-snug text-t3">
                           difference {pts(l.clef - l.noClef)} pts, 95% CI {pts(l.diff[0])} to {pts(l.diff[1])} · {l.n} bugs
                         </div>

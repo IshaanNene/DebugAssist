@@ -43,7 +43,7 @@ export default function RunPage() {
           each Clef decision. Every underlined figure opens the file, row and field it comes from.
         </>
       }
-      sources={[csv, `evals/reports/${data.report}/run-timings.json`, "evals/ledger/decisions.jsonl", ...(rd.replayFile ? [rd.replayFile] : [])]}
+      sources={[csv, `evals/reports/${data.report}/run-timings.json`, "evals/ledger/decisions.jsonl"]}
       toc={TOC}
     >
       {run && timings ? (
@@ -96,11 +96,12 @@ export default function RunPage() {
             </Figure>
             <p className="fx mt-8 max-w-[72ch] text-[15px] leading-[1.65] text-t2">
               Each step sits in the lane of whoever did the work; each labelled decision sits under the step that took it, as the
-              decision ledger recorded it — the backend that served it, its probability, and whether the catalog says it was right
-              — with Clef&apos;s answer to the same logged decision from the replay (E1).{" "}
+              decision ledger recorded it — the backend that served it, its probability, and whether the catalog says it was
+              right.{" "}
               {served.length === 1 && served[0] !== "workers_ai" && (
                 <b className="font-medium text-t1">
-                  In this run the ledger records every decision as served by the {served[0] === "llm" ? "LLM decider" : served[0]}, not by Clef.
+                  Every decision here was answered by the {served[0] === "llm" ? "LLM decider" : served[0]}: Clef failed and the
+                  fallback took over, as in every evaluation so far (<Link className="underline decoration-line-2 underline-offset-[3px]" href="/clef/#reach">evidence</Link>).
                 </b>
               )}{" "}
               The bottom lane is the same steps to scale: the two agents are {Math.round(

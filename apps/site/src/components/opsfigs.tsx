@@ -1,5 +1,5 @@
 // Charts for the Cost and latency and the Limitations pages. Plain SVG in a fixed coordinate box, drawn like the
-// figures in figs.tsx: square marks, hairline axes, colour by meaning (violet the LLM, amber Clef, ink rules).
+// figures in figs.tsx: square marks, hairline axes, colour by meaning (violet the LLM, ink rules; nothing here is Clef's — see lib/ops clefReach).
 // Below `lg` the column is too narrow for the labels, so each chart shows its numbers as a list instead.
 import type { ReactNode } from "react";
 
@@ -7,7 +7,6 @@ const MONO = "var(--font-mono-src), ui-monospace, monospace";
 const SANS = "var(--font-sans-src), Helvetica Neue, Arial, sans-serif";
 const NS = { vectorEffect: "non-scaling-stroke" as const };
 const LLM = "var(--actor-llm)";
-const CLEF = "var(--actor-clef)";
 
 const usd = (v: number) => `$${v.toFixed(3)}`;
 const pc = (v: number) => `${Math.round(v * 100)}%`;
@@ -206,7 +205,7 @@ export function LatencyRanges({ rows }: { rows: { decision: string; n: number; p
   );
 }
 
-/* ───────────── Clef against the LLM decider, end to end ───────────── */
+/* ───────────── the two decider arms end to end (both answered by the LLM: see clefReach) ───────────── */
 
 export function Dumbbell({ lanes, clefSeeds }: { lanes: { label: string; clef: number; noClef: number; diff?: [number, number] }[]; clefSeeds: number }) {
   const W = 1200;
@@ -223,12 +222,12 @@ export function Dumbbell({ lanes, clefSeeds }: { lanes: { label: string; clef: n
       <Chart
         w={W}
         h={H}
-        label="Pass rates with Clef and with an LLM decider, on the same bugs."
+        label="Pass rates of the arm configured for Clef and the no-clef arm, on the same bugs; the LLM decider answered both."
         list={
           <ul className="space-y-1.5 font-mono text-[12.5px] text-t2">
             {lanes.map((l) => (
               <li key={l.label}>
-                {l.label}: Clef {pc(l.clef)} · LLM decider {pc(l.noClef)}
+                {l.label}: configured for Clef {pc(l.clef)} · no-clef {pc(l.noClef)}
                 {l.diff ? ` · difference 95% CI ${pts(l.diff[0])} to ${pts(l.diff[1])} pts` : ""}
               </li>
             ))}
@@ -259,7 +258,7 @@ export function Dumbbell({ lanes, clefSeeds }: { lanes: { label: string; clef: n
               </text>
               <line x1={x(a)} x2={x(b)} y1={cy} y2={cy} stroke="var(--fg-3)" strokeWidth={2} {...NS} />
               <rect x={x(l.noClef) - 7} y={cy - 7} width={14} height={14} fill={LLM} stroke="var(--fg)" strokeWidth={1} {...NS} />
-              <rect x={x(l.clef) - 7} y={cy - 7} width={14} height={14} fill={CLEF} stroke="var(--fg)" strokeWidth={1} {...NS} />
+              <rect x={x(l.clef) - 7} y={cy - 7} width={14} height={14} fill="var(--raised)" stroke={LLM} strokeWidth={2.5} {...NS} />
               <text x={x(clefRight ? l.noClef : l.clef) - 14} y={cy + 5} textAnchor="end" fontFamily={MONO} fontSize={12.5} fill="var(--fg-2)">
                 {pc(a)}
               </text>
@@ -278,15 +277,15 @@ export function Dumbbell({ lanes, clefSeeds }: { lanes: { label: string; clef: n
       </Chart>
       <Key
         items={[
-          [<Sq key="c" c={CLEF} />, `Clef · ${clefSeeds} seeds per bug`],
-          [<Sq key="l" c={LLM} />, "LLM decider · 1 seed per bug"],
+          [<Sq key="c" c={LLM} hollow />, `configured for Clef, answered by the LLM fallback · ${clefSeeds} seeds per bug`],
+          [<Sq key="l" c={LLM} />, "no-clef arm, LLM decider · 1 seed per bug"],
         ]}
       />
     </>
   );
 }
 
-/* ───────────── each decision re-decided by Clef, an LLM and rules ───────────── */
+/* ───────────── each decision re-decided three times by the LLM (two of them requested from Clef) and by rules ───────────── */
 
 type Acc = Record<"clef" | "clef-flash" | "llm" | "rules", number | null>;
 
@@ -309,20 +308,21 @@ export function ReplayDots({ rows }: { rows: { decision: string; n: number; acc:
     const cx = x(v);
     if (k === "rules")
       return <polygon key={k} points={`${cx},${cy - 9} ${cx + 9},${cy} ${cx},${cy + 9} ${cx - 9},${cy}`} fill="var(--fg)" />;
-    const c = k === "llm" ? LLM : CLEF;
-    return <rect key={k} x={cx - 6.5} y={cy - 6.5} width={13} height={13} fill={k === "clef-flash" ? "var(--raised)" : c} stroke={c} strokeWidth={2} {...NS} />;
+    // all three model replays were answered by the LLM: one colour, told apart by shape
+    if (k === "clef-flash") return <circle key={k} cx={cx} cy={cy} r={7} fill="var(--raised)" stroke={LLM} strokeWidth={2} {...NS} />;
+    return <rect key={k} x={cx - 6.5} y={cy - 6.5} width={13} height={13} fill={k === "clef" ? "var(--raised)" : LLM} stroke={LLM} strokeWidth={2} {...NS} />;
   };
   return (
     <>
       <Chart
         w={W}
         h={H}
-        label="Accuracy of each logged decision when re-decided by Clef, Clef-flash, an LLM and hand-written rules."
+        label="Accuracy of each logged decision when re-decided three times by the LLM decider (two of them requested from Clef, which fell back) and by hand-written rules."
         list={
           <ul className="space-y-1.5 font-mono text-[12.5px] text-t2">
             {rows.map((r) => (
               <li key={r.decision}>
-                {name(r.decision)} (n {r.n}): Clef {pc(r.acc.clef ?? 0)} · LLM {pc(r.acc.llm ?? 0)}
+                {name(r.decision)} (n {r.n}): LLM {pc(r.acc.clef ?? 0)}, {pc(r.acc["clef-flash"] ?? 0)}, {pc(r.acc.llm ?? 0)}
                 {r.acc.rules !== null ? ` · rules ${pc(r.acc.rules)}` : " · no rule"}
               </li>
             ))}
@@ -355,7 +355,7 @@ export function ReplayDots({ rows }: { rows: { decision: string; n: number; acc:
               <line x1={L} x2={R} y1={cy} y2={cy} stroke="var(--line)" strokeDasharray="2 4" {...NS} />
               {order.map((k) => (r.acc[k] === null ? null : glyph(k, r.acc[k] as number, cy)))}
               <text x={R + 40} y={cy + 5} fontFamily={MONO} fontSize={12.5} fill={b.includes("rules") ? "var(--signal)" : "var(--fg-2)"}>
-                {b.length === 3 || b.length === 4 ? "tie" : b.join(" · ")}
+                {b.includes("rules") ? (b.length > 1 ? "tie" : "rules") : "LLM"}
               </text>
             </g>
           );
@@ -364,9 +364,9 @@ export function ReplayDots({ rows }: { rows: { decision: string; n: number; acc:
       </Chart>
       <Key
         items={[
-          [<Sq key="c" c={CLEF} />, "Clef"],
-          [<Sq key="f" c={CLEF} hollow />, "Clef-flash"],
-          [<Sq key="l" c={LLM} />, "LLM"],
+          [<Sq key="c" c={LLM} hollow />, "requested from Clef · LLM answered"],
+          [<i key="f" className="inline-block h-2.5 w-2.5 rounded-full border-2" style={{ borderColor: LLM }} />, "requested from Clef-flash · LLM answered"],
+          [<Sq key="l" c={LLM} />, "LLM decider"],
           [<i key="r" className="inline-block h-2.5 w-2.5 rotate-45 bg-t1" />, "hand-written rules"],
         ]}
       />

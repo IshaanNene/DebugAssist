@@ -214,3 +214,43 @@ export function ledgerBackends(): Record<string, number> {
   }
   return out;
 }
+
+/** Whether Clef actually answered the evaluation's decisions, from the repo's own records:
+ *  the ledger snapshot's backend and model per labelled decision, and the replay's cost ratio. Workers AI bills input
+ *  tokens only, so the same request costs exactly flash/clef = 0.09/0.24 on the two Clef models; the LLM bills output
+ *  tokens too, so its ratio wanders around 1. */
+export function clefReach() {
+  const f = path.join(ROOT, "evals", "ledger", "decisions.jsonl");
+  const models: Record<string, number> = {};
+  let total = 0;
+  let workersAi = 0;
+  if (fs.existsSync(f))
+    for (const l of fs.readFileSync(f, "utf8").split("\n")) {
+      if (!l.trim()) continue;
+      const r = JSON.parse(l) as { backend: string; model: string };
+      total++;
+      if (r.backend === "workers_ai") workersAi++;
+      models[r.model] = (models[r.model] ?? 0) + 1;
+    }
+  const e1dir = path.join(ROOT, "evals", "runs", "e1");
+  const files = fs.existsSync(e1dir) ? fs.readdirSync(e1dir).filter((x) => x.endsWith(".jsonl")).sort() : [];
+  const byRow: Record<string, Record<string, number>> = {};
+  for (const x of files)
+    for (const l of fs.readFileSync(path.join(e1dir, x), "utf8").split("\n")) {
+      if (!l.trim()) continue;
+      const r = JSON.parse(l) as { row: string; backend: string; cost_usd: number };
+      (byRow[`${x}:${r.row}`] ??= {})[r.backend] = r.cost_usd;
+    }
+  const ratios = Object.values(byRow)
+    .filter((v) => v.clef > 0 && v["clef-flash"] > 0)
+    .map((v) => v["clef-flash"] / v.clef)
+    .sort((a, b) => a - b);
+  const med = ratios.length ? (ratios[(ratios.length - 1) >> 1] + ratios[ratios.length >> 1]) / 2 : null;
+  return {
+    total,
+    workersAi,
+    models: Object.entries(models).sort((a, b) => b[1] - a[1]),
+    ratio: med === null ? null : { median: med, min: ratios[0], max: ratios[ratios.length - 1], n: ratios.length, expected: 0.09 / 0.24 },
+    replayFiles: files.map((x) => `evals/runs/e1/${x}`),
+  };
+}

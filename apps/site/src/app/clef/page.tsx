@@ -4,26 +4,28 @@ import { ChapterPage, Figure, Section } from "@/components/Page";
 import { Abstain, Backends } from "@/components/figs";
 import { liveDecisions, replayDecisions, results, type DecisionMetrics } from "@/lib/data";
 import { docSection, templates } from "@/lib/docs";
+import { clefReach } from "@/lib/ops";
 import { Markdown } from "@/lib/md";
 
 export const metadata: Metadata = {
   title: "Why Clef — DebugAssist",
-  description: "Why every judgement call in DebugAssist is a calibrated decision model instead of an LLM's self-reported confidence — how it works inside, what it costs, and where the bet stands today.",
+  description: "Why every judgement call in DebugAssist is meant to be a calibrated decision model instead of an LLM's self-reported confidence — how it works inside, and why it has not been measured yet.",
 };
 
 const TOC = [
   { id: "bet", text: "The bet" },
   { id: "inside", text: "How a decision runs" },
   { id: "backends", text: "Four backends, one contract" },
+  { id: "reach", text: "Clef never answered" },
   { id: "selective", text: "Confident, and right?" },
-  { id: "replay", text: "Against an LLM and rules" },
-  { id: "ablation", text: "End to end, without Clef" },
+  { id: "replay", text: "Against rules" },
+  { id: "ablation", text: "End to end, two LLM arms" },
   { id: "open", text: "What is still open" },
 ];
 
 const DOC = "docs/decisions.md";
 const BACKENDS = ["clef", "clef-flash", "llm", "rules"] as const;
-const NAME: Record<string, string> = { clef: "Clef", "clef-flash": "Clef-flash", llm: "LLM", rules: "rules" };
+const NAME: Record<string, string> = { clef: "“Clef”", "clef-flash": "“Clef-flash”", llm: "LLM", rules: "rules" };
 const f2 = (x: number | null) => (x === null ? "—" : x.toFixed(2));
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const pts = (x: number) => `${x >= 0 ? "+" : "−"}${Math.abs(Math.round(x * 100))}`;
@@ -54,12 +56,12 @@ export default function ClefPage() {
   const flow = how.match(/```\n([\s\S]*?)```/)?.[1] ?? "";
   const howRest = how.replace(/```[\s\S]*?```/, "").trim();
   const backends = docSection(DOC, "Backends").split("\n\nOpenRouter")[0];
-  const costs = (live?.rows ?? []).map((r) => r.usdPer1k);
+  const reach = clefReach();
   const BET: [string, string][] = [
     ...BET_BASE,
     [
       "Cheap enough to ask everywhere.",
-      `Clef at $0.24 and Clef-flash at $0.09 per million input tokens${costs.length ? `: $${Math.min(...costs).toFixed(2)}–$${Math.max(...costs).toFixed(2)} per thousand decisions in the runs — about what the LLM decider costs on the same calls, so the case rests on calibration, not price` : ""}. A circuit breaker falls back to the LLM decider when the service fails.`,
+      "Clef at $0.24 and Clef-flash at $0.09 per million input tokens, on Workers AI. A circuit breaker falls back to the LLM decider when the service fails — which, in every evaluation so far, it did.",
     ],
   ];
 
@@ -71,8 +73,14 @@ export default function ClefPage() {
     const x = byDecision[d];
     return x.rules && x.rules.accuracy > Math.max(x.clef?.accuracy ?? 0, x["clef-flash"]?.accuracy ?? 0, x.llm?.accuracy ?? 0);
   });
-  const clefBeatsLlm = decisions.filter((d) => (byDecision[d].clef?.accuracy ?? 0) > (byDecision[d].llm?.accuracy ?? 0));
-  const flashBeatsLlm = decisions.filter((d) => (byDecision[d]["clef-flash"]?.accuracy ?? 0) > (byDecision[d].llm?.accuracy ?? 0));
+  // the three model replays were all answered by the LLM: their spread is its run-to-run variation
+  const spread = Math.max(
+    0,
+    ...decisions.map((d) => {
+      const v = (["clef", "clef-flash", "llm"] as const).map((b) => byDecision[d][b]?.accuracy).filter((x): x is number => x !== undefined);
+      return v.length ? Math.max(...v) - Math.min(...v) : 0;
+    }),
+  );
 
   return (
     <ChapterPage
@@ -85,11 +93,11 @@ export default function ClefPage() {
       lead={
         <>
           The design&apos;s central bet: small, calibrated decision models make the judgement calls, the LLM only reasons
-          and writes code, and deterministic code acts. This page is the case for it, how it works inside — and the
-          measurements, including the ones that say the bet has not paid off yet.
+          and writes code, and deterministic code acts. This page is the case for it and how it works inside. The bet is
+          not measured yet: in every evaluation so far, Clef failed and the LLM decider answered in its place.
         </>
       }
-      sources={["docs/adr/0002-decide-reason-act.md", DOC, live ? `evals/reports/${live.report}/decisions.csv` : "", replay ? `evals/reports/${replay.report}/e1.csv` : ""].filter(Boolean)}
+      sources={["docs/adr/0002-decide-reason-act.md", DOC, "evals/ledger/decisions.jsonl", ...reach.replayFiles, live ? `evals/reports/${live.report}/decisions.csv` : "", replay ? `evals/reports/${replay.report}/e1.csv` : ""].filter(Boolean)}
       toc={TOC}
     >
       <Section id="bet" title="The bet" aside="ADR 0002">
@@ -126,12 +134,57 @@ export default function ClefPage() {
         </div>
       </Section>
 
+      <Section id="reach" title="Clef never answered" aside="decisions.jsonl · evals/runs/e1">
+        <p className="fx max-w-[70ch] text-[15.5px] leading-[1.65] text-t2">
+          The breaker in Fig. 2 does its job quietly: when Clef fails, the LLM decider answers and the run goes on. During the
+          evaluations Clef failed on every call, so{" "}
+          <b className="font-medium text-t1">
+            every recorded decision was answered by the LLM fallback — {reach.workersAi === 0 ? "none" : reach.workersAi} of {reach.total} by Clef
+          </b>
+          . Everything below on this page measures the LLM decider, not Clef.
+        </p>
+        <div className="fx mt-8 grid gap-px border border-line bg-line md:grid-cols-3">
+          {[
+            [
+              "The ledger",
+              `${reach.total} labelled decisions`,
+              `Each row records the model named in the response itself: ${reach.models.map(([m, k]) => `${m} ${k}`).join(", ")}. A Clef answer would name a Clef model.`,
+            ],
+            ...(reach.ratio
+              ? [
+                  [
+                    "The replay's prices",
+                    `${reach.ratio.median.toFixed(2)}× · expected ${reach.ratio.expected.toFixed(3)}×`,
+                    `Workers AI bills input tokens only, so the same request costs exactly ${reach.ratio.expected.toFixed(3)}× as much on Clef-flash as on Clef. Over ${reach.ratio.n} replayed decisions the ratio has a median of ${reach.ratio.median.toFixed(2)} and runs from ${reach.ratio.min.toFixed(2)} to ${reach.ratio.max.toFixed(2)}: the LLM's pricing, which counts output too.`,
+                  ],
+                ]
+              : []),
+            [
+              "The cause",
+              "most likely a 401, then a quiet fallback",
+              "The project's notes record the Cloudflare token being refused (401) from this machine, after it was restricted to an old IP address (docs/PROGRESS.md, P5 and 2026-10-14). The runs did not keep the fallback reason, so that is the documented cause, not one proven call by call. Either way, a Clef error hands the call to the LLM decider and the run never fails.",
+            ],
+          ].map(([k, v, b]) => (
+            <div key={k} className="bg-surface p-6">
+              <div className="label text-[10.5px] text-t4">{k}</div>
+              <div className="mt-3 font-mono text-[15px] text-t1">{v}</div>
+              <p className="mt-3 text-[14px] leading-[1.6] text-t2">{b}</p>
+            </div>
+          ))}
+        </div>
+        <p className="fx mt-6 max-w-[70ch] text-[14.5px] leading-[1.6] text-t3">
+          Measuring Clef needs the token fixed, a run whose ledger records <code className="font-mono text-[13px]">workers_ai</code>, and
+          the replay and ablation run again.
+        </p>
+      </Section>
+
       {live && (
         <Section id="selective" title="Confident, and right?" aside={`${live.rows.reduce((a, r) => a + r.n, 0)} live decisions · evals/reports/${live.report}`}>
           <p className="fx max-w-[70ch] text-[15.5px] leading-[1.65] text-t2">
             A calibrated decider earns its keep when it knows when it knows. For every decision the runs logged, labelled
-            from the catalog: how often Clef was confident enough to act (its probability at or above the template&apos;s
-            τ_high), and how often it was right when it did — next to its accuracy overall.
+            from the catalog: how often the decider was confident enough to act (its probability at or above the
+            template&apos;s τ_high), and how often it was right when it did — next to its accuracy overall. The decider here is
+            the LLM fallback, so this is the bar Clef will have to clear.
           </p>
           <div className="fx mt-8 border-t border-line-strong">
             <div className="hidden grid-cols-[minmax(0,1.1fr)_64px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_120px] gap-6 border-b border-line py-2.5 font-mono text-[10.5px] uppercase tracking-[0.08em] text-t3 lg:grid">
@@ -183,15 +236,18 @@ export default function ClefPage() {
       )}
 
       {replay && decisions.length > 0 && (
-        <Section id="replay" title="Against an LLM and rules" aside={`replay E1 · evals/reports/${replay.report}`}>
+        <Section id="replay" title="Against rules" aside={`replay E1 · evals/reports/${replay.report}`}>
           <p className="fx max-w-[70ch] text-[15.5px] leading-[1.65] text-t2">
-            Every logged decision re-decided four ways — Clef, Clef-flash, an LLM decider given the same template, and
-            hand-written rules — and scored against the catalog.{" "}
-            <b className="font-medium text-t1">
-              Clef beats the LLM decider on {clefBeatsLlm.length} of {decisions.length} decisions, Clef-flash on {flashBeatsLlm.length}
-              {rulesWin.length > 0 && <>, and simple rules beat every model on {rulesWin.map((d) => nameOf(d)).join(" and ")}</>}.
-            </b>{" "}
-            That is the honest state of the bet.
+            Every logged decision re-decided four ways and scored against the catalog: requested from Clef, from
+            Clef-flash and from the LLM decider — all three answered by the LLM, since Clef fell back — and by hand-written
+            rules. The three model columns differ by up to {Math.round(spread * 100)} points, which is the LLM&apos;s own
+            run-to-run variation, not a comparison of deciders.
+            {rulesWin.length > 0 && (
+              <>
+                {" "}
+                <b className="font-medium text-t1">Simple rules beat the LLM on {rulesWin.map((d) => nameOf(d)).join(" and ")}.</b>
+              </>
+            )}
           </p>
           <div className="fx mt-8 overflow-x-auto border border-line bg-surface">
             <table className="w-full min-w-[760px] border-collapse text-left">
@@ -204,8 +260,8 @@ export default function ClefPage() {
                       {NAME[b]}
                     </th>
                   ))}
-                  <th className="px-5 py-3 text-right font-normal">Brier · Clef / LLM</th>
-                  <th className="px-5 py-3 text-right font-normal">$ / 1k · Clef / LLM</th>
+                  <th className="px-5 py-3 text-right font-normal">Brier · “Clef” / LLM</th>
+                  <th className="px-5 py-3 text-right font-normal">$ / 1k · “Clef” / LLM</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line font-mono text-[12.5px]">
@@ -244,15 +300,16 @@ export default function ClefPage() {
               </tbody>
             </table>
           </div>
-          <p className="fx mt-4 font-mono text-[11.5px] text-t4">accuracy against the catalog · underlined: best on that decision · — : no rule exists for it</p>
+          <p className="fx mt-4 font-mono text-[11.5px] text-t4">accuracy against the catalog · “quoted”: requested from Clef, answered by the LLM · underlined: best on that decision · — : no rule exists for it</p>
         </Section>
       )}
 
       {data.ablation && (
-        <Section id="ablation" title="End to end, without Clef" aside={`${data.ablation.arm} · ${data.ablation.bugs} bugs`}>
+        <Section id="ablation" title="End to end, two LLM arms" aside={`${data.ablation.arm} · ${data.ablation.bugs} bugs`}>
           <p className="fx max-w-[70ch] text-[15.5px] leading-[1.65] text-t2">
-            The same pipeline with the LLM decider making every Clef decision, one run per bug, against each bug&apos;s latest
-            Clef runs ({data.ablation.clefSeeds} each). The test the thesis needed — and the one that was run last.
+            Meant as the test of the thesis: the same pipeline with the LLM decider making every decision, one run per bug,
+            against each bug&apos;s latest runs configured for Clef ({data.ablation.clefSeeds} each). Since Clef fell back in
+            those runs too, both arms were decided by the LLM.
           </p>
           <div className="fx mt-8 grid gap-px border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
             {data.ablation.lanes.map((l) => (
@@ -261,8 +318,8 @@ export default function ClefPage() {
                 <div className="mt-4 grid gap-2.5">
                   {(
                     [
-                      ["with Clef", l.clef, true],
-                      ["without", l.noClef, false],
+                      ["for Clef", l.clef, false],
+                      ["no-clef", l.noClef, true],
                     ] as [string, number, boolean][]
                   ).map(([k, v, ink]) => (
                     <div key={k} className="grid grid-cols-[64px_minmax(0,1fr)_44px] items-center gap-3 font-mono text-[11.5px]">
@@ -279,8 +336,8 @@ export default function ClefPage() {
             ))}
           </div>
           <p className="fx mt-6 max-w-[70ch] text-[14.5px] leading-[1.6] text-t3">
-            A small difference, within noise: the gaps come from a handful of single bugs and go both ways. Per-run rows are
-            in the{" "}
+            Every interval includes zero, as it should: two arms decided by the same LLM differ only by run-to-run noise.
+            That is a measure of how much the pipeline varies, not of Clef. Per-run rows are in the{" "}
             <Link className="text-t1 underline decoration-line-2 underline-offset-[3px] hover:decoration-t1" href="/results/#clef">
               lab notebook
             </Link>
@@ -292,10 +349,11 @@ export default function ClefPage() {
       <Section id="open" title="What is still open" aside="docs/LESSONS.md · docs/decisions.md">
         <ul className="border-t border-line">
           {[
+            ["Measure Clef at all.", "Fix the Cloudflare token, confirm the ledger records workers_ai, and fail loudly — not quietly — when an evaluation run falls back. Then rerun the replay and the ablation."],
             ["Thresholds are initial guesses.", "Every τ in the catalog is an initial guess, not a tuned value; tuning waits for enough labelled decisions per template."],
             ["Recalibration only if it holds out.", "Temperature or isotonic recalibration is enabled only if it improves ECE on held-out decisions — not on the runs it was fitted to."],
             ["Rules still win somewhere.", "Where a hand-written rule beats every model, the template is the next thing to fix, not the rule to delete."],
-            ["The first ablation should test the thesis.", "The headline numbers were end-to-end RCA and fix rates, which depend mostly on the LLM; an outside review pointed out the thesis itself was untested. It is now stated first."],
+            ["The first ablation should test the thesis.", "An outside review pointed out the thesis was untested; the ablation that followed turned out to compare the LLM with itself. A silent fallback hid it — the next ablation checks who answered before it reports anything."],
           ].map(([t, b], i) => (
             <li key={t} className="fx grid gap-2 border-b border-line py-5 md:grid-cols-[64px_minmax(0,320px)_minmax(0,1fr)] md:gap-8" style={{ ["--i" as string]: i * 0.3 }}>
               <span className="font-mono text-[12px] text-t4">{String(i + 1).padStart(2, "0")}</span>

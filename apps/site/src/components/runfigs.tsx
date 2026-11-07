@@ -1,5 +1,5 @@
 // The featured run as a swimlane sequence: each pipeline step in order, in the lane of whoever did the work, each
-// labelled decision under the step that took it (as the ledger recorded it, with Clef's answer from the replay), and
+// labelled decision under the step that took it (as the ledger recorded it), and
 // the steps again on their true clock underneath. Every value comes from the run's records.
 import { Draw, type DBox, type DEdge, type DLabel, type Tone } from "@/components/Draw";
 import type { RunTimings } from "@/lib/data";
@@ -73,7 +73,6 @@ export function RunSequence({ timings, decisions, notes }: { timings: RunTimings
         d.decision.replace(/^D\d+_/, "").replaceAll("_", " "),
         `${BACKEND[d.served.backend] ?? d.served.backend}`,
         `p ${d.served.confidence.toFixed(2)} · ${d.served.latencyS.toFixed(1)} s`,
-        ...(d.clef ? [`Clef: ${d.clef.band} ${d.clef.correct ? "✓" : "✗"} ${d.clef.confidence.toFixed(2)}`] : []),
       ],
     });
     // the step that took the decision, to the decision: dashed, no arrowhead
@@ -137,9 +136,7 @@ export function RunSequence({ timings, decisions, notes }: { timings: RunTimings
               ? ` — ${ds
                   .map(
                     (d) =>
-                      `${short(d.decision)}: ${BACKEND[d.served.backend] ?? d.served.backend} p ${d.served.confidence.toFixed(2)}, ${d.served.correct ? "right" : "wrong"}${
-                        d.clef ? `; Clef in the replay ${d.clef.band}, ${d.clef.correct ? "right" : "wrong"}` : ""
-                      }`,
+                      `${short(d.decision)}: ${BACKEND[d.served.backend] ?? d.served.backend} p ${d.served.confidence.toFixed(2)}, ${d.served.correct ? "right" : "wrong"}`,
                   )
                   .join("; ")}`
               : ""

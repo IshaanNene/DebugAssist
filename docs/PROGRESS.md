@@ -398,12 +398,18 @@ in review as text dumped into dark boxes with no diagrams.
   work (code, LLM agents), each labelled decision under the step its template names, as the ledger recorded it
   (backend, probability, right or wrong) with Clef's answer to the same decision from the E1 replay, and the steps
   again on their true clock. Read from `run-timings.json`, `evals/ledger/decisions.jsonl` and `evals/runs/e1/`.
-- **Open question found while building it:** the ledger snapshot records all 889 labelled decisions — 603 of them
-  from `routed` (Clef) runs — as served by the LLM decider (`backend: llm`, model gpt-6-luna), none by
-  `workers_ai`. Before P3-17 (2026-10-17) the backend name came from `FallbackBackend.last_backend`, which could
-  name another call's backend under concurrency, but that does not explain every row. The Cost page now labels
-  those latencies as the LLM decider's, from the ledger; the report's Clef-vs-no-Clef wording is unchanged pending
-  a check.
+- **Found while building it, then traced (2026-11-07): Clef answered none of the evaluation's decisions.** The
+  ledger snapshot records all 889 labelled decisions — 603 from `routed` (Clef) runs — with the LLM's model, a field
+  taken from the response itself, so the pre-P3-17 `last_backend` naming cannot explain it. Decision spend per run is
+  the same with and without Clef configured ($0.0041 vs $0.0044). The E1 replay went through the same
+  `FallbackBackend`: Workers AI bills input tokens only, so clef-flash/clef cost for one request should be exactly
+  0.375; the recorded ratio has a median of 1.006 and ranges 0.59–1.48 (the LLM's input+output pricing). Most likely
+  cause, from these notes: the token's 401 from this machine (P5; 2026-10-14) — the runs did not keep the fallback
+  reason. So the replay's Clef columns and the `no-clef` ablation compare the LLM with itself. README and site
+  reworded (Why Clef gains a "Clef never answered" section computed by `lib/ops.ts` `clefReach()`; Results,
+  Limitations, the run sequence and the figures relabelled); the generated reports under `evals/reports/` are left
+  as written. To measure Clef: fix the token, make eval runs fail on fallback, check the ledger records
+  `workers_ai`, rerun replay and ablation.
 
 **Not done**: `/runs`, ⌘K and OG images (P3–P4).
 

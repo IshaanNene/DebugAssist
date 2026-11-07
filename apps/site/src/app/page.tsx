@@ -177,7 +177,7 @@ export default function Home() {
           </div>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             {[
-              ["/results/#clef", "Does Clef help?", "Every logged decision replayed with Clef, an LLM and simple rules."],
+              ["/clef/#reach", "Does Clef help?", "Not measured yet: every recorded decision was answered by the LLM fallback."],
               ["/results/#real", "Real open-source bugs", `${reals.length} public issues, each run on the code it was filed against, with bisect proofs.`],
               ["/results/#tokens", "Where the tokens go", "A context audit of real runs, and three context-engineering experiments."],
             ].map(([href, t, b], i) => (
