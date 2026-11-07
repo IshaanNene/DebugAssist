@@ -128,26 +128,23 @@ export function Shortcuts({ map }: { map: Record<string, string> }) {
   return null;
 }
 
-type Theme = "system" | "dark" | "light";
+type Theme = "dark" | "light";
 const THEME_EVENT = "da-theme";
-const readTheme = (): Theme => {
-  const t = document.documentElement.getAttribute("data-theme");
-  return t === "dark" || t === "light" ? t : "system";
-};
+const readTheme = (): Theme => (document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light");
 const subscribeTheme = (cb: () => void) => {
   window.addEventListener(THEME_EVENT, cb);
   return () => window.removeEventListener(THEME_EVENT, cb);
 };
 
-/** Auto follows the system setting; Night and Day pin a theme (the boot script in the layout restores it). */
+/** Day (paper) is the default; Night is opt-in and remembered (the boot script in the layout restores it). */
 export function ThemeToggle() {
-  const theme = useSyncExternalStore(subscribeTheme, readTheme, (): Theme => "system");
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, (): Theme => "light");
   const choose = (t: Theme) => {
     const d = document.documentElement;
-    if (t === "system") d.removeAttribute("data-theme");
+    if (t === "light") d.removeAttribute("data-theme");
     else d.setAttribute("data-theme", t);
     try {
-      if (t === "system") localStorage.removeItem("da-theme");
+      if (t === "light") localStorage.removeItem("da-theme");
       else localStorage.setItem("da-theme", t);
     } catch {
       // storage blocked: the choice still holds for this page view
@@ -155,20 +152,19 @@ export function ThemeToggle() {
     window.dispatchEvent(new Event(THEME_EVENT));
   };
   const options: [Theme, string][] = [
-    ["system", "Auto"],
-    ["dark", "Night"],
     ["light", "Day"],
+    ["dark", "Night"],
   ];
   return (
-    <div role="group" aria-label="Theme" className="hidden rounded-full border border-line p-0.5 sm:inline-flex">
+  <div role="group" aria-label="Theme" className="hidden border border-line-2 sm:inline-flex">
       {options.map(([t, label]) => (
         <button
           key={t}
           type="button"
           aria-pressed={theme === t}
           onClick={() => choose(t)}
-          className={`rounded-full px-2.5 py-1 font-mono text-[10.5px] tracking-[0.03em] transition-colors ${
-            theme === t ? "bg-raised text-t1 shadow-[inset_0_0_0_1px_var(--line-2)]" : "text-t3 hover:text-t1"
+  className={`h-8 px-3 font-mono text-[11.5px] transition-colors ${
+            theme === t ? "bg-t1 text-surface" : "bg-surface text-t3 hover:text-t1"
           }`}
         >
           {label}

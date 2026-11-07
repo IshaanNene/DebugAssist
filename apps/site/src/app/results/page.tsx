@@ -391,7 +391,7 @@ export default function ResultsPage() {
                   [ctx.modelShare, "bg-llm", "model output"],
                 ].map(([share, cls, label], i) => (
                   <div key={label as string} className="min-w-0" style={{ flex: `${share as number} 1 0` }}>
-                    <div className={`bar h-12 rounded-[3px] ${cls}`} style={v(i * 3)} />
+  <div className={`bar h-12  ${cls}`} style={v(i * 3)} />
                     <div className="mt-2.5 font-mono text-[20px] font-medium tracking-[-0.02em] text-t1">{frac(share as number)}</div>
                     <div className="truncate text-[12.5px] text-t3">{label}</div>
                   </div>
@@ -411,8 +411,8 @@ export default function ResultsPage() {
                   {ctx.topTools.map((t, i) => (
                     <div key={t.tool} className="flex items-center gap-3">
                       <span className="w-32 truncate font-mono text-[12px] text-t2">{t.tool}</span>
-                      <div className="h-3 flex-1 rounded-[2px] bg-sunk">
-                        <div className="bar h-full rounded-[2px] bg-code" style={{ width: `${((t.share / ctx.topTools[0].share) * 100).toFixed(1)}%`, ...v(i) }} />
+  <div className="h-3 flex-1  bg-sunk">
+  <div className="bar h-full  bg-code" style={{ width: `${((t.share / ctx.topTools[0].share) * 100).toFixed(1)}%`, ...v(i) }} />
                       </div>
                       <span className="w-10 text-right font-mono text-[12px] text-t3">{frac(t.share)}</span>
                     </div>
@@ -465,7 +465,7 @@ function ArmCompare({ arms, report }: { arms: ContextArm[]; report: string }) {
         <ul className="mt-4 space-y-1.5 text-[12.5px] text-t3">
           {arms.map((a) => (
             <li key={a.arm} className="flex gap-2">
-              <span className={`mt-[5px] inline-block h-2.5 w-2.5 shrink-0 rounded-[2px] ${ARM_STYLE[a.arm]?.cls ?? "bg-line"}`} />
+  <span className={`mt-[5px] inline-block h-2.5 w-2.5 shrink-0  ${ARM_STYLE[a.arm]?.cls ?? "bg-line"}`} />
               <span>
                 <b className="font-mono font-normal text-t2">{a.arm}</b> — {ARM_STYLE[a.arm]?.what ?? ""}
                 {a.runs < arms[0].runs && (
@@ -488,9 +488,9 @@ function ArmCompare({ arms, report }: { arms: ContextArm[]; report: string }) {
               {arms.map((a, j) => (
                 <div key={a.arm} className="mt-1 flex items-center gap-3">
                   <span className="w-20 font-mono text-[11px] text-t3">{a.arm}</span>
-                  <div className="h-3 flex-1 rounded-[2px] bg-sunk">
+  <div className="h-3 flex-1  bg-sunk">
                     <div
-                      className={`bar h-full rounded-[2px] ${ARM_STYLE[a.arm]?.cls ?? "bg-line"}`}
+  className={`bar h-full  ${ARM_STYLE[a.arm]?.cls ?? "bg-line"}`}
                       style={{ width: pct(get(a) / max), ["--i" as string]: i * 3 + j }}
                     />
                   </div>

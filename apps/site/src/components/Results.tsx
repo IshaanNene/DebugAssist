@@ -32,7 +32,7 @@ function Cell({ c, lane, title, i = 0, r = 0, size = "md" }: { c: BugAgg["lanes"
   const showFrac = c.n > 1 && c.pass > 0 && c.pass < c.n;
   return (
     <div
-      className={`cell relative grid place-items-center ${size === "md" ? "h-[24px] w-[24px] rounded-[3px] lg:h-[32px] lg:w-[32px]" : "h-[18px] w-[18px] rounded-[2px]"} ${t.cls}`}
+  className={`cell relative grid place-items-center ${size === "md" ? "h-[24px] w-[24px]  lg:h-[32px] lg:w-[32px]" : "h-[18px] w-[18px] "} ${t.cls}`}
       style={{ ["--i" as string]: i, ["--r" as string]: r }}
       title={`${title}: ${t.label}`}
     >

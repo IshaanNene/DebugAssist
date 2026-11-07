@@ -137,7 +137,7 @@ export function RunConsole({
   ];
 
   return (
-    <div ref={root} className="console overflow-hidden rounded-[12px] border border-line-2">
+  <div ref={root} className="console overflow-hidden  border border-line-2">
       {/* header: the incident, the clock, the controls */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-line px-5 py-4 md:px-6">
         <div className="flex min-w-0 items-center gap-3">
@@ -163,19 +163,19 @@ export function RunConsole({
             <button
               type="button"
               onClick={() => (playing ? stop() : play())}
-              className="inline-flex h-9 items-center gap-2 rounded-[6px] bg-amber-fill px-3.5 text-[13px] font-semibold text-ink transition-transform active:translate-y-px"
+  className="inline-flex h-9 items-center gap-2  bg-amber-fill px-3.5 text-[13px] font-semibold text-ink transition-transform active:translate-y-px"
             >
               <span aria-hidden className="font-mono text-[11px]">{playing ? "■" : "▶"}</span>
               {playing ? "Stop" : done ? "Replay" : "Play"}
             </button>
-            <div role="group" aria-label="Replay speed" className="hidden rounded-[6px] border border-line p-0.5 sm:flex">
+  <div role="group" aria-label="Replay speed" className="hidden  border border-line p-0.5 sm:flex">
               {SPEEDS.map((s) => (
                 <button
                   key={s}
                   type="button"
                   aria-pressed={speed === s}
                   onClick={() => changeSpeed(s)}
-                  className={`rounded-[4px] px-2 py-1 font-mono text-[11px] tabular-nums transition-colors ${
+  className={` px-2 py-1 font-mono text-[11px] tabular-nums transition-colors ${
                     speed === s ? "bg-sunk text-t1 shadow-[inset_0_0_0_1px_var(--line-2)]" : "text-t3 hover:text-t1"
                   }`}
                 >
@@ -256,8 +256,8 @@ export function RunConsole({
             <div className="hidden md:block" />
           </div>
           <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 font-mono text-[10.5px] text-t3">
-            <span className="inline-flex items-center gap-2"><i className="h-[6px] w-4 rounded-[1px] bg-code" />deterministic code</span>
-            <span className="inline-flex items-center gap-2"><i className="h-[6px] w-4 rounded-[1px] bg-llm" />LLM agent</span>
+  <span className="inline-flex items-center gap-2"><i className="h-[6px] w-4  bg-code" />deterministic code</span>
+  <span className="inline-flex items-center gap-2"><i className="h-[6px] w-4  bg-llm" />LLM agent</span>
             <span className="inline-flex items-center gap-2"><i className="diamond-key" />Clef decision</span>
           </div>
         </div>
@@ -274,7 +274,7 @@ export function RunConsole({
                   <li key={st.node} className={`finding grid grid-cols-[54px_minmax(0,1fr)] gap-2 ${on ? "" : "finding-off"}`}>
                     <span className="pt-[2px] font-mono text-[10.5px] text-t3 tabular-nums">T+{st.e.toFixed(1)}</span>
                     <span className="flex gap-2 text-[13.5px] leading-[1.45] text-t2">
-                      <i className="mt-[6px] h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: COLOR[st.actor] }} />
+  <i className="mt-[6px] h-[7px] w-[7px] shrink-0 " style={{ background: COLOR[st.actor] }} />
                       <span className="min-w-0">{notes[st.node]}</span>
                     </span>
                   </li>
