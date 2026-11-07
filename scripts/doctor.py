@@ -10,6 +10,7 @@ import shutil
 import socket
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,11 @@ KEYS = {
     "Clef (Workers AI)": ("CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_KEY"),
     "GitHub pushes": ("GITHUB_TOKEN",),
 }
+DISK_MAX = 0.90  # above this, git objects, uv caches and Docker layers start failing in odd ways
+# Path parts of folders that a sync client owns. A synced repo loses files and git objects to eviction, and gets
+# "conflict copies" and hidden .pth files (docs/LESSONS.md).
+SYNCED_PARTS = ("Mobile Documents", "CloudStorage", "Dropbox", "OneDrive", "Google Drive")
+FILE_PROVIDER_XATTR = "com.apple.file-provider-domain-id"  # iCloud Desktop & Documents, File Provider clients
 results: list[tuple[str, str, str]] = []
 
 
@@ -37,12 +43,35 @@ def env_names() -> set[str]:
     f = ROOT / ".env"
     if not f.is_file():
         return set()
-    names = set()
+    names: set[str] = set()
     for line in f.read_text().splitlines():
         key, sep, value = line.partition("=")
         if sep and not key.lstrip().startswith("#") and value.strip():
             names.add(key.strip())
     return names
+
+
+def macos_xattrs(path: Path) -> set[str]:
+    xattr = shutil.which("xattr")
+    if not xattr:
+        return set()
+    out = subprocess.run([xattr, str(path)], capture_output=True, text=True)  # noqa: S603 - fixed argv
+    return set(out.stdout.split()) if out.returncode == 0 else set()
+
+
+def synced_folder(path: Path, xattrs: Callable[[Path], set[str]] = macos_xattrs) -> str | None:
+    """The synced ancestor of `path` and why, or None. Checks the path and every parent."""
+    for p in (path, *path.parents):
+        if p.name in SYNCED_PARTS:
+            return f"{p} (a sync client's folder)"
+        if FILE_PROVIDER_XATTR in xattrs(p):
+            return f"{p} (synced by a file provider, e.g. iCloud Desktop & Documents)"
+    return None
+
+
+def disk_used(total: int, used: int, free: int) -> float:
+    """Used share as `df` reports it (APFS: used / (used + available))."""
+    return used / (used + free) if used + free else 0.0
 
 
 def main() -> int:
@@ -68,6 +97,19 @@ def main() -> int:
             "ok" if present else "warn",
             "" if present else "missing (git submodule update --init)",
         )
+    where = synced_folder(ROOT)
+    check(
+        "repo outside synced folders",
+        "FAIL" if where else "ok",
+        f"{where}: move the repo (e.g. ~/src/DebugAssist)" if where else str(ROOT),
+    )
+    du = shutil.disk_usage(ROOT)
+    share = disk_used(du.total, du.used, du.free)
+    check(
+        f"disk under {DISK_MAX:.0%} full",
+        "FAIL" if share > DISK_MAX else "ok",
+        f"{share:.0%} used, {du.free / 2**30:.0f} GiB free",
+    )
     names = env_names()
     check(
         ".env",
