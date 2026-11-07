@@ -141,6 +141,10 @@ def prepare(case_id: str, log: Callable[[str], None] = print) -> Path:
         subprocess.run(
             ["git", "clone", "-q", "--branch", co.branch, co.url, str(dest)], check=True, capture_output=True
         )
+        if _git(dest, "cat-file", "-e", f"{co.commit}^{{commit}}", check=False).returncode:
+            # Upstream rewrote the branch since the case was frozen (cachetools' develop did): GitHub still serves
+            # the commit by its id, with only its own history.
+            _git(dest, "fetch", "-q", "origin", co.commit)
         _git(dest, "checkout", "-q", "-B", co.branch, co.commit)
         for ref in _git(dest, "for-each-ref", "--format=%(refname:short)", "refs/heads").stdout.split():
             if ref != co.branch:
