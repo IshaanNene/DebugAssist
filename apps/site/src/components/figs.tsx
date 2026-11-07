@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Draw } from "@/components/Draw";
+import { Draw, type Tone } from "@/components/Draw";
 import type { DecisionMetrics, WriteRule } from "@/lib/data";
 import type { Adr, Lesson } from "@/lib/docs";
 
@@ -21,8 +21,8 @@ export function FingerprintFlow() {
         { x: 430, y: 100, w: 160, h: 110, title: "Fingerprint", lines: ["one key per bug,", "across builds"] },
         { x: 630, y: 100, w: 180, h: 110, title: "Groups", lines: ["count · versions", "session denominators"], shape: "store" },
         { x: 845, y: 85, w: 140, h: 140, title: "Seen before?", shape: "decision" },
-        { x: 1020, y: 10, w: 180, h: 100, title: "Open an issue", tag: "VIT-…", lines: ["a new group"], tone: "ink" },
-        { x: 1020, y: 200, w: 180, h: 100, title: "Reopen it", tag: "regression", lines: ["back on a newer", "version"] },
+        { x: 1020, y: 10, w: 180, h: 100, title: "Open an issue", tag: "VIT-…", lines: ["a new group"], tone: "mark" },
+        { x: 1020, y: 200, w: 180, h: 100, title: "Reopen it", tag: "regression", lines: ["back on a newer", "version"], tone: "bad" },
       ]}
       edges={[
         { d: "M170 155 H 210" },
@@ -58,10 +58,10 @@ export function TwoStage({ act, escalate, safe }: { act: string[]; escalate: str
       h={330}
       boxes={[
         { x: 0, y: 105, w: 180, h: 120, title: "Candidates", tag: "N", lines: ["files and functions", "from code search"], shape: "stack" },
-        { x: 230, y: 105, w: 240, h: 120, title: "One noul each", tag: "stage 1", lines: ["is this the location?", "chunks of 64, concurrent"], shape: "stack" },
+        { x: 230, y: 105, w: 240, h: 120, title: "One noul each", tag: "stage 1", lines: ["is this the location?", "chunks of 64, concurrent"], shape: "stack", tone: "clef" },
         { x: 520, y: 105, w: 150, h: 120, title: "Top K", lines: ["highest P(yes)"] },
-        { x: 720, y: 105, w: 190, h: 120, title: "One choice", tag: "stage 2", lines: ["over the top K", "plus none"], tone: "ink" },
-        { x: 960, y: 10, w: 240, h: 95, title: "act", lines: act },
+        { x: 720, y: 105, w: 190, h: 120, title: "One choice", tag: "stage 2", lines: ["over the top K", "plus none"], tone: "clef" },
+        { x: 960, y: 10, w: 240, h: 95, title: "act", lines: act, tone: "mark" },
         { x: 960, y: 125, w: 240, h: 80, title: "escalate", lines: [escalate] },
         { x: 960, y: 225, w: 240, h: 80, title: "safe default", lines: [safe], tone: "hatch" },
       ]}
@@ -95,8 +95,8 @@ export function Backends() {
       h={320}
       boxes={[
         { x: 0, y: 110, w: 190, h: 100, title: "ClefRequest", lines: ["template · state", "params · images"], shape: "doc" },
-        { x: 270, y: 10, w: 270, h: 90, title: "WorkersAIClef", tag: "default", lines: ["Clef / Clef-flash · keys set", "retries 429 · 5xx · timeouts"], tone: "ink" },
-        { x: 270, y: 115, w: 270, h: 90, title: "LLMDecider", tag: "fallback", lines: ["breaker open · baseline", "escalation second opinion"] },
+        { x: 270, y: 10, w: 270, h: 90, title: "WorkersAIClef", tag: "default", lines: ["Clef / Clef-flash · keys set", "retries 429 · 5xx · timeouts"], tone: "clef" },
+        { x: 270, y: 115, w: 270, h: 90, title: "LLMDecider", tag: "fallback", lines: ["breaker open · baseline", "escalation second opinion"], tone: "llm" },
         { x: 270, y: 220, w: 270, h: 90, title: "MockDecider", tag: "CI", lines: ["no keys · demos", "deterministic per question"], tone: "dashed" },
         { x: 630, y: 80, w: 240, h: 160, title: "Policy band", lines: ["p vs τ_high · τ_low"], shape: "decision" },
         { x: 930, y: 110, w: 270, h: 100, title: "Decision ledger", lines: ["state hash · answers · band", "action · cost · mode"], shape: "store" },
@@ -165,9 +165,9 @@ export function Abstain({ rows, name }: { rows: DecisionMetrics[]; name: (d: str
           const left = r.coverage! > 0.75;
           return (
             <g key={r.decision}>
-              <line x1={cx} x2={cx} y1={y(r.accuracy)} y2={y(r.accuracyAtTau!)} stroke="var(--fg)" strokeDasharray="3 3" />
-              <rect x={cx - 5} y={y(r.accuracy) - 5} width={10} height={10} fill="var(--raised)" stroke="var(--fg)" />
-              <rect x={cx - 6} y={y(r.accuracyAtTau!) - 6} width={12} height={12} fill="var(--fg)" />
+              <line x1={cx} x2={cx} y1={y(r.accuracy)} y2={y(r.accuracyAtTau!)} stroke="var(--actor-clef)" strokeDasharray="3 3" />
+              <rect x={cx - 5} y={y(r.accuracy) - 5} width={10} height={10} fill="var(--raised)" stroke="var(--actor-clef)" strokeWidth={1.5} />
+              <rect x={cx - 6} y={y(r.accuracyAtTau!) - 6} width={12} height={12} fill="var(--actor-clef)" />
               <text x={left ? cx - 14 : cx + 14} y={y(r.accuracyAtTau!) + 4} textAnchor={left ? "end" : "start"} fontSize="12" fontFamily="var(--font-mono)" fill="var(--fg)">
                 {r.decision.slice(0, 3)} {name(r.decision)}
               </text>
@@ -185,10 +185,10 @@ export function Abstain({ rows, name }: { rows: DecisionMetrics[]; name: (d: str
       </ul>
       <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11px] text-t3">
         <span className="inline-flex items-center gap-2">
-          <i className="inline-block h-3 w-3 bg-t1" /> accuracy when it acts
+          <i className="inline-block h-3 w-3 bg-clef" /> accuracy when it acts
         </span>
         <span className="inline-flex items-center gap-2">
-          <i className="inline-block h-2.5 w-2.5 border border-t1 bg-surface" /> accuracy overall
+          <i className="inline-block h-2.5 w-2.5 border-[1.5px] border-clef bg-surface" /> accuracy overall
         </span>
         <span>dashed: what abstaining buys</span>
       </div>
@@ -207,8 +207,8 @@ export function TrustBoundaries() {
       h={400}
       svg={[210, 465, 735, 985].map(zone)}
       boxes={[
-        { x: 0, y: 145, w: 170, h: 120, title: "Strangers' text", lines: ["issue bodies · logs", "commits · test output"], tone: "hatch", shape: "doc" },
-        { x: 250, y: 145, w: 175, h: 120, title: "Model", lines: ["follows instructions", "it should not"] },
+        { x: 0, y: 145, w: 170, h: 120, title: "Strangers' text", lines: ["issue bodies · logs", "commits · test output"], tone: "bad", shape: "doc" },
+        { x: 250, y: 145, w: 175, h: 120, title: "Model", lines: ["follows instructions", "it should not"], tone: "llm" },
         { x: 505, y: 145, w: 190, h: 120, title: "Container", lines: ["--network none", "--cap-drop ALL", ".git read-only"] },
         { x: 775, y: 145, w: 170, h: 120, title: "Host", lines: ["git · grep · walks", "keys in .env"] },
         { x: 1025, y: 145, w: 175, h: 120, title: "Outside world", lines: ["repos · tracker", "chat · flags"], shape: "external" },
@@ -262,7 +262,7 @@ export function WriteGate({ rules }: { rules: WriteRule[] }) {
           title: t,
           tag: tag(m),
           lines,
-          tone: (m === "deny" ? "hatch" : m === "dry_run" ? "dashed" : "plain") as "hatch" | "dashed" | "plain",
+          tone: (m === "deny" ? "bad" : m === "dry_run" ? "dashed" : m === "live" ? "good" : "mark") as Tone,
         })),
         { x: 940, y: 0, w: 260, h: 168, title: "Audit log", lines: ["what was applied", ".data/audit.jsonl"], shape: "store" },
       ]}
@@ -294,11 +294,11 @@ export function ShipGraph() {
       svg={
         <>
           <line x1={20} x2={1180} y1={70} y2={70} stroke="var(--fg)" strokeWidth={1.5} />
-          <path d="M300 70 V 190 H 820" fill="none" stroke="var(--fg)" strokeWidth={1.5} />
+          <path d="M300 70 V 190 H 820" fill="none" stroke="var(--signal)" strokeWidth={1.5} />
           <path d="M820 190 H 860" fill="none" stroke="var(--fg)" strokeWidth={1.5} strokeDasharray="4 4" />
           {[120, 300, 1060].map((x) => sq(x, 70, x === 300))}
-          {sq(520, 190)}
-          {sq(760, 190, false)}
+          <rect x={513} y={183} width={14} height={14} fill="var(--signal)" stroke="var(--signal)" />
+          <rect x={753} y={183} width={14} height={14} fill="var(--mark)" stroke="var(--fg)" />
         </>
       }
       boxes={[{ x: 880, y: 140, w: 320, h: 170, title: "Then, on the live stack", lines: ["rebuild the affected services", "previous client keeps a share on :8081", "flag rollout · Toxiproxy · incident", "rider fleet + Locust traffic", "→ found by Vitals or BugDrop"], tone: "plain" }]}
@@ -366,9 +366,9 @@ export function AppScope() {
       w={1200}
       h={330}
       boxes={[
-        { x: 0, y: 20, w: 330, h: 290, title: "May", lines: ["comment on the labeled issue", "push debugassist/* branches", "open pull requests — as drafts", "only on installed repositories", "only with .DebugAssist/pipeline.yaml", "every write through the gate and audit"] },
+        { x: 0, y: 20, w: 330, h: 290, title: "May", tone: "good", lines: ["comment on the labeled issue", "push debugassist/* branches", "open pull requests — as drafts", "only on installed repositories", "only with .DebugAssist/pipeline.yaml", "every write through the gate and audit"] },
         { x: 435, y: 105, w: 330, h: 120, title: "The App", tag: "installation", lines: ["installing it is the opt-in", "uninstalling takes the repo away"], tone: "ink" },
-        { x: 870, y: 20, w: 330, h: 290, title: "Never", lines: ["the default branch", "release/* branches", "tags", "repositories it is not installed on", "anything, if its API is unreachable", "a token inside the sandbox"], tone: "hatch" },
+        { x: 870, y: 20, w: 330, h: 290, title: "Never", lines: ["the default branch", "release/* branches", "tags", "repositories it is not installed on", "anything, if its API is unreachable", "a token inside the sandbox"], tone: "bad" },
       ]}
       edges={[{ d: "M435 165 H 330" }, { d: "M765 165 H 870", dashed: true }]}
       labels={[{ x: 600, y: 270, text: "tokens live an hour, on the host only" }]}
@@ -439,7 +439,7 @@ export function AdrLayers({ records, focus, w = 1200 }: { records: Adr[]; focus?
           title: t,
           tag: ns.map((n) => `ADR ${n}`).join(" · "),
           lines: focus ? undefined : [<span key="l">{what} — {titles(ns)}</span>],
-          tone: (on ? "ink" : focus ? "sunk" : i === LAYERS.length - 1 ? "sunk" : "plain") as "ink" | "sunk" | "plain",
+          tone: (on ? (focus ? "mark" : "ink") : t === "Decisions" ? "clef" : t === "Models" ? "llm" : focus ? "sunk" : i === LAYERS.length - 1 ? "sunk" : "plain") as Tone,
         };
       })}
       steps={LAYERS.map(([t, what, ns]) => (
@@ -506,8 +506,8 @@ export function AdrAnatomy({ records }: { records: Adr[] }) {
         { x: 440, y: 20, w: 320, h: 120, title: "Decision", lines: ["what is decided, in one place", "the code cites it"], tone: "ink" },
         { x: 880, y: 20, w: 320, h: 120, title: "Consequences", lines: ["what it costs, and what", "it rules out"] },
         { x: 0, y: 200, w: 320, h: 80, title: "proposed", tag: `${n("proposed")}`, tone: "dashed" },
-        { x: 440, y: 200, w: 320, h: 80, title: "accepted", tag: `${n("accepted")}` },
-        { x: 880, y: 200, w: 320, h: 80, title: "superseded by NNNN", tag: `${n("superseded")}`, tone: "hatch" },
+        { x: 440, y: 200, w: 320, h: 80, title: "accepted", tag: `${n("accepted")}`, tone: "good" },
+        { x: 880, y: 200, w: 320, h: 80, title: "superseded by NNNN", tag: `${n("superseded")}`, tone: "bad" },
       ]}
       edges={[{ d: "M320 80 H 440" }, { d: "M760 80 H 880" }, { d: "M320 240 H 440" }, { d: "M760 240 H 880", dashed: true }]}
       labels={[{ x: 600, y: 170, text: "status · and how many records hold it" }]}
@@ -530,10 +530,10 @@ export function CaseAnatomy() {
       w={1200}
       h={300}
       boxes={[
-        { x: 0, y: 60, w: 230, h: 110, title: "Symptom", lines: ["what a live run showed", "in bold, first"], shape: "doc" },
+        { x: 0, y: 60, w: 230, h: 110, title: "Symptom", lines: ["what a live run showed", "in bold, first"], shape: "doc", tone: "bad" },
         { x: 320, y: 60, w: 230, h: 110, title: "Cause", lines: ["why it happened —", "often not the model"] },
         { x: 640, y: 60, w: 230, h: 110, title: "Fix", lines: ["after the arrow"] },
-        { x: 960, y: 60, w: 240, h: 110, title: "Guard", lines: ["a test or a check", "or a lesson, written down"], tone: "ink" },
+        { x: 960, y: 60, w: 240, h: 110, title: "Guard", lines: ["a test or a check", "or a lesson, written down"], tone: "good" },
       ]}
       edges={[{ d: "M230 115 H 320" }, { d: "M550 115 H 640" }, { d: "M870 115 H 960" }, { d: "M1080 170 V 240 H 115 V 170", dashed: true }]}
       labels={[{ x: 600, y: 240, text: "so the same bug can't come back silently" }]}
@@ -569,7 +569,7 @@ export function WhereNumbersBroke({ marks }: { marks: Record<string, ReactNode[]
         h: 150,
         title: t,
         lines: [l, ...(marks[id] ?? [])],
-        tone: (marks[id]?.length ? "plain" : "sunk") as "plain" | "sunk",
+        tone: (marks[id]?.length ? "bad" : "sunk") as Tone,
         shape: (["thesis", "report", "site"].includes(id) ? "doc" : "process") as "doc" | "process",
       }))}
       edges={stages.slice(1).map((_, i) => ({ d: `M${i * (w + gap) + w} 95 H ${(i + 1) * (w + gap)}` }))}
@@ -593,12 +593,12 @@ export function Escapes() {
       boxes={[
         { x: 0, y: 40, w: 220, h: 100, title: "A planted .git", tag: "container", lines: ["config sets", "core.fsmonitor"], shape: "doc" },
         { x: 290, y: 40, w: 200, h: 100, title: "host git diff", lines: ["discovers that .git"] },
-        { x: 560, y: 40, w: 240, h: 100, title: "runs a command", tag: "before", lines: ["on the host"], tone: "hatch" },
-        { x: 870, y: 40, w: 330, h: 100, title: "core.hostgit", tag: "now", lines: ["a verified worktree admin dir", "hooks and fsmonitor off"], tone: "ink" },
+        { x: 560, y: 40, w: 240, h: 100, title: "runs a command", tag: "before", lines: ["on the host"], tone: "bad" },
+        { x: 870, y: 40, w: 330, h: 100, title: "core.hostgit", tag: "now", lines: ["a verified worktree admin dir", "hooks and fsmonitor off"], tone: "good" },
         { x: 0, y: 200, w: 220, h: 100, title: "A symlink", tag: "container", lines: ["to a .env outside", "the worktree"], shape: "doc" },
         { x: 290, y: 200, w: 200, h: 100, title: "host-side grep", lines: ["follows it"] },
-        { x: 560, y: 200, w: 240, h: 100, title: "returns the secret", tag: "before", lines: ["to the agent"], tone: "hatch" },
-        { x: 870, y: 200, w: 330, h: 100, title: "walk_files", tag: "now", lines: ["host-side walks never", "follow symlinks"], tone: "ink" },
+        { x: 560, y: 200, w: 240, h: 100, title: "returns the secret", tag: "before", lines: ["to the agent"], tone: "bad" },
+        { x: 870, y: 200, w: 330, h: 100, title: "walk_files", tag: "now", lines: ["host-side walks never", "follow symlinks"], tone: "good" },
       ]}
       edges={[
         { d: "M220 90 H 290" },
@@ -632,9 +632,9 @@ export function HowEntriesClose({ entries }: { entries: Lesson[] }) {
     return g && l ? "both" : g ? "guard" : l ? "lesson" : "fix";
   };
   const KINDS: [string, string, string][] = [
-    ["guard", "fix + a guard (test or check)", "bg-t1"],
-    ["both", "fix + guard + lesson", "bg-t2"],
-    ["lesson", "fix + a lesson", "hatch-ink"],
+    ["guard", "fix + a guard (test or check)", "bg-good"],
+    ["both", "fix + guard + lesson", "bg-clef"],
+    ["lesson", "fix + a lesson", "bg-mark"],
     ["fix", "fix only", "bg-surface"],
     ["open", "no fix yet", "bg-sunk"],
   ];
@@ -682,8 +682,8 @@ export function HowANumberIsMade() {
         { x: 0, y: 40, w: 180, h: 110, title: "Inject", lines: ["a release commit", "in MiniRide"], shape: "doc" },
         { x: 230, y: 40, w: 180, h: 110, title: "Trigger", lines: ["rider fleet", "flags · toxics"], shape: "stack" },
         { x: 460, y: 40, w: 180, h: 110, title: "Discover", lines: ["Vitals issue", "or BugDrop report"] },
-        { x: 690, y: 40, w: 200, h: 110, title: "Agent run", lines: ["never sees", "the answer key"], tone: "ink" },
-        { x: 940, y: 40, w: 260, h: 110, title: "results.csv · report", lines: ["evals/reports/<date>", "→ this site, at build"], shape: "store" },
+        { x: 690, y: 40, w: 200, h: 110, title: "Agent run", lines: ["never sees", "the answer key"], tone: "llm" },
+        { x: 940, y: 40, w: 260, h: 110, title: "results.csv · report", lines: ["evals/reports/<date>", "→ this site, at build"], shape: "store", tone: "mark" },
         { x: 690, y: 255, w: 200, h: 90, title: "Scorer", lines: ["root cause vs key", "hidden tests on the fix"] },
         { x: 230, y: 255, w: 360, h: 90, title: "groundtruth/", lines: ["answer key · reference fix · hidden tests", "never mounted into a sandbox"], tone: "hatch", shape: "store" },
       ]}
@@ -728,7 +728,7 @@ export function BisectProof() {
             const pass = i >= good;
             return (
               <g key={i}>
-                <rect x={X(i) - 8} y={122} width={16} height={16} fill={probed ? (pass ? "var(--raised)" : "var(--fg)") : "var(--raised)"} stroke={probed ? "var(--fg)" : "var(--line-2)"} />
+                <rect x={X(i) - 8} y={122} width={16} height={16} fill={probed ? (pass ? "var(--pass)" : "var(--signal)") : "var(--raised)"} stroke={probed ? (pass ? "var(--pass)" : "var(--signal)") : "var(--line-2)"} />
                 <text x={X(i)} y={160} textAnchor="middle" fontSize="11" fontFamily="var(--font-mono)" fill={probed ? "var(--fg)" : "var(--fg-4)"}>
                   {i === 0 ? "newest" : `−${i}`}
                 </text>

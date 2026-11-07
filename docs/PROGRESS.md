@@ -376,6 +376,8 @@ in review as text dumped into dark boxes with no diagrams.
 - Figure shapes follow flowchart / data-flow conventions (decision, store, document, outside party, stack); ADR
   pages carry two figures; the remaining colours and looping animations are gone. Checked: no clipped frames at
   1024, 1280 and 1440 px, no horizontal scroll at 375 px, all ten ADR pages.
+- Colour restored site-wide, and figures coloured by meaning (Clef amber, LLM violet, holds green, broke red,
+  outcome yellow) with a colour key under each drawing.
 
 **Not done**: `/runs`, ⌘K and OG images (P3–P4).
 

@@ -72,11 +72,11 @@ const PHASES: Phase[] = [
   },
 ];
 
-// solid for code, hatched for the LLM, hollow for Clef — the same marks as the run console, in ink only
+// who does the work, by colour: ink for code, violet for the LLM, amber for Clef
 const KIND: Record<Kind, { label: string; color: string; swatch: string }> = {
-  code: { label: "deterministic code", color: "var(--fg)", swatch: "bg-t1" },
-  llm: { label: "LLM agents", color: "url(#loop-hatch)", swatch: "hatch-ink" },
-  clef: { label: "Clef decisions", color: "var(--raised)", swatch: "bg-surface" },
+  code: { label: "deterministic code", color: "var(--actor-code)", swatch: "bg-code" },
+  llm: { label: "LLM agents", color: "var(--actor-llm)", swatch: "bg-llm" },
+  clef: { label: "Clef decisions", color: "var(--actor-clef)", swatch: "bg-clef" },
 };
 
 // Isometric projection: x runs down-right (towards the viewer), y runs up-right, z is height.
@@ -175,12 +175,6 @@ function Diagram({ active, onSelect }: { active: number; onSelect: (i: number) =
       role="img"
       aria-label={`The DebugAssist pipeline in four phases: ${PHASES.map((p) => p.name).join(", ")}. Showing ${PHASES[active].name}: ${PHASES[active].parts.map((s) => s.name).join(", ")}.`}
     >
-      <defs>
-        <pattern id="loop-hatch" patternUnits="userSpaceOnUse" width={4} height={4} patternTransform="rotate(45)">
-          <rect width={4} height={4} fill="var(--raised)" />
-          <line x1={0} y1={0} x2={0} y2={4} stroke="var(--fg)" strokeWidth={1.6} />
-        </pattern>
-      </defs>
       {/* track */}
       <polygon points={P(...trackEnd)} fill="var(--mark-side)" stroke={INK} strokeWidth={1} />
       <polygon points={P(...trackFront)} fill="var(--mark-front)" stroke={INK} strokeWidth={1} />

@@ -9,6 +9,21 @@ import type { ReactNode } from "react";
 
 export type Shape = "process" | "decision" | "store" | "doc" | "external" | "stack";
 
+/** Fill and colour: who does the work (Clef amber, LLM violet), what holds (green), what broke (red), the outcome to
+ * look at (highlighter yellow), and the neutral inks. */
+export type Tone = "plain" | "ink" | "hatch" | "dashed" | "sunk" | "clef" | "llm" | "good" | "bad" | "mark";
+
+// [fill, stroke, tag colour] for the coloured tones
+const COLOURED: Partial<Record<Tone, [string, string, string]>> = {
+  clef: ["color-mix(in srgb, var(--actor-clef) 22%, var(--raised))", "var(--actor-clef)", "text-clef"],
+  llm: ["color-mix(in srgb, var(--actor-llm) 17%, var(--raised))", "var(--actor-llm)", "text-llm"],
+  good: ["color-mix(in srgb, var(--pass) 18%, var(--raised))", "var(--pass)", "text-good"],
+  bad: ["color-mix(in srgb, var(--signal) 16%, var(--raised))", "var(--signal)", "text-signal"],
+  mark: ["var(--mark)", "var(--line-strong)", "text-t2"],
+};
+
+const TONE_NAME: Partial<Record<Tone, string>> = { clef: "Clef", llm: "LLM", good: "holds", bad: "broke", mark: "outcome" };
+
 export interface DBox {
   x: number;
   y: number;
@@ -17,7 +32,7 @@ export interface DBox {
   title?: ReactNode;
   tag?: ReactNode;
   lines?: ReactNode[];
-  tone?: "plain" | "ink" | "hatch" | "dashed" | "sunk";
+  tone?: Tone;
   shape?: Shape;
 }
 export interface DEdge {
@@ -51,12 +66,13 @@ const SHAPE_NAME: Record<Shape, string> = {
 function Outline({ b, i }: { b: DBox; i: number }) {
   const { x, y, w, h } = b;
   const tone = b.tone ?? "plain";
-  const fill = tone === "ink" ? "var(--fg)" : tone === "sunk" ? "var(--sunk)" : tone === "hatch" ? `url(#dh-${i})` : "var(--raised)";
-  const stroke = tone === "ink" ? "var(--fg)" : tone === "sunk" ? "var(--line-2)" : "var(--line-strong)";
+  const c = COLOURED[tone];
+  const fill = c ? c[0] : tone === "ink" ? "var(--fg)" : tone === "sunk" ? "var(--sunk)" : tone === "hatch" ? `url(#dh-${i})` : "var(--raised)";
+  const stroke = c ? c[1] : tone === "ink" ? "var(--fg)" : tone === "sunk" ? "var(--line-2)" : "var(--line-strong)";
   const p = {
     fill,
     stroke,
-    strokeWidth: 1,
+    strokeWidth: c && tone !== "mark" ? 1.4 : 1,
     vectorEffect: "non-scaling-stroke" as const,
     strokeDasharray: tone === "dashed" ? "5 4" : undefined,
   };
@@ -163,6 +179,7 @@ export function Draw({
 }) {
   const pc = (v: number, of: number) => `${(v / of) * 100}%`;
   const used = [...new Set(boxes.map((b) => b.shape ?? "process"))];
+  const tones = [...new Set(boxes.map((b) => b.tone ?? "plain"))].filter((t) => TONE_NAME[t]);
   return (
     <>
       <div className="hidden xl:block">
@@ -202,7 +219,7 @@ export function Draw({
                 {(b.title || b.tag) && (
                   <div className={`flex items-baseline gap-2 ${a.center ? "flex-col items-center gap-0.5" : "justify-between"}`}>
                     <span className={`text-[14px] font-medium leading-[1.25] tracking-[-0.01em] ${ink ? "text-surface" : "text-t1"}`}>{b.title}</span>
-                    {b.tag && <span className={`shrink-0 font-mono text-[10.5px] ${ink ? "text-surface/70" : "text-t3"}`}>{b.tag}</span>}
+                    {b.tag && <span className={`shrink-0 font-mono text-[10.5px] ${ink ? "text-surface/70" : (COLOURED[b.tone ?? "plain"]?.[2] ?? "text-t3")}`}>{b.tag}</span>}
                   </div>
                 )}
                 {b.lines && (
@@ -229,7 +246,7 @@ export function Draw({
             </span>
           ))}
         </div>
-        {legend && used.length > 1 && <ShapeKey shapes={used} />}
+        {legend && (used.length > 1 || tones.length > 0) && <ShapeKey shapes={used.length > 1 ? used : []} tones={tones} />}
       </div>
       <ol className="grid gap-2 xl:hidden">
         {steps.map((s, i) => (
@@ -244,7 +261,7 @@ export function Draw({
 }
 
 /** A one-line key of the shapes a drawing uses, each drawn small. */
-export function ShapeKey({ shapes }: { shapes: Shape[] }) {
+export function ShapeKey({ shapes, tones = [] }: { shapes: Shape[]; tones?: Tone[] }) {
   return (
     <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 border-t border-line pt-3 font-mono text-[10.5px] text-t3">
       {shapes.map((s) => (
@@ -253,6 +270,14 @@ export function ShapeKey({ shapes }: { shapes: Shape[] }) {
             <Outline b={{ x: 1, y: 1, w: 26, h: 16, shape: s }} i={-1} />
           </svg>
           {SHAPE_NAME[s]}
+        </span>
+      ))}
+      {tones.map((t) => (
+        <span key={t} className="inline-flex items-center gap-2">
+          <svg viewBox="0 0 18 18" width={18} height={18} aria-hidden className="overflow-visible">
+            <Outline b={{ x: 1, y: 1, w: 16, h: 16, tone: t }} i={-1} />
+          </svg>
+          {TONE_NAME[t]}
         </span>
       ))}
     </div>
