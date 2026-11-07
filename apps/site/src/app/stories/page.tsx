@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChapterPage, Section } from "@/components/Page";
+import { Escapes, WhereNumbersBroke } from "@/components/figs";
+import { ChapterPage, Figure, Section } from "@/components/Page";
 import { lessons, planAmendments, type Lesson } from "@/lib/docs";
 import { inline } from "@/lib/md";
 
@@ -93,6 +94,22 @@ export default function StoriesPage() {
   let n = 0;
   const themes = THEMES.map((t) => ({ ...t, cases: t.picks.map(find).filter((c): c is Lesson => !!c) }));
   const shown = themes.reduce((a, t) => a + t.cases.length, 0);
+  // case numbers in page order, so the figure can point at them
+  const caseNo: Record<string, string> = {};
+  themes.flatMap((t) => t.cases).forEach((c, i) => (caseNo[c.title] = String(i + 1).padStart(2, "0")));
+  // where in the measurement chain each "numbers lied" case broke
+  const STAGE: Record<string, string> = {
+    "The central claim was never tested": "thesis",
+    "A scorer bug inflated the headline": "score",
+    "A scratch script is not a source": "report",
+    "The headline showed old code": "site",
+    "Rates over mismatched runs": "site",
+  };
+  const marks: Record<string, string[]> = {};
+  for (const [prefix, stage] of Object.entries(STAGE)) {
+    const c = find(prefix);
+    if (c) (marks[stage] ??= []).push(`Case ${caseNo[c.title]}`);
+  }
 
   return (
     <ChapterPage
@@ -115,6 +132,11 @@ export default function StoriesPage() {
       {themes.map((t) => (
         <Section key={t.id} id={t.id} title={t.title} aside={`${t.cases.length} cases`}>
           <p className="fx mb-8 max-w-[68ch] text-[16px] leading-[1.65] text-t2">{t.intro}</p>
+          {t.id === "numbers" && (
+            <Figure n="1" title="where in the measurement chain each case broke" note="no case broke in the run itself" className="mb-8">
+              <WhereNumbersBroke marks={marks} />
+            </Figure>
+          )}
           <div className="grid gap-3 lg:grid-cols-2">
             {t.cases.map((c) => (
               <Case key={c.title} c={c} n={++n} />
@@ -124,6 +146,9 @@ export default function StoriesPage() {
       ))}
 
       <Section id="escape" title="Two escapes, found in an audit" aside="ADR 0009">
+        <Figure n="2" title="two paths from the container to the host, and what closed each" note="docs/adr/0009-worktree-is-untrusted.md" className="mb-10">
+          <Escapes />
+        </Figure>
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="fx text-[15.5px] leading-[1.7] text-t2">
             <p>

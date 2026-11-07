@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { ChapterPage, Section } from "@/components/Page";
-import { docFile, docSection } from "@/lib/docs";
+import { CaseAnatomy, HowEntriesClose } from "@/components/figs";
+import { ChapterPage, Figure, Section } from "@/components/Page";
+import { docFile, docSection, lessons } from "@/lib/docs";
 import { Markdown, inline, outline, parse } from "@/lib/md";
 
 export const metadata: Metadata = {
@@ -29,8 +30,19 @@ export default function LessonsPage() {
       }
       lead={inline(lead.replace(/\n/g, " "), d.file)}
       sources={[d.file]}
-      toc={[{ id: "patterns", text: PATTERNS }, ...parts]}
+      toc={[{ id: "shape", text: "The shape of an entry" }, { id: "patterns", text: PATTERNS }, ...parts]}
     >
+      <Section id="shape" title="The shape of an entry" aside={`${lessons().length} entries · ${d.file}`}>
+        <Figure n="1" title="symptom → cause → fix → guard" note="one bullet in the log">
+          <CaseAnatomy />
+        </Figure>
+        <Figure n="2" title="how each section's entries close" note="counted from the log at build time" className="mt-10">
+          <div className="p-5 sm:p-8">
+            <HowEntriesClose entries={lessons()} />
+          </div>
+        </Figure>
+      </Section>
+
       <Section id="patterns" title={PATTERNS} aside={`${patterns.length} patterns · ${entries} entries below`}>
         <ol className="border-t border-line">
           {patterns.map((p, i) => {

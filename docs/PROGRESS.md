@@ -370,6 +370,9 @@ in review as text dumped into dark boxes with no diagrams.
   stands: Clef beats the LLM decider on none of the five replayed decisions, rules win on two) and `/stories` (case
   files from the lessons log). Checked: typecheck, lint, static build,
   every route at desktop and phone width.
+- Every chapter page now carries two figures (`components/Draw.tsx`, `components/figs.tsx`), each drawn from a repo
+  doc, config or report; on phones each becomes its numbered steps. Checked: no clipped frames at 1440 px, no
+  horizontal scroll at 375 px.
 
 **Not done**: `/runs`, ⌘K and OG images (P3–P4).
 

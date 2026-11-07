@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChapterPage, Section } from "@/components/Page";
+import { AdrAnatomy, AdrLayers } from "@/components/figs";
+import { ChapterPage, Figure, Section } from "@/components/Page";
 import { adrs } from "@/lib/docs";
 
 export const metadata: Metadata = {
@@ -25,7 +26,24 @@ export default function DesignIndex() {
         </>
       }
       sources={["docs/adr/"]}
+      toc={[
+        { id: "map", text: "Where each record applies" },
+        { id: "anatomy", text: "What a record holds" },
+        { id: "records", text: "Records" },
+      ]}
     >
+      <Section id="map" title="Where each record applies" aside="outside in">
+        <Figure n="1" title="the system as layers, with the records that govern each" note="open a title to read it">
+          <AdrLayers records={records} />
+        </Figure>
+      </Section>
+
+      <Section id="anatomy" title="What a record holds" aside="docs/adr/0000-template.md">
+        <Figure n="2" title="context → decision → consequences" note="and the status each record holds">
+          <AdrAnatomy records={records} />
+        </Figure>
+      </Section>
+
       <Section id="records" title="Records" aside={`${records.length} records · ${records.filter((r) => r.status.startsWith("accepted")).length} accepted`}>
         <ol className="border-t border-line">
           {records.map((r, i) => (

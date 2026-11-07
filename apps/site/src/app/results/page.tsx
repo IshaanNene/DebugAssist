@@ -1,6 +1,8 @@
 import { Motion, Shortcuts } from "@/components/client";
 import { COL, SiteFooter, SiteHeader } from "@/components/Chrome";
 import { Results } from "@/components/Results";
+import { BisectProof, HowANumberIsMade } from "@/components/figs";
+import { Figure } from "@/components/Page";
 import { GH, H2, Lead, Panel, doc } from "@/components/ui";
 import {
   bisectReplay,
@@ -62,6 +64,9 @@ export default function ResultsPage() {
             </a>
             .
           </Lead>
+          <Figure n="1" title="how a number on this site is made" note="the answer key stays below the line" className="mt-12">
+            <HowANumberIsMade />
+          </Figure>
           <div className="mt-12">
             <Results data={data} />
           </div>
@@ -229,6 +234,9 @@ export default function ResultsPage() {
                     reproduction test is also run back through history — earlier releases until it passes, then git
                     bisect — no model. Replayed on {bis.reduce((n, b) => n + b.tests, 0)} earlier tests:
                   </p>
+                  <Figure n="2" title="probe, then bisect" note="an illustration, not one of the runs below" className="my-6">
+                    <BisectProof />
+                  </Figure>
                   <ul className="mt-2 max-w-[80ch] space-y-1 text-[13.5px] leading-[1.5] text-t3">
                     {bis.map((b) => (
                       <li key={b.case}>

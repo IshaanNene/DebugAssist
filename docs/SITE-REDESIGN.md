@@ -35,6 +35,13 @@ direction where they conflict:
   no-Clef ablation) and `/stories` (20 case files picked by title from `docs/LESSONS.md`, the ADR 0009 audit, the
   PLAN §0 amendments). One topic per page; the header shows six chapters and an "All pages" index. The home page is now an overview: hero, Fig. 1,
   principle, contents, results summary, start, FAQ.
+- **Two figures on every chapter page.** `components/Draw.tsx` is a small drafting kit (frames in a fixed coordinate
+  box, right-angle connectors, boxed labels; a numbered list below `lg`); `components/figs.tsx` holds the drawings,
+  each from a doc, config or report: Vitals fingerprinting, D12's two-stage choice, the Clef backends and a
+  coverage/accuracy plot from `decisions.csv`, the write gate from `writes.yaml` and the threat model's boundaries,
+  the release graph of an injected bug, the GitHub App as a sequence and its scope, ADRs by layer and a record's
+  anatomy, where each measurement case broke and the ADR 0009 escapes, a lessons entry and how each section's
+  entries close, how a number is made and bisect-proof (an illustration).
 - **Unchanged:** every figure is still read from `evals/reports` at build time, the run replay and receipts, the
   Safety section rendered from `configs/policies/writes.yaml`, and the Lab notebook.
 

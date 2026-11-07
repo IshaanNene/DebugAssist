@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ChapterPage, Figure, Section } from "@/components/Page";
+import { ShipGraph } from "@/components/figs";
 import { results } from "@/lib/data";
 import { docSection } from "@/lib/docs";
 import { Markdown, inline, parse, type Block } from "@/lib/md";
@@ -191,6 +192,9 @@ export default function TestbedPage() {
       </Section>
 
       <Section id="inject" title="Shipping a bug" aside="debugassist scenario inject · trigger">
+        <Figure n="2" title="one catalog bug, as git sees it" note={`${ARCH} › Bug catalog and scenarios`} className="mb-10">
+          <ShipGraph />
+        </Figure>
         <ol className="grid gap-px border border-line bg-line md:grid-cols-2 lg:grid-cols-3">
           {STEPS.map(([t, b], i) => (
             <li key={t} className="fx bg-surface p-6" style={{ ["--i" as string]: i * 0.4 }}>

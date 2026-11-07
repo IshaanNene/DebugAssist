@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ChapterPage, Figure, Section } from "@/components/Page";
+import { FingerprintFlow } from "@/components/figs";
 import { discoveryTimes, results } from "@/lib/data";
 import { templates } from "@/lib/docs";
 import { inline, parse, type Block } from "@/lib/md";
@@ -208,6 +209,9 @@ export default function DiscoveryPage() {
             ["Symbolication", "Source maps, with the enclosing function recovered, so the root-cause step reads real names."],
           ]}
         />
+        <Figure n="2" title="from a stack trace to an issue" note="one bug, one group, across builds" className="mt-10">
+          <FingerprintFlow />
+        </Figure>
       </Section>
 
       <Section id="bugdrop" title="BugDrop: reports" aside="≈ in-app bug reporting">

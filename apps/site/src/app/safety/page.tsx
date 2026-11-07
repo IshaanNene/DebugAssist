@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { ChapterPage, Section } from "@/components/Page";
+import { TrustBoundaries, WriteGate } from "@/components/figs";
+import { ChapterPage, Figure, Section } from "@/components/Page";
 import { Safety } from "@/components/Sections";
 import { writePolicy } from "@/lib/data";
 import { threatModel } from "@/lib/docs";
@@ -40,10 +41,16 @@ export default function SafetyPage() {
           .map(([k, n]) => `${n} ${k.replace("_", " ")}`)
           .join(" · ")}
       >
+        <Figure n="1" title="one write through the gate" note="configs/policies/writes.yaml" className="mb-10">
+          <WriteGate rules={policy.rules} />
+        </Figure>
         <Safety rules={policy.rules} branchPrefix={policy.branchPrefix} />
       </Section>
 
       <Section id="threat-model" title="Threat model" aside={tm.file}>
+        <Figure n="2" title="four boundaries, and the test that holds each" note="Trust boundaries and controls" className="mb-12">
+          <TrustBoundaries />
+        </Figure>
         <div className="grid gap-10 lg:grid-cols-[260px_minmax(0,1fr)]">
           <div className="fx text-[14.5px] leading-[1.6] text-t3 lg:sticky lg:top-24 lg:self-start">
             <p>{inline(tm.intro.split("\n\n")[0].replace(/\n/g, " "), tm.file)}</p>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChapterPage, Figure, Section } from "@/components/Page";
+import { Abstain, Backends } from "@/components/figs";
 import { liveDecisions, replayDecisions, results, type DecisionMetrics } from "@/lib/data";
 import { docSection, templates } from "@/lib/docs";
 import { Markdown } from "@/lib/md";
@@ -116,6 +117,9 @@ export default function ClefPage() {
       </Section>
 
       <Section id="backends" title="Four backends, one contract" aside="the same request, the same Decision back">
+        <Figure n="2" title="who answers a ClefRequest" note="circuit breaker → fallback" className="mb-10">
+          <Backends />
+        </Figure>
         <div className="fx">
           <Markdown src={backends} from={DOC} />
         </div>
@@ -171,6 +175,9 @@ export default function ClefPage() {
             is doing its job and escalating the rest; one that acts on almost everything at low accuracy is overconfident,
             and its ECE says by how much. Brier and ECE: lower is better.
           </p>
+          <Figure n="3" title="what abstaining buys" note={`decisions.csv · ${live.report}`} className="mt-10">
+            <Abstain rows={live.rows} name={nameOf} />
+          </Figure>
         </Section>
       )}
 

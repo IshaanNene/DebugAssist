@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChapterPage, Figure, Section } from "@/components/Page";
 import { doc } from "@/components/ui";
+import { TwoStage } from "@/components/figs";
 import { templates, type Template } from "@/lib/docs";
 
 export const metadata: Metadata = {
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 const TOC = [
   { id: "band", text: "From probability to action" },
   { id: "kinds", text: "Three kinds of question" },
+  { id: "two-stage", text: "Too many candidates" },
   { id: "catalog", text: "The catalog" },
 ];
 
@@ -142,6 +144,24 @@ export default function DecisionsPage() {
           .
         </p>
       </Section>
+
+      {(() => {
+        const t = tpl.find((x) => x.id.startsWith("D12"));
+        if (!t) return null;
+        const act = typeof t.act === "string" ? [t.act] : [...t.act].sort(([k]) => (k === "*" ? -1 : 1)).map(([k, v]) => `${k === "*" ? "a candidate" : k} → ${v}`);
+        return (
+          <Section id="two-stage" title="Too many candidates to ask at once" aside={`${t.id} · two-stage`}>
+            <p className="fx mb-8 max-w-[70ch] text-[15.5px] leading-[1.65] text-t2">
+              Localization can face hundreds of candidate files and functions — more than one request can carry. Above{" "}
+              <code className="font-mono text-[13px] text-t1">max_direct</code>, the engine splits the question: a yes/no per
+              candidate first, then one choice over the most likely few.
+            </p>
+            <Figure n="2" title="localization in two stages" note="docs/decisions.md › Two-stage">
+              <TwoStage act={act} escalate={t.escalate} safe={t.safeDefault} />
+            </Figure>
+          </Section>
+        );
+      })()}
 
       <Section id="catalog" title="The catalog" aside="open a row for its questions">
         <div className="fx hidden grid-cols-[64px_minmax(0,1.5fr)_150px_minmax(0,1fr)_minmax(0,1.1fr)] gap-4 border-b border-line-strong pb-2 font-mono text-[10.5px] uppercase tracking-[0.08em] text-t3 lg:grid">
