@@ -10,6 +10,7 @@
 | Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction, callers check, call variations (off) · bisect proof (off) | ✅ done | 2026-10-14 → 16 |
 | GitHub App (labeled issues on installed repositories → comment + draft PR) | built, not live | 2026-10-16 |
 | Audit fixes: sandbox trust boundary, credentials, dev stack, App contract, write gate ([below](#audit-fixes-2026-10-16)) | ✅ done (container flags not run under Docker yet) | 2026-10-16 |
+| Next level, Phase 0: hermetic tests, truthful ship reasons, scoring fixes, doctor, cloud sweeps ([below](#next-level-phase-0-make-the-basics-true-2026-11-07--done-offline)) | ✅ done (cloud sweep not run) | 2026-11-07 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
 The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
@@ -344,6 +345,47 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Docker Desktop here has no host networking, so the runtime container joins the compose network and uses service names; links shown to people stay on localhost.
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
+
+## Next level, Phase 0: make the basics true (2026-11-07) — done, offline
+
+From an outside review of `06cc79d` (811 passed, 1 failed). The phase list is in the review; this is its Phase 0.
+
+- **Hermetic tests.** `openrouter._catalog` bound `CACHE` as a default argument, so the contract test's monkeypatch
+  was ignored and `model_info` fetched openrouter.ai (the test failed offline). It now reads `CACHE` at call time.
+  The root `conftest.py` refuses outbound connections and DNS lookups in every test not marked `live` (loopback and
+  unix sockets allowed) and fails the test even when the code swallows the error; OpenRouter's catalog is an empty
+  per-test file. The full suite found no other Python-level network call. Child processes are not covered.
+- **Truthful ship outcomes.** `Ship.reason`: `not_our_code`, `flag_config`, `no_fix`, `repro_failed`,
+  `no_source_change`, `needs_human`. The GitHub App comment, the Jira note and the chat message are built from it
+  (`nodes.ship.explain`); only `not_our_code` says "outside this repository's code". D16's `escalate` is kept when
+  there is no verified reproduction. `test_the_comment_carries_the_marker_the_cause_and_the_pr` asserted the old text
+  for an own_code state; it now asserts the reproduction message. `test_ship_reasons.py`: category × reproduction ×
+  D16 → outcome, reason, comment (13 rows), plus tests-only changes, fix-plan skips and a flag rollback.
+- **Scoring.** `validated` counts only where the catalog expects a fix (`score.fix_success`; rows carry
+  `expects_fix`). 7 saved rows had validated a "fix" for a not-our-bug case: BUG-006 ×3 and BUG-025 ×1 in
+  full-d7cf020, BUG-006 ×3 in earlier sweeps. Negative discovery times (5 rows, all BUG-001, −131 s to −831 s) came
+  from BugDrop storing the client's `created_at`: the battery-drain scenario runs the device clock 17 simulated
+  minutes ahead. BugDrop now dates a report no later than its receipt (the log bundle keeps the device clock); the
+  scorer drops a negative duration and keeps `discovery_clock_skew_s`. `eval rescore` applies these row-level rules
+  when a run's state is gone (it is gone for every saved run on this clone), and the report lists scorer changes.
+  Rescored all 37 eval dirs (only `expects_fix`, `discovery_*` changed); `evals/reports/2026-11-07/`:
+  full-d7cf020 validated 0.703 → 0.649 per seed; time to RCA 528 → 556 s; decisions and E1 CSVs unchanged.
+- **Invariants.** 54 runtime `assert`s outside tests raise `core.invariants.InvariantError`; ruff S101 is on
+  outside tests, `conftest.py` and the hidden tests.
+- **Prompts.** `test_profile.py`: every prompt retargeted by `profile.for_issue` (RCA and each subagent) loses
+  "MiniRide" for an issue with `about`, and is unchanged otherwise.
+- **Environment.** `make doctor` fails when the repo or a parent is synced (a File Provider xattr, as iCloud
+  Desktop & Documents sets, or a Dropbox/OneDrive/CloudStorage/Mobile Documents folder) or the disk is over 90% used.
+  On this machine both fail today: `~/Desktop` is iCloud-synced and the disk is at 90%.
+  `.github/workflows/eval-sweep.yml`: a manual sweep on a GitHub runner; secrets `OPEN_ROUTER_API_KEY` and
+  `SUBMODULES_TOKEN` (read access to both target repos); LLM decider by default (the Clef token is IP-restricted);
+  `--max-usd` and `--reserve-usd` as inputs; `evals/runs/` uploaded as an artifact; nothing pushed.
+
+**Verify**: `make check` → 840 passed, 6 skipped (live); ruff and pyright 0 errors. `make coverage` → total 78.8%
+(floor 76), pipeline 77% (floor 74).
+
+**Not verified**: the eval-sweep workflow has not run (no secrets set; it spends money). Whether the full stack
+fits a standard runner's memory and disk is the open question.
 
 ## Runtime images scanned for critical CVEs (2026-10-20)
 
