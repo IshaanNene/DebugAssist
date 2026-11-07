@@ -370,9 +370,8 @@ p {
   border-color: var(--line-strong);
 }
 .gnode[aria-pressed="true"] {
-  border-color: var(--line-strong);
+  border-color: var(--fg);
   background-color: var(--raised);
-  box-shadow: inset 0 3px 0 var(--k);
 }
 
 /* ── surfaces ── */

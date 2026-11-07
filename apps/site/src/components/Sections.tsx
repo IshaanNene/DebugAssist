@@ -8,8 +8,8 @@ const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ")
 /* ───────────────────────── Safety ───────────────────────── */
 
 const MODE: Record<string, { label: string; cls: string }> = {
-  live: { label: "live", cls: "border-good/50 text-good" },
-  approval: { label: "needs approval", cls: "border-amber/60 text-amber" },
+  live: { label: "live", cls: "border-line-strong text-t1" },
+  approval: { label: "needs approval", cls: "border-t1 bg-t1 text-surface" },
   dry_run: { label: "dry run", cls: "border-line-2 text-t3" },
   deny: { label: "never", cls: "border-line-2 text-t3 line-through" },
 };
@@ -26,7 +26,7 @@ export function Safety({ rules, branchPrefix }: { rules: WriteRule[]; branchPref
           ["Dry run by default", "Anything the policy does not list is recorded, not performed. Every write that does happen is audited."],
         ].map(([t, b], i) => (
           <div key={t} className="fx panel flex gap-4 p-5" style={{ ["--i" as string]: i }}>
-  <span className="mt-1 grid h-6 w-6 shrink-0 place-items-center  bg-tint font-mono text-[11px] text-amber">{i + 1}</span>
+  <span className="mt-1 grid h-6 w-6 shrink-0 place-items-center  border border-line-2 font-mono text-[11px] text-t1">{i + 1}</span>
             <div>
               <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-t1">{t}</h3>
               <p className="mt-1 text-[14px] leading-[1.55] text-t2">{b}</p>

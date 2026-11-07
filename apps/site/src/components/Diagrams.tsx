@@ -8,11 +8,6 @@ import type { FeaturedRun } from "@/lib/data";
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
-export const ACTOR = {
-  code: "var(--actor-code)",
-  llm: "var(--actor-llm)",
-  clef: "var(--actor-clef)",
-};
 
 /** Arrowhead marker, defined once per SVG. */
 export function Defs({ id }: { id: string }) {
@@ -26,7 +21,7 @@ export function Defs({ id }: { id: string }) {
 }
 
 /** A connector with an arrowhead and, optionally, a packet travelling it. */
-export function Edge({ d, arrow, packet = true, dur = 2.8, delay = 0, dashed }: { d: string; arrow?: string; packet?: boolean; dur?: number; delay?: number; dashed?: boolean }) {
+export function Edge({ d, arrow, packet = false, dur = 2.8, delay = 0, dashed }: { d: string; arrow?: string; packet?: boolean; dur?: number; delay?: number; dashed?: boolean }) {
   return (
     <g>
       <path d={d} fill="none" stroke="var(--line-strong)" strokeWidth={1} strokeDasharray={dashed ? "4 4" : undefined} markerEnd={arrow ? `url(#${arrow})` : undefined} />
@@ -60,7 +55,7 @@ export function EdgeLabel({ children }: { children: ReactNode }) {
 }
 
 /** A square mono tag. `solid` is the dark, final kind (an output). */
-export function Tag({ children, solid, color }: { children: ReactNode; solid?: boolean; color?: string }) {
+export function Tag({ children, solid }: { children: ReactNode; solid?: boolean }) {
   return (
     <span
       className={cx(
@@ -68,7 +63,6 @@ export function Tag({ children, solid, color }: { children: ReactNode; solid?: b
         solid ? "border-t1 bg-t1 text-surface" : "border-line-2 bg-surface text-t2",
       )}
     >
-      {color && <span className="h-1.5 w-1.5" style={{ background: color }} />}
       {children}
     </span>
   );
@@ -156,18 +150,18 @@ export function HeroDiagram({ run, servers, tools, templates }: { run: FeaturedR
         </div>
         <div className="space-y-4 px-6 py-5">
           <Row label="decide">
-            <Tag color={ACTOR.clef}>Clef · {templates} templates</Tag>
+            <Tag>Clef · {templates} templates</Tag>
             <Tag>policy</Tag>
           </Row>
           <Row label="reason">
-            <Tag color={ACTOR.llm}>root cause</Tag>
-            <Tag color={ACTOR.llm}>reproduce</Tag>
-            <Tag color={ACTOR.llm}>fix</Tag>
+            <Tag>root cause</Tag>
+            <Tag>reproduce</Tag>
+            <Tag>fix</Tag>
           </Row>
           <Row label="act">
-            <Tag color={ACTOR.code}>evidence</Tag>
-            <Tag color={ACTOR.code}>tests</Tag>
-            <Tag color={ACTOR.code}>write gate</Tag>
+            <Tag>evidence</Tag>
+            <Tag>tests</Tag>
+            <Tag>write gate</Tag>
           </Row>
         </div>
         <div className="mt-auto border-t border-line px-6 py-5">
@@ -387,7 +381,6 @@ export function Principle({ templates }: { templates: number }) {
     <div className="grid gap-3 lg:grid-cols-3">
       <PCard
         tag="Clef decides"
-        color={ACTOR.clef}
         title="Every judgement call is a probability."
         body={`Priority, rollback, test tier, ship — ${templates} decision templates, each mapped by policy to act, escalate or a safe default.`}
       >
@@ -397,7 +390,7 @@ export function Principle({ templates }: { templates: number }) {
             <span className="text-t1">p = 0.02</span>
           </div>
           <div className="relative mt-3 h-3 border border-line-2 bg-surface">
-            <div className="absolute inset-y-0 left-0 w-[6%]" style={{ background: ACTOR.clef }} />
+            <div className="absolute inset-y-0 left-0 w-[6%] bg-t1" />
             <div className="absolute -bottom-2 -top-2 left-[74%] w-px bg-t1" />
             <span className="absolute -top-6 left-[74%] -translate-x-1/2 text-t2">τ</span>
           </div>
@@ -406,21 +399,19 @@ export function Principle({ templates }: { templates: number }) {
       </PCard>
       <PCard
         tag="Agents reason"
-        color={ACTOR.llm}
         title="Models read evidence and write code."
         body="Inside one step, in a sandbox with no network. They explain and fix. They never choose what happens next."
       >
         <div className="w-full max-w-[320px] overflow-hidden whitespace-pre border border-line-2 bg-surface font-mono text-[11px] leading-[1.8]">
           <div className="border-b border-line px-3 py-1.5 text-t3">router.ts · the fix for VIT-1001</div>
           <div className="px-3 pt-1.5 text-t3">async function routeV2(…) {"{"}</div>
-          <div className="bg-good/10 px-3 text-good">{"+   await whenHydrated();"}</div>
+          <div className="bg-sunk px-3 text-t1">{"+   await whenHydrated();"}</div>
           <div className="px-3 text-t2">{"    const state = sessionStore.getState();"}</div>
           <div className="px-3 pb-1.5 text-t3">{"}"}</div>
         </div>
       </PCard>
       <PCard
         tag="Code acts"
-        color={ACTOR.code}
         title="Every write goes through one gate."
         body="Deterministic steps gather evidence, run the tests and perform each write — through a policy file, into an audit log."
       >
@@ -428,7 +419,7 @@ export function Principle({ templates }: { templates: number }) {
           {["context_collector", "validate"].map((s) => (
             <div key={s} className="-mb-px flex items-center justify-between border border-line-2 bg-surface px-3 py-2 text-t2">
               {s}
-              <span className="text-good">● passed</span>
+              <span className="text-t3">passed</span>
             </div>
           ))}
           <div className="mt-3 flex items-center justify-between border border-t1 bg-t1 px-3 py-2 text-surface">
@@ -441,14 +432,11 @@ export function Principle({ templates }: { templates: number }) {
   );
 }
 
-function PCard({ tag, color, title, body, children }: { tag: string; color: string; title: string; body: string; children: ReactNode }) {
+function PCard({ tag, title, body, children }: { tag: string; title: string; body: string; children: ReactNode }) {
   return (
     <div className="fx flex flex-col border border-line bg-surface">
       <div className="p-7">
-        <div className="flex items-center gap-2 font-mono text-[11px] text-t3">
-          <span className="h-2 w-2" style={{ background: color }} />
-          {tag}
-        </div>
+        <div className="font-mono text-[11px] uppercase tracking-[0.08em] text-t3">{tag}</div>
         <h3 className="title mt-4 text-[24px] text-t1">{title}</h3>
         <p className="mt-2.5 text-[15px] leading-[1.6] text-t3">{body}</p>
       </div>

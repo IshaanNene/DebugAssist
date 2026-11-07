@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 // The pipeline exactly as packages/pipeline/src/debugassist/pipeline/graph.py builds it: ten nodes, always in this
 // order, with two branches the graph really has — validate → fix (D15 retry) and the root cause routing a bug away
@@ -28,9 +28,7 @@ const NODES: Node[] = [
   { id: "post_merge_watch", name: "Watch", kinds: ["code", "clef"], what: "After the deploy, watch the crash rate. Resolve the issue, or reopen it.", decisions: [["D17", "post-merge"], ["D18", "feedback"]] },
 ];
 
-const COLOR: Record<Kind, string> = { code: "var(--actor-code)", llm: "var(--actor-llm)", clef: "var(--actor-clef)" };
 const LABEL: Record<Kind, string> = { code: "code", llm: "LLM", clef: "Clef" };
-const main = (n: Node): Kind => (n.kinds.includes("llm") ? "llm" : n.kinds[0] === "clef" ? "clef" : "code");
 
 // layout: two rows of five, in a 1200 × 400 box
 const W = 1200;
@@ -51,7 +49,7 @@ const EDGES: { d: string; dashed?: boolean }[] = [
   { d: `M${cxn(4)} ${Y[0] + NH} V ${MID} H ${cxn(0)} V ${Y[1]}` },
   ...[0, 1, 2, 3].map((i) => ({ d: `M${X[i] + NW} ${Y[1] + NH / 2} H ${X[i + 1]}` })),
   { d: `M${cxn(1)} ${Y[1] + NH} V ${LOOP} H ${cxn(0)} V ${Y[1] + NH}`, dashed: true },
-  { d: `M${cxn(3)} ${Y[0]} V 22 H ${X[4] + 20}`, dashed: true },
+  { d: `M${cxn(3)} ${Y[0]} V 22 H ${X[4] - 6}`, dashed: true },
 ];
 
 export function Graph({ ms, runLabel }: { ms: Record<string, number>; runLabel: string }) {
@@ -94,23 +92,12 @@ export function Graph({ ms, runLabel }: { ms: Record<string, number>; runLabel: 
           {EDGES.map((e, i) => (
             <g key={i}>
               <path d={e.d} fill="none" stroke="var(--line-strong)" strokeWidth={1} strokeDasharray={e.dashed ? "4 4" : undefined} markerEnd="url(#ga)" />
-              {!e.dashed && (
-                <rect
-                  x={-2.5}
-                  y={-2.5}
-                  width={5}
-                  height={5}
-                  fill="var(--fg)"
-                  className="packet"
-                  style={{ offsetPath: `path("${e.d}")`, ["--dur"]: "2.4s", ["--delay"]: `${i * 0.3}s` } as CSSProperties}
-                />
-              )}
             </g>
           ))}
         </svg>
         <Label x={(cxn(0) + cxn(1)) / 2} y={LOOP}>retry · D15</Label>
-        <Label x={X[4] + 20} y={22} left>
-          not our bug → report &amp; route
+        <Label x={X[4]} y={22} left>
+          not ours → report, route
         </Label>
         {NODES.map((node, i) => {
           const p = pos(i);
@@ -140,14 +127,9 @@ export function Graph({ ms, runLabel }: { ms: Record<string, number>; runLabel: 
   <code className=" border border-line bg-sunk/60 px-2 py-0.5 font-mono text-[11.5px] text-t3">{n.id}</code>
           </div>
           <p className="mt-3 max-w-[56ch] text-[15.5px] leading-[1.6] text-t2">{n.what}</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {n.kinds.map((k) => (
-  <span key={k} className="inline-flex items-center gap-1.5  border px-2.5 py-1 font-mono text-[11px]" style={{ color: COLOR[k], borderColor: `color-mix(in srgb, ${COLOR[k]} 35%, transparent)` }}>
-                <span className={k === "clef" ? "h-1.5 w-1.5 rotate-45" : k === "llm" ? "h-1.5 w-1.5 rounded-full" : "h-1.5 w-1.5"} style={{ background: COLOR[k] }} />
-                {LABEL[k]}
-              </span>
-            ))}
-          </div>
+          <p className="mt-4 font-mono text-[12px] text-t3">
+            acts: <span className="text-t1">{n.kinds.map((k) => LABEL[k]).join(" + ")}</span>
+          </p>
         </div>
         <div className="grid content-start gap-4">
           <div>
@@ -155,8 +137,8 @@ export function Graph({ ms, runLabel }: { ms: Record<string, number>; runLabel: 
             {n.decisions.length ? (
               <ul className="mt-2 flex flex-wrap gap-1.5">
                 {n.decisions.map(([d, name]) => (
-  <li key={d} className="inline-flex items-center gap-1.5  border border-clef/30 bg-clef/[0.07] px-2.5 py-1 font-mono text-[11.5px] text-t1">
-                    <span className="text-clef">{d}</span> {name}
+  <li key={d} className="inline-flex items-center gap-1.5 border border-line-2 bg-surface px-2.5 py-1 font-mono text-[11.5px] text-t2">
+                    <span className="text-t1">{d}</span> {name}
                   </li>
                 ))}
               </ul>
@@ -167,15 +149,9 @@ export function Graph({ ms, runLabel }: { ms: Record<string, number>; runLabel: 
           <div>
             <div className="label text-[10.5px] text-t4">In {runLabel}</div>
             {ms[n.id] !== undefined ? (
-              <div className="mt-2">
-                <div className="flex items-baseline justify-between font-mono text-[12px]">
-                  <span className="text-t1">{fmt(ms[n.id])}</span>
-                  <span className="text-t3">{Math.round((ms[n.id] / total) * 100)}% of the run’s step time</span>
-                </div>
-                <div className="mt-2 h-1.5 overflow-hidden bg-line">
-  <div className="h-full " style={{ width: `${Math.max(1.5, (ms[n.id] / total) * 100)}%`, background: COLOR[main(n)] }} />
-                </div>
-              </div>
+              <p className="mt-2 font-mono text-[12px] text-t3">
+                <span className="text-t1">{fmt(ms[n.id])}</span> · {Math.max(1, Math.round((ms[n.id] / total) * 100))}% of the run’s step time
+              </p>
             ) : (
               <p className="mt-2 font-mono text-[12px] text-t3">not reached — this run stopped after validate</p>
             )}
@@ -187,22 +163,16 @@ export function Graph({ ms, runLabel }: { ms: Record<string, number>; runLabel: 
 }
 
 function NodeButton({ node, i, on, onPick, ms }: { node: Node; i: number; on: boolean; onPick: (i: number) => void; ms?: number }) {
-  const k = main(node);
   return (
     <button
       type="button"
       aria-pressed={on}
       onClick={() => onPick(i)}
   className="gnode flex h-full w-full flex-col justify-between border border-line bg-surface p-3.5 text-left"
-      style={{ ["--k" as string]: COLOR[k] }}
     >
       <div className="flex items-center justify-between">
         <span className="font-mono text-[10.5px] text-t4">{String(i + 1).padStart(2, "0")}</span>
-        <span className="flex gap-1">
-          {node.kinds.map((kk) => (
-            <span key={kk} className={kk === "clef" ? "h-2 w-2 rotate-45" : kk === "llm" ? "h-2 w-2 rounded-full" : "h-2 w-2"} style={{ background: COLOR[kk] }} />
-          ))}
-        </span>
+        <span className="font-mono text-[10.5px] text-t4">{node.kinds.map((kk) => LABEL[kk]).join(" + ")}</span>
       </div>
       <div>
         <div className="text-[15.5px] font-medium tracking-[-0.015em] text-t1">{node.name}</div>

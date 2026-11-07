@@ -20,7 +20,7 @@ export function Logo({ size = 22 }: { size?: number }) {
 export function Eyebrow({ n, children, className }: { n?: string; children: ReactNode; className?: string }) {
   return (
     <div className={cx("fx flex items-center gap-3 font-mono text-[11.5px] uppercase tracking-[0.12em] text-t3", className)}>
-      {n && <span className="text-amber">{n}</span>}
+      {n && <span className="text-t1">{n}</span>}
       {n && <span aria-hidden className="h-px w-8 bg-line-2" />}
       {children}
     </div>
