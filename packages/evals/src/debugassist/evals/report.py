@@ -201,11 +201,22 @@ def _prereg_section(rows: list[dict[str, Any]]) -> str:
     """Thresholds the arms registered before they ran (evals/arms/), checked against their runs."""
     from debugassist.evals import prereg
 
-    checked = prereg.evaluate(prereg.load(), rows)
-    if not checked:
+    arms = prereg.load()
+    checked, compared = prereg.evaluate(arms, rows), prereg.compare(arms, rows)
+    if not checked and not compared:
         return ""
-    cols = ["arm", "metric", "threshold", "observed", "verdict", "pre_registered"]
-    return "### Pre-registered checks\n\n" + _md_table(checked, cols)
+    out = "### Pre-registered checks\n\n"
+    if checked:
+        out += (
+            _md_table(checked, ["arm", "metric", "threshold", "observed", "verdict", "pre_registered"]) + "\n"
+        )
+    if compared:
+        out += "Paired comparisons the arms registered (exact McNemar on the same bug and seed):\n\n"
+        out += _md_table(
+            compared,
+            ["arm", "metric", "versus", "expect", "pairs", "only_arm", "only_versus", "p", "verdict"],
+        )
+    return out
 
 
 def e1_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
