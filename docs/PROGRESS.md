@@ -383,6 +383,12 @@ in review as text dumped into dark boxes with no diagrams.
   404. Checked: no clipped frames or horizontal scroll at 375, 1280 and 1440 px on all fifteen routes checked.
 - Numbers no longer count up from zero: a screenshot or a throttled frame caught the Lab notebook headline at
   2% and $0.000. Every figure now renders its report value at once (checked against `evals/reports/2026-11-07/report.md`).
+- Two pages for a reviewer: `/costs/` (per-run cost with the LLM/Clef split, time to a root cause, Clef latency
+  p50–p95 per decision, the per-agent caps read from `configs/`, what happens when a dependency fails) and
+  `/limits/` (six limitations, each with its evidence, meaning and what would change it: Clef vs the LLM decider,
+  decisions that lose to rules, sample sizes with a 95% Wilson interval, fixes that pass their own test but not the
+  hidden one, the self-built catalog, unsupported claims). Every number is computed at build time in
+  `apps/site/src/lib/ops.ts` from the latest report and configs.
 
 **Not done**: `/runs`, ⌘K and OG images (P3–P4).
 

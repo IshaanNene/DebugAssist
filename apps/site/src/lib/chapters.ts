@@ -16,4 +16,6 @@ export const CHAPTERS = [
   { href: "/stories/", n: "11", nav: true, title: "Field notes", blurb: "The problems that cost real time, as case files: the numbers that lied, the harness bugs, the checks no model could do." },
   { href: "/lessons/", n: "12", nav: false, title: "Lessons learned", blurb: "Every problem that cost real time: what we saw, why, what fixed it, and the guard that stops it coming back." },
   { href: "/results/", n: "13", nav: true, title: "Lab notebook", blurb: "Every measurement with its report: the bug catalog, Clef against an LLM, real open-source bugs." },
+  { href: "/costs/", n: "14", nav: false, title: "Cost and latency", blurb: "What a run costs and how long it takes: per-run cost, time to a root cause, Clef latency and the caps that bound a run." },
+  { href: "/limits/", n: "15", nav: false, title: "Limitations", blurb: "What it cannot do yet: each weakness with the evidence from the reports and what would change it." },
 ] as const;

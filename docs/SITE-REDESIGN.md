@@ -58,6 +58,9 @@ direction where they conflict:
   swimlanes, and a row of phases with the open phase's steps drawn out below — because skewed text and labels
   under blocks read as decoration. A figure may rename a colour in its key (`names`). A paper 404 page replaces
   Next's default.
+- **For a reviewer.** Cost and latency (14) and Limitations (15) follow the Lab notebook: medians with the 90th
+  percentile, intervals on rates, the weaknesses stated before anyone has to find them. Charts there are plain SVG
+  (`components/opsfigs.tsx`) and become number lists below `lg`. Numbers never animate.
 - **Unchanged:** every figure is still read from `evals/reports` at build time, the run replay and receipts, the
   Safety section rendered from `configs/policies/writes.yaml`, and the Lab notebook.
 

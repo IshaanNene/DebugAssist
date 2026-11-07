@@ -3,8 +3,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const ROOT = path.resolve(process.cwd(), "..", "..");
-const REPORTS = path.join(ROOT, "evals", "reports");
+export const ROOT = path.resolve(process.cwd(), "..", "..");
+export const REPORTS = path.join(ROOT, "evals", "reports");
 
 export type Row = Record<string, string>;
 
@@ -107,6 +107,7 @@ export interface Results {
   report: string;
   model: string;
   baseline: Row[]; // the original full-catalog run (no arm)
+  runs: Row[]; // the headline's runs: each bug's latest full-strength run
   headline: Headline;
   arms: ArmPanel[];
   ablation: Ablation | null;
@@ -282,6 +283,7 @@ export function results(model = "gpt-6-luna"): Results {
     report,
     model,
     baseline,
+    runs: headRows,
     headline,
     arms: order.filter((a) => a !== headArm && isRerun(a)).map(panel),
     ablation: ablation(order.filter((a) => a.startsWith("no-clef")).pop(), armRows, latest, ours),
