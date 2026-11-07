@@ -13,6 +13,7 @@ from arq import create_pool
 from arq.connections import RedisSettings
 from arq.worker import Worker
 
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import ROOT
 from debugassist.harness import agent_types, launcher
 
@@ -52,7 +53,8 @@ async def enqueue(issue_ref: str, agent_type: str | None = None, run_args: list[
     pool = await create_pool(REDIS, job_serializer=dumps, job_deserializer=loads)
     try:
         job = await pool.enqueue_job("run_issue", issue_ref, agent_type, run_args or [])
-        assert job is not None
+        if job is None:
+            raise InvariantError("expected job is not None")
         return job.job_id
     finally:
         await pool.aclose()

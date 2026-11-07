@@ -25,6 +25,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from debugassist.core import untrusted
+from debugassist.core.invariants import InvariantError
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files
 from debugassist.pipeline import crossrepo, nodes
@@ -108,7 +109,8 @@ def _rca_output(out: BaselineOutput) -> RCAOutput:
 
 async def investigate_and_fix(state: RunState, deps: Deps) -> dict[str, Any]:
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     sb = nodes.sandbox_for(state)
     sb.create(f"v{issue.last_version}", nodes.bot_branch(issue, deps))
     results: list[LLMResult] = []
@@ -147,7 +149,8 @@ async def investigate_and_fix(state: RunState, deps: Deps) -> dict[str, Any]:
             break
         state = state.model_copy(update=moved)
         issue = state.issue
-        assert issue
+        if not issue:
+            raise InvariantError("expected issue")
         sb = nodes.sandbox_for(state)
     if out is None:
         raise RuntimeError(f"baseline agent ended with status {results[-1].status if results else 'none'}")

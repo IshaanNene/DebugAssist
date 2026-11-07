@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from debugassist.core.invariants import InvariantError
 from debugassist.pipeline import (
     collector,
 )
@@ -16,7 +17,8 @@ from debugassist.pipeline.state import (
 
 async def context_collector(state: RunState, deps: Deps) -> dict[str, Any]:
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     # The sandbox worktree at the shipped release: code search and the fix both work on it.
     sb = sandbox_for(state)
     sb.create(f"v{issue.last_version}", bot_branch(issue, deps))

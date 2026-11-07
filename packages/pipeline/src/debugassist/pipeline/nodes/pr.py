@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import Verdict
 from debugassist.integrations.chat import ChatMessage
 from debugassist.pipeline import (
@@ -87,7 +88,8 @@ def link_source(
 ) -> list[dict[str, Any]]:
     """Attach links to the Vitals issue / BugDrop report and move the report's status along."""
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     if issue.source == "bugdrop":
         base = f"{deps.bugdrop_url}/api/reports/{issue.id}"
     elif issue.source == "vitals":
@@ -121,7 +123,8 @@ def link_source(
 
 async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
     issue, tr, rca, ship = state.issue, state.triage, state.rca, state.ship
-    assert issue and rca and ship
+    if not issue or not rca or not ship:
+        raise InvariantError("expected issue and rca and ship")
     notes = list(state.notifications)
     out: dict[str, Any] = {}
     jira_blocks: list[tuple[str, str]] = []

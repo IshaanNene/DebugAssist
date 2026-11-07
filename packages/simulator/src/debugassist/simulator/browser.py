@@ -13,6 +13,7 @@ from typing import Any, cast
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright, Route, async_playwright
 
+from debugassist.core.invariants import InvariantError
 from debugassist.simulator.personas import CUSTOM_DEVICES, Persona
 
 
@@ -44,7 +45,8 @@ class Fleet:
         return self.cfg.previous_app_url if p.previous_version else self.cfg.app_url
 
     def _descriptor(self, device: str) -> dict[str, Any]:
-        assert self._pw is not None
+        if self._pw is None:
+            raise InvariantError("expected self._pw is not None")
         if device in CUSTOM_DEVICES:
             return dict(CUSTOM_DEVICES[device])
         d = dict(cast(dict[str, Any], self._pw.devices[device]))  # pyright: ignore[reportUnknownMemberType]
@@ -53,7 +55,8 @@ class Fleet:
 
     @asynccontextmanager
     async def rider(self, p: Persona, *, clock: bool = False) -> AsyncGenerator[Page]:
-        assert self._browser is not None
+        if self._browser is None:
+            raise InvariantError("expected self._browser is not None")
         ctx: BrowserContext = await self._browser.new_context(**self._descriptor(p.device), locale=p.locale)
         try:
             page = await ctx.new_page()

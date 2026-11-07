@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import Verdict
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
@@ -44,7 +45,8 @@ async def mitigate(state: RunState, deps: Deps) -> dict[str, Any]:
     from debugassist.mcp_servers import feature_flags as ff
 
     issue, rca = state.issue, state.rca
-    assert issue and rca and rca.output
+    if not issue or not rca or not rca.output:
+        raise InvariantError("expected issue and rca and rca.output")
     corr_items = [e.data for e in state.evidence if e.kind == "flag_correlation"]
     raw = rca.output.implicated_flag or (corr_items[0]["flag"] if corr_items else None)
     # The RCA's flag is free text from the LLM ("notif_router_v2 (flag is off …)"): only a real flag acts.

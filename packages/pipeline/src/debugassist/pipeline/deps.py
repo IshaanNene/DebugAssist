@@ -13,6 +13,7 @@ from typing import Any, cast
 import yaml
 
 from debugassist.core import ablation
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import ROOT, PolicyGate
 from debugassist.core.settings import Integration, Mode, Settings, get_settings
 from debugassist.core.workspace import Workspace
@@ -78,7 +79,8 @@ class Deps:
         if self.llm_mode == "live":
             return AgentRunner(record_dir=CASSETTES / self.run_id, live_dir=self.run_dir / "agents")
         if self.llm_mode == "replay":
-            assert self.replay_from, "replay mode needs --replay-from <run_id>"
+            if not self.replay_from:
+                raise InvariantError("replay mode needs --replay-from <run_id>")
             return CassetteRunner(CASSETTES / self.replay_from, apply_diff)
         return ScriptedRunner(SCRIPTED / self.scripted_scenario, apply_diff)
 
@@ -140,7 +142,8 @@ async def build_deps(
     s = settings or get_settings()
     jira: Jira
     if s.mode(Integration.JIRA) is Mode.LIVE:
-        assert s.jira_base_url and s.jira_email and s.jira_api_key
+        if not s.jira_base_url or not s.jira_email or not s.jira_api_key:
+            raise InvariantError("live Jira needs JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_KEY")
         jira = JiraCloud(
             s.jira_base_url,
             s.jira_email,

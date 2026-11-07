@@ -13,6 +13,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field
 
 from debugassist.core import tracing
+from debugassist.core.invariants import InvariantError
 from debugassist.core.ledger import DecisionRow, Ledger, content_hash
 from debugassist.core.redaction import redact
 from debugassist.core.settings import Mode
@@ -327,10 +328,12 @@ class DecisionEngine:
         model: ClefModel,
         backend: DecisionBackend | None = None,
     ) -> Decision:
-        assert template.two_stage is not None
+        if template.two_stage is None:
+            raise InvariantError("expected template.two_stage is not None")
         ts = template.two_stage
         item_spec = template.questions[ts.item_question]
-        assert item_spec.foreach is not None
+        if item_spec.foreach is None:
+            raise InvariantError("expected item_spec.foreach is not None")
         candidates = [c if isinstance(c, Item) else Item.model_validate(c) for c in params[item_spec.foreach]]
         include_none = isinstance(template.policy.act, dict) and "none" in template.policy.act
         extra = None
@@ -351,7 +354,8 @@ class DecisionEngine:
         if include_none:
             options["none"] = "none of these candidates"
         choice_param = template.questions[ts.choice_question].criteria
-        assert isinstance(choice_param, str)
+        if not isinstance(choice_param, str):
+            raise InvariantError("expected isinstance(choice_param, str)")
         questions = template.render({choice_param.removeprefix("$"): options}, only={ts.choice_question})
         return await self._run(template, state, images, questions, ctx, model, backend=backend, extra=extra)
 

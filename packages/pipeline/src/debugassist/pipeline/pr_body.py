@@ -11,6 +11,7 @@ import re
 from functools import cache
 from pathlib import Path
 
+from debugassist.core.invariants import InvariantError
 from debugassist.pipeline.state import RunState
 
 
@@ -72,7 +73,8 @@ def sections(state: RunState, dashboard_url: str | None = None) -> dict[str, str
         state.validation,
         state.fix_plan,
     )
-    assert issue and rca and rca.output
+    if not issue or not rca or not rca.output:
+        raise InvariantError("expected issue and rca and rca.output")
     o = rca.output
     fa = state.fix_attempts[-1] if state.fix_attempts else None
     source = "BugDrop report" if issue.source == "bugdrop" else "Vitals issue"

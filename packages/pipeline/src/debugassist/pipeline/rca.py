@@ -22,6 +22,7 @@ import yaml
 
 from debugassist.core import tracing, untrusted
 from debugassist.core.evidence import EvidenceItem, evidence_id
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import ROOT
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
@@ -52,7 +53,8 @@ def subagent_config() -> dict[str, Any]:
 
 
 def _ctx(state: RunState) -> RunContext:
-    assert state.issue
+    if not state.issue:
+        raise InvariantError("expected state.issue")
     return RunContext(run_id=state.run_id, issue_id=state.issue.id)
 
 
@@ -75,7 +77,8 @@ def _bundle(items: list[EvidenceItem], budget_tokens: int) -> str:
 
 
 async def route_effort(state: RunState, deps: Deps) -> tuple[str, dict[str, Any], str | None]:
-    assert state.issue
+    if not state.issue:
+        raise InvariantError("expected state.issue")
     cs = (
         CompactState()
         .add("issue", collector.issue_summary(state.issue), priority=0)
@@ -209,7 +212,8 @@ async def evidence_loop(
 ) -> tuple[list[EvidenceItem], list[dict[str, Any]], list[str]]:
     """D6, at most MAX_EVIDENCE_ROUNDS: ask Clef whether more evidence is needed and from where; fetch it."""
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     avail = fetchers(issue, deps)
     have = {e.id for e in state.evidence}
     added: list[EvidenceItem] = []
@@ -255,7 +259,8 @@ def subagent_pool(state: RunState, deps: Deps) -> dict[str, dict[str, Any]]:
     from debugassist.pipeline import skills
 
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     pool: dict[str, dict[str, Any]] = dict(subagent_config()["subagents"])
     root = skills.root_for(deps.agent_type)
     pool.update(domains.subagents(domains.for_issue(root, issue.repo, issue.component)))
@@ -269,7 +274,8 @@ def subagent_pool(state: RunState, deps: Deps) -> dict[str, dict[str, Any]]:
 
 
 async def pick_subagents(state: RunState, deps: Deps) -> tuple[list[str], dict[str, float], str | None]:
-    assert state.issue
+    if not state.issue:
+        raise InvariantError("expected state.issue")
     cfg = subagent_config()
     subs = [{"id": sid, "description": s["description"]} for sid, s in subagent_pool(state, deps).items()]
     cs = (
@@ -287,7 +293,8 @@ async def pick_subagents(state: RunState, deps: Deps) -> tuple[list[str], dict[s
 async def run_subagent(
     sid: str, state: RunState, deps: Deps, mcp_env: dict[str, str]
 ) -> tuple[dict[str, Any], LLMResult]:
-    assert state.issue
+    if not state.issue:
+        raise InvariantError("expected state.issue")
     cfg = subagent_config()
     s = subagent_pool(state, deps)[sid]
     from debugassist.pipeline import budget
@@ -376,7 +383,8 @@ def findings_text(records: list[dict[str, Any]]) -> str:
 def make_monitor(
     state: RunState, deps: Deps, ledgers: list[str]
 ) -> Callable[[list[ToolCall]], Awaitable[str]]:
-    assert state.issue
+    if not state.issue:
+        raise InvariantError("expected state.issue")
     summary = {"title": state.issue.title, "kind": state.issue.kind}
 
     async def monitor(calls: list[ToolCall]) -> str:

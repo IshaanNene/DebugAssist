@@ -7,6 +7,7 @@ import json
 from typing import Any
 
 from debugassist.core.ablation import bisect_enabled, call_variants, second_repro
+from debugassist.core.invariants import InvariantError
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
 from debugassist.llm.workspace_tools import is_test_path
@@ -28,7 +29,8 @@ from debugassist.pipeline.state import (
 async def validate(state: RunState, deps: Deps) -> dict[str, Any]:
     """Failing-before / passing-after proof on the reproduction test, plus the full component suite."""
     issue = state.issue
-    assert issue and state.fix_attempts
+    if not issue or not state.fix_attempts:
+        raise InvariantError("expected issue and state.fix_attempts")
     sb = sandbox_for(state)
     comp = component_cfg(state, sb.worktree)
     fa = state.fix_attempts[-1]

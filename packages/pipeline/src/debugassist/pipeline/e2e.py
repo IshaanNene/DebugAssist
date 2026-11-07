@@ -16,6 +16,7 @@ import shlex
 import subprocess
 from typing import Any, cast
 
+from debugassist.core.invariants import InvariantError
 from debugassist.core.workspace import Workspace
 from debugassist.integrations.sandbox import CommandResult, Sandbox
 from debugassist.llm.workspace_tools import changed_files, is_test_path
@@ -232,7 +233,8 @@ def run(sb: Sandbox, pipeline: dict[str, Any], component: str, cmd: str, timeout
     write_helpers(sb, component)
     dist, failure = build(sb, pipeline, component)
     if dist is None:
-        assert failure
+        if not failure:
+            raise InvariantError("expected failure")
         return CommandResult(cmd, failure.exit_code, f"build failed:\n{failure.output[-3000:]}")
     ensure_network(e2e_cfg)
     spec = cmd.removeprefix("pnpm exec playwright test ").strip()
@@ -242,7 +244,8 @@ def run(sb: Sandbox, pipeline: dict[str, Any], component: str, cmd: str, timeout
         f"--output={WORK_DIR}/test-results"
     )
     img = image(sb, component)
-    assert img
+    if not img:
+        raise InvariantError("expected img")
     env_args = [a for k, v in {**RUN_ENV, "CI": "1", "HOME": "/tmp"}.items() for a in ("-e", f"{k}={v}")]
     docker = [
         "docker", "run", "--rm", "--network", NETWORK, "--ipc=host", "--memory", "3g", "--cpus", "2",
