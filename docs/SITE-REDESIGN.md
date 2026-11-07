@@ -1,6 +1,29 @@
 # Site redesign plan (apps/site)
 
-Status: P0–P2 built 2026-10-25 (see [PROGRESS.md](PROGRESS.md#site-redesign-foundations-and-the-home-page-2026-10-25)); P3–P4 open. The original visual plan, with a hero sketch: https://claude.ai/artifact/PzokmUJ4wCPYEgivaCsKD2 (private until shared).
+Status: rebuilt 2026-11-07 (see [Rebuild](#rebuild-2026-11-07) below); P0–P2 built 2026-10-25 (see [PROGRESS.md](PROGRESS.md#site-redesign-foundations-and-the-home-page-2026-10-25)); P3–P4 open. The original visual plan, with a hero sketch: https://claude.ai/artifact/PzokmUJ4wCPYEgivaCsKD2 (private until shared).
+
+## Rebuild (2026-11-07)
+
+The 2026-10-25 version (dark navy and amber, flat text panels, no diagrams) was rejected in review: it read as
+text dumped into boxes. The rebuild goes back to what worked on the original site and drops the rest of this plan's
+direction where they conflict:
+
+- **Paper first, Night opt-in.** `globals.css` tokens are `light-dark(day, night)` with `color-scheme: light` by
+  default; the header's Day/Night switch pins Night (`da-theme` in localStorage, restored before first paint).
+- **Drafting style, square everywhere.** Hairline frames with corner brackets (`.cbox`), hatched margins (`.hatch`),
+  graph paper under illustrations (`.grid-paper`), square tags and buttons with key hints. No rounded corners except
+  the actor markers (square = code, diamond = Clef, circle = LLM), no glow, blur, gradients or soft shadows.
+- **The highlighter is back** (`.hl`): a solid marker block swept in under each headline's key phrase.
+- **Type:** Instrument Sans (medium-weight headlines), JetBrains Mono for evidence; Instrument Serif only for the
+  caveats column.
+- **Diagrams, each drawn from the system itself:** Fig. 1 signals → evidence and sandbox → DebugAssist → outputs
+  (`Diagrams.tsx`, `HeroDiagram`); the isometric pipeline that pins and advances by scroll (`Loop.tsx`, restored);
+  Fig. 3 the ten LangGraph nodes with the D15 retry loop and the route-away exit, clickable, with each step's real
+  time in the featured run (`Graph.tsx`); Fig. 4 signals → MCP servers → pipeline → policy gate → writes
+  (`SystemMap`); the exploded isometric layers (`Architecture.tsx`, restored). Connectors are right-angle with
+  arrowheads and boxed labels; a small square packet rides each one, and stops under reduced motion.
+- **Unchanged:** every figure is still read from `evals/reports` at build time, the run replay and receipts, the
+  Safety section rendered from `configs/policies/writes.yaml`, and the Lab notebook.
 
 ## What was built, and what changed from the plan
 

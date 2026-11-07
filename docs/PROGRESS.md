@@ -12,6 +12,7 @@
 | Audit fixes: sandbox trust boundary, credentials, dev stack, App contract, write gate ([below](#audit-fixes-2026-10-16)) | ✅ done (container flags not run under Docker yet) | 2026-10-16 |
 | Site redesign: tokens, type, receipts, run console, new home page, Lab notebook ([below](#site-redesign-foundations-and-the-home-page-2026-10-25)) | ✅ done (P0–P2) | 2026-10-25 |
 | Next level, Phase 0: hermetic tests, truthful ship reasons, scoring fixes, doctor, cloud sweeps ([below](#next-level-phase-0-make-the-basics-true-2026-11-07--done-offline)) | ✅ done (cloud sweep not run) | 2026-11-07 |
+| Site rebuild: paper and drafting style, square everywhere, five system diagrams, Night opt-in ([below](#site-rebuild-drafting-style-and-diagrams-2026-11-07)) | ✅ done | 2026-11-07 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
 The current design is in [PLAN.md](PLAN.md); P0–P11 below run oldest first; everything after runs newest first, down to P12.
@@ -346,6 +347,22 @@ open http://localhost:8080  http://localhost:16686    # book a ride, then find t
 - Docker Desktop here has no host networking, so the runtime container joins the compose network and uses service names; links shown to people stay on localhost.
 - Skills were written by someone who has seen the bug catalog (generic guidance only, linted). P13 evaluations should include a skills-off ablation. One perf hint close to a catalog fix was removed.
 - D1 named `dispatch` as owner of a client perf issue (VIT-1002) — a triage-quality item for P13.
+
+## Site rebuild: drafting style and diagrams (2026-11-07)
+
+Plan and decisions: [SITE-REDESIGN.md](SITE-REDESIGN.md#rebuild-2026-11-07). The 2026-10-25 redesign was rejected
+in review as text dumped into dark boxes with no diagrams.
+
+- Paper by default with a Day/Night switch; drafting frames, hatched margins, graph paper, square corners
+  everywhere, no glow or gradients; the yellow highlighter back on headlines.
+- Five diagrams drawn from the code and config: inputs/outputs (Fig. 1), the scroll-pinned isometric pipeline,
+  the clickable LangGraph node graph with real step times from run `20261007-042922-vit-1001` (Fig. 3), the
+  signal-to-write system map (Fig. 4), the exploded isometric layers.
+- Home sections: hero, principle, pipeline, a real run, system, results, safety, start, FAQ. `Features.tsx` removed;
+  `Loop.tsx` and `Architecture.tsx` restored from the original site with theme tokens.
+- Checked: typecheck, lint, static build; desktop, phone width (no horizontal scroll) and Night in the browser.
+
+**Not done**: `/runs`, ⌘K and OG images (P3–P4); the day/night check of `/results` was a quick look only.
 
 ## Next level, Phase 0: make the basics true (2026-11-07) — done, offline
 
