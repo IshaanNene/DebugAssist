@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from debugassist.core import tracing
 from debugassist.core.evidence import EvidenceItem
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import ROOT, read_audit
 from debugassist.decisions.policy import Band
 from debugassist.integrations.github import GitHubMock
@@ -397,7 +398,8 @@ def watch(
 
     s = asyncio.run(main())
     w = s.watch
-    assert w
+    if not w:
+        raise InvariantError("expected w")
     typer.echo(f"run {run_id}: {w.status}" + (f" — {w.reason}" if w.reason else ""))
     if w.deploy:
         typer.echo(f"  deploy    {w.deploy.get('ref')} ({w.deploy.get('sha')}) at {w.deploy.get('at')}")

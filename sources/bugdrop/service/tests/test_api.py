@@ -124,3 +124,14 @@ def test_links_and_status(client: TestClient) -> None:
     assert got["links"][0]["title"] == "PR #1" and got["status"] == "in_progress"
     assert client.post(f"/api/reports/{rid}/status", json={"status": "bogus"}).status_code == 422
     assert "PR #1" in client.get(f"/reports/{rid}").text
+
+
+def test_a_device_clock_ahead_does_not_date_the_report_in_the_future(client: TestClient) -> None:
+    from datetime import UTC, datetime
+
+    ahead = time.time() + 17 * 60  # a scenario that simulates 17 minutes in the background
+    before = time.time()
+    out = submit(client, created_at=ahead)
+    stamp = datetime.fromisoformat(client.get(f"/api/reports/{out['id']}").json()["created_at"])
+    created = (stamp if stamp.tzinfo else stamp.replace(tzinfo=UTC)).timestamp()  # SQLite drops the zone
+    assert before - 1 <= created <= time.time() + 1

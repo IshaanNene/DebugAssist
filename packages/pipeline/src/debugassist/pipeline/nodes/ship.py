@@ -13,24 +13,59 @@ from debugassist.pipeline.state import (
     RunState,
     Ship,
     ShipOutcome,
+    ShipReason,
 )
+
+ROUTED = ("infra", "device_os", "not_a_bug", "third_party_lib")
+
+
+def skip_reason(skip: str) -> ShipReason:
+    """The fix plan's skip text (fixplan.choose_strategy / choose_tier) as a typed reason."""
+    if skip.startswith("needs a human"):
+        return "needs_human"
+    if skip.startswith("flag-only"):
+        return "flag_config"
+    return "repro_failed"  # "cannot be reproduced automatically", or no test tier applies
+
+
+def explain(state: RunState, ship: Ship) -> str:
+    """Why no PR, in words a maintainer reads: built from the typed reason, never from the outcome alone."""
+    o = state.rca.output if state.rca else None
+    text = {
+        "not_our_code": "No fix proposed: the root cause is outside this repository's code"
+        + (f" ({o.category.replace('_', ' ')})." if o else "."),
+        "flag_config": "No code fix proposed: the feature flag's configuration is the defect, "
+        "and the flag is the mitigation.",
+        "no_fix": "No fix proposed: the analysis did not produce an actionable root cause and fix "
+        "in this repository's code.",
+        "repro_failed": "No fix proposed: the root cause appears to be in this repository's code, but no test "
+        "reproduced the failure on the released version, so there is no proof that a change fixes it.",
+        "no_source_change": "No fix proposed: a reproduction test fails on the release, but the change "
+        "did not edit any source file.",
+        "needs_human": "No fix proposed: this needs a maintainer's decision.",
+    }.get(ship.reason or "", f"No pull request ({ship.outcome.replace('_', ' ')}).")
+    if ship.outcome == "escalate" and ship.reason != "needs_human":
+        text += " This needs a maintainer's decision."
+    return text
 
 
 async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
     rca, v = state.rca, state.validation
     if state.fix_plan and state.fix_plan.skip:
-        outcome: ShipOutcome = "escalate" if state.fix_plan.skip.startswith("needs a human") else "rca_only"
-        return {"ship": Ship(outcome=outcome, decision={"reason": state.fix_plan.skip})}
+        skipped = skip_reason(state.fix_plan.skip)
+        outcome: ShipOutcome = "escalate" if skipped == "needs_human" else "rca_only"
+        return {"ship": Ship(outcome=outcome, reason=skipped, decision={"reason": state.fix_plan.skip})}
     if rca is None or not rca.actionable or not state.fix_attempts:
         cat = rca.output.category if rca and rca.output else None
         m = state.mitigation
+        routed: ShipReason
         if cat == "flag_config" and m and m.action != "none":
-            reason = f"the flag's configuration is the defect: {m.detail}"
-        elif cat in ("infra", "device_os", "not_a_bug", "third_party_lib"):
-            reason = f"not a code change in our repos ({cat}): reported and routed"
+            routed, reason = "flag_config", f"the flag's configuration is the defect: {m.detail}"
+        elif cat in ROUTED:
+            routed, reason = "not_our_code", f"not a code change in our repos ({cat}): reported and routed"
         else:
-            reason = "not actionable or no fix"
-        return {"ship": Ship(outcome="rca_only", decision={"reason": reason})}
+            routed, reason = "no_fix", "not actionable or no fix"
+        return {"ship": Ship(outcome="rca_only", reason=routed, decision={"reason": reason})}
     fa = state.fix_attempts[-1]
     cs = (
         CompactState()
@@ -67,9 +102,14 @@ async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
         d16.action if d16.action in ("open_pr", "draft_pr", "rca_only", "escalate") else "draft_pr"
     )
     scope_note = ""
+    why: ShipReason | None = None
     has_fix = fa.repro_verified and any(not is_test_path(f) for f in fa.files)
     if not has_fix:
-        outcome = "rca_only"  # no verified reproduction or no source change: nothing to put in a PR
+        # No verified reproduction or no source change: nothing to put in a PR. D16's escalate stands.
+        why = "repro_failed" if not fa.repro_verified else "no_source_change"
+        outcome = "escalate" if outcome == "escalate" else "rca_only"
+    elif outcome in ("escalate", "rca_only"):
+        why = "needs_human"  # a proven fix that D16 held back
     elif not (v and v.passed) and outcome == "open_pr":
         outcome = "draft_pr"  # never a ready PR without validation proof
     elif outcome == "open_pr" and v and v.protected:
@@ -86,6 +126,7 @@ async def ship_gate(state: RunState, deps: Deps) -> dict[str, Any]:
     return {
         "ship": Ship(
             outcome=outcome,
+            reason=why,
             risk=float(d16.chosen.get("risk", 0)),
             decision={
                 "p": d16.p,

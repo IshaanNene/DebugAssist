@@ -23,11 +23,34 @@ import matplotlib.pyplot as plt
 
 from debugassist.core.policy import ROOT
 from debugassist.evals import metrics
+from debugassist.evals.score import fix_success
 from debugassist.evals.stats import mcnemar, rate_with_interval
 
 matplotlib.rcParams["svg.hashsalt"] = "debugassist"  # stable ids instead of random ones per render
 
 REPORTS = ROOT / "evals" / "reports"
+
+# Every change to how saved runs are scored, newest first. All saved runs were rescored (`debugassist eval
+# rescore`) when each was made; the report lists them so a number can be compared with an older report.
+SCORER_CHANGES = [
+    (
+        "2026-11-07",
+        "**validated** counts a validated fix only where the catalog expects a fix. Before, 4 runs of the "
+        "full-d7cf020 sweep counted fixes validated for not-our-bug cases (BUG-006 x3, BUG-025 x1).",
+    ),
+    (
+        "2026-11-07",
+        "**time to RCA**: a negative discovery duration (the report's clock ahead of the run) is dropped, not "
+        "averaged. 5 BUG-001 rows (-131 s to -831 s): BugDrop dated reports with the client's clock, which "
+        "BUG-001's scenario runs 17 simulated minutes ahead. BugDrop now refuses a future client time.",
+    ),
+]
+
+
+def scorer_changes_section() -> str:
+    lines = ["## Scorer changes", "", "Each was applied to every saved run before this report was built.", ""]
+    lines += [f"- {date}: {text}" for date, text in SCORER_CHANGES]
+    return "\n".join(lines) + "\n"
 
 
 def load_results(dirs: list[Path]) -> list[dict[str, Any]]:
@@ -87,7 +110,7 @@ def by_config(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "category_ok": _ms(per_seed(lambda r: r["category_ok"])),
                 # Only runs that reached the ship gate have an outcome (full runs stop after validation).
                 "outcome_ok": f"{sum(1 for r in shipped if r['outcome_ok'])}/{len(shipped)}",
-                "validated": _ms(per_seed(lambda r: r["validated"])),
+                "validated": _ms(per_seed(fix_success)),
                 "hidden_tests_pass": f"{sum(1 for r in hidden if r['hidden_tests'])}/{len(hidden)}"
                 if hidden
                 else "–",
@@ -123,7 +146,7 @@ def intervals_by_config(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "rca_exact": ci(rs, lambda r: r["rca"] == "exact"),
                 "rca_exact_or_directional": ci(rs, lambda r: r["rca"] in ("exact", "directional")),
                 "category_ok": ci(rs, lambda r: bool(r["category_ok"])),
-                "validated": ci(rs, lambda r: bool(r["validated"])),
+                "validated": ci(rs, fix_success),
                 "hidden_tests_pass": ci(hidden, lambda r: bool(r["hidden_tests"])),
             }
         )
@@ -141,7 +164,7 @@ def paired_comparisons(rows: list[dict[str, Any]], alpha: float = 0.05) -> list[
             by[r["config"]][(str(r["bug"]), int(r["seed"]))] = r
     metrics_: dict[str, Callable[[dict[str, Any]], bool]] = {
         "rca_exact": lambda r: r["rca"] == "exact",
-        "validated": lambda r: bool(r["validated"]),
+        "validated": fix_success,
     }
     out: list[dict[str, Any]] = []
     names = sorted(by)
@@ -526,10 +549,12 @@ one got right and the other did not, and the exact McNemar test says whether tha
 {_prereg_section(rows)}
 ![RCA accuracy by configuration](rca_by_config.svg)
 
-Definitions: **exact** = file and function match ground truth; **directional** = right file or module; for
-"not our bug" cases, exact = routed with the right category and no fix attempted. **hidden tests** = the
-catalog's hidden tests pass on the agent's change (run by the evaluator in a copy of the worktree).
+Definitions: **validated** = the fix passed validation (reproduction fails before, passes after) on a bug
+the catalog expects a fix for; **exact** = file and function match ground truth; **directional** = right file or
+module; for "not our bug" cases, exact = routed with the right category and no fix attempted. **hidden tests** =
+the catalog's hidden tests pass on the agent's change (run by the evaluator in a copy of the worktree).
 
+{scorer_changes_section()}
 ## Decisions (labelled from the catalog)
 
 {_md_table(dec, ["decision", "n", "accuracy", "brier", "ece", "coverage_at_tau", "accuracy_at_tau", "latency_p50_ms", "usd_per_1k"])}

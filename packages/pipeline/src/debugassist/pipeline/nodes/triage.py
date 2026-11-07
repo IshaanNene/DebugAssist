@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import httpx
 
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import ROOT, Verdict
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
@@ -59,7 +60,8 @@ async def auto_triage(state: RunState, deps: Deps) -> dict[str, Any]:
     from debugassist.mcp_servers import code_search
 
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     frames: list[dict[str, Any]] = issue.latest_event.get("frames") or []
     top = top_in_app(frames)
     owner_team, owner_source = None, "clef"

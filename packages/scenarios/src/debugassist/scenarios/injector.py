@@ -19,6 +19,7 @@ from typing import Any
 
 import httpx
 
+from debugassist.core.invariants import InvariantError
 from debugassist.scenarios.catalog import ROOT, Bug
 from debugassist.scenarios.environment import Environment
 from debugassist.scenarios.targets import COMPOSE_SERVICES, TargetRepo
@@ -82,7 +83,8 @@ def inject(
     branches: dict[str, str] = {}
     services: list[str] = []
     for repo in repos:
-        assert inj.release, f"{bug.id}: code injection needs a release version"
+        if not inj.release:
+            raise InvariantError(f"{bug.id}: code injection needs a release version")
         branch = repo.checkout_release(inj.base, inj.release)
         for rel in inj.repos[repo.name]:
             repo.apply_patch(bug.path(rel))

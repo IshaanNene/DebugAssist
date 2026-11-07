@@ -7,6 +7,7 @@ from typing import Any
 
 from debugassist.core import untrusted
 from debugassist.core.ablation import ablated
+from debugassist.core.invariants import InvariantError
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
@@ -38,7 +39,8 @@ from debugassist.pipeline.state import (
 
 async def classify_rca(state: RunState, deps: Deps) -> dict[str, Any]:
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     frames: list[dict[str, Any]] = issue.latest_event.get("frames") or []
     flags: dict[str, Any] = next((e.data for e in state.evidence if e.kind == "flag_exposure"), None) or {}
     versions: dict[str, Any] = (

@@ -21,6 +21,7 @@ from typing import Any
 
 import httpx
 
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import ROOT, Verdict
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
@@ -67,7 +68,8 @@ def _vitals_stats(deps: Deps, since: datetime, until: datetime, fingerprint: str
 
 def measure(deps: Deps, state: RunState, since: datetime, until: datetime) -> dict[str, Any]:
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     if issue.source == "vitals":
         return _vitals_stats(deps, since, until, issue.fingerprint)
     stats = _vitals_stats(deps, since, until, None)
@@ -88,7 +90,8 @@ async def check(
     state: RunState, deps: Deps, *, min_sessions: int = MIN_SESSIONS, approve_flag_restore: bool = False
 ) -> Watch:
     issue, w = state.issue, state.watch
-    assert issue and w
+    if not issue or not w:
+        raise InvariantError("expected issue and w")
     now = datetime.now(UTC)
     w.checks += 1
     w.last_checked = now.isoformat()
@@ -170,7 +173,8 @@ def _resolve(state: RunState, deps: Deps, approve_flag_restore: bool) -> list[st
     from debugassist.mcp_servers import feature_flags as ff
 
     issue, tr, m, w = state.issue, state.triage, state.mitigation, state.watch
-    assert issue and w
+    if not issue or not w:
+        raise InvariantError("expected issue and w")
     done: list[str] = []
     if issue.source == "vitals":
         done.append(
@@ -218,7 +222,8 @@ def _resolve(state: RunState, deps: Deps, approve_flag_restore: bool) -> list[st
 
 def _reopen(state: RunState, deps: Deps) -> list[str]:
     issue, tr, w = state.issue, state.triage, state.watch
-    assert issue and w
+    if not issue or not w:
+        raise InvariantError("expected issue and w")
     done: list[str] = []
     if tr and tr.jira_key:
         done.append(
@@ -282,7 +287,8 @@ def _rates(w: Watch) -> str:
 def _chat(deps: Deps, state: RunState, level: str, title: str, text: str) -> str:
 
     issue, tr = state.issue, state.triage
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     msg = ChatMessage(
         to=f"@{tr.oncall}" if tr else "#debugassist",
         title=title,

@@ -33,7 +33,7 @@ test:  ## Unit tests (mock mode)
 mutate:  ## Mutation score of the reproduction rules (pipeline/proof.py) against their tests (~2 min)
 	uv run --no-sync python scripts/mutate.py packages/pipeline/src/debugassist/pipeline/proof.py packages/pipeline/tests/test_proof.py
 
-doctor:  ## Is this machine ready? Python, uv, Docker, submodules, .env key names, ports (changes nothing)
+doctor:  ## Is this machine ready? Python, uv, Docker, synced folder, disk space, submodules, .env key names, ports (changes nothing)
 	@uv run --no-sync python scripts/doctor.py
 
 coverage:  ## Tests with coverage floors (CI): the total and pipeline/ may only go up — raise the numbers as they do

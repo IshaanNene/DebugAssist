@@ -290,8 +290,8 @@ def test_a_resumed_run_does_not_comment_on_the_issue_twice(tmp_path: Path) -> No
     d.gate = PolicyGate(
         Policy(actions={"github.comment": Verdict.LIVE}, repos=["acme/widgets"]), tmp_path / "a.jsonl"
     )
-    first = nodes._comment_app_issue(d, s, None, "rca_only")
-    again = nodes._comment_app_issue(d, s, None, "rca_only")
+    first = nodes._comment_app_issue(d, s, None)
+    again = nodes._comment_app_issue(d, s, None)
     assert (
         len(posted) == 1 and first[0]["result"] == "commented" and again[0]["result"] == "already commented"
     )

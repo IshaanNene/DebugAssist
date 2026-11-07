@@ -19,6 +19,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any, cast
 
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import ROOT, Verdict
 from debugassist.core.redaction import redact_text
 from debugassist.decisions.engine import RunContext
@@ -94,7 +95,8 @@ def propose_skill_update(state: RunState, deps: Deps, kind: str, comment: str) -
     if path is None:
         return {"status": "no_skill", "detail": "the agent type lists no fix skill"}
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     pid = uuid.uuid4().hex[:8]
     branch = f"debugassist/skill-{names[0]}-{pid}"
     lesson = f"- {redact_text(comment.strip())} _({kind.replace('_', ' ')}; review of {issue.id}, {datetime.now(UTC).date()})_"
@@ -153,7 +155,8 @@ async def route(state: RunState, deps: Deps, entry: dict[str, Any]) -> dict[str,
     target, up = str(entry.get("target", "rca")), entry.get("reaction") == "up"
     comment = str(entry.get("comment") or "").strip()
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     out: dict[str, Any] = {"target": target, "reaction": entry.get("reaction")}
     out["labelled"] = await label_decisions(state, deps, target, up, comment)
     if not comment:

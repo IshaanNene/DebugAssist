@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from debugassist.core.ablation import ablated
+from debugassist.core.invariants import InvariantError
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
 from debugassist.integrations.sandbox import Sandbox
@@ -49,7 +50,8 @@ IDENT_RE = re.compile(r"`([A-Za-z_$][\w$.]*)(?:\(\))?`")
 
 
 def _ctx(state: RunState) -> RunContext:
-    assert state.issue
+    if not state.issue:
+        raise InvariantError("expected state.issue")
     return RunContext(run_id=state.run_id, issue_id=state.issue.id)
 
 
@@ -101,7 +103,8 @@ def candidates(sb: Sandbox, state: RunState) -> tuple[list[dict[str, str]], list
     """Candidate fix locations ("path::function") with why each is a candidate; plus the release window's
     changed files."""
     issue, rca = state.issue, state.rca
-    assert issue and rca and rca.output
+    if not issue or not rca or not rca.output:
+        raise InvariantError("expected issue and rca and rca.output")
     o = rca.output
     ws = sb.workspace
     exts = SOURCE_EXT.get(issue.language, ())
@@ -192,7 +195,8 @@ async def localize(
 ) -> tuple[dict[str, Any], list[str], int, str | None]:
     """D12: (decision record, focus locations, number of candidates, ledger id)."""
     issue, rca = state.issue, state.rca
-    assert issue and rca and rca.output
+    if not issue or not rca or not rca.output:
+        raise InvariantError("expected issue and rca and rca.output")
     if ablated("D12"):
         return {"action": "ablated"}, [], 0, None
     cands, _ = candidates(sb, state)
@@ -234,7 +238,8 @@ async def choose_strategy(
 ) -> tuple[dict[str, Any], str | None, str | None]:
     """D13: (decision record, skip reason or None, ledger id)."""
     issue, rca = state.issue, state.rca
-    assert issue and rca and rca.output
+    if not issue or not rca or not rca.output:
+        raise InvariantError("expected issue and rca and rca.output")
     o = rca.output
     m = state.mitigation
     cs = (
@@ -271,7 +276,8 @@ async def choose_tier(
 ) -> tuple[dict[str, Any], list[Tier], str | None, str | None]:
     """D14: (decision record, ladder, skip reason or None, ledger id)."""
     issue, rca = state.issue, state.rca
-    assert issue and rca and rca.output
+    if not issue or not rca or not rca.output:
+        raise InvariantError("expected issue and rca and rca.output")
     o = rca.output
     if ablated("D14"):  # no tier choice: climb the full ladder from the cheapest tier
         ladder_: list[Tier] = [t for t in TIERS if not (t == "e2e_env" and e2e_unavailable is not None)]
@@ -300,7 +306,8 @@ async def plan(
     sb: Sandbox, state: RunState, deps: Deps, pipeline: dict[str, Any]
 ) -> tuple[FixPlan, list[str]]:
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     ledgers: list[str] = []
     loc, focus, n, l12 = await localize(sb, state, deps)
     ledgers.append(l12 or "")

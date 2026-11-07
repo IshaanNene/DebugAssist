@@ -300,15 +300,21 @@ def rescore(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     keep = ("hidden_tests", "hidden_detail", "config", "seed", "issue", "deduped_from", "labelled_decisions")
     out: list[dict[str, object]] = []
+    fresh_n = 0
     for row in rows:
-        if row.get("run_id") and (score.RUNS / row["run_id"] / "state.json").is_file():
+        if row.get("run_id") and row.get("bug"):
             bug_id = str(row["bug"])
             case = real.load_case(bug_id) if bug_id.startswith("REAL-") else get_bug(bug_id)
-            fresh = score.score_run(row["run_id"], case, float(row.get("clef_usd") or 0), False)
-            row = {**row, **fresh, **{k: row[k] for k in keep if k in row}}
+            if (score.RUNS / row["run_id"] / "state.json").is_file():
+                fresh = score.score_run(row["run_id"], case, float(row.get("clef_usd") or 0), False)
+                row = {**row, **fresh, **{k: row[k] for k in keep if k in row}}
+                fresh_n += 1
+            else:  # the run's state is gone: only the row-level rules apply
+                row = score.normalize(row, case)
         out.append(row)
     path.write_text("".join(json.dumps(r, default=str) + "\n" for r in out))
-    typer.echo(f"rescored {sum(1 for r in out if r.get('run_id'))} runs in {path}")
+    n = sum(1 for r in out if r.get("run_id"))
+    typer.echo(f"rescored {n} runs in {path} ({fresh_n} from saved state, {n - fresh_n} row-level only)")
 
 
 @app.command()

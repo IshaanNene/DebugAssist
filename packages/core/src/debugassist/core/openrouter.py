@@ -39,7 +39,8 @@ class ModelInfo(BaseModel):
         return self.id.endswith(":free") or (self.price_in_per_mtok == 0 and self.price_out_per_mtok == 0)
 
 
-def _catalog(path: Path = CACHE) -> list[dict[str, object]]:
+def _catalog(path: Path | None = None) -> list[dict[str, object]]:
+    path = CACHE if path is None else path  # read at call time, so tests (and callers) can repoint CACHE
     if path.is_file() and time.time() - path.stat().st_mtime < 86_400:
         return json.loads(path.read_text())
     try:

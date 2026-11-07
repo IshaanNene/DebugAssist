@@ -8,6 +8,7 @@ from typing import Any
 
 from debugassist.core import untrusted
 from debugassist.core.ablation import second_repro_mode
+from debugassist.core.invariants import InvariantError
 from debugassist.integrations.sandbox import Sandbox
 from debugassist.llm.spec import LLMNodeSpec
 from debugassist.llm.workspace_tools import build_workspace_tools, is_test_path
@@ -79,7 +80,8 @@ async def second_reproduction(
     valid second reproduction was written; a record; cost). Both runs happen in disposable checkouts of the
     release: the run's worktree is only read."""
     issue, rca = state.issue, state.rca
-    assert issue and rca and rca.output
+    if not issue or not rca or not rca.output:
+        raise InvariantError("expected issue and rca and rca.output")
     loc = f"{rca.output.location.file} → {rca.output.location.function}"
     classes = release.classify_changes(sb.worktree, base)
     taken = {*classes.get("new_test", []), *classes.get("modified_test", [])}  # the fixing agent's tests

@@ -21,6 +21,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from debugassist.core import untrusted
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import Verdict
 from debugassist.core.settings import Integration, get_settings
 from debugassist.integrations.sandbox import IMAGES
@@ -97,7 +98,8 @@ async def fix_diff(run_id: str, instruction: str) -> dict[str, Any]:
         raise ValueError("this run has no verified fix to revise")
     fa = state.fix_attempts[-1]
     repro = fa.repro
-    assert repro
+    if not repro:
+        raise InvariantError("expected repro")
     deps = await _deps(state)
     entry: dict[str, Any] = {
         "kind": "diff_fix",
@@ -175,7 +177,8 @@ def _push_and_comment(
     state: RunState, deps: Deps, worktree: Path, out: DiffFixOutput, instruction: str
 ) -> dict[str, Any]:
     pr, issue = state.pr, state.issue
-    assert pr and issue
+    if not pr or not issue:
+        raise InvariantError("expected pr and issue")
     push_v = deps.gate.verdict("github.push_branch", repo=issue.gh_repo, branch=pr.branch)
     comment_v = deps.gate.verdict("github.comment", repo=issue.gh_repo)
     result: dict[str, Any] = {"pushed": False, "commented": False}

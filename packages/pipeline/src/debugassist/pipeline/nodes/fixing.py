@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from debugassist.core import untrusted
+from debugassist.core.invariants import InvariantError
 from debugassist.llm.spec import LLMNodeSpec
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files, is_test_path
 from debugassist.pipeline import (
@@ -50,7 +51,8 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     """Plan once (D12–D14), then two enforced phases per attempt: (1) reproduce — tests only, must fail on
     the release, climbing the tier ladder until a tier reproduces; (2) fix — make it pass."""
     issue, rca = state.issue, state.rca
-    assert issue and rca and rca.output
+    if not issue or not rca or not rca.output:
+        raise InvariantError("expected issue and rca and rca.output")
     sb = sandbox_for(state)
     comp = component_cfg(state, sb.worktree)
     attempt = len(state.fix_attempts) + 1
@@ -206,7 +208,8 @@ async def fix(state: RunState, deps: Deps) -> dict[str, Any]:
     # check re-proves the contract: with only the source change reverted it still fails with the production
     # error, and with the change it passes. A test weakened to pass is therefore rejected.
     repro = fa.repro
-    assert repro
+    if not repro:
+        raise InvariantError("expected repro")
     tools = build_workspace_tools(
         sb,
         allow_edits=True,

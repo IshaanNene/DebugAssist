@@ -25,6 +25,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from debugassist.core import untrusted
+from debugassist.core.invariants import InvariantError
 from debugassist.llm.spec import LLMNodeSpec, LLMResult
 from debugassist.llm.workspace_tools import build_workspace_tools, changed_files
 from debugassist.pipeline import crossrepo, nodes
@@ -108,7 +109,8 @@ def _rca_output(out: BaselineOutput) -> RCAOutput:
 
 async def investigate_and_fix(state: RunState, deps: Deps) -> dict[str, Any]:
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     sb = nodes.sandbox_for(state)
     sb.create(f"v{issue.last_version}", nodes.bot_branch(issue, deps))
     results: list[LLMResult] = []
@@ -147,7 +149,8 @@ async def investigate_and_fix(state: RunState, deps: Deps) -> dict[str, Any]:
             break
         state = state.model_copy(update=moved)
         issue = state.issue
-        assert issue
+        if not issue:
+            raise InvariantError("expected issue")
         sb = nodes.sandbox_for(state)
     if out is None:
         raise RuntimeError(f"baseline agent ended with status {results[-1].status if results else 'none'}")
@@ -166,7 +169,11 @@ async def investigate_and_fix(state: RunState, deps: Deps) -> dict[str, Any]:
         "agent_type_reason": state.agent_type_reason,
         "rca": RCA(output=_rca_output(out), llm=summary),
         "fix_attempts": attempts,
-        "ship": Ship(outcome="draft_pr" if diff else "rca_only", decision={"by": "baseline: changed or not"}),
+        "ship": Ship(
+            outcome="draft_pr" if diff else "rca_only",
+            reason=None if diff else "no_fix",
+            decision={"by": "baseline: changed or not"},
+        ),
         "costs": costs,
         "status": "done",
     }

@@ -16,6 +16,7 @@ from typing import Annotated, Any
 import httpx
 import typer
 
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import ROOT
 from debugassist.core.settings import Integration, Mode, get_settings
 from debugassist.integrations.jira import JiraCloud
@@ -69,7 +70,8 @@ def _jira(key: str | None) -> dict[str, Any] | None:
     s = get_settings()
     if not key or s.mode(Integration.JIRA) is not Mode.LIVE:
         return None
-    assert s.jira_base_url and s.jira_email and s.jira_api_key
+    if not s.jira_base_url or not s.jira_email or not s.jira_api_key:
+        raise InvariantError("live Jira needs JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_KEY")
     try:
         return JiraCloud(s.jira_base_url, s.jira_email, s.jira_api_key.get_secret_value(), "").snapshot(key)
     except Exception as exc:

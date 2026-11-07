@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from debugassist.core.invariants import InvariantError
 from debugassist.core.settings import get_settings
 
 # applied to every recording: e-mails (commit authors on GitHub), Atlassian identities, avatars
@@ -94,7 +95,8 @@ def jira() -> dict[str, Any]:
     s = get_settings()
     if None in (s.jira_base_url, s.jira_email, s.jira_api_key):
         raise SystemExit("JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_KEY are needed")
-    assert s.jira_base_url and s.jira_email and s.jira_api_key
+    if not s.jira_base_url or not s.jira_email or not s.jira_api_key:
+        raise InvariantError("live Jira needs JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_KEY")
     base = s.jira_base_url.rstrip("/")
     http = httpx.Client(auth=(s.jira_email, s.jira_api_key.get_secret_value()), timeout=20,
                         headers={"Accept": "application/json"})  # fmt: skip

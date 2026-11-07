@@ -12,6 +12,7 @@ from typing import Any
 import yaml
 
 from debugassist.core.evidence import EvidenceItem
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import ROOT
 from debugassist.core.settings import Integration, Mode
 from debugassist.core.workspace import Workspace
@@ -59,7 +60,8 @@ def llm_summary(r: LLMResult) -> dict[str, Any]:
 
 
 def sandbox_for(state: RunState) -> Sandbox:
-    assert state.issue
+    if not state.issue:
+        raise InvariantError("expected state.issue")
     return Sandbox(
         state.run_id, ROOT / "targets" / state.issue.repo, state.issue.gh_repo, state.issue.language
     )
@@ -75,7 +77,8 @@ def run_values(state: RunState) -> dict[str, str]:
 
 
 def code_repos_env(state: RunState) -> dict[str, str]:
-    assert state.issue
+    if not state.issue:
+        raise InvariantError("expected state.issue")
     sb = sandbox_for(state)
     # Service URLs for the MCP servers: localhost by default; service names inside a runtime container.
     passthrough = (
@@ -171,7 +174,8 @@ def run_on_release(sb: Sandbox, base: str, run: Callable[[Sandbox], CommandResul
 
 
 def component_cfg(state: RunState, worktree: Path) -> dict[str, Any]:
-    assert state.issue
+    if not state.issue:
+        raise InvariantError("expected state.issue")
     cfg = pipeline_yaml(worktree, state.issue)["components"]
     if state.issue.component == ".":
         return next(iter(cfg.values()))

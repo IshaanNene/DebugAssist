@@ -26,6 +26,7 @@ import httpx
 from debugassist.core.ablation import ablated
 from debugassist.core.evidence import EvidenceItem, Source
 from debugassist.core.files import write_atomic
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import ROOT
 from debugassist.decisions.engine import RunContext
 from debugassist.decisions.state import CompactState
@@ -207,7 +208,8 @@ def vitals_core(issue: Issue, notes: list[str]) -> list[EvidenceItem]:
     from debugassist.mcp_servers import feature_flags as ff
     from debugassist.mcp_servers import git_history as gh
 
-    assert issue.fingerprint
+    if not issue.fingerprint:
+        raise InvariantError("expected issue.fingerprint")
     fp = issue.fingerprint
     items: list[EvidenceItem | None] = []
 
@@ -573,7 +575,8 @@ def _store(issue: Issue, core: list[EvidenceItem], optional: list[EvidenceItem],
 
 async def collect(state: RunState, deps: Deps) -> dict[str, Any]:
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     ctx = RunContext(run_id=state.run_id, issue_id=issue.id)
     notes: list[str] = []
     hit: tuple[list[EvidenceItem], list[EvidenceItem], list[str]] | None = None

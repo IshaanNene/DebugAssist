@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from debugassist.core.invariants import InvariantError
 from debugassist.core.policy import Verdict
 from debugassist.integrations.chat import ChatMessage
 from debugassist.pipeline import (
@@ -16,7 +17,7 @@ from debugassist.pipeline import (
 )
 from debugassist.pipeline.deps import Deps
 from debugassist.pipeline.nodes.common import sandbox_for, source_label
-from debugassist.pipeline.nodes.ship import commit_trailer, ready_pr_allowed
+from debugassist.pipeline.nodes.ship import commit_trailer, explain, ready_pr_allowed
 from debugassist.pipeline.notify import notify
 from debugassist.pipeline.state import (
     PRInfo,
@@ -24,10 +25,11 @@ from debugassist.pipeline.state import (
 )
 
 
-def app_comment(state: RunState, pr_url: str | None, outcome: str) -> str:
+def app_comment(state: RunState, pr_url: str | None) -> str:
     """What the run says on the GitHub issue it was asked about (starts with the app's marker)."""
-    issue, rca = state.issue, state.rca
-    assert issue
+    issue, rca, ship = state.issue, state.rca, state.ship
+    if issue is None or ship is None:
+        raise ValueError("app_comment needs the run's issue and ship decision")
     o = rca.output if rca else None
     lines = [f"<!-- debugassist:run {state.run_id} -->", "**DebugAssist** looked into this issue."]
     if o:
@@ -42,13 +44,7 @@ def app_comment(state: RunState, pr_url: str | None, outcome: str) -> str:
     if pr_url:
         lines += ["", f"A fix with a reproduction test is ready for review: {pr_url}"]
     else:
-        lines += [
-            "",
-            {
-                "rca_only": "No fix proposed: the root cause is outside this repository's code.",
-                "escalate": "No fix proposed: this needs a maintainer's decision.",
-            }.get(outcome, f"No pull request ({outcome.replace('_', ' ')})."),
-        ]
+        lines += ["", explain(state, ship)]
     lines += [
         "",
         f"<sub>Automated analysis, run `{state.run_id}`. Remove the label to stop; remove and re-add it to rerun.</sub>",
@@ -56,9 +52,7 @@ def app_comment(state: RunState, pr_url: str | None, outcome: str) -> str:
     return "\n".join(lines)
 
 
-def comment_app_issue(
-    deps: Deps, state: RunState, pr_info: PRInfo | None, outcome: str
-) -> list[dict[str, Any]]:
+def comment_app_issue(deps: Deps, state: RunState, pr_info: PRInfo | None) -> list[dict[str, Any]]:
     """GitHub App issues: the outcome as a comment on the issue, through the policy gate."""
     issue = state.issue
     if issue is None or issue.app_issue is None or deps.app is None:
@@ -74,7 +68,7 @@ def comment_app_issue(
                 deps.app.comment(
                     issue.gh_repo,
                     issue.app_issue,
-                    app_comment(state, pr_info.url if pr_info else None, outcome),
+                    app_comment(state, pr_info.url if pr_info else None),
                 )
                 result = "commented"
         except (httpx.HTTPError, PermissionError, KeyError) as exc:
@@ -94,7 +88,8 @@ def link_source(
 ) -> list[dict[str, Any]]:
     """Attach links to the Vitals issue / BugDrop report and move the report's status along."""
     issue = state.issue
-    assert issue
+    if not issue:
+        raise InvariantError("expected issue")
     if issue.source == "bugdrop":
         base = f"{deps.bugdrop_url}/api/reports/{issue.id}"
     elif issue.source == "vitals":
@@ -128,7 +123,8 @@ def link_source(
 
 async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
     issue, tr, rca, ship = state.issue, state.triage, state.rca, state.ship
-    assert issue and rca and ship
+    if not issue or not rca or not ship:
+        raise InvariantError("expected issue and rca and ship")
     notes = list(state.notifications)
     out: dict[str, Any] = {}
     jira_blocks: list[tuple[str, str]] = []
@@ -197,7 +193,9 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
             gate.gated(
                 "jira.link", lambda: deps.jira.link(key, url, title), run_id=state.run_id, detail={"key": key}
             )
-        blocks = jira_blocks or [("para", f"DebugAssist outcome: {ship.outcome}")]
+        if not pr_info:
+            jira_blocks.append(("para", explain(state, ship)))
+        blocks = jira_blocks
         gate.gated(
             "jira.comment", lambda: deps.jira.comment(key, blocks), run_id=state.run_id, detail={"key": key}
         )
@@ -215,7 +213,7 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
     if pr_info:
         links.append(("pr", pr_info.url, f"PR #{pr_info.number} (DebugAssist)"))
     notes += link_source(deps, state, links, ship.outcome)
-    notes += comment_app_issue(deps, state, pr_info, ship.outcome)
+    notes += comment_app_issue(deps, state, pr_info)
     if tr:
         o = rca.output
         msg = ChatMessage(
@@ -225,7 +223,10 @@ async def pr_and_notify(state: RunState, deps: Deps) -> dict[str, Any]:
                 if pr_info
                 else f"{ship.outcome.replace('_', ' ')}: {issue.title[:180]}"
             ),
-            text=(o.summary if o else "No root cause produced.")[:1500],
+            text=(
+                (o.summary if o else "No root cause produced.")
+                + ("" if pr_info else "\n" + explain(state, ship))
+            )[:1500],
             level="success" if pr_info and not pr_info.draft else "warning" if pr_info else "info",
             links={
                 "PR": pr_info.url if pr_info else "",
