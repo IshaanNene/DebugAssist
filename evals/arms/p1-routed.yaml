@@ -1,0 +1,11 @@
+# Phase 1. Run only with a working Clef token: with Clef unreachable, every decision falls back to the LLM decider
+# and this arm would be p1-pipeline under another name. Run: eval run --configs routed ... --arm p1-routed-<sha>
+arm: p1-routed
+registered: 2026-11-07T05:23:37Z
+hypothesis: >-
+  Clef decisions (each template's own Clef model) improve end-to-end outcomes over the LLM decider (p1-pipeline):
+  the claim the decision layer exists for. Earlier evidence (no-clef-bfbd1db, decision replay E1) found no
+  difference; this arm tests it on paired runs.
+comparisons:
+  - {metric: hidden_tests_pass, versus: p1-pipeline, expect: better}
+  - {metric: rca_exact, versus: p1-pipeline, expect: better}

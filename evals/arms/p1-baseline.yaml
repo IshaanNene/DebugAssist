@@ -1,0 +1,9 @@
+# Phase 1. Run: eval run --bugs all --configs baseline --seeds 3 --arm p1-baseline-<sha>
+arm: p1-baseline
+registered: 2026-11-07T05:23:37Z
+hypothesis: >-
+  One plain tool-using agent (pipeline/baseline.py: same model, tools, worktree and the RCA and fix nodes' turns and
+  budget combined; no plan, no decisions, no MCP evidence servers) localizes better than the no-model control.
+  It never validates by construction, so it is compared on localization and hidden tests only.
+comparisons:
+  - {metric: rca_exact, versus: control, expect: better}

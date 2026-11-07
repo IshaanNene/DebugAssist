@@ -1,0 +1,18 @@
+# Phase 1 (docs/PROGRESS.md "Next level"). Run: eval run --bugs all --configs no-clef --seeds 3 --arm p1-pipeline-<sha>
+arm: p1-pipeline
+registered: 2026-11-07T05:23:37Z
+hypothesis: >-
+  The fixed-plan pipeline with the LLM decider (config no-clef) beats one plain tool-using agent with the same model,
+  tools, worktree and per-run budget (p1-baseline) on hidden-test pass and on exact localization, and beats the
+  no-model control (innermost in-app frame, or the first called function the repo defines) on exact localization.
+  Power is low: 27 bugs x 3 seeds, and seeds of one bug are not independent, so a 10-point gain is likely to be
+  missed; a "not met" means no evidence, not evidence of no effect. The checks are a replication floor set below
+  full-d7cf020 (rca_exact 0.61, hidden 37/50, validated 0.65), not targets.
+checks:
+  - {metric: rca_exact, at_least: 0.50}
+  - {metric: hidden_tests_pass, at_least: 0.60}
+  - {metric: validated, at_least: 0.55}
+comparisons:
+  - {metric: hidden_tests_pass, versus: p1-baseline, expect: better}
+  - {metric: rca_exact, versus: p1-baseline, expect: better}
+  - {metric: rca_exact, versus: control, expect: better}
