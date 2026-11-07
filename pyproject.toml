@@ -102,4 +102,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["packages", "sources"]
 addopts = "--import-mode=importlib -q"
-markers = ["live: hits a real external API (skipped unless DA_LIVE_TESTS=1)"]
+markers = [
+  "live: hits a real external API (skipped unless DA_LIVE_TESTS=1)",
+  "network_guard_selftest: checks the no-network guard itself (its blocked attempts don't fail the test)",
+]

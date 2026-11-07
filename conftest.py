@@ -14,7 +14,11 @@ for src in sorted(
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
 
+import ipaddress  # noqa: E402
 import os  # noqa: E402
+import socket  # noqa: E402
+from collections.abc import Callable  # noqa: E402
+from typing import Any  # noqa: E402
 
 import pytest  # noqa: E402
 
@@ -58,3 +62,73 @@ def _no_ambient_credentials(request: pytest.FixtureRequest, monkeypatch: pytest.
         monkeypatch.setattr(app_cli, name, app_dir / getattr(app_cli, name).name)
     get_settings.cache_clear()
     request.addfinalizer(get_settings.cache_clear)
+
+
+class NetworkBlocked(ConnectionRefusedError):
+    """A test that is not marked `live` tried to reach a host other than this machine."""
+
+
+def _local(host: object) -> bool:
+    if host is None or host in ("", "localhost") or (isinstance(host, str) and host.endswith(".localhost")):
+        return True
+    try:
+        return ipaddress.ip_address(str(host).split("%")[0]).is_loopback
+    except ValueError:
+        return False
+
+
+@pytest.fixture(autouse=True)
+def _no_outbound_network(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every test not marked `live` runs without the network: a connection or DNS lookup for anything but loopback
+    or a unix socket raises `NetworkBlocked` and fails the test, even if the code under test swallows the error
+    (a hidden call to openrouter.ai once made a "replayed" contract test depend on the live API). Child processes
+    (git, node, docker) are not covered; they run against local fixtures or Docker's unix socket."""
+    if os.environ.get("DA_LIVE_TESTS") == "1" and "live" in request.keywords:
+        return
+    attempts: list[str] = []
+
+    def refuse(what: str) -> NetworkBlocked:
+        attempts.append(what)
+        return NetworkBlocked(f"network access in a non-live test: {what}")
+
+    real_connect: Callable[..., Any] = socket.socket.connect
+    real_connect_ex: Callable[..., Any] = socket.socket.connect_ex
+    real_getaddrinfo: Callable[..., Any] = socket.getaddrinfo
+
+    def allowed(sock: socket.socket, address: Any) -> bool:
+        return sock.family == getattr(socket, "AF_UNIX", None) or (
+            isinstance(address, tuple) and _local(address[0])  # pyright: ignore[reportUnknownArgumentType]
+        )
+
+    def connect(self: socket.socket, address: Any) -> None:
+        if not allowed(self, address):
+            raise refuse(f"connect {address!r}")
+        real_connect(self, address)
+
+    def connect_ex(self: socket.socket, address: Any) -> int:
+        if not allowed(self, address):
+            raise refuse(f"connect {address!r}")
+        return real_connect_ex(self, address)
+
+    def getaddrinfo(host: Any, *args: Any, **kwargs: Any) -> Any:
+        if not _local(host.decode() if isinstance(host, bytes) else host):
+            raise refuse(f"resolve {host!r}")
+        return real_getaddrinfo(host, *args, **kwargs)
+
+    monkeypatch.setattr(socket.socket, "connect", connect)
+    monkeypatch.setattr(socket.socket, "connect_ex", connect_ex)
+    monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
+    # OpenRouter's model catalog: an empty, fresh per-test cache (unknown models get the conservative defaults).
+    from debugassist.core import openrouter
+
+    empty = request.getfixturevalue("tmp_path") / "openrouter_models.json"
+    empty.write_text("[]")
+    monkeypatch.setattr(openrouter, "CACHE", empty)
+    openrouter.model_info.cache_clear()
+    request.addfinalizer(openrouter.model_info.cache_clear)
+
+    def check() -> None:
+        if attempts and "network_guard_selftest" not in request.keywords:
+            pytest.fail(f"non-live test used the network: {'; '.join(attempts[:3])}", pytrace=False)
+
+    request.addfinalizer(check)
