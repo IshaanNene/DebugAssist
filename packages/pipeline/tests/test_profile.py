@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -26,14 +27,13 @@ def issue(about: str | None) -> Issue:
 def prompts() -> dict[str, str]:
     """Every prompt the pipeline passes through profile.for_issue."""
     out = {"rca_system.md": load_prompt("rca_system.md")}
-    subagents = yaml.safe_load((ROOT / "configs" / "subagents.yaml").read_text())
-    for sid, s in (subagents.get("subagents") or subagents).items():
-        if isinstance(s, dict) and "description" in s:
-            out[f"subagent {sid}"] = SUBAGENT_PROMPT.format(
-                sid=sid,
-                description=s["description"],  # pyright: ignore[reportUnknownArgumentType]
-                focus=" ".join(str(s.get("focus", "")).split()),  # pyright: ignore[reportUnknownMemberType]
-            )
+    subagents: dict[str, dict[str, Any]] = yaml.safe_load((ROOT / "configs" / "subagents.yaml").read_text())[
+        "subagents"
+    ]
+    for sid, s in subagents.items():
+        out[f"subagent {sid}"] = SUBAGENT_PROMPT.format(
+            sid=sid, description=s["description"], focus=" ".join(str(s.get("focus", "")).split())
+        )
     return out
 
 
