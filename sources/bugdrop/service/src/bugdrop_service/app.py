@@ -167,8 +167,12 @@ async def create_report(
                 "original_name": re.sub(r"[^\w.\- ]", "", up.filename or "")[:80],
             }
         )
-    created = datetime.fromtimestamp(body.created_at, UTC) if body.created_at else datetime.now(UTC)
-    bundle = {"report_ts": created.timestamp(), "logs": logs}
+    received = datetime.now(UTC)
+    client = datetime.fromtimestamp(body.created_at, UTC) if body.created_at else received
+    # The logs keep the device's clock (report_ts is on it); the report's date is never later than its receipt,
+    # so a device clock running ahead cannot date a report after the work done on it.
+    created = min(client, received)
+    bundle = {"report_ts": client.timestamp(), "logs": logs}
     store().put(f"reports/{rid}/logs.json", json.dumps(bundle).encode(), "application/json")
     row = Report(
         id=rid,
