@@ -1,0 +1,84 @@
+name: eval-sweep
+# A live evaluation sweep on a GitHub runner instead of a laptop (no sleep, no synced folder, a clean disk).
+# Manual only; it spends real money, so the estimate is checked against max_usd before the first run and the
+# sweep stops before the next bug when the OpenRouter key's credit falls below reserve_usd.
+#
+# Secrets (repository → Settings → Secrets and variables → Actions):
+#   OPEN_ROUTER_API_KEY  the LLM key (its own spend limit on openrouter.ai is the last line of defence)
+#   SUBMODULES_TOKEN     a fine-grained token with read access to IshaanNene/miniride-client and
+#                        IshaanNene/miniride-services (the private submodule)
+# Not used: Clef. Its Cloudflare token is IP-restricted, so runs use the LLM decider unless `decider` says so.
+# Nothing is pushed: GitHub, Jira and chat stay in mock mode, and results leave only as the workflow artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      bugs: { description: "comma list of catalog ids, or all", default: "all", required: true }
+      configs: { description: "comma list of eval configs (routed, no-clef, baseline, …)", default: "routed" }
+      seeds: { description: "runs per configuration", default: "3" }
+      max_usd: { description: "refuse to start above this estimate (USD)", default: "2", required: true }
+      reserve_usd: { description: "stop before the next bug below this key credit (USD)", default: "0.25" }
+      arm: { description: "label for this code version in reports", default: "" }
+      decider: { description: "DA_DECIDER: llm | routed | clef | clef-flash", default: "llm" }
+      model: { description: "LLM_MODEL on OpenRouter (the headline arms used this one)", default: "openai/gpt-6-luna" }
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eval-sweep  # one sweep at a time: two would share the key's budget
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    env:  # inputs reach the shell as variables, never spliced into the script
+      DA_DECIDER: ${{ inputs.decider }}
+      BUGS: ${{ inputs.bugs }}
+      CONFIGS: ${{ inputs.configs }}
+      SEEDS: ${{ inputs.seeds }}
+      MAX_USD: ${{ inputs.max_usd }}
+      RESERVE_USD: ${{ inputs.reserve_usd }}
+      ARM: ${{ inputs.arm }}
+      LLM_MODEL: ${{ inputs.model }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULES_TOKEN }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with: { package_json_file: "targets/miniride-client/package.json" }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with: { node-version: 22 }
+      - run: uv sync --locked
+      - name: .env from secrets (key names only in logs)
+        env:
+          OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
+        run: |
+          test -n "$OPEN_ROUTER_API_KEY" || { echo "OPEN_ROUTER_API_KEY secret is not set"; exit 1; }
+          umask 077
+          printf 'OPEN_ROUTER_API_KEY=%s\nLLM_PROVIDER=openrouter\nLLM_MODEL=%s\n' "$OPEN_ROUTER_API_KEY" "$LLM_MODEL" > .env
+          sed -n 's/=.*//p' .env
+      - run: uv run --no-sync python scripts/doctor.py || true # a record of the machine; never blocks
+      - name: estimate (eval run below refuses to start above max_usd)
+        run: |
+          uv run --no-sync debugassist eval estimate --bugs "$BUGS" --configs "$CONFIGS" --seeds "$SEEDS" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - run: make up
+      - run: make flags
+      - name: sweep
+        run: |
+          uv run --no-sync debugassist eval run --bugs "$BUGS" --configs "$CONFIGS" --seeds "$SEEDS" \
+            --max-usd "$MAX_USD" --reserve-usd "$RESERVE_USD" --arm "${ARM:-cloud-$(git rev-parse --short HEAD)}"
+      - name: results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evals-runs-${{ github.run_id }}
+          path: evals/runs/
+          if-no-files-found: warn
+          retention-days: 90
+      - if: always()
+        run: rm -f .env && make down || true
