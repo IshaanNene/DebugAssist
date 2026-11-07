@@ -27,7 +27,10 @@ direction where they conflict:
   the MCP server table and rules from `docs/mcp.md`, invariants linked to ADRs), `/pipeline` (scroll pipeline, node
   graph, decisions by step), `/decisions` (every template in `packages/decisions/templates` with its band strip,
   outcomes and questions), `/run` (the replay, the run as a system, its CSV record), `/safety` (`writes.yaml` and
-  `docs/THREAT-MODEL.md`), `/design` and `/design/<adr>` (every ADR). The home page is now an overview: hero, Fig. 1,
+  `docs/THREAT-MODEL.md`), `/design` and `/design/<adr>` (every ADR), `/discovery` (the five intake paths from
+  `nodes/intake.py`, Vitals and BugDrop from `docs/ARCHITECTURE.md`, D01/D02, discovery-to-answer medians from the
+  report), `/testbed` (MiniRide, stand-ins, injection and verification), `/repo` (`docs/github-app.md`) and
+  `/lessons` (`docs/LESSONS.md`). The header shows six chapters and an "All pages" index. The home page is now an overview: hero, Fig. 1,
   principle, contents, results summary, start, FAQ.
 - **Unchanged:** every figure is still read from `evals/reports` at build time, the run replay and receipts, the
   Safety section rendered from `configs/policies/writes.yaml`, and the Lab notebook.

@@ -15,6 +15,8 @@ export function resolveHref(href: string, from: string): { href: string; interna
   if (adr) return { href: `/design/${adr[1]}/`, internal: true };
   if (target === "docs/THREAT-MODEL.md") return { href: "/safety/#threat-model", internal: true };
   if (target === "docs/mcp.md") return { href: "/system/#servers", internal: true };
+  if (target === "docs/github-app.md") return { href: `/repo/${hash ? `#${hash}` : ""}`, internal: true };
+  if (target === "docs/LESSONS.md") return { href: "/lessons/", internal: true };
   return { href: doc(target) + (hash ? `#${hash}` : ""), internal: false };
 }
 
@@ -67,7 +69,7 @@ const slug = (s: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-type Block =
+export type Block =
   | { t: "h"; level: number; text: string }
   | { t: "p"; text: string }
   | { t: "ul" | "ol"; items: string[] }

@@ -230,3 +230,24 @@ export function threatModel(): { intro: string; body: string; file: string } {
   const at = src.search(/^## /m);
   return { intro: src.slice(0, at).trim(), body: src.slice(at), file };
 }
+
+// ───────────────────────── sections of a doc ─────────────────────────
+
+/** A whole doc: its path, its title and intro (before the first `##`), and its body from there on. */
+export function docFile(file: string): { file: string; title: string; intro: string; body: string } {
+  const src = read(file);
+  const title = src.match(/^#\s+(.*)$/m)?.[1].trim() ?? file;
+  const rest = src.replace(/^#\s+.*\n/, "");
+  const at = rest.search(/^## /m);
+  return { file, title, intro: (at < 0 ? rest : rest.slice(0, at)).trim(), body: at < 0 ? "" : rest.slice(at) };
+}
+
+/** The Markdown under one `## heading` of a doc (the heading itself left out), up to the next `## `. */
+export function docSection(file: string, heading: string): string {
+  const src = read(file);
+  const start = src.search(new RegExp(`^## ${heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "m"));
+  if (start < 0) return "";
+  const after = src.slice(start).replace(/^## .*\n/, "");
+  const end = after.search(/^## /m);
+  return (end < 0 ? after : after.slice(0, end)).trim();
+}

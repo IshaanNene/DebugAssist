@@ -365,7 +365,9 @@ in review as text dumped into dark boxes with no diagrams.
 - Follow-up the same day: Night removed; diagrams and the run console drawn in ink by shape instead of colour; six
   chapter pages added (`/system`, `/pipeline`, `/decisions`, `/run`, `/safety`, `/design` with a page per ADR),
   rendered at build time from the decision templates, `docs/mcp.md`, `writes.yaml`, `docs/THREAT-MODEL.md` and
-  `docs/adr/`. Checked: typecheck, lint, static build, every route at desktop and phone width.
+  `docs/adr/`; then four more: `/discovery` (intake paths, sources, triage, discovery-to-answer medians over 24
+  runs in `evals/reports/2026-11-07`), `/testbed`, `/repo` and `/lessons`. Checked: typecheck, lint, static build,
+  every route at desktop and phone width.
 
 **Not done**: `/runs`, ⌘K and OG images (P3–P4).
 

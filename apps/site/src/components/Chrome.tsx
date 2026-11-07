@@ -6,7 +6,7 @@ import { CHAPTERS } from "@/lib/chapters";
 export const COL = "mx-auto w-full max-w-[1240px] px-4 sm:px-8";
 
 // Internal links go through next/link so they keep the GitHub Pages base path.
-const NAV: [string, string][] = CHAPTERS.map((c) => [c.href, c.title]);
+const NAV: [string, string][] = CHAPTERS.filter((c) => c.nav).map((c) => [c.href, c.title]);
 
 /** The announcement line (optional) and a full-width header bar with the page's scroll progress. */
 export function SiteHeader({ banner }: { banner?: ReactNode }) {
@@ -27,12 +27,15 @@ export function SiteHeader({ banner }: { banner?: ReactNode }) {
             ))}
           </nav>
           <div className="flex items-center gap-2">
-            <details className="group relative xl:hidden">
+            <details className="group relative">
               <summary className="grid h-8 cursor-pointer list-none place-items-center border border-line-2 px-3 font-mono text-[11.5px] text-t2 hover:text-t1">
-                <span className="group-open:hidden">Menu</span>
+                <span className="group-open:hidden">
+                  <span className="xl:hidden">Menu</span>
+                  <span className="hidden xl:inline">All pages</span>
+                </span>
                 <span className="hidden group-open:inline">Close</span>
               </summary>
-              <nav className="absolute right-0 top-10 z-40 w-[260px] border border-line-strong bg-surface py-2">
+              <nav className="absolute right-0 top-10 z-40 w-[280px] border border-line-strong bg-surface py-2">
                 {CHAPTERS.map((c) => (
                   <Link key={c.href} href={c.href} className="flex gap-3 px-4 py-2 text-[14px] text-t2 hover:bg-sunk hover:text-t1">
                     <span className="font-mono text-[11px] leading-[21px] text-t4">{c.n}</span>

@@ -711,3 +711,41 @@ export function writePolicy(): { rules: WriteRule[]; branchPrefix: string; repos
     .find(Boolean);
   return { rules, branchPrefix: prefix ?? "debugassist/", repos };
 }
+
+/** How long from a signal being discovered to its root cause, and to the run's end, per discovery source — from the
+ *  full-catalog run's `discovery_to_rca_s` and `discovery_to_end_s`. The source is the issue's prefix (VIT = Vitals,
+ *  BD = BugDrop, GHA = a GitHub issue). */
+export interface DiscoveryTimes {
+  report: string;
+  runs: number;
+  sources: { source: string; prefix: string; runs: number; rcaMedian: number; endMedian: number }[];
+  rca: { median: number; min: number; max: number };
+  end: { median: number; min: number; max: number };
+}
+
+const median = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+export function discoveryTimes(data: Results): DiscoveryTimes | null {
+  const num = (v: string | undefined) => (v === undefined || v === "" || v === "nan" ? null : Number(v));
+  const rows = data.baseline
+    .map((r) => ({ issue: r.issue, rca: num(r.discovery_to_rca_s), end: num(r.discovery_to_end_s) }))
+    .filter((r): r is { issue: string; rca: number; end: number } => r.rca !== null && r.end !== null);
+  if (!rows.length) return null;
+  const NAMES: Record<string, string> = { VIT: "Vitals crash", BD: "BugDrop report", GHA: "GitHub issue" };
+  const prefixes = [...new Set(rows.map((r) => r.issue.split("-")[0]))];
+  const span = (xs: number[]) => ({ median: median(xs), min: Math.min(...xs), max: Math.max(...xs) });
+  return {
+    report: data.report,
+    runs: rows.length,
+    sources: prefixes.map((p) => {
+      const rs = rows.filter((r) => r.issue.split("-")[0] === p);
+      return { source: NAMES[p] ?? p, prefix: p, runs: rs.length, rcaMedian: median(rs.map((r) => r.rca)), endMedian: median(rs.map((r) => r.end)) };
+    }),
+    rca: span(rows.map((r) => r.rca)),
+    end: span(rows.map((r) => r.end)),
+  };
+}
