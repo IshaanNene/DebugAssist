@@ -1,19 +1,4 @@
-import { evalDate, wilson, type BugAgg, type Lane, type Results as R } from "@/lib/data";
-
-const pc = (v: number) => `${Math.round(v * 100)}%`;
-const ci = ([lo, hi]: [number, number]) => `${Math.round(lo * 100)}–${Math.round(hi * 100)}%`;
-
-/** A rate's 95% interval on a 0–100% track, with the rate itself as a tick. */
-export function Interval({ k, n, lo, hi }: { k: number; n: number; lo: number; hi: number }) {
-  const p = n ? k / n : 0;
-  return (
-    <div className="relative h-[10px]" role="img" aria-label={`95% interval ${pc(lo)} to ${pc(hi)}`}>
-      <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-line-2" />
-      <div className="absolute top-1/2 h-[6px] -translate-y-1/2 border-x border-t1 bg-t1/20" style={{ left: pc(lo), width: pc(hi - lo) }} />
-      <div className="absolute top-0 h-[10px] w-[2px] -translate-x-1/2 bg-t1" style={{ left: pc(p) }} />
-    </div>
-  );
-}
+import { evalDate, type BugAgg, type Lane, type Results as R } from "@/lib/data";
 
 const LANES: [string, Lane][] = [
   ["root cause", "rca"],
@@ -21,13 +6,12 @@ const LANES: [string, Lane][] = [
   ["hidden test", "hidden_tests"],
 ];
 
-// Pass / partly (some seeds) / miss / not applicable, by shape as well as colour: filled, half filled, a neutral
-// hatch, an empty dashed square. A miss stays visible and labelled — just not alarm-red.
+// Pass / partly (some seeds) / miss / not applicable. A miss stays visible and labelled — just not alarm-red.
 const TONE = {
   pass: "bg-good",
-  part: "cell-close",
+  part: "bg-warn",
   miss: "miss",
-  na: "border border-dashed border-line-2",
+  na: "border border-dashed border-line-dash",
 };
 
 function cellTone(c: { pass: number; n: number; exact?: number }, lane: Lane): { cls: string; label: string } {
@@ -47,7 +31,7 @@ function Cell({ c, lane, title, i = 0, r = 0, size = "md" }: { c: BugAgg["lanes"
   const showFrac = c.n > 1 && c.pass > 0 && c.pass < c.n;
   return (
     <div
-  className={`cell relative grid place-items-center ${size === "md" ? "h-[24px] w-[24px]  lg:h-[32px] lg:w-[32px]" : "h-[18px] w-[18px] "} ${t.cls}`}
+      className={`cell relative grid place-items-center ${size === "md" ? "h-[24px] w-[24px]" : "h-[18px] w-[18px]"} ${t.cls}`}
       style={{ ["--i" as string]: i, ["--r" as string]: r }}
       title={`${title}: ${t.label}`}
     >
@@ -56,8 +40,7 @@ function Cell({ c, lane, title, i = 0, r = 0, size = "md" }: { c: BugAgg["lanes"
   );
 }
 
-/** The headline numbers and the per-bug grid; `compact` leaves out the re-run panels (the home page). */
-export function Results({ data, compact }: { data: R; compact?: boolean }) {
+export function Results({ data }: { data: R }) {
   const h = data.headline;
   // Context-engineering arms measure tokens, not fixes; they are compared in the Tokens section.
   const arms = data.arms;
@@ -65,29 +48,23 @@ export function Results({ data, compact }: { data: R; compact?: boolean }) {
   return (
     <div>
       {/* headline numbers */}
-      <div className="panel overflow-hidden">
+      <div className="cbox">
         <div className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3 lg:grid-cols-6">
           {data.stats.map((s, i) => (
-            <div key={s.label} className="fx bg-raised p-5" style={{ ["--i" as string]: i }}>
-              <div className="font-mono text-[34px] font-medium leading-none tracking-[-0.03em] text-t1 tabular-nums">
-                <span>{s.value}</span>
+            <div key={s.label} className="fx bg-surface p-5" style={{ ["--i" as string]: i }}>
+              <div className="font-display text-[38px] font-medium leading-none tracking-[-0.03em] text-t1 tabular-nums">
+                <span data-count>{s.value}</span>
               </div>
               <div className="mt-2 text-[12.5px] leading-snug text-t3">{s.label}</div>
-              <div className="mt-4">
-                {s.ci && s.k !== undefined ? <Interval k={s.k} n={s.n} lo={s.ci[0]} hi={s.ci[1]} /> : <div className="h-[10px]" />}
-              </div>
-              <div className="mt-2 font-mono text-[10.5px] leading-snug text-t3">
-                {s.ci ? `95% CI ${ci(s.ci)}` : s.note} · n {s.n}
-              </div>
             </div>
           ))}
         </div>
       </div>
 
       {/* per-bug grid */}
-      <div className="wave panel mt-2 overflow-x-auto p-5">
+      <div className="wave cbox no-top -mt-px overflow-x-auto p-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-          <span className="label text-t3">
+          <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">
             {h.current ? `Full catalog · ${h.label}` : "Baseline"} · {h.bugs.length} bugs · {data.model} ·{" "}
             {h.seeds > 1 ? `${h.seeds} seeds each` : "one seed"} · {evalDate(h.eval)}
             {h.commit ? ` · ${h.commit}` : ""}
@@ -109,7 +86,7 @@ export function Results({ data, compact }: { data: R; compact?: boolean }) {
               {h.bugs.map((b) => (
                 <th
                   key={b.bug}
-                  className={`pb-1 font-mono text-[10px] font-normal ${b.ours ? "text-t3" : "text-t2 underline decoration-dashed underline-offset-[3px]"}`}
+                  className={`pb-1 font-mono text-[10px] font-normal ${b.ours ? "text-t3" : "text-[#1f8fa8]"}`}
                   title={b.ours ? "needs a code fix" : "not our bug: the right answer is routing"}
                 >
                   {b.bug.slice(-3)}
@@ -136,20 +113,17 @@ export function Results({ data, compact }: { data: R; compact?: boolean }) {
           <Legend cls={TONE.part} label={h.seeds > 1 ? "right file or module, or some seeds" : "right file or module"} />
           <Legend cls={TONE.miss} label="no" />
           <Legend cls={TONE.na} label="not applicable" />
-          <span>
-            <span className="underline decoration-dashed underline-offset-[3px]">dashed ids</span>: not our bug — the right answer is
-            routing
-          </span>
+          <span className="text-[#1f8fa8]">blue ids: not our bug — the right answer is routing</span>
           {h.updated.length > 0 && <span>• re-run after the fixes ({h.updated.map((u) => u.commit).join(", ")})</span>}
         </div>
       </div>
 
       {/* re-runs on later code */}
-      {!compact && arms.map((arm) => (
-        <div key={arm.name} className="panel mt-2 grid overflow-hidden md:grid-cols-[240px_1fr]">
-          <div className="border-b border-line bg-sunk/60 p-5 md:border-b-0 md:border-r">
-            <div className="label text-t3">re-run · {arm.commit}</div>
-            <div className="title mt-1 text-[22px] tracking-[-0.02em]">{arm.name}</div>
+      {arms.map((arm, ai) => (
+        <div key={arm.name} className={`cbox -mt-px no-top ${ai < arms.length - 1 ? "no-bottom" : ""} grid md:grid-cols-[240px_1fr]`}>
+          <div className="stripes border-b border-line p-5 md:border-b-0 md:border-r">
+            <div className="font-mono text-[11px] uppercase tracking-[0.04em] text-t3">re-run · {arm.commit}</div>
+            <div className="mt-1 font-display text-[22px] font-medium tracking-[-0.02em]">{arm.name}</div>
             <dl className="mt-3 space-y-1 text-[12.5px] text-t3">
               <div>
                 root cause right or close{" "}
@@ -169,19 +143,7 @@ export function Results({ data, compact }: { data: R; compact?: boolean }) {
                 </b>
               </div>
             </dl>
-            <div className="mt-3 space-y-0.5 font-mono text-[10px] leading-snug text-t3">
-              {(
-                [
-                  ["right or close", arm.counts.near],
-                  ["hidden tests", arm.counts.passed],
-                ] as const
-              ).map(([t, [b, a]]) => (
-                <div key={t}>
-                  {t}: {b[0]}/{b[1]} → {a[0]}/{a[1]} · after, 95% CI {ci(wilson(a[0], a[1]))}
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 font-mono text-[10px] text-t3">per bug: left = {arm.beforeLabel} · right = this re-run</div>
+            <div className="mt-3 font-mono text-[10px] text-t4">per bug: left = {arm.beforeLabel} · right = this re-run</div>
           </div>
           <div className="wave flex flex-wrap gap-x-6 gap-y-4 p-5">
             {arm.bugs.map((b, ci) => (

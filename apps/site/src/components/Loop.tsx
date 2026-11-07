@@ -72,123 +72,183 @@ const PHASES: Phase[] = [
   },
 ];
 
-// who does the work, by colour: ink for code, violet for the LLM, amber for Clef
-const KIND: Record<Kind, { label: string; color: string; swatch: string }> = {
-  code: { label: "deterministic code", color: "var(--actor-code)", swatch: "bg-code" },
-  llm: { label: "LLM agents", color: "var(--actor-llm)", swatch: "bg-llm" },
-  clef: { label: "Clef decisions", color: "var(--actor-clef)", swatch: "bg-clef" },
+const KIND: Record<Kind, { label: string; color: string }> = {
+  code: { label: "deterministic code", color: "#cfcfc9" },
+  llm: { label: "LLM agents", color: "#8b7cf0" },
+  clef: { label: "Clef decisions", color: "#e0901b" },
 };
 
-const MONO = "var(--font-mono-src), ui-monospace, monospace";
-const SANS = "var(--font-sans-src), Helvetica Neue, Arial, sans-serif";
-const NS = { vectorEffect: "non-scaling-stroke" as const };
-/** a step's fill, from its main actor: the same tints as the figures (Clef amber, LLM violet) */
-const FILL: Record<Kind, string> = {
-  code: "var(--raised)",
-  llm: "color-mix(in srgb, var(--actor-llm) 17%, var(--raised))",
-  clef: "color-mix(in srgb, var(--actor-clef) 22%, var(--raised))",
+// Isometric projection: x runs down-right (towards the viewer), y runs up-right, z is height.
+const C = Math.cos(Math.PI / 6);
+const S = Math.sin(Math.PI / 6);
+const iso = (x: number, y: number, z = 0): [number, number] => [(x + y) * C, (x - y) * S - z];
+const P = (...p: [number, number][]) => p.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(" ");
+/** Text lying on a horizontal face at height z, reading along +y. */
+const flat = (x: number, y: number, z: number) => {
+  const [tx, ty] = iso(x, y, z);
+  return `matrix(${C} ${-S} ${C} ${S} ${tx.toFixed(1)} ${ty.toFixed(1)})`;
+};
+/** Text lying on a horizontal face at height z, reading along +x (towards the viewer). */
+const flatX = (x: number, y: number, z: number) => {
+  const [tx, ty] = iso(x, y, z);
+  return `matrix(${C} ${S} ${-C} ${S} ${tx.toFixed(1)} ${ty.toFixed(1)})`;
 };
 
-// geometry (viewBox units): the four phases in a row, the open one drawn out below as its three steps
-const VW = 640;
-const VH = 340;
-const PW = 140;
-const PG = 16;
-const PY = 36;
-const PH = 58;
-const px = (i: number) => 16 + i * (PW + PG);
-const DY = 150; // detail panel
-const SW = 176;
-const SG2 = 20;
-const sx = (j: number) => 36 + j * (SW + SG2);
-const SY = 196;
-const SH = 100;
+const INK = "#2f2e2a";
+const FONT = "var(--font-geist-mono), ui-monospace, monospace";
 
-function Arrow({ x1, x2, y }: { x1: number; x2: number; y: number }) {
+// four phase blocks on one track; the current phase opens into its three steps
+const W = 128; // along x
+const SD = 44; // one step's slice along y
+const SG = 7; // gap between slices
+const D = 3 * SD + 2 * SG; // a phase along y
+const GAP = 30;
+const STEP = D + GAP;
+const H_ON = 58;
+const H_OFF = 38;
+const LANE = 40; // track strip in front of the blocks
+const TH = 10;
+
+type Tone = "on" | "done" | "next";
+const TONE: Record<Tone, { ink: string; top: string; side: string; front: string; text: string }> = {
+  on: { ink: INK, top: "#ffffff", side: "#e9e9e3", front: "#dcdcd6", text: INK },
+  done: { ink: "#6f6d66", top: "#fcfcf9", side: "#ecece6", front: "#e2e2dc", text: "#55544e" },
+  next: { ink: "#a9a79e", top: "#fbfbf9", side: "#f0f0ec", front: "#e8e8e3", text: "#97958c" },
+};
+
+function Block({ x, y, w, d, h, tone }: { x: number; y: number; w: number; d: number; h: number; tone: Tone }) {
+  const t = TONE[tone];
+  const top = [iso(x, y, h), iso(x, y + d, h), iso(x + w, y + d, h), iso(x + w, y, h)];
+  const front = [iso(x + w, y, h), iso(x + w, y + d, h), iso(x + w, y + d, 0), iso(x + w, y, 0)];
+  const side = [iso(x, y, h), iso(x + w, y, h), iso(x + w, y, 0), iso(x, y, 0)];
   return (
-    <g>
-      <line x1={x1} x2={x2 - 6} y1={y} y2={y} stroke="var(--line-strong)" strokeWidth={1} {...NS} />
-      <polygon points={`${x2},${y} ${x2 - 7},${y - 3.5} ${x2 - 7},${y + 3.5}`} fill="var(--line-strong)" />
+    <g strokeLinejoin="round" stroke={t.ink}>
+      <polygon points={P(...side)} fill={t.side} strokeWidth={1} />
+      <polygon points={P(...front)} fill={t.front} strokeWidth={1} />
+      <polygon points={P(...top)} fill={t.top} strokeWidth={1.15} />
     </g>
   );
 }
 
+/** A small square lying on a top face: the colour of what does the work. */
+function Tile({ x, y, z, kind, faded }: { x: number; y: number; z: number; kind: Kind; faded?: boolean }) {
+  const s = 10;
+  return (
+    <polygon
+      points={P(iso(x, y, z), iso(x, y + s, z), iso(x + s, y + s, z), iso(x + s, y, z))}
+      fill={KIND[kind].color}
+      fillOpacity={faded ? 0.7 : 1}
+      stroke={INK}
+      strokeOpacity={faded ? 0.5 : 0.85}
+      strokeWidth={0.9}
+    />
+  );
+}
+
 function Diagram({ active, onSelect }: { active: number; onSelect: (i: number) => void }) {
-  const ph = PHASES[active];
-  const ax = px(active);
+  const n = PHASES.length;
+  const len = n * STEP - GAP;
+  const t0x = -20;
+  const t1x = W + LANE;
+  const t0y = -40;
+  const t1y = len + 40;
+  const trackTop = [iso(t0x, t0y), iso(t0x, t1y), iso(t1x, t1y), iso(t1x, t0y)];
+  const trackFront = [iso(t1x, t0y), iso(t1x, t1y), iso(t1x, t1y, -TH), iso(t1x, t0y, -TH)];
+  const trackEnd = [iso(t0x, t0y), iso(t1x, t0y), iso(t1x, t0y, -TH), iso(t0x, t0y, -TH)];
+
+  // a fixed frame for every phase, so the view never jumps
+  const ext = [...trackTop, iso(t1x, t0y, -TH), iso(t1x, t1y, -TH), iso(0, 0, H_ON + 14), iso(0, len, H_ON + 14), iso(t1x + 40, t0y - 80), iso(t1x + 40, t1y + 86)];
+  const pad = 22;
+  const minX = Math.min(...ext.map((p) => p[0])) - pad;
+  const maxX = Math.max(...ext.map((p) => p[0])) + pad;
+  const minY = Math.min(...ext.map((p) => p[1])) - pad;
+  const maxY = Math.max(...ext.map((p) => p[1])) + pad;
+
+  const order = PHASES.map((_, i) => i).sort((a, b) => b - a); // larger y is further back
+  const tone = (i: number): Tone => (i === active ? "on" : i < active ? "done" : "next");
+
   return (
     <svg
-      viewBox={`0 0 ${VW} ${VH}`}
-      className="block h-auto w-full select-none"
+      viewBox={`${minX.toFixed(0)} ${minY.toFixed(0)} ${(maxX - minX).toFixed(0)} ${(maxY - minY).toFixed(0)}`}
+      className="block h-auto max-h-[64vh] w-full select-none"
       role="img"
-      aria-label={`The DebugAssist pipeline in four phases: ${PHASES.map((p) => p.name).join(", ")}. Showing ${ph.name}: ${ph.parts.map((s) => s.name).join(", ")}.`}
+      aria-label={`The DebugAssist pipeline in four phases: ${PHASES.map((p) => p.name).join(", ")}. Showing ${PHASES[active].name}: ${PHASES[active].parts.map((s) => s.name).join(", ")}.`}
     >
-      <text x={16} y={22} fontFamily={MONO} fontSize={10} fill="var(--fg-3)">
-        signal in
+      {/* track */}
+      <polygon points={P(...trackEnd)} fill="#dde05f" stroke={INK} strokeWidth={1} />
+      <polygon points={P(...trackFront)} fill="#e9ec6c" stroke={INK} strokeWidth={1} />
+      <polygon points={P(...trackTop)} fill="#f7f985" stroke={INK} strokeWidth={1.1} />
+      <polyline
+        className="flow"
+        points={P(iso(W + 10, t0y + 10), iso(W + 10, t1y - 10))}
+        fill="none"
+        stroke={INK}
+        strokeOpacity={0.35}
+        strokeWidth={1}
+        strokeDasharray="4 10"
+      />
+      <text transform={flat(t1x + 24, t0y - 74, 0)} fontFamily={FONT} fontSize={12} fill="#55544e">
+        signal in →
       </text>
-      <text x={VW - 16} y={22} textAnchor="end" fontFamily={MONO} fontSize={10} fill="var(--fg-3)">
-        proof out
+      <text transform={flat(t1x + 24, t1y - 2, 0)} fontFamily={FONT} fontSize={12} fill="#55544e">
+        → proof out
       </text>
 
-      {/* the open phase, drawn out: a callout from its box to the panel of its steps */}
-      <path d={`M${ax} ${PY + PH} L16 ${DY} M${ax + PW} ${PY + PH} L${VW - 16} ${DY}`} fill="none" stroke="var(--line-2)" strokeDasharray="3 4" {...NS} />
-      <rect x={16} y={DY} width={VW - 32} height={VH - DY - 16} fill="var(--raised)" stroke="var(--line-2)" {...NS} />
-      <text x={36} y={DY + 26} fontFamily={MONO} fontSize={10.5} fill="var(--fg-3)" letterSpacing="0.06em">
-        {String(active + 1).padStart(2, "0")} · {ph.name.toUpperCase()} · {ph.decisions}
-      </text>
-
-      {PHASES.map((p, i) => {
+      {order.map((i) => {
+        const ph = PHASES[i];
         const on = i === active;
-        const done = i < active;
+        const t = tone(i);
+        const y0 = i * STEP;
         return (
-          <g key={p.name} onClick={() => onSelect(i)} className="cursor-pointer">
-            <rect
-              x={px(i)}
-              y={PY}
-              width={PW}
-              height={PH}
-              fill={on ? "var(--mark)" : done ? "var(--raised)" : "var(--bg)"}
-              stroke={on || done ? "var(--fg)" : "var(--line-2)"}
-              strokeWidth={on ? 1.4 : 1}
-              strokeDasharray={on || done ? undefined : "4 3"}
-              {...NS}
-            />
-            <text x={px(i) + 12} y={PY + 24} fontFamily={SANS} fontSize={14} fontWeight={500} fill={on || done ? "var(--fg)" : "var(--fg-4)"}>
-              {p.name}
-            </text>
-            <text x={px(i) + 12} y={PY + 43} fontFamily={MONO} fontSize={9.5} fill={on ? "var(--fg-2)" : "var(--fg-4)"}>
-              {p.decisions}
-            </text>
-            {p.kind.map((k, q) => (
-              <rect key={k} x={px(i) + PW - 14 - q * 12} y={PY + 10} width={8} height={8} fill={KIND[k].color} stroke="var(--fg)" strokeWidth={0.8} {...NS} />
-            ))}
-            {i < PHASES.length - 1 && <Arrow x1={px(i) + PW} x2={px(i + 1)} y={PY + PH / 2} />}
+          <g key={ph.name} onClick={() => onSelect(i)} className="cursor-pointer">
+            {/* the open phase's top holds its steps, so its name goes on the lane in front */}
+            {on && (
+              <text transform={flat(W + 26, y0 + 4, 0)} fontFamily={FONT} fontSize={13.5} fontWeight={600} fill={INK}>
+                {String(i + 1).padStart(2, "0")} {ph.name}
+                <tspan fontWeight={400} fontSize={10.5} fill="#6f6d66" dx={8}>
+                  {ph.decisions}
+                </tspan>
+              </text>
+            )}
+
+            {on ? (
+              // the current phase, opened into its steps: back to front, each rising in after the last
+              <g key={`open-${active}`}>
+                {[2, 1, 0].map((j) => {
+                  const st = ph.parts[j];
+                  const y = y0 + j * (SD + SG);
+                  return (
+                    <g key={st.name} className="drop" style={{ animationDelay: `${(2 - j) * 80}ms` }}>
+                      <Block x={0} y={y} w={W} d={SD} h={H_ON} tone="on" />
+                      {st.kind.map((k, q) => (
+                        <Tile key={k} x={12 + q * 13} y={y + 17} z={H_ON} kind={k} />
+                      ))}
+                      <text transform={flatX(st.kind.length > 1 ? 42 : 29, y + 20, H_ON)} fontFamily={FONT} fontSize={12.5} fill={INK}>
+                        {st.name}
+                      </text>
+                      {st.d && (
+                        <text transform={flatX(st.kind.length > 1 ? 42 : 29, y + 8, H_ON)} fontFamily={FONT} fontSize={9.5} fill="#8a887f">
+                          {st.d}
+                        </text>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+            ) : (
+              <g>
+                <Block x={0} y={y0} w={W} d={D} h={H_OFF} tone={t} />
+                {ph.kind.map((k, q) => (
+                  <Tile key={k} x={14} y={y0 + 14 + q * 14} z={H_OFF} kind={k} faded={t === "next"} />
+                ))}
+                <text transform={flat(44, y0 + 14, H_OFF)} fontFamily={FONT} fontSize={15} fill={TONE[t].text} dy={6}>
+                  {ph.name}
+                </text>
+              </g>
+            )}
           </g>
         );
       })}
-
-      <g key={`open-${active}`}>
-        {ph.parts.map((st, j) => (
-          <g key={st.name}>
-            <rect x={sx(j)} y={SY} width={SW} height={SH} fill={FILL[st.kind[0]]} stroke={st.kind[0] === "code" ? "var(--fg)" : KIND[st.kind[0]].color} strokeWidth={1.3} {...NS} />
-            <text x={sx(j) + 14} y={SY + 28} fontFamily={SANS} fontSize={15} fontWeight={500} fill="var(--fg)">
-              {st.name}
-            </text>
-            <text x={sx(j) + 14} y={SY + 48} fontFamily={MONO} fontSize={10} fill="var(--fg-3)">
-              {st.d ?? "no decision"}
-            </text>
-            {st.kind.map((k, q) => (
-              <g key={k}>
-                <rect x={sx(j) + 14} y={SY + 66 + q * 16} width={9} height={9} fill={KIND[k].color} stroke="var(--fg)" strokeWidth={0.8} {...NS} />
-                <text x={sx(j) + 30} y={SY + 74 + q * 16} fontFamily={MONO} fontSize={9.5} fill="var(--fg-2)">
-                  {KIND[k].label}
-                </text>
-              </g>
-            ))}
-            {j < 2 && <Arrow x1={sx(j) + SW} x2={sx(j + 1)} y={SY + SH / 2} />}
-          </g>
-        ))}
-      </g>
     </svg>
   );
 }
@@ -254,7 +314,7 @@ export function Loop() {
   return (
     <div ref={ref} style={pinned ? { height: `${n * 85 + 60}vh` } : undefined}>
       <div
-        className={pinned ? "sticky top-14 flex h-[calc(100vh-56px)] items-center" : ""}
+        className={pinned ? "sticky top-12 flex h-[calc(100vh-48px)] items-center" : ""}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >
@@ -268,7 +328,7 @@ export function Loop() {
               <span className="flex gap-3">
                 {(Object.keys(KIND) as Kind[]).map((k) => (
                   <span key={k} className="inline-flex items-center gap-1.5">
-                    <span className={`inline-block h-2.5 w-2.5 border border-t1 ${KIND[k].swatch}`} />
+                    <span className="inline-block h-2 w-2 rounded-full border border-t2" style={{ background: KIND[k].color }} />
                     <span className="hidden sm:inline">{KIND[k].label}</span>
                   </span>
                 ))}
@@ -317,7 +377,7 @@ export function Loop() {
                         <span className="mt-2.5 flex flex-wrap gap-3">
                           {p.kind.map((k) => (
                             <span key={k} className="inline-flex items-center gap-1.5 font-mono text-[11px] text-t3">
-                              <span className={`inline-block h-2.5 w-2.5 border border-t1 ${KIND[k].swatch}`} />
+                              <span className="inline-block h-2 w-2 rounded-full border border-t2" style={{ background: KIND[k].color }} />
                               {KIND[k].label}
                             </span>
                           ))}

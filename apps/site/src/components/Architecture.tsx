@@ -1,15 +1,44 @@
 "use client";
 
 import { useState } from "react";
-import { Draw, type Shape, type Tone } from "@/components/Draw";
 
-// The system as four layers, bottom (what breaks) to top (what acts), drawn flat as swimlanes. Hovering a layer's
-// card explains it under the drawing.
+// The system as four isometric plates, bottom (what breaks) to top (what acts). The plates pull apart as the
+// section scrolls through the viewport (`--p` from the Motion observer); hovering a layer in the legend lifts it.
+
+const C = Math.cos(Math.PI / 6);
+const S = Math.sin(Math.PI / 6);
+const iso = (x: number, y: number, z = 0): [number, number] => [(x + y) * C, (x - y) * S - z];
+const P = (...p: [number, number][]) => p.map(([a, b]) => `${a.toFixed(1)},${b.toFixed(1)}`).join(" ");
+
+const INK = "#2f2e2a";
+const SOFT = "#8a887f";
+const FONT = "var(--font-geist-mono), ui-monospace, monospace";
+
+/** Text lying on a horizontal face at height z, reading along +x (lines stack towards −y). */
+const flatX = (x: number, y: number, z: number) => {
+  const [tx, ty] = iso(x, y, z);
+  return `matrix(${C} ${S} ${-C} ${S} ${tx.toFixed(1)} ${ty.toFixed(1)})`;
+};
+
+// plate geometry: plates are long along x; blocks sit in a row along x
+const LX = 620;
+const LY = 150;
+const T = 9;
+const BY0 = 30; // blocks span y ∈ [BY0, LY - 14]
+const BH = 24;
+const BGAP = 12;
+const MARGIN = 20;
+// the fan: layer k sits k·STEP behind (+y) and k·RISE higher than the one below, scaled by scroll (--p)
+const STEP0 = 0;
+const STEP1 = LY + 26;
+const RISE0 = 30;
+const RISE1 = 24;
 
 interface Layer {
   name: string;
   blurb: string;
-  blocks: [string, string, Tone?, Shape?][];
+  blocks: [string, string][];
+  plate: string;
 }
 
 function layers(servers: number, tools: number): Layer[] {
@@ -23,8 +52,9 @@ function layers(servers: number, tools: number): Layer[] {
         ["gateway", "Node · GraphQL"],
         ["dispatch", "Python"],
         ["payments", "Go"],
-        ["flags", "Unleash", undefined, "store"],
+        ["flags", "Unleash"],
       ],
+      plate: "#f9f9f6",
     },
     {
       name: "Signals",
@@ -33,10 +63,11 @@ function layers(servers: number, tools: number): Layer[] {
       blocks: [
         ["Vitals", "crashes · perf"],
         ["BugDrop", "rider reports"],
-        ["traces", "Jaeger", undefined, "store"],
-        ["logs", "Loki", undefined, "store"],
-        ["metrics", "Prometheus", undefined, "store"],
+        ["traces", "Jaeger"],
+        ["logs", "Loki"],
+        ["metrics", "Prometheus"],
       ],
+      plate: "#f9f9f6",
     },
     {
       name: "Evidence",
@@ -48,68 +79,120 @@ function layers(servers: number, tools: number): Layer[] {
         ["flags", "releases"],
         ["tickets", "Jira · incidents"],
       ],
+      plate: "#f9f9f6",
     },
     {
       name: "Agent core",
       blurb:
         "LangGraph runs the fixed plan; Clef makes each judgement call; LLM agents reason and write code in a network-less sandbox; a policy gate stands before every write.",
       blocks: [
-        ["LangGraph", "fixed plan", "ink"],
-        ["Clef", "decisions", "clef"],
-        ["agents", "LLM · skills", "llm"],
-        ["sandbox", "no network", "dashed"],
-        ["policy gate", "→ PR · ticket", "mark"],
+        ["LangGraph", "fixed plan"],
+        ["Clef", "decisions"],
+        ["agents", "LLM · skills"],
+        ["sandbox", "no network"],
+        ["policy gate", "→ PR · ticket"],
       ],
+      plate: "#f7f985",
     },
   ];
 }
 
-// geometry: four lanes stacked top (agent core) to bottom (target system), five columns of blocks each
-const LANE = 120;
-const GAP = 44;
-const BW = 208;
-const col = (j: number) => 24 + j * 236;
-const laneY = (k: number, n: number) => (n - 1 - k) * (LANE + GAP);
-const FLOW = ["crashes · reports · telemetry", "read through MCP, read-only", "evidence, cited by id"];
+function Box3({ x, y, z, w, d, h, top, side, front, stroke = INK }: { x: number; y: number; z: number; w: number; d: number; h: number; top: string; side: string; front: string; stroke?: string }) {
+  const tp = [iso(x, y, z + h), iso(x, y + d, z + h), iso(x + w, y + d, z + h), iso(x + w, y, z + h)];
+  const fr = [iso(x + w, y, z + h), iso(x + w, y + d, z + h), iso(x + w, y + d, z), iso(x + w, y, z)];
+  const sd = [iso(x, y, z + h), iso(x + w, y, z + h), iso(x + w, y, z), iso(x, y, z)];
+  return (
+    <g strokeLinejoin="round">
+      <polygon points={P(...sd)} fill={side} stroke={stroke} strokeWidth={1} />
+      <polygon points={P(...fr)} fill={front} stroke={stroke} strokeWidth={1} />
+      <polygon points={P(...tp)} fill={top} stroke={stroke} strokeWidth={1.1} />
+    </g>
+  );
+}
 
 export function Architecture({ servers, tools }: { servers: number; tools: number }) {
   const L = layers(servers, tools);
   const [hover, setHover] = useState<number | null>(null);
   const n = L.length;
-  const H = n * LANE + (n - 1) * GAP;
+  const nb = L[0].blocks.length;
+  const bw = (LX - 2 * MARGIN - (nb - 1) * BGAP) / nb;
+  const mid = (n - 1) / 2;
+
+  // frame: fully fanned out, layers centred on the middle of the stack
+  const open = (k: number) => ({ y: (k - mid) * STEP1, z: (k - mid) * (RISE0 + RISE1) });
+  const ext = [0, n - 1].flatMap((k) => {
+    const o = open(k);
+    return [iso(0, o.y, o.z + BH), iso(LX, o.y, o.z - T), iso(0, o.y + LY, o.z + BH), iso(LX, o.y + LY, o.z), iso(LX, o.y, o.z + BH)];
+  });
+  const pad = 24;
+  const minX = Math.min(...ext.map((p) => p[0])) - pad;
+  const maxX = Math.max(...ext.map((p) => p[0])) + pad;
+  const minY = Math.min(...ext.map((p) => p[1])) - pad - 8;
+  const maxY = Math.max(...ext.map((p) => p[1])) + pad;
 
   return (
-    <div>
-      <div className="cbox bg-surface">
-        <div className="px-6 pb-2 pt-8 sm:px-8">
-          <Draw
-            w={1200}
-            h={H}
-            lanes={L.map((l, k) => ({ y: laneY(k, n), h: LANE, label: `${String(k + 1).padStart(2, "0")} · ${l.name}` }))}
-            boxes={L.flatMap((l, k) =>
-              l.blocks.map(([title, sub, tone, shape], j) => ({
-                x: col(j),
-                y: laneY(k, n) + 30,
-                w: BW,
-                h: 70,
-                title,
-                lines: [sub],
-                tone: hover === k && !tone ? "mark" : tone,
-                shape,
-              })),
-            )}
-            edges={[0, 1, 2].map((k) => ({ d: `M600 ${laneY(k, n)} V ${laneY(k + 1, n) + LANE}` }))}
-            labels={[0, 1, 2].map((k) => ({
-              x: 612,
-              y: laneY(k, n) - GAP / 2,
-              text: FLOW[k],
-              anchor: "l" as const,
-              boxed: false,
-            }))}
-            names={{ mark: "where writes leave" }}
-            steps={L.map((l) => `${l.name}: ${l.blocks.map(([t, s2]) => `${t} (${s2})`).join(", ")}.`)}
-          />
-        </div>
+    <div data-scrub="0.95,1.05">
+      <div className="cbox overflow-hidden bg-surface">
+        <svg
+          viewBox={`${minX.toFixed(0)} ${minY.toFixed(0)} ${(maxX - minX).toFixed(0)} ${(maxY - minY).toFixed(0)}`}
+          className="block h-auto max-h-[78vh] w-full select-none"
+          role="img"
+          aria-label={`DebugAssist architecture in four layers, bottom to top: ${L.map((l) => l.name).join(", ")}.`}
+        >
+          {L.map((layer, k) => {
+            const on = hover === k;
+            const dim = hover !== null && !on;
+            // move along +y (screen: right and up) and lift in z, both growing with scroll
+            const f = k - mid;
+            const step = `(${STEP0} + ${STEP1} * var(--p, 1)) * ${f}`;
+            const rise = `(${RISE0} + ${RISE1} * var(--p, 1)) * ${f}`;
+            const tx = `calc(${C.toFixed(4)}px * ${step})`;
+            const ty = `calc(${(-S).toFixed(4)}px * ${step} - 1px * ${rise} - ${on ? 12 : 0}px)`;
+            return (
+              <g
+                key={layer.name}
+                style={{
+                  transform: `translate(${tx}, ${ty})`,
+                  transition: "transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s",
+                  opacity: dim ? 0.4 : 1,
+                }}
+                onMouseEnter={() => setHover(k)}
+                onMouseLeave={() => setHover(null)}
+              >
+                <Box3
+                  x={0}
+                  y={0}
+                  z={-T}
+                  w={LX}
+                  d={LY}
+                  h={T}
+                  top={on ? "#fbff7a" : layer.plate}
+                  side={layer.plate === "#f9f9f6" ? "#e6e6df" : "#dde05f"}
+                  front={layer.plate === "#f9f9f6" ? "#ebebe5" : "#e9ec6c"}
+                />
+                <text transform={flatX(MARGIN, 8, 0)} fontFamily={FONT} fontSize={11} fill={INK} letterSpacing="0.06em" dy={4}>
+                  {String(k + 1).padStart(2, "0")} · {layer.name.toUpperCase()}
+                </text>
+
+                {/* blocks: the row runs along x; draw back (small x) to front */}
+                {layer.blocks.map(([label, sub], j) => {
+                  const x = MARGIN + j * (bw + BGAP);
+                  return (
+                    <g key={label}>
+                      <Box3 x={x} y={BY0} z={0} w={bw} d={LY - 14 - BY0} h={BH} top="#ffffff" side="#e9e9e3" front="#dededa" />
+                      <text transform={flatX(x + 10, LY - 40, BH)} fontFamily={FONT} fontSize={13} fill={INK}>
+                        {label}
+                      </text>
+                      <text transform={flatX(x + 10, LY - 64, BH)} fontFamily={FONT} fontSize={9.5} fill={SOFT}>
+                        {sub}
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+            );
+          })}
+        </svg>
         {/* the hovered layer is explained right under the drawing; otherwise the one-line reading */}
         <div className="flex min-h-[58px] items-center gap-3 border-t border-line px-4 py-2.5" aria-live="polite">
           {hover === null ? (
@@ -136,7 +219,7 @@ export function Architecture({ servers, tools }: { servers: number; tools: numbe
           return (
             <li
               key={layer.name}
-              className={`fx relative cursor-default p-5 transition-colors ${on ? "bg-tint" : "bg-surface"}`}
+              className={`fx relative cursor-default p-5 transition-colors ${on ? "bg-[#fdfde6]" : "bg-surface"}`}
               style={{ ["--i" as string]: k }}
               onMouseEnter={() => setHover(k)}
               onMouseLeave={() => setHover(null)}
