@@ -81,6 +81,25 @@ def outcome_ok(ship: str | None, bug: Case) -> bool:
     return ship in ("rca_only", "escalate")
 
 
+def control_score(issue: dict[str, Any], bug: Case, repo: Path | None) -> dict[str, Any]:
+    """The no-model localization control (evals.control), scored like the RCA. None for not-our-bug cases."""
+    from debugassist.evals import control
+
+    if not expects_fix(bug):
+        return {"control_rca": None, "control_location": None, "control_how": None}
+    comp = str(issue.get("component") or ".")
+    root = repo / comp if repo is not None and comp not in (".", "") else repo
+    loc = control.locate(issue, root if root is not None and root.is_dir() else None)
+    if loc is None:
+        return {"control_rca": "none", "control_location": None, "control_how": None}
+    verdict = rca_verdict({"location": {**loc, "repo": issue.get("repo")}}, bug)
+    return {
+        "control_rca": verdict,
+        "control_location": f"{loc['file']} → {loc['function']}",
+        "control_how": loc["how"],
+    }
+
+
 def changed_lines(diff: str) -> list[str]:
     """+/- lines of source files only (tests and config excluded)."""
     out: list[str] = []
@@ -285,6 +304,7 @@ def score_run(run_id: str, bug: Case, clef_usd: float = 0.0, run_hidden: bool = 
         "clef_usd": round(clef_usd, 5),
         "usd": round(llm_usd + clef_usd, 5),
         **timings(run_id, state),
+        **control_score(_obj(state.get("issue")), bug, RUNS / run_id / "repo"),
         "hidden_detail": hidden.get("results"),
         "errors": (state.get("errors") or [])[:1],
     }

@@ -293,6 +293,46 @@ def rescore(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]
 
 
 @app.command()
+def control(
+    cases: Annotated[str | None, typer.Option(help="comma list of REAL-… ids (default: all)")] = None,
+) -> None:
+    """The no-model localization control on the real-bug cases' frozen issues (clones each checkout; no LLM).
+
+    Catalog bugs get the control from every scored run instead (`control_rca` in results.jsonl): their issue only
+    exists once a scenario has been triggered."""
+    import datetime as dt
+    import json
+
+    from debugassist.evals import control as ctl
+    from debugassist.evals import score
+    from debugassist.scenarios import real
+
+    rows: list[dict[str, object]] = []
+    for cid in cases.split(",") if cases else real.cases():
+        case = real.load_case(cid)
+        gh = real.load_issue(case.source)
+        repo = real.prepare(cid, log=typer.echo)
+        root = repo / gh.component if gh.component not in (".", "") else repo
+        issue = {"title": gh.title, "report": {"body": gh.body}, "language": gh.language, "repo": gh.repo}
+        loc = ctl.locate(issue, root)
+        verdict = score.rca_verdict({"location": {**loc, "repo": gh.repo}}, case) if loc else "none"
+        rows.append(
+            {
+                "case": cid,
+                "control_rca": verdict,
+                "control_location": f"{loc['file']} → {loc['function']}" if loc else None,
+                "control_how": loc["how"] if loc else None,
+                "truth": f"{case.ground_truth.location.file} → {case.ground_truth.location.function}",
+            }
+        )
+        typer.echo(f"{cid}: {verdict:<11} {rows[-1]['control_location']}  (truth {rows[-1]['truth']})")
+    out = ROOT / "evals" / "controls" / f"real-{dt.datetime.now(dt.UTC):%Y%m%d-%H%M%S}.jsonl"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    typer.echo(f"wrote {out.relative_to(ROOT)}")
+
+
+@app.command()
 def label(eval_dir: Annotated[Path, typer.Argument(help="evals/runs/<stamp>")]) -> None:
     """(Re)label the decisions of every run in an eval directory from the catalog."""
     from debugassist.core.ledger import Ledger
