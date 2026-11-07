@@ -381,6 +381,8 @@ in review as text dumped into dark boxes with no diagrams.
 - Drafting pass on every figure: closed shapes, no labels on lines or under boxes, the release graph and App scope
   redrawn, the answer-key figure in swimlanes, the isometric System layers and Pipeline loop redrawn flat, a paper
   404. Checked: no clipped frames or horizontal scroll at 375, 1280 and 1440 px on all fifteen routes checked.
+- Numbers no longer count up from zero: a screenshot or a throttled frame caught the Lab notebook headline at
+  2% and $0.000. Every figure now renders its report value at once (checked against `evals/reports/2026-11-07/report.md`).
 
 **Not done**: `/runs`, ⌘K and OG images (P3–P4).
 

@@ -16,7 +16,6 @@ const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matc
 /**
  * One observer for the whole page, so components stay server-rendered:
  *  - `.fx` / `.wave` elements get `data-in` the first time they enter the viewport (CSS does the motion);
- *  - `[data-count]` numbers count up from zero when they enter;
  *  - `[data-scrub="a,b"]` elements get `--p` (0→1) as they travel from a·vh (top) to b·vh (bottom);
  *  - the document gets `--page` (scroll progress) and `data-scrolled`.
  * Server-rendered content is final: without JS (or with reduced motion) everything is simply shown.
@@ -33,13 +32,12 @@ export function Motion() {
           if (!e.isIntersecting) continue;
           const el = e.target as HTMLElement;
           el.dataset.in = ""; // an attribute, not a class: React rewrites className on re-render
-          if (el.dataset.count !== undefined && !still) countUp(el);
           io.unobserve(el);
         }
       },
       { rootMargin: "0px 0px -12% 0px", threshold: 0.05 },
     );
-    const REVEAL = ".fx, .wave, .grow, .typed, [data-count]";
+    const REVEAL = ".fx, .wave, .grow, .typed";
     const watch = (root: ParentNode) =>
       root.querySelectorAll<HTMLElement>(REVEAL).forEach((el) => {
         if (el.dataset.in === undefined) io.observe(el);
@@ -88,26 +86,6 @@ export function Motion() {
     };
   }, []);
   return null;
-}
-
-/** Animate the first number in an element's text from 0, keeping its prefix, suffix and decimals. */
-function countUp(el: HTMLElement) {
-  const text = el.textContent ?? "";
-  const m = text.match(/(\d+(?:\.\d+)?)/);
-  if (!m || m.index === undefined) return;
-  const target = Number(m[1]);
-  const decimals = m[1].includes(".") ? m[1].split(".")[1].length : 0;
-  const head = text.slice(0, m.index);
-  const tail = text.slice(m.index + m[1].length);
-  const t0 = performance.now();
-  const dur = 1100;
-  const tick = (t: number) => {
-    const k = Math.min(1, (t - t0) / dur);
-    const e = 1 - Math.pow(1 - k, 3);
-    el.textContent = `${head}${(target * e).toFixed(decimals)}${tail}`;
-    if (k < 1) requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
 }
 
 /** Single-key shortcuts shown on the buttons (ignored while typing). */

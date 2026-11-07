@@ -55,7 +55,7 @@ export function Results({ data, compact }: { data: R; compact?: boolean }) {
           {data.stats.map((s, i) => (
             <div key={s.label} className="fx bg-raised p-5" style={{ ["--i" as string]: i }}>
               <div className="font-mono text-[34px] font-medium leading-none tracking-[-0.03em] text-t1 tabular-nums">
-                <span data-count>{s.value}</span>
+                <span>{s.value}</span>
               </div>
               <div className="mt-2 text-[12.5px] leading-snug text-t3">{s.label}</div>
             </div>

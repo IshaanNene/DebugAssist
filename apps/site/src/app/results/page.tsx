@@ -409,7 +409,7 @@ export default function ResultsPage() {
             <div className="panel mt-2 grid gap-px overflow-hidden bg-line md:grid-cols-[1fr_1.6fr]">
               <div className="bg-raised p-6">
                 <div className="font-display text-[56px] font-medium leading-none tracking-[-0.04em]">
-                  <span data-count>{frac(ctx.cacheShare)}</span>
+                  <span>{frac(ctx.cacheShare)}</span>
                 </div>
                 <div className="mt-2 text-[13.5px] text-t3">of input served from the prompt cache — the fixed prefix and history are cheap; the volume isn&apos;t.</div>
               </div>
