@@ -10,6 +10,7 @@
 | Real open-source bugs (five) · fix-width experiments: prompt rules (reverted), second reproduction, callers check, call variations (off) · bisect proof (off) | ✅ done | 2026-10-14 → 16 |
 | GitHub App (labeled issues on installed repositories → comment + draft PR) | built, not live | 2026-10-16 |
 | Audit fixes: sandbox trust boundary, credentials, dev stack, App contract, write gate ([below](#audit-fixes-2026-10-16)) | ✅ done (container flags not run under Docker yet) | 2026-10-16 |
+| Site redesign: tokens, type, receipts, run console, new home page, Lab notebook ([below](#site-redesign-foundations-and-the-home-page-2026-10-25)) | ✅ done (P0–P2) | 2026-10-25 |
 | Next level, Phase 0: hermetic tests, truthful ship reasons, scoring fixes, doctor, cloud sweeps ([below](#next-level-phase-0-make-the-basics-true-2026-11-07--done-offline)) | ✅ done (cloud sweep not run) | 2026-11-07 |
 | P18 Evaluation at scale, prove or rework Clef | open — see [ROADMAP.md](ROADMAP.md) | |
 
@@ -386,6 +387,42 @@ From an outside review of `06cc79d` (811 passed, 1 failed). The phase list is in
 
 **Not verified**: the eval-sweep workflow has not run (no secrets set; it spends money). Whether the full stack
 fits a standard runner's memory and disk is the open question.
+
+## Site redesign: foundations and the home page (2026-10-25)
+
+Plan: [SITE-REDESIGN.md](SITE-REDESIGN.md). The old site wore a borrowed dev-tool template (paper and corner
+brackets, hatching, a yellow highlighter, isometric slabs, Geist and Inter, a logo marquee) on one 16,800 px page.
+
+- **Run timings into the report**: `debugassist eval timings [--report <dir>]` writes `run-timings.json` next to a
+  report's `results.csv`, from each run's node files (`nodes/NN-<node>.json`: kind and ms, a repeated step listed
+  twice); `debugassist eval report` now writes it too. Generated for 2026-10-16: 255 runs, none missing. The site
+  still reads only `evals/reports`.
+- **Tokens and type**: night and day themes from one set of `light-dark()` tokens; the site follows the system
+  setting, an Auto / Night / Day toggle pins one (no flash on load). Archivo (claims, width axis), Martian Mono
+  (evidence) and Newsreader Italic (caveats) replace Geist and Inter. Every text colour is at least 4.5:1.
+- **Receipt**: figures open their source (file, row, field, raw value) in a popover built on the platform's Popover
+  API and CSS anchor positioning. Base UI was tried first and dropped: 45 KB gzipped for one popover.
+- **Home page**: a live run console in the hero replays VIT-1001 on its real step timings (clock, phase bands,
+  actor-coloured bars, Clef diamonds, findings, totals with receipts); then the three actors, a flat four-phase
+  pipeline, a layered architecture, features, a results summary, and a Safety section rendered from
+  `configs/policies/writes.yaml` at build time. The isometric `Loop` and `Architecture` components are gone.
+- **`/results` (Lab notebook)**: the dense evaluation tables moved here unchanged: Clef against the LLM decider, real
+  open-source bugs, bisect proofs, fix-width attempts, token experiments.
+- Measured on the static build: home page 11,300 px tall at 1440 px wide (was 16,800); first-load JS 177.4 KB
+  gzipped (was 175.8). No horizontal overflow at 375 px.
+
+**Verify**
+```
+uv run --no-sync pytest -q packages/evals/tests/test_timings.py
+pnpm --dir apps/site lint && pnpm --dir apps/site typecheck && pnpm --dir apps/site build
+make dashboard   # or: pnpm --dir apps/site dev → http://localhost:3300
+```
+
+**Open items**
+- The day theme was spot-checked on the hero only; the sections below it need a pass.
+- Features cards and the integrations, start and FAQ sections were restyled, not redesigned.
+- The plan's 120 KB JS budget is below React and Next.js alone (~126 KB); the budget is now the site's own share.
+- Phases P3 (`/runs` pages) and P4 (⌘K, OG images, CI checks) are not started.
 
 ## Runtime images scanned for critical CVEs (2026-10-20)
 
