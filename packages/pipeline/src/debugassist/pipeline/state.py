@@ -216,10 +216,21 @@ class Validation(BaseModel):
 
 
 ShipOutcome = Literal["open_pr", "draft_pr", "rca_only", "escalate"]
+# Why no fix was shipped. Every issue comment, Jira note and chat summary is built from this, never from the outcome
+# alone: `rca_only` covers both "not our code" and "our code, but no proof", which must not read the same.
+ShipReason = Literal[
+    "not_our_code",  # the RCA's category is not a code change in this repository (infra, device, library, …)
+    "flag_config",  # the flag's configuration is the defect; mitigated by the flag, not by code
+    "no_fix",  # no actionable root cause, or no fix was attempted
+    "repro_failed",  # our code, but no reproduction failed on the release (or none could be written)
+    "no_source_change",  # the reproduction failed, but the change touched only tests
+    "needs_human",  # a decision (D13, D16) asked for a maintainer
+]
 
 
 class Ship(BaseModel):
     outcome: ShipOutcome
+    reason: ShipReason | None = None  # None when a PR is proposed
     risk: float | None = None
     decision: dict[str, Any] = Field(default_factory=dict[str, Any])
 

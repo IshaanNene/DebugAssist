@@ -13,7 +13,7 @@ from debugassist.core.policy import Policy, PolicyGate
 from debugassist.integrations.github_app import GitHubAppMock
 from debugassist.pipeline import app_cli, app_intake
 from debugassist.pipeline.nodes import app_comment
-from debugassist.pipeline.state import RunState
+from debugassist.pipeline.state import RunState, Ship
 
 CONFIG = "version: 1\ncomponents:\n  .:\n    path: .\n    language: python\n    test: pytest -q\n"
 
@@ -132,10 +132,19 @@ def _upstream_mk(p: Path) -> Path:
 def test_the_comment_carries_the_marker_the_cause_and_the_pr() -> None:
     fx = json.loads((Path(__file__).parent / "fixtures" / "run_state.json").read_text())
     state = RunState.model_validate(fx)
-    text = app_comment(state, "https://github.com/acme/widgets/pull/5", "draft_pr")
+    text = app_comment(state, "https://github.com/acme/widgets/pull/5")
     assert text.startswith("<!-- debugassist:run ") and "pull/5" in text
     assert state.rca and state.rca.output and state.rca.output.location.file in text
-    assert "outside this repository" in app_comment(state, None, "rca_only")
+    # The fixture's root cause is in the repository's own code (own_code, src/notifications/router.ts). Without a
+    # verified reproduction the comment must not say the cause is outside the repository (it once did, and this
+    # test asserted it).
+    assert state.rca.output.category == "own_code"
+    state.ship = Ship(outcome="rca_only", reason="repro_failed")
+    no_pr = app_comment(state, None)
+    assert "outside this repository" not in no_pr and "no test reproduced" in no_pr
+    state.rca.output.category = "third_party_lib"
+    state.ship = Ship(outcome="rca_only", reason="not_our_code")
+    assert "outside this repository's code (third party lib)" in app_comment(state, None)
 
 
 def test_a_failed_run_is_retried_with_backoff_then_reported(

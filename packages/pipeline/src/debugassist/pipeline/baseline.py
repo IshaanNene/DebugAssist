@@ -166,7 +166,11 @@ async def investigate_and_fix(state: RunState, deps: Deps) -> dict[str, Any]:
         "agent_type_reason": state.agent_type_reason,
         "rca": RCA(output=_rca_output(out), llm=summary),
         "fix_attempts": attempts,
-        "ship": Ship(outcome="draft_pr" if diff else "rca_only", decision={"by": "baseline: changed or not"}),
+        "ship": Ship(
+            outcome="draft_pr" if diff else "rca_only",
+            reason=None if diff else "no_fix",
+            decision={"by": "baseline: changed or not"},
+        ),
         "costs": costs,
         "status": "done",
     }
