@@ -155,6 +155,38 @@ def _ts(path: Path) -> datetime | None:
     return datetime.fromtimestamp(path.stat().st_mtime).astimezone() if path.exists() else None
 
 
+def discovery_times(rca_s: float | None, end_s: float | None) -> dict[str, float | None]:
+    """Discovery → RCA / end, or None when the source's clock was ahead of the run (a negative duration).
+
+    BugDrop stamped a report with the client's own `created_at`; BUG-001's scenario simulates 17 minutes of
+    background time, so its report was dated up to ~14 min after the run that analysed it (5 rows, -131 s to
+    -831 s). A negative duration is not a measurement: it is dropped and the skew kept, not clamped to zero."""
+    skewed = any(v is not None and v < 0 for v in (rca_s, end_s))
+    return {
+        "discovery_to_rca_s": None if skewed else rca_s,
+        "discovery_to_end_s": None if skewed else end_s,
+        "discovery_clock_skew_s": -min(v for v in (rca_s, end_s) if v is not None) if skewed else None,
+    }
+
+
+def expects_fix(bug: Case) -> bool:
+    return bug.expected_outcome == "pr"
+
+
+def fix_success(row: dict[str, Any]) -> bool:
+    """A validated fix counts only where the catalog expects one: validating a "fix" for an infra incident or a
+    third-party bug (not-our-bug cases) is a wrong answer, not a success."""
+    return bool(row.get("validated")) and bool(row.get("expects_fix", True))
+
+
+def normalize(row: dict[str, Any], bug: Case) -> dict[str, Any]:
+    """Apply the current scorer's row-level rules to a saved row whose run state is gone (rescore)."""
+    times = discovery_times(row.get("discovery_to_rca_s"), row.get("discovery_to_end_s"))
+    if row.get("discovery_clock_skew_s") is not None and times["discovery_clock_skew_s"] is None:
+        times["discovery_clock_skew_s"] = row["discovery_clock_skew_s"]  # already normalized
+    return {**row, **times, "expects_fix": expects_fix(bug)}
+
+
 def timings(run_id: str, state: dict[str, Any]) -> dict[str, float | None]:
     """Seconds from discovery (issue opened) to the RCA and to the end of the run; pipeline time."""
     issue = _obj(state.get("issue"))
@@ -165,8 +197,10 @@ def timings(run_id: str, state: dict[str, Any]) -> dict[str, float | None]:
     start = datetime.fromisoformat(str(opened)) if opened else None
     rca_t, end_t = (_ts(rca) if rca else None), (_ts(end) if end else None)
     return {
-        "discovery_to_rca_s": round((rca_t - start).total_seconds(), 1) if start and rca_t else None,
-        "discovery_to_end_s": round((end_t - start).total_seconds(), 1) if start and end_t else None,
+        **discovery_times(
+            round((rca_t - start).total_seconds(), 1) if start and rca_t else None,
+            round((end_t - start).total_seconds(), 1) if start and end_t else None,
+        ),
         "pipeline_s": round(sum(_obj(state.get("timings_ms")).values()) / 1000, 1),
     }
 
@@ -218,7 +252,8 @@ def score_run(run_id: str, bug: Case, clef_usd: float = 0.0, run_hidden: bool = 
         "category_ok": category == bug.category,
         "outcome": ship,
         "outcome_ok": outcome_ok(ship, bug),
-        "validated": bool(validation.get("passed")),
+        "validated": bool(validation.get("passed")),  # what the pipeline proved; see fix_success for scoring
+        "expects_fix": expects_fix(bug),
         # DA_SECOND_REPRO: per validated attempt, what the second reproduction did (pass / fail / unchecked)
         "repro2": [
             {"passes with the fix": "pass", "fails with the fix": "fail"}.get(
